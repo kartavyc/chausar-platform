@@ -456,6 +456,19 @@
   text-align: right;
 }
 
+/* C4 (T21): a section's heading row (Issued, Paid) and the quiet line under an empty one. */
+.table th.groupHead {
+  height: 36px;
+  padding-top: var(--sp-3);
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.table td.groupEmpty {
+  height: 44px;
+  color: var(--mute);
+}
+
 .tr:focus-visible {
   outline: var(--focus) solid var(--link);
   outline-offset: -2px;
@@ -894,6 +907,19 @@
 
   .table tbody tr:last-child {
     border-bottom: 0;
+  }
+
+  .groupRow {
+    display: block;
+  }
+
+  .table th.groupHead,
+  .table td.groupEmpty {
+    display: block;
+    height: auto;
+    padding: var(--sp-3) 0 var(--sp-1);
+    border: 0;
+    text-align: left;
   }
 
   .table td {

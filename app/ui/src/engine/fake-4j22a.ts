@@ -18,7 +18,7 @@ import {vaFakeReport} from './fake-va-report';
  * The sample data is the fake's own; nothing here is a real check, signature or schedule.
  */
 
-import { EngineError, type AgentView, type AutoReadinessView, type DeliveryLite, type QueueRow, type RunDetail, type DrillRunView, type GuidanceLineView, type JournalChainView, type JournalEntry, type OrderContract, type OrderContractView, type ReceiptLite, type ReceiptSignatureLite, type ReceiptVerifyView, type RoutineInput, type RoutineRunState, type RoutineSchedule, type RoutineView, type ShadowSummaryView, type TeamListView } from './types';
+import { EngineError, type AgentView, type AutoReadinessView, type DeliveryLite, type QueueRow, type RunDetail, type DrillRunView, type GuidanceLineView, type JournalChainView, type JournalEntry, type OrderContract, type OrderContractView, type ReceiptLite, type ReceiptSignatureLite, type ReceiptVerifyView, type RoutineInput, type RoutineRunState, type RoutineSchedule, type RoutineSuggestion, type RoutineView, type BlueprintViewLite, type ShadowSummaryView, type TeamListView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import { fakeRoutineReceipt } from './fake-model-receipt';
 
@@ -26,6 +26,7 @@ export const FAKE_4J22A_METHODS: readonly string[] = [
   'venture.journal.chain', 'venture.journal.acceptBreak', 'venture.receipt.verify',
   'venture.order.contract', 'venture.order.contract.propose', 'venture.order.contract.sign',
   'venture.routines.list', 'venture.routines.runs', 'venture.routines.set', 'venture.routines.remove',
+  'venture.routines.suggestions',
   'venture.drills.run', 'venture.drills.list', 'venture.auto.readiness', 'venture.shadow.summary', 'venture.playbook.guidance',
 ];
 
@@ -91,12 +92,21 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso), zone); return `${w.d} ${MONTHS[w.m - 1]} ${w.y}, ${formatClock(`${pad(w.h)}:${pad(w.min)}`)}`; };
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
+const ordinal = (day: number) => `${day}${day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th'}`;
+/** C4 task 32, as the engine's routines.ts RHYTHMS: a step that names its rhythm, and its schedule at 09:00. */
+const RHYTHMS: readonly { words: RegExp; schedule: (timeZone: string) => RoutineSchedule }[] = [
+  { words: /\b(?:monthly|every month|each month|month-end|month end)\b/i, schedule: (timeZone) => ({ kind: 'monthly', day: 1, time: '09:00', timeZone }) },
+  { words: /\b(?:weekly|every week|each week)\b/i, schedule: (timeZone) => ({ kind: 'calendar', weekdays: [1], time: '09:00', timeZone }) },
+  { words: /\b(?:daily|every day|each day)\b/i, schedule: (timeZone) => ({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '09:00', timeZone }) },
+];
+
 function whenWords(schedule: RoutineSchedule): string {
   if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, ZONE)}, ${ZONE}`;
   if (schedule.kind === 'interval') {
     const every = schedule.everyMinutes % 1440 === 0 ? `${schedule.everyMinutes / 1440} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, ZONE)}, ${ZONE}`;
   }
+  if (schedule.kind === 'monthly') return `On the ${ordinal(schedule.day)} of each month, ${formatClock(schedule.time)}, ${schedule.timeZone}`;
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map((day) => DAY_NAMES[day - 1]!));
   return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
 }
@@ -123,6 +133,15 @@ function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
     try { known = typeof s.timeZone === 'string' && !!new Intl.DateTimeFormat('en-US', { timeZone: s.timeZone }); } catch { known = false; }
     if (!known) throw invalid('Choose a time zone by its name, like Asia/Kolkata.');
     return { kind: 'calendar', weekdays: [...(days as number[])].sort((a, b) => a - b), time: s.time, timeZone: s.timeZone as string };
+  }
+  // C4 task 32, as the engine: one day of the month, 1 to 28, at a time in a named zone.
+  if (s.kind === 'monthly') {
+    if (!Number.isInteger(s.day) || (s.day as number) < 1 || (s.day as number) > 28) throw invalid('Choose a day of the month from 1 to 28.');
+    if (typeof s.time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.time)) throw invalid('Give the time as HH:MM on a 24-hour clock, like 09:00.');
+    let known = false;
+    try { known = typeof s.timeZone === 'string' && !!new Intl.DateTimeFormat('en-US', { timeZone: s.timeZone }); } catch { known = false; }
+    if (!known) throw invalid('Choose a time zone by its name, like Asia/Kolkata.');
+    return { kind: 'monthly', day: s.day as number, time: s.time, timeZone: s.timeZone as string };
   }
   throw invalid(cron);
 }
@@ -256,6 +275,7 @@ export class FakeQualityDesk {
       case 'venture.routines.runs': return this.routineHistory(p);
       case 'venture.routines.set': return this.routineSet(p);
       case 'venture.routines.remove': return this.routineRemove(p);
+      case 'venture.routines.suggestions': exact(p, []); return { suggestions: this.routineSuggestions() };
       case 'venture.drills.run': exact(p, []); return this.drillsRun();
       case 'venture.drills.list': exact(p, []); return { runs: clone(this.drills.get(this.host.current()) ?? []) };
       case 'venture.auto.readiness': return this.readiness(p);
@@ -404,6 +424,27 @@ export class FakeQualityDesk {
     return (this.routines.get(this.host.current()) ?? []).filter((r) => !r.removed);
   }
 
+  /** C4 task 32, as the engine's routineSuggestions: at most two ready routines the accepted plan names; nothing stored. */
+  private routineSuggestions(): RoutineSuggestion[] {
+    const plan = this.host.ask('venture.blueprint.get', {}) as BlueprintViewLite | null;
+    if (!plan || plan.blueprint.status !== 'accepted') return [];
+    const steps = plan.blueprint.flagshipSteps ? plan.blueprint.flagshipSteps.filter((step) => step.doneBy !== 'person') : plan.blueprint.deliverySteps;
+    const taken = new Set(this.liveRoutines().map((r) => r.name.toLowerCase()));
+    const agent = this.agents()[0]?.id ?? null;
+    const found: RoutineSuggestion[] = [];
+    for (const step of steps) {
+      if (found.length >= 2) break;
+      const title = step.title.value;
+      const rhythm = RHYTHMS.find((item) => item.words.test(title));
+      const name = title.trim().slice(0, 80);
+      if (!rhythm || taken.has(name.toLowerCase())) continue;
+      const schedule = rhythm.schedule(ZONE);
+      found.push({ name, agent, schedule, when: whenWords(schedule), step: title, prompt: `${name.replace(/[.\s]+$/, '')} for this business, from its own records and plan. Keep it as a draft for my approval.` });
+      taken.add(name.toLowerCase());
+    }
+    return found;
+  }
+
   private agents(): AgentView[] {
     return (this.host.ask('venture.team.list', {}) as TeamListView).agents;
   }
@@ -435,7 +476,7 @@ export class FakeQualityDesk {
   }
   private routineView(routine: Routine): RoutineView {
     const next = routine.on ? nextOccurrence(routine.schedule, Date.parse(this.host.now())) : null;
-    const zone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : ZONE;
+    const zone = routine.schedule.kind === 'calendar' || routine.schedule.kind === 'monthly' ? routine.schedule.timeZone : ZONE;
     const who = routine.agent === null ? 'Chausar' : this.agents().find((a) => a.id === routine.agent)?.name ?? routine.agent;
     const line = !routine.on ? 'Off. Nothing runs.'
       : next ? routine.recordReport?`Next ${momentIn(next,zone)}. A private report from saved records waits for your approval on Today. No model call.`:`Next ${momentIn(next, zone)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.` : 'No more times to run.';

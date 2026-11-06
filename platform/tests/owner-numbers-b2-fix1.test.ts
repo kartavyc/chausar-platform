@@ -31,11 +31,11 @@ test('a deliverable quotes the exact form: "SGD 5,000" is rebuilt as "SGD 5,000.
   const receipt = (display: string, minor: string, currency: string) => ({ id: `r-${currency}`, figures: [{ key: 'total', label: 'Total', display, minor, currency, unit: 'money' }] });
   const draft = (id: string) => ({ title: 'Plan', sections: [{ heading: 'Price', parts: [{ kind: 'figure', receiptId: id, figureKey: 'total' }] }], questionsForClient: [] });
   const render = (r: ReturnType<typeof receipt>) => renderDeliverable(draft(r.id) as any, [r as any], { dateOrder: 'DMY' } as any);
-  assert.match(render(receipt('SGD 5,000', '500000', 'SGD')), /Total: SGD 5,000\.00/);
-  assert.match(render(receipt('₹1,180', '118000', 'INR')), /Total: INR 1,180\.00/);
+  assert.match(render(receipt('SGD 5,000', '500000', 'SGD')), /SGD 5,000\.00 in total/);
+  assert.match(render(receipt('₹1,180', '118000', 'INR')), /INR 1,180\.00 in total/);
   // A receipt kept with no minor units (an exact display written at rest) is quoted as written.
-  assert.match(render(receipt('INR 1,180.00', '0', 'INR')), /Total: INR 1,180\.00/);
-  assert.match(render(receipt('JPY 5,000', '5000', 'JPY')), /Total: JPY 5,000/);
+  assert.match(render(receipt('INR 1,180.00', '0', 'INR')), /INR 1,180\.00 in total/);
+  assert.match(render(receipt('JPY 5,000', '5000', 'JPY')), /JPY 5,000 in total/);
 });
 
 // Quality 1: a count groups as the business's country does. A US business reads "441,000 tokens", never "4,41,000".

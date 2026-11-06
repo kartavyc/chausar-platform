@@ -14,6 +14,7 @@
   "money-pay.saveFile": "Save file",
   "money-pay.whatsapp": "Share on WhatsApp",
   "money-pay.email": "Email it",
+  "money-pay.markSent": "Mark as sent",
   "money-pay.shareNote": "Your own app opens with the words filled in. Attach the file and send it yourself.",
   "money-pay.saved": "Saved {name}.",
   "money-pay.cantSave": "This window cannot save files.",

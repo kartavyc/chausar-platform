@@ -544,6 +544,11 @@ export function rupeesBeside(micros: MicroString, rupees: Rupees | null): Displa
 }
 
 /** The owner's rupee rate for a business, read from a state snapshot; null when none is set. */
+/** C4 (T23): a rupee business with no rate set. Elsewhere a rupee rate would not help, so nothing offers one. */
+export function needsRupeeRate(rupees: Rupees | null, venture: Pick<VentureRecord, 'country'>): boolean {
+  return rupees === null && venture.country.currency === 'INR';
+}
+
 export function rupeesOf(state: State, venture: Pick<VentureRecord, 'id' | 'country'>): Rupees | null {
   const policy = latestPolicy(listRecords(state, 'venture-spend-policy', venture.id));
   const rate = policy?.rupeeRate ?? null;
@@ -784,7 +789,7 @@ function refusalReason(record: SpendRecord): Display {
  * owner's rupee rate, every figure and the total come in rupees too, beside the dollars. A model call's row says who
  * answered it (by) once it has.
  */
-export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead: SpendLead }> {
+export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead: SpendLead; needsRate?: boolean }> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
   const records = newestFirst(listRecords(state, 'venture-spend', venture.id));
@@ -806,6 +811,7 @@ export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknow
     ...(rupees ? { totalRupees: rupeesBeside(String(total), rupees)! } : {}),
     // 4Z3: the month's total as the owner's currency leads it.
     totalLead: spendLead(String(total), rupees, SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : '')),
+    ...(needsRupeeRate(rupees, venture) ? { needsRate: true } : {}),
   };
 }
 

@@ -17,6 +17,7 @@ import type {
 } from '../contracts.ts';
 import { CA_FIRM_ID } from '../playbooks/ca-firm/registration.ts';
 import { promptLeakLine, promptLeaks } from '../playbooks/prompt-leak.ts';
+import { engineLabelIn, engineLabelLine } from './judge/engine-labels.ts';
 import { draftWords, modelWordsOf, type AnyReceipt, type DraftTimes } from './deliverable.ts';
 import { claimBacked } from './harness/claims.ts';
 import type { FileLike } from './harness/files.ts';
@@ -226,6 +227,10 @@ function noDoneClaims(input: CheckInput): CheckResult {
  */
 function claimsGrounded(input: CheckInput): CheckResult {
   const grounding = input.grounding;
+  // C4 task 16: an engine label in the model's words fails first, in plain words. A client's own words stand.
+  const clientWords = [grounding?.clientRequest ?? '', ...(grounding?.answers ?? []), ...sourcesFromFiles(grounding?.files ?? []).map(source => source.text)];
+  const label = engineLabelIn(deliverableWords(input.deliverable), clientWords);
+  if (label) return { check: 'claims-grounded', passed: false, detail: engineLabelLine(label) };
   const result = checkClaims(deliverableWords(input.deliverable), [...groundingSources(input.receipts, input.ventureId, grounding), ...(grounding?.ownerSources ?? []).map(source => ({ ...source, backs: ['name' as const] }))], {
     known: [...ALWAYS_KNOWN, ...(grounding?.known ?? [])],
     dateOrder: grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',

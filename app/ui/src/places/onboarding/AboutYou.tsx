@@ -5,6 +5,7 @@ import type { AboutReadLite, CountryLite } from '../../engine/types';
 import { Bento, Tile } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
+import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { InlineError } from '../../parts/InlineError';
 // One-shot C3: off under the computer's reduce-motion setting or the owner's Animations off; then A becomes B with no motion.
@@ -22,8 +23,18 @@ export type AboutMode = 'a' | 'b' | 'plan';
 type Mode = AboutMode;
 /** failed: a read that failed or an AI that stopped, said as Chausar's turn in the chat (B4 task 4). */
 type Bubble = { who: 'me' | 'them'; text: string; failed?: boolean };
+/** C4 task 1: an offer on the plan card, kept (ticked) by default, renamed in place, or added by the owner. */
+type OfferRow = { key: number; name: string; line: string; kept: boolean; editing: boolean };
+/** The engine keeps one to three offers from the card (core/blueprint.ts SHOWN_OFFER_IDS). */
+const CARD_OFFERS_MAX = 3;
+/**
+ * C4 task 1 (146.w1): a message that asks for a rename in any words. When renameIn cannot read a name from it, the chat
+ * says so in one fixed line and points at the name field.
+ */
+const ASKS_RENAME = /\b(?:(?:call|name)\s+(?:it|this|the business|my business|this business)|rename)\b/i;
+const rowsOf = (next: AboutReadLite): OfferRow[] => next.offers.map((offer, index) => ({ key: index, name: offer.name, line: offer.line ?? '', kept: true, editing: false }));
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
-export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
+export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string; firstName?: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
@@ -53,11 +64,17 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
   useEffect(() => { onMode?.(mode); }, [mode, onMode]);
   const [motion] = useState(() => (motionOff() ? 'none' : 'once'));
   const [text, setText] = useState('');
+  // C4 task 2 (8.w1): optional, kept here only until the business is open (FirstRun's kept()).
+  const [firstName, setFirstName] = useState('');
   const [file, setFile] = useState<AboutFile | null>(null);
   const [said, setSaid] = useState('');
   const [reply, setReply] = useState('');
   const [thread, setThread] = useState<Bubble[]>([]);
-  const [read, setRead] = useState<AboutReadLite | null>(null);
+  const [read, setReadOnly] = useState<AboutReadLite | null>(null);
+  /** C4 task 1: the card's offers as the owner keeps, renames or adds them; reset with each new read. */
+  const [rows, setRows] = useState<OfferRow[]>([]);
+  const [adding, setAdding] = useState<string | null>(null);
+  const setRead = useCallback((next: AboutReadLite | null) => { setReadOnly(next); setRows(next ? rowsOf(next) : []); setAdding(null); }, []);
   const [name, setName] = useState<string | null>(null);
   /** One-shot A3 (S1): the name the owner asked for in the chat; it wins over the field's name until they change it again. */
   const [ownName, setOwnName] = useState<string | null>(null);
@@ -141,6 +158,12 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
     // One-shot A3 (S1): a rename is read by code and kept on the card; the AI never names a business, so it is not asked.
     // A3 review (L2): what the message asks after the name ("and add wedding shoots too") still goes to the AI.
     const renamed = read ? renameIn(more) : null;
+    // C4 task 1 (146.w1): asked to rename in words code cannot read: one fixed line, and the AI is not asked.
+    if (read && !renamed && ASKS_RENAME.test(more)) {
+      setReply('');
+      setThread((was) => [...was, { who: 'me', text: more }, { who: 'them', text: t('first-run.about.renameHere') }]);
+      return;
+    }
     if (renamed) {
       setOwnName(renamed.name);
       setReply('');
@@ -191,7 +214,29 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); then(); }
   }
 
-  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode, name: (ownName ?? name ?? read.family.label).trim() } : null;
+  // C4 task 1: the plan keeps the offers still ticked, with the owner's renames and additions.
+  const keptOffers = rows.filter((row) => row.kept && row.name.trim().length >= 2).map((row) => ({ name: row.name.trim(), line: row.line.trim() }));
+  const noOffer = read !== null && read.offers.length > 0 && keptOffers.length === 0;
+  const keepable = read?.family && read.idea && countryCode && !noOffer
+    ? { read: { ...read, offers: keptOffers.length ? keptOffers : read.offers } as KeptPlan['read'], countryCode, name: (ownName ?? name ?? read.family.label).trim(), ...(firstName.trim() ? { firstName: firstName.trim() } : {}) } : null;
+  const noOfferId = `${fieldId}-none`;
+
+  function change(key: number, next: Partial<OfferRow>) { setRows((was) => was.map((row) => (row.key === key ? { ...row, ...next } : row))); }
+  function renameRow(key: number, value: string) { const words = value.trim(); change(key, words.length >= 2 ? { name: words, editing: false } : { editing: false }); }
+  /** Open while the new-offer field is: Enter and the blur that follows it add the offer once. */
+  const addOpen = useRef(false);
+  function startAdding() { addOpen.current = true; setAdding(''); }
+  function added(value: string) {
+    if (!addOpen.current) return;
+    addOpen.current = false;
+    const words = value.trim();
+    setAdding(null);
+    if (words.length >= 2) setRows((was) => [...was, { key: Math.max(-1, ...was.map((row) => row.key)) + 1, name: words, line: '', kept: true, editing: false }]);
+  }
+  function offerKey(event: KeyboardEvent<HTMLInputElement>, save: (value: string) => void, cancel: () => void) {
+    if (event.key === 'Enter') { event.preventDefault(); save(event.currentTarget.value); }
+    else if (event.key === 'Escape') { event.preventDefault(); cancel(); }
+  }
   const tiles = families.data?.families ?? [];
 
   const where = (
@@ -234,8 +279,10 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
     return (
     <>
       <div className={s.nameCard}>
-        <p className={s.label}>{t('first-run.about.name')}</p>
-        <p className={s.name} data-content="" data-plan-name="">{ownName ?? name ?? read.family?.label ?? ''}</p>
+        {/* C4 task 1 (47.f2, 251.w1): the suggested name is a field the owner can type over; focus selects it. */}
+        <label className={s.label} htmlFor={`${fieldId}-name`}>{t('first-run.about.name')}</label>
+        <input id={`${fieldId}-name`} className={s.name} data-content="" data-plan-name="" maxLength={60}
+          value={ownName ?? name ?? read.family?.label ?? ''} onChange={(event) => setOwnName(event.target.value)} onFocus={(event) => event.currentTarget.select()} />
         {read.family && <p className={s.offerLine}>{read.family.label}</p>}
       </div>
       <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
@@ -246,23 +293,56 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
         <>
           <p className={s.label}>{t('first-run.about.sell')}</p>
           <ul className={s.offers}>
-            {read.offers.map((offer) => (
-              <li key={offer.name} className={s.offer} data-content="">
-                <span className={s.offerName}>{offer.name}</span>
-                {offer.line && <span className={s.offerLine}>{offer.line}</span>}
+            {rows.map((row) => (
+              <li key={row.key} className={s.offer} data-content="">
+                {!row.kept ? (
+                  // Removed: one line and Undo (a seam for C3 task 13's removed-row part).
+                  <span className={s.offerRow}>
+                    <span className={s.offerLine}>{t('first-run.about.removed', { name: row.name })}</span>
+                    <Button variant="quiet" size="sm" onClick={() => change(row.key, { kept: true })}>{t('first-run.about.undo')}</Button>
+                  </span>
+                ) : row.editing ? (
+                  <input className={s.offerEdit} aria-label={t('first-run.about.renameOffer', { name: row.name })} defaultValue={row.name} maxLength={60} autoFocus
+                    onKeyDown={(event) => offerKey(event, (value) => renameRow(row.key, value), () => change(row.key, { editing: false }))}
+                    onBlur={(event) => renameRow(row.key, event.currentTarget.value)} />
+                ) : (
+                  <span className={s.offerRow}>
+                    <label className={s.offerTick}>
+                      <input type="checkbox" checked onChange={() => change(row.key, { kept: false })} />
+                      <span className={s.offerName}>{row.name}</span>
+                    </label>
+                    <Button variant="quiet" size="sm" aria-label={t('first-run.about.renameOffer', { name: row.name })} onClick={() => change(row.key, { editing: true })}>
+                      <Icon name="pencil" size={14} />
+                    </Button>
+                  </span>
+                )}
+                {row.kept && row.line && <span className={s.offerLine}>{row.line}</span>}
               </li>
             ))}
+            {adding !== null && (
+              <li className={s.offer}>
+                <input className={s.offerEdit} aria-label={t('first-run.about.newOffer')} value={adding} maxLength={60} autoFocus
+                  onChange={(event) => setAdding(event.target.value)}
+                  onKeyDown={(event) => offerKey(event, added, () => { addOpen.current = false; setAdding(null); })} onBlur={(event) => added(event.currentTarget.value)} />
+              </li>
+            )}
           </ul>
+          {adding === null && keptOffers.length < CARD_OFFERS_MAX && (
+            <Button variant="quiet" size="sm" onClick={startAdding}>{t('first-run.about.addOffer')}</Button>
+          )}
           <p className={s.hint}>{t('first-run.about.prices')}</p>
         </>
       )}
       {where}
       <div className={s.keep}>
-        <Button variant="primary" size="lg" disabled={!keepable || busy} disabledReason={!busy && read && !read.family ? t('first-run.about.pickField') : undefined} onClick={() => { if (keepable) onKeep(keepable); }}>{t('first-run.about.keep')}</Button>
+        {noOffer && <p id={noOfferId} className={s.hint}>{t('first-run.about.noOffer')}</p>}
+        <Button variant="primary" size="lg" disabled={!keepable || busy} disabledReason={!busy && read && !read.family ? t('first-run.about.pickField') : undefined} aria-describedby={noOffer ? noOfferId : undefined} onClick={() => { if (keepable) onKeep(keepable); }}>{t('first-run.about.keep')}</Button>
       </div>
     </>
     );
   }
+
+  const firstNameField = <Field label={t('first-run.about.firstName')} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.currentTarget.value)} />;
 
   if (mode === 'a') {
     return (
@@ -272,6 +352,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
         <p className={f.sub}>{t('first-run.about.sub')}</p>
         <Bento className={f.grid} as="section" labelledBy={headingId}>
           <Tile span={12} card>
+            {firstNameField}
             <form className={s.box} onSubmit={send} noValidate>
               <label htmlFor={boxId} className={s.boxLabel}>{t('first-run.about.label')}</label>
               <div className={s.boxRow}>
@@ -324,6 +405,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
               <span className={s.hint}>{t('first-run.about.chatMeta')}</span>
               <Button variant="quiet" onClick={() => setMode('a')}>{t('first-run.about.back')}</Button>
             </div>
+            {firstNameField}
             {thread.map((bubble, index) => (bubble.failed ? (
               <div key={index} className={`${s.bubble} ${s.them}`} data-failed-turn="">
                 <InlineError fix={stopped && index === thread.length - 1 && lastAsk.current ? { label: t('first-run.ai.tryAgain'), onSelect: () => { void ask(lastAsk.current!); } } : undefined}>{bubble.text}</InlineError>

@@ -235,7 +235,7 @@ export function Timeline({ view }: { view: InvoiceViewLite }) {
       <ol className={v.timeline}>
         {entries.map((entry, index) => (
           <li key={`${index}:${entry.what}`} className={v.timelineItem} data-what={entry.what}>
-            <span>{t(`money.timeline.${entry.what}`)}</span>
+            <span>{t(entry.what === 'shared' && entry.how ? `money.timeline.shared.${entry.how}` : `money.timeline.${entry.what}`)}</span>
             <span className={v.quiet}>{day(entry.on)}</span>
           </li>
         ))}

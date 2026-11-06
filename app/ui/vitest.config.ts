@@ -2,8 +2,10 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { globSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
+const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 // D2 task 10: the logic-only tests (the fake engine and the text keys) run in threads without isolation, in a plain
 // node environment; every other test runs as before, in jsdom. The files in NEEDS_DOM sit in those folders but draw or
@@ -23,6 +25,8 @@ export default defineConfig({
   root,
   plugins: [react()],
   css: { modules: { localsConvention: 'camelCaseOnly' } },
+  // C4 task 41: as vite.config.ts (parts/build-info.ts).
+  define: { 'import.meta.env.VITE_CHAUSAR_VERSION': JSON.stringify(version), 'import.meta.env.VITE_CHAUSAR_BUILT_AT': JSON.stringify(new Date().toISOString()) },
   test: {
     root,
     restoreMocks: true,

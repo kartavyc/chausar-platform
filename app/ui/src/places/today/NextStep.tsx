@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { primaryOf, type ApprovalHandle, type ApprovalPrimary } from '../../parts/ApprovalRow';
+import { usePausedWork } from '../../parts/paused';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Figure } from '../../parts/Figure';
@@ -155,10 +156,12 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
   });
   const total = goalAmount(step.figure);
   // 4Z2: the card's own words for its buttons (Hindi included), as the card itself shows them.
-  const primary = primaryOf(wordedRow(row, t), host.isViewed(row), t);
+  // C4 task 5: locked while paused when it would start new work, as its card is.
+  const primary = primaryOf(wordedRow(row, t), host.isViewed(row), t, usePausedWork());
   const press = () => { setPending(row.id); host.goToRow(row.id); };
   const primaryId = (row.actions.find((action) => action.primary) ?? row.actions[0])?.id;
-  if (folded) return <FoldedStep title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} />;
+  const open = () => (row.viewRef ? host.look(row) : host.goToRow(row.id));
+  if (folded) return <FoldedStep title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} onOpen={open} />;
   // The row's own line and "asks you once more" are on its card already: the tile says neither again (words).
   const data: NextStepData = {
     rowId: row.id, title: row.title, agent: step.agent ?? row.agent,
@@ -169,7 +172,7 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
     <NextStep
       data={data}
       primary={{ ...primary, asksAgain: false }}
-      onOpen={row.viewRef && !GOES_THERE.has(primaryId ?? '') ? () => host.look(row) : undefined}
+      onOpen={GOES_THERE.has(primaryId ?? '') ? undefined : open}
       onPrimary={press}
     />
   );
@@ -179,7 +182,7 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
  * The next best step folded into the goal card on a phone (D-Phone-Today): "Next best step", the row's title and its
  * figure on one line, and the card's one filled button, the row's own primary (locked and worded as its card).
  */
-function FoldedStep({ title, total, primary, onPrimary }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void }) {
+function FoldedStep({ title, total, primary, onPrimary, onOpen }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void; onOpen: () => void }) {
   const t = useT();
   const noteId = useId();
   const plain = usePlainTiles();
@@ -191,6 +194,8 @@ function FoldedStep({ title, total, primary, onPrimary }: { title: string; total
         {total && <Figure {...total} tone={plain ? undefined : 'dark'} />}
       </p>
       {primary.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}
+      {/* C4 task 9 (shot 248): a locked primary has Open beside it, which opens the thing to read so it unlocks. */}
+      {primary.locked && <Button size="xl" onClick={onOpen}>{t('today.next.open')}</Button>}
       <Button
         size="xl"
         variant="primary"

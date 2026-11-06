@@ -29,7 +29,7 @@ const styles = () => frameVariables((token) => getComputedStyle(document.documen
  * hands it the app document. The bridge listens before the frame starts, then relays each allowed tools/call to the
  * engine. The frame grows with the app, within bounds, through the height attribute (no inline style).
  */
-export function MiniAppFrame({ app, title, onMoved }: { app: MiniAppView; title: string; onMoved: () => void }) {
+export function MiniAppFrame({ app, title, onMoved, sample }: { app: MiniAppView; title: string; onMoved: () => void; /** C4 task 29: every call answers the made-up rows. */ sample?: boolean }) {
   const client = useEngine();
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(FRAME_MIN * 2);
@@ -42,7 +42,7 @@ export function MiniAppFrame({ app, title, onMoved }: { app: MiniAppView; title:
     if (!frame) return undefined;
     const close = openBridge({
       frame, document: app.document, tools: tools ? tools.split(',') : [], theme: chausarTheme, styles, onSize: setHeight, onClosed: () => moved.current(),
-      call: (tool, args) => client.request('venture.apps.call', { app: app.id, tool, arguments: args }),
+      call: (tool, args) => client.request('venture.apps.call', { app: app.id, tool, arguments: args, ...(sample ? { sample: true as const } : {}) }),
     });
     frame.src = MINI_FRAME_SRC;
     // The owner switches the theme, or the computer does: the running app gets the new colours.
@@ -53,7 +53,7 @@ export function MiniAppFrame({ app, title, onMoved }: { app: MiniAppView; title:
     const onMedia = () => close.themeChanged();
     media?.addEventListener?.('change', onMedia);
     return () => { watch?.disconnect(); media?.removeEventListener?.('change', onMedia); close(); };
-  }, [client, app.id, app.document, tools]);
+  }, [client, app.id, app.document, tools, sample]);
 
-  return <iframe ref={ref} className={s.frame} title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" allow={MINI_FRAME_ALLOW} height={height} data-mini-app={app.id} />;
+  return <iframe ref={ref} className={s.frame} title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" allow={MINI_FRAME_ALLOW} height={height} data-mini-app={app.id} data-sample={sample ? '' : undefined} />;
 }

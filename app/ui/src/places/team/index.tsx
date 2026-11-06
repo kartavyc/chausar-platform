@@ -22,6 +22,14 @@ import s from './Team.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
+ * One-shot C4 task 10 (36.x1): the empty Team's way on lands on Today with the plan's card in view and the plan open to
+ * read (Today's `focus` and `read`), where it is accepted.
+ */
+export const TEAM_ACCEPT_PLAN_HREF = '#/today?focus=plan&read=1';
+/** B4 task 14's "Add an agent here" keeps one address, so C7 task 16 can point it at the hire sheet. */
+export const TEAM_ADD_AGENT_HREF = '#/onboarding';
+
+/**
  * Team (D-Team): who is working, who waits on you and the AI spend this month, then the agents as cards. Once the
  * engine sends departments (W4 4A) the agents sit in their five tinted department panels, with a toggle that shows
  * one department at a time (held in the address as `?dept=`); before that they sit in one tile, never placed in a
@@ -70,7 +78,7 @@ function PlaceBody() {
       <PageTitle title={t('place.team')} line={line} count={some ? count : undefined} />
       {team.error && <p className={s.failed}>{t('team.failed', { message: team.error.message })}</p>}
       {agents?.length === 0 && (
-        <EmptyState title={t('team.empty')} actions={[{ label: t('team.emptyLink'), href: '#/business/plan' }]} />
+        <EmptyState title={t('team.empty')} actions={[{ label: t('team.emptyLink'), href: TEAM_ACCEPT_PLAN_HREF }]} />
       )}
       {some && (
         <div className={s.page}>
@@ -79,7 +87,7 @@ function PlaceBody() {
               {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}
               <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
               {/* An agent joins with a way to earn: its playbook brings the team that works it (spec 5.1). */}
-              <a className={s.addAgent} href="#/onboarding"><Icon name="plus" size={16} />{t('team.addAgent')}</a>
+              <a className={s.addAgent} href={TEAM_ADD_AGENT_HREF}><Icon name="plus" size={16} />{t('team.addAgent')}</a>
             </div>
           )}
           <LoadingPlace shape="tiles" loading={!team.data && !team.error} />

@@ -7,7 +7,7 @@
  * approvals and limits stay where they are.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { EngineError, type LayoutBlockView, type LayoutChange, type LayoutPlace, type LayoutRequest } from '../../engine/types';
@@ -124,12 +124,28 @@ interface BlockRowProps {
 function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
   const t = useT();
   const [name, setName] = useState(block.name);
+  /** C4 task 6: the name is text with a pencil; its field opens for this part only, while the owner renames it. */
+  const [editing, setEditing] = useState(false);
+  const pencil = useRef<HTMLButtonElement>(null);
   // The name the engine holds now (after a rename, an Undo or the AI's change).
   useEffect(() => { setName(block.name); }, [block.name]);
+  const close = () => { setEditing(false); setName(block.name); requestAnimationFrame(() => pencil.current?.focus()); };
+  async function rename(next: string) {
+    if (await send({ op: 'rename', block: block.id, name: next.trim() === block.defaultName ? null : next })) { setEditing(false); requestAnimationFrame(() => pencil.current?.focus()); }
+  }
+  const keys = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter') { event.preventDefault(); void rename(name); }
+    else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+  };
   return (
     <li className={s.item} aria-label={block.name}>
       <div className={s.head}>
         <span className={s.name}>{block.name}</span>
+        {block.rename !== 'fixed' && !editing && (
+          <Button ref={pencil} variant="quiet" size="sm" disabled={busy} aria-label={t('layout.renamePart', { name: block.name })} onClick={() => setEditing(true)}>
+            <Icon name="pencil" size={14} />
+          </Button>
+        )}
         {!block.shown && <span className={s.hiddenMark}>{t('layout.hidden')}</span>}
         {block.movable && (
           <>
@@ -146,21 +162,21 @@ function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
         )}
       </div>
       {block.why && <p className={s.why}>{block.why}</p>}
-      {block.rename === 'free' && (
+      {editing && block.rename === 'free' && (
         <div className={s.rename}>
-          <Field label={t('layout.name', { name: block.defaultName })} value={name} maxLength={32} onChange={(event) => setName(event.currentTarget.value)} />
-          <Button variant="quiet" disabled={busy} onClick={() => void send({ op: 'rename', block: block.id, name: name.trim() === block.defaultName ? null : name })}>{t('layout.rename')}</Button>
+          <Field label={t('layout.name', { name: block.defaultName })} value={name} maxLength={32} autoFocus onKeyDown={keys} onChange={(event) => setName(event.currentTarget.value)} />
+          <Button variant="quiet" disabled={busy} onClick={() => void rename(name)}>{t('layout.rename')}</Button>
         </div>
       )}
-      {block.rename === 'aliases' && (
+      {editing && block.rename === 'aliases' && (
         <div className={s.rename}>
           <label className={s.selectLabel}>
             {t('layout.name', { name: block.defaultName })}
-            <Select className={s.select} value={name} onChange={(event) => setName(event.currentTarget.value)}>
+            <Select className={s.select} value={name} autoFocus onKeyDown={keys} onChange={(event) => setName(event.currentTarget.value)}>
               {[block.defaultName, ...block.aliases].map((option) => <option key={option} value={option}>{option}</option>)}
             </Select>
           </label>
-          <Button variant="quiet" disabled={busy} onClick={() => void send({ op: 'rename', block: block.id, name: name === block.defaultName ? null : name })}>{t('layout.rename')}</Button>
+          <Button variant="quiet" disabled={busy} onClick={() => void rename(name)}>{t('layout.rename')}</Button>
         </div>
       )}
     </li>

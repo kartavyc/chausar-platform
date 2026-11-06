@@ -328,7 +328,7 @@ if (singleInstance) app.whenReady().then(async () => {
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
-  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
   ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();
@@ -340,6 +340,10 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
+  // One-shot C4 task 36: Export asks where to save in main's save dialog; the window gets the name, and Show in folder an id.
+  { const exportSave = require('./export-save.cjs'); const exportDeps = () => ({ dialog, shell, window, engine, assertTrustedSender, publicError, documents: app.getPath('documents') });
+    ipcMain.handle(exportSave.SAVE_CHANNEL, (event, input) => exportSave.saveBusinessExport(event, input, exportDeps()));
+    ipcMain.handle(exportSave.SHOW_CHANNEL, (event, input) => exportSave.showSavedExport(event, input, exportDeps())); }
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
   // One-shot A5: start at login and keep running, asked in onboarding and changed in Settings. Previews and development
   // runs answer that they are not here (no login item ever), and refuse a change.

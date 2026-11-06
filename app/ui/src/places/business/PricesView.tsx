@@ -18,8 +18,10 @@ import { LoadingPlace } from '../../parts/Skeleton';
  * Prices in the D look: each offer a card with its price at rest as the calculator's total with its receipt
  * (venture.price.quote), and a field to set a new price, the card's one filled button. Simple first (founder, 23 Oct):
  * how the price is worked out (every figure of the receipt, tax lines included, as the calculator wrote them) waits
- * one fold away. The typed price goes to the engine as typed; the engine checks it, writes a new plan version, and the
- * change waits on Today (one press, with an Undo). Nothing is added up or formatted here. A price that is a share of an amount
+ * one fold away. The typed price goes to the engine as typed; the engine checks it and writes a new plan version. C4
+ * task 33 (founder decision 1): the owner's own Save is the one press on that exact price, so it applies at once and
+ * the engine's line comes back with Undo, until a quote, an order or an invoice uses it. A price from anywhere else waits
+ * on Today (B4 task 7: one press, with an Undo). Nothing is added up or formatted here. A price that is a share of an amount
  * the client confirms later is the price editor's advanced option, one fold away (W5 5A2, SharePrice.tsx).
  */
 export function PricesView() {
@@ -75,6 +77,8 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // C4 task 33: the engine's decided line for the owner's own price, with the row its Undo takes; then the Undo's line.
+  const [decided, setDecided] = useState<{ line: string; undoRowId: string | null } | null>(null);
   const priced = offer.pricing.unitPriceMinor !== null;
   const total = totalOf(receipt);
 
@@ -96,13 +100,29 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
     if (!typed.trim()) { setProblem(t('business.typePrice')); return; }
     setBusy(true);
     setProblem(null);
+    setDecided(null);
     try {
-      await client.request('venture.blueprint.update', { patch: { offers: [{ id: offer.id, unitPrice: typed.trim() }] } });
+      const view = await client.request('venture.blueprint.update', { patch: { offers: [{ id: offer.id, unitPrice: typed.trim() }] }, ownerSave: true });
+      if (view.decided) setDecided(view.decided);
       setTyped('');
       await quoteAgain(client);
       onChanged();
     } catch (error) {
       setProblem(t('business.saveFailed', { message: messageOf(error) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function undo(rowId: string) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const done = await client.request('venture.queue.undo', { rowId });
+      setDecided({ line: done.line, undoRowId: null });
+      onChanged();
+    } catch (error) {
+      setProblem(messageOf(error));
     } finally {
       setBusy(false);
     }
@@ -148,6 +168,13 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
         />
         <div className={s.formEnd}><Button variant="primary" type="submit" disabled={busy}>{t('business.savePrice')}</Button></div>
       </form>
+      {/* Seam (C4 task 33): B4 task 7's result slot (ResultLine) takes this line and its Undo when B4 lands. */}
+      {decided && (
+        <p className={s.note} role="status" data-price-decided="">
+          {decided.line}
+          {decided.undoRowId && <> <Button size="sm" disabled={busy} onClick={() => void undo(decided.undoRowId!)}>{t('approval.undo')}</Button></>}
+        </p>
+      )}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </Tile>
   );

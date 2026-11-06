@@ -36,6 +36,8 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  /** C4 (T25): a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
+  noteDecision?(subject: string, action: string, reason: string): void;
   /** A2 review: the Codex setup Your AI shows (fake-first-run.ts connectionsSetup). */
   codexSetup?(): import('./types').CodexSetupLite;
   nativeCanResume?(run:RunDetail):boolean;
@@ -129,6 +131,8 @@ export class FakeW4Desk {
   private readonly approvals: FakeApprovalsDesk;
   /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision). */
   noteDecision(subject: string, action: string, reason: string): void { this.approvals.noteDecision(subject, action, reason); }
+  /** C4 task 15: a draft's Reject, which can be taken back. */
+  noteReject(row: QueueRow, runId: string, prior: DeliveryLite): void { this.approvals.rejected(row, runId, prior); }
   chausarNote(subject: string, action: string, reason: string): void { this.approvals.chausarNote(subject, action, reason); }
   private readonly setup: FakeSetupDesk;
   private readonly extras: FakeAgentExtras;

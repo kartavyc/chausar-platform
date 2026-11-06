@@ -138,7 +138,7 @@ test('goals.get: invoiced before tax this month, ready to issue, pace, days left
   // Still to invoice: 15000000 - 11850000 = 3150000 (₹31,500). Received this month: ₹50,000.
   assert.equal(view.stillToInvoice?.display, '₹31,500');
   assert.equal(view.receivedSoFar.display, '₹50,000');
-  assert.equal(view.lastMonth, null);
+  assert.notEqual(view.lastMonth, null, 'C4 task 34: last month beside the field even with a goal set');
   assert.equal(view.line, '79% of your October 2026 goal invoiced, before tax. Today\'s pace is 74%, so you are ahead.');
   // 4I2: the percents as whole numbers for the screen to word (11850000 x 100 / 15000000 = 79; 741 / 10 = 74), not past
   // the goal, and how far ahead of today's pace with the pace receipt (₹7,209.67, worked out below).
@@ -269,6 +269,19 @@ test('goals.get with no goal: last month with its receipt, no suggestion, the ba
   assert.equal(listRecords(env.store.read(), 'venture-sum-receipt').length, before + 1, 'only last month\'s sum was written');
   assert.equal(view.line, 'No goal for October 2026 yet. Set one to see how the month is going.');
   assert.equal(Object.hasOwn(view, 'suggestion'), false, 'get never suggests');
+});
+
+test('C4 task 34: with a goal set, last month\'s invoiced figure still comes with its receipt, for the field beside it', async () => {
+  const env = await goalBusiness();
+  // September: 2 months, before tax 2 x 1975000 = 3950000 (₹39,500).
+  await invoice(env, '2', '2026-09-30');
+  await env.money<GoalView>('venture.goals.set', { month: '2026-10', amountMinor: '15000000' });
+  const view = await get(env);
+  assert.equal(view.state, 'set');
+  assert.equal(view.lastMonth?.display, '₹39,500');
+  const last = await receipt(env, view.lastMonth!.receiptId);
+  assert.deepEqual(last.subject, { type: 'invoiced', month: '2026-09', which: 'issued' });
+  assert.equal(last.totalMinor, '3950000');
 });
 
 test('goals.suggest: the owner\'s AI reads the plan\'s offers and prices only, and its figure is a model estimate; null otherwise', async () => {

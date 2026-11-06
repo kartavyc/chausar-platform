@@ -12,7 +12,7 @@
  * exactly that digest, never one read later, and sends. No agent is needed for it. If the engine says the words changed
  * meanwhile (APPROVAL_STALE), it says so and shows the consent as it stands now, to agree again. A key or an id
  * number is refused in the engine's words and the box is emptied, so it is never sent again by accident; any other
- * refusal leaves the words in the box with the engine's reason.
+ * refusal (C4 task 30) stays in the thread as a bubble marked "Not sent" with Try again and the engine's reason under it.
  *
  * W6 6G1 (D42): the head's Chat actions are Pin, Snooze (the engine's presets, each with its wake time) or Wake now, and
  * Settle or Reopen. Each change shows the engine's words with Undo, which sends the request the engine returned. A chat
@@ -33,6 +33,7 @@ import { ChausarAvatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ConsentWords } from '../../parts/ConsentWords';
 import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
+import { useUnsent } from '../../parts/useUnsent';
 import { Composer } from '../../parts/Composer';
 import { cx } from '../../parts/cx';
 import { Figure } from '../../parts/Figure';
@@ -43,6 +44,7 @@ import { PlanCard, type AgentLookup } from './PlanCard';
 import { ChangeNotice } from './ChangeNotice';
 import { PushToTalk } from './PushToTalk';
 import { ReadAloud } from './ReadAloud';
+import { PickTime } from './PickTime';
 import s from './Chats.module.css';
 import { Reveal } from '../../parts/RevealBlock';
 
@@ -144,6 +146,8 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     }
   }
 
+  const unsent = useUnsent(send, { scope: threadId ?? '', now: clock });
+
   /**
    * Reads the consent once, as the thread list carries it, and shows it: its words and the digest Agree will send.
    * Where the list cannot be read, the refusal's own words show and Agree says why it cannot agree yet.
@@ -180,8 +184,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     try {
       await send(words);
     } catch (error) {
-      setBox((was) => ({ words, n: was.n + 1 }));
-      setRefusal(messageOf(error));
+      unsent.keep(words, error);
     }
   }
 
@@ -208,13 +211,30 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     }
   }
 
+  /** C4 task 8: a snooze to a time the owner picked; the engine's refusal comes back to show in place. */
+  async function snoozeUntil(threadId: string, until: string): Promise<string | null> {
+    setPinning(true);
+    try {
+      const result = await engine.request('venture.chief.thread.state', { threadId, state: 'snoozed', until });
+      setSnoozing(false);
+      setChange({ threadId, line: result.line, undo: result.undo });
+      view.reload();
+      onListChanged();
+      return null;
+    } catch (error) {
+      return messageOf(error);
+    } finally {
+      setPinning(false);
+    }
+  }
+
   const snoozeOptions: readonly ChiefSnoozeOption[] = shown?.snooze ?? [];
   const waiting = thread?.waiting ?? false;
   const shownChange = change && change.threadId === threadId ? change : null;
 
-  const entries: ThreadEntry[] = messages.map((message): ThreadEntry => (message.from === 'owner'
+  const entries: ThreadEntry[] = [...messages.map((message): ThreadEntry => (message.from === 'owner'
     ? { kind: 'owner', id: message.id, at: message.at, text: plainOf(message.parts) }
-    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> }));
+    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> })), ...unsent.entries];
 
   return (
     <section ref={area} className={s.pane} aria-labelledby={titleId}>
@@ -261,6 +281,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           ))}
         </div>}
       </Reveal>
+      {thread && snoozing && !waiting && <div className={s.paneNote}><PickTime busy={pinning} onPick={(until) => snoozeUntil(thread.id, until)} /></div>}
       {thread && waiting && lockedNote && <p className={cx(s.quiet, s.paneNote)}>{t('chats.thread.waiting')}</p>}
       {shownChange && <ChangeNotice className={s.paneNote} line={shownChange.line} busy={pinning} onUndo={() => void setState(shownChange.undo)} />}
       {threadId && view.error && !shown && !fallback ? (
@@ -279,7 +300,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           initial={box.words}
           label={t('chats.composer.label')}
           placeholder={t('chats.composer.placeholder')}
-          onSend={send}
+          onSend={unsent.sendKeeping}
           suggestions={SUGGESTIONS.map((key) => t(key))}
           hint={t('chats.composer.hint')}
         />

@@ -110,6 +110,10 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.ai.setup.trust': ['approve', 'ui'],
   // One-shot C3: which step long work is on; a read, and it never touches the vault.
   'venture.work.list': ['read', 'rui'],
+  // One-shot C4 (T20): a note on the invoice of a share the owner made; it sends nothing.
+  'venture.invoice.shared': ['prepare', ''],
+  // One-shot C4 (T32): the ready routines from the plan; a read that stores nothing.
+  'venture.routines.suggestions': ['read', 'rui'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */
@@ -165,7 +169,7 @@ const W4_FLAGS: Readonly<Record<W4Method, Flags>> = Object.freeze({
  */
 const W5_FLAGS: Readonly<Record<W5Method, Flags>> = Object.freeze({
   'venture.order.chain': 'rui',
-  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui',
+  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui', 'venture.goNoGo.remove': '',
   'venture.ideas.add': 'u', 'venture.ideas.move': '', 'venture.ideas.grade': '',
   'venture.brandKit.get': 'rui', 'venture.brandKit.set': 'ui', 'venture.assets.list': 'rui', 'venture.assets.rerun': 'o', 'venture.assets.reuse': 'u',
   'venture.voiceConsent.record': '', 'venture.voiceConsent.revoke': 'i', 'venture.voiceConsent.list': 'rui',

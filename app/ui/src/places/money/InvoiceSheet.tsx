@@ -5,6 +5,9 @@
  * A draft is issued from here. Issuing cannot be undone, so it asks a second time, and it sends the digest of the
  * invoice on screen: if the draft changed since, the engine refuses, the sheet says so and shows the new version.
  *
+ * One-shot C4 (T21): when the business has neither UPI nor bank details (the sheet's own view says so), Issue's second
+ * ask says clients won't see how to pay, with Add them (the billing settings) and Issue anyway.
+ *
  * W4 4J20 (InvoiceExtras.tsx): the invoice's next step (a reminder to draft or open, a cheque to clear), a draft's rate
  * change, each payment with a cheque waiting and the client's TDS, its credit notes and asking for one, and its
  * timeline.
@@ -56,6 +59,9 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     );
   }
   const { invoice } = current;
+  // C4 (T21): no way for clients to pay is in the view the sheet already reads (howToPay, as the engine built it).
+  const pay = current.howToPay;
+  const noPay = !pay || (!pay.upi && !pay.bank && !pay.upiNote);
 
   async function issue(shown: InvoiceViewLite) {
     setPhase('sending');
@@ -82,6 +88,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     footer = phase === 'confirm' ? (
       <Confirm action={t('money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
         <p>{t('money.invoice.issueAsk')}</p>
+        {noPay && <p data-no-pay="">{t('money.invoice.noPay')}</p>}
+        {noPay && <Button onClick={(event) => { setPhase('idle'); openSheet('billing', 'settings', event.currentTarget); }}>{t('money.invoice.noPayAdd')}</Button>}
       </Confirm>
     ) : (
       <div className={s.buttons}>
@@ -101,7 +109,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       label={t('money.invoice.label')}
       eyebrow={current.client.name}
       title={invoice.number ?? t('money.invoice.draft')}
-      line={statusOf(t, day, invoice)}
+      line={statusOf(t, day, invoice, current.sent)}
       onClose={onClose}
       returnFocus={returnFocus}
       footer={footer}

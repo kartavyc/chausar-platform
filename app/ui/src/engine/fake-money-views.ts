@@ -415,6 +415,8 @@ export class FakeMoneyViews {
       points: weeks.map((week, k) => ({ week, label: k === 0 ? 'Today' : `Week to ${dayMonthYear(week)}`, actual: k === 0 ? openingFigure : null, forecast: forecasts[k]!, actualPermille: k === 0 ? at(minors[0]!) : null, forecastPermille: at(minors[k]!) })),
       lowest: { onTime, ifLateNeverPay: ifLate }, usualCosts: null, assumptions, nextWeeks, ifIssued,
       ticks: levelTicks(lo, hi, value => this.money(value)), basis: forecastBasis, line,
+      // C4 (T28), as money/cash.ts: nothing due in or out, and the sample takes no usual costs.
+      ...(flows.length === 0 ? { flat: `Nothing due in or out in the next ${WEEKS} weeks, so it stays flat.` } : {}),
     };
   }
 
@@ -447,6 +449,7 @@ export class FakeMoneyViews {
     const leftOut = rate === null ? { count: calls, one: `paid call with ${this.noRate()}`, many: `paid calls with ${this.noRate()}` } : { count: calls, one: 'paid call no order can claim', many: 'paid calls no order can claim' };
     return {
       month, rows,
+      ...(rate === null && this.country().currency === 'INR' ? { needsRate: true } : {}),
       line: rate === null ? `${words}: invoiced before tax. The AI and tool spend is not counted: ${this.noRate()}.` : `${words}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`,
       basis: this.basis(
         [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its run and order"],
@@ -510,6 +513,7 @@ export class FakeMoneyViews {
     const slug = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
     // 4J10: the business's signed receipts ride with the file; the sample engine signs nothing, so the list is empty.
     const receipts = { format: 'chausar-signed-receipts/1', business: name, algorithm: 'ed25519', publicKey: null, keys: [], receipts: [] };
-    return { fileName: `${slug || 'chausar'}-${month}-for-ca.csv`, csv, rows: rows.length, line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`, receipts };
+    const long = monthWords(month);
+    return { fileName: `${slug || 'chausar'}-${month}-for-ca.csv`, ownerFileName: `${name}, sales, ${long.slice(0, 3)} ${month.slice(0, 4)}.csv`, business: name, period: long, csv, rows: rows.length, line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`, receipts };
   }
 }

@@ -185,7 +185,7 @@ export class FakeNotifyDesk {
   }
 
   private view(note: Note): NotificationView {
-    return { id: note.id, rowId: note.rowId, kind: note.kind, title: note.title, at: note.at, read: note.readAt !== null };
+    return { id: note.id, rowId: note.rowId, kind: note.kind, title: note.title, at: note.at, read: note.readAt !== null, ...(note.ended ? { ended: true as const } : {}) };
   }
 
   private list(p: Record<string, unknown>) {

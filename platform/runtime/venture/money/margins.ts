@@ -10,7 +10,7 @@ import type { Context, State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture } from '../records.ts';
 import type { MarginRowView, MarginsView, SpendRecord, SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
 import { beforeTax, creditBeforeTax, creditNotesOf, invoicesOf, monthText, monthWords } from './goal-plans.ts';
-import { rupeeRateWords, rupeesOf, spendOfMonth } from './spend.ts';
+import { needsRupeeRate, rupeeRateWords, rupeesOf, spendOfMonth } from './spend.ts';
 import { calendarMonth } from './dates.ts';
 import { callAddend, rateBasis } from './flow.ts';
 import { sumReceipt, type Addend, type SumPlan } from './sums.ts';
@@ -129,5 +129,5 @@ export async function moneyMargins(deps: VentureDeps, ctx: Context, payload: unk
   );
   const line = counted ? `${shown}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`
     : `${shown}: invoiced before tax. The AI and tool spend is not counted: ${why}.`;
-  return { month, rows, line, basis };
+  return { month, rows, line, basis, ...(needsRupeeRate(rupees, venture) ? { needsRate: true } : {}) };
 }

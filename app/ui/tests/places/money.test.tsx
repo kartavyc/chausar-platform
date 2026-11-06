@@ -119,7 +119,7 @@ describe('Money overview', () => {
     await screen.findByRole('group', { name: 'Businesses' });
     const links = within(nav).getAllByRole('link');
     expect([...rowLinks(nav), ...await moreLinks(nav)]).toEqual([
-      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
+      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['For your CA', '#/money/books'], ['Margins', '#/money/margins'],
       ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
     ]);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');

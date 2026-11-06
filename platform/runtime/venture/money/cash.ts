@@ -376,9 +376,10 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
     : !falls ? `Projected, if clients pay on time: cash does not fall in the next ${WEEKS} weeks.`
       : !onTimeLow ? `Projected, if clients pay on time: cash does not fall below today's balance in the next ${WEEKS} weeks.`
         : `Projected, if clients pay on time: the lowest week is the week to ${day(weeks[low])}, at ${onTimeLow.display}.`;
+  const flat = onTime.length === 0 && (usual.months === 0 || usual.total === 0n) ? `Nothing due in or out in the next ${WEEKS} weeks, so it stays flat.` : null;
   const usualFigure = usual.months === 0 || usual.total === 0n ? null : assumptionFigure(formatMoney(weekly, country.currency), (await receipt(weeks[1])).id, usualLine);
   return {
     bank, opening, points, lowest: { onTime: onTimeLow, ifLateNeverPay: lateLow }, usualCosts: usualFigure, assumptions, nextWeeks, ifIssued,
-    ticks: levelTicks(forecasts.map(item => item.minor), country.currency), basis: forecastBasis, line,
+    ticks: levelTicks(forecasts.map(item => item.minor), country.currency), basis: forecastBasis, line, ...(flat ? { flat } : {}),
   };
 }

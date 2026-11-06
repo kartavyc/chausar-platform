@@ -539,6 +539,15 @@ describe('Team v2: the agent panel', () => {
     assertInkRules(document.body);
   });
 
+  it('C4 task 10 (58.x1): an empty Jobs tab says it starts with an order on Work, with the way there', async () => {
+    start('#/team', { intercept: (method) => (method === 'venture.runs.list' ? Promise.resolve({ runs: [] }) : undefined) });
+    const panel = await openPanel();
+    await click(within(panel).getByRole('tab', { name: 'Jobs' }));
+    await settle();
+    expect(within(panel).getByText(/It starts when you add an order on Work\./)).toBeTruthy();
+    expect(within(panel).getByRole('link', { name: 'Open Work' }).getAttribute('href')).toBe('#/work');
+  });
+
   it('passes axe on both tabs', async () => {
     const { container } = start();
     const panel = await openPanel();

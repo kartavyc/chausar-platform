@@ -20,6 +20,7 @@ import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
 import { useMotionPreference } from './motionPreference';
 import { OwnerZone } from './clock';
+import { PairScreen } from './PairScreen';
 import { BootScreen } from '../places/onboarding/BootScreen';
 // W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
 import { AiGo } from '../parts/layout/AiGo';
@@ -38,7 +39,7 @@ export function App({ client, language }: { client: EngineClient; language: Lang
 
 /**
  * The window: the status line, then what BootScreen decides (the first run, Welcome back, or the frame). A new or newly
- * opened business remounts the frame.
+ * opened business remounts the frame. A browser that is not paired, or whose session ended, sees only PairScreen (C4 task 42).
  */
 export function Shell() {
   const client = useEngine();
@@ -46,6 +47,7 @@ export function Shell() {
   useMotionPreference();
   const status = useEngineStatus();
   const line = <StatusLine status={status} transport={client.transport} />;
+  if (status.state === 'unpaired' || status.state === 'session-ended') return <PairScreen />;
   return <BootScreen status={line}>{(checking) => <PrivacyBoundary>{(privacy) => <Frame key={privacy} statusLine={line} checking={checking} />}</PrivacyBoundary>}</BootScreen>;
 }
 

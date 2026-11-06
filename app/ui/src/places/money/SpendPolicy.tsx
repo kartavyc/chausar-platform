@@ -15,6 +15,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { setQuery, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
@@ -73,6 +74,14 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
   const [rates, setRates] = useState<RateDraft[]>([]);
   const leadId = useId();
   useEffect(() => { setSaved(null); }, [policy.data]);
+  // C4 (T23): "Set a rupee rate" lands here with the settings open on the rate; the address is cleared so the link works again.
+  const wantsRate = useRoute().query.set === 'rate';
+  const current = policy.data;
+  useEffect(() => {
+    if (!wantsRate || !current) return;
+    edit(current);
+    setQuery({});
+  }, [wantsRate, current]);
   // W4 4J21: the edits, kept as a draft of exactly what venture.spend.policy.set takes, and offered back.
   const [touched, setTouched] = useState(false);
   const values = { capUsd: figureOrNull(cap), askFirstUsd: figureOrNull(askFirst), inrPerUsd: figureOrNull(inrPerUsd), currencyLead: lead, rates: rates.map(inputOf) };

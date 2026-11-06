@@ -4,7 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
 import { createStatusStore } from '../../src/engine/client';
 import { EngineError, type EngineClient, type Transport } from '../../src/engine/types';
-import { ABOUT_BOX, keepPlan, skipAi, toToday } from './first-run-steps';
+import { ABOUT_BOX, answerSideWork, confirmProfession, keepPlan, skipAi, toToday } from './first-run-steps';
 
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
 function timeZone(zone: string) {
@@ -21,6 +21,8 @@ function start(options: FakeOptions = { fresh: true }, { hash = '#/today', langu
   const fake = createFakeClient(engine);
   const calls: [string, Record<string, unknown>][] = [];
   const refusals = new Map<string, EngineError>();
+  /** C4: a method answered by the test in place of the fake. */
+  const answers = new Map<string, (params: Record<string, unknown>) => unknown>();
   const client: EngineClient = {
     ...fake,
     transport: transport ?? fake.transport,
@@ -28,13 +30,15 @@ function start(options: FakeOptions = { fresh: true }, { hash = '#/today', langu
       calls.push([method, structuredClone(params ?? {})]);
       const refusal = refusals.get(method);
       if (refusal) { refusals.delete(method); return Promise.reject(refusal); }
+      const answer = answers.get(method);
+      if (answer) return Promise.resolve(answer(params ?? {}));
       return fake.request(method as never, params as never);
     }) as EngineClient['request'],
   };
   const view = render(<App client={client} language={language} />);
   /** The onboarding calls only, from the preview on. */
   const flow = () => calls.slice(calls.findIndex(([m]) => m === 'venture.preview')).filter(([m]) => /^(venture\.(preview|create|interview|blueprint)|workspace\.(status|create|lock))/.test(m));
-  return { engine, client, calls, flow, refuse: (method: string, error: EngineError) => refusals.set(method, error), ...view };
+  return { engine, client, calls, flow, answers, refuse: (method: string, error: EngineError) => refusals.set(method, error), ...view };
 }
 
 // Inside the app the engine lists ways to earn (W4 4J21), so the box there is "Or describe it in one sentence".
@@ -269,5 +273,130 @@ describe('onboarding: New business from the business menu', () => {
     await waitFor(() => expect(cardTitle('Your plan is ready. Read it.')).toHaveLength(2));
     // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio.*Switch business/ })).toBeTruthy());
+  });
+});
+
+/*
+ * One-shot C4 task 1: the plan card on About you. The name is a field with the suggested name in it, each offer a row
+ * with a tick (kept by default) and a rename in place, and "Add an offer" at the end. At least one offer stays kept. A
+ * rename asked in the chat that code could not read gets one fixed line.
+ */
+describe('onboarding: the plan card (C4 task 1)', () => {
+  const READ3 = {
+    family: { id: 'creative', label: 'Creative work', line: 'Design, photos, video and writing.' },
+    offers: [
+      { name: 'Birthday party photography', line: 'Candid photos of the party, edited and shared.' },
+      { name: 'Shop product photos', line: 'Clean photos of what a shop sells.' },
+      { name: 'Monthly photo support', line: 'A set of photos each month for a shop.' },
+    ],
+    country: null, evidence: null, idea: 'Photography for parties and shops in Pune', source: 'ai' as const,
+  };
+  function withRead(read: typeof READ3) {
+    const reads: unknown[] = [];
+    const run = start();
+    run.answers.set('venture.about.read', (params) => { reads.push(params); return structuredClone(read); });
+    return { ...run, reads };
+  }
+  async function toCard() {
+    fireEvent.change(await skipAi(), { target: { value: 'I run a small weekend photography studio in Pune.' } });
+    await press('Send');
+    await screen.findByRole('checkbox', { name: 'Birthday party photography' }, { timeout: 4000 });
+  }
+  async function keepAndSave(engine: FakeEngine) {
+    const keep = await screen.findByRole('button', { name: 'Keep this plan' });
+    await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
+    await act(async () => { fireEvent.click(keep); });
+    await answerSideWork();
+    await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 });
+    return (await createFakeClient(engine).request('venture.blueprint.get', {}))!.blueprint;
+  }
+
+  it('a typed name and an unticked offer are what the plan keeps', async () => {
+    timeZone('Asia/Kolkata');
+    const { engine } = withRead(READ3);
+    await toCard();
+    const name = screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement;
+    fireEvent.change(name, { target: { value: 'Asha Frames' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Shop product photos' }));
+    expect(screen.getByText('Shop product photos: removed.')).toBeTruthy();
+    const plan = await keepAndSave(engine);
+    expect(plan.name.value).toBe('Asha Frames');
+    expect(plan.offers.map((offer) => offer.name.value)).toEqual(['Birthday party photography', 'Monthly photo support']);
+  });
+
+  it('Undo brings a removed offer back; a rename in place is kept', async () => {
+    timeZone('Asia/Kolkata');
+    const { engine } = withRead(READ3);
+    await toCard();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Shop product photos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect((screen.getByRole('checkbox', { name: 'Shop product photos' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Monthly photo support' }));
+    const box = screen.getByRole('textbox', { name: 'Rename Monthly photo support' });
+    fireEvent.change(box, { target: { value: 'Photo support for shops' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(screen.getByRole('checkbox', { name: 'Photo support for shops' })).toBeTruthy();
+    const plan = await keepAndSave(engine);
+    expect(plan.offers.map((offer) => offer.name.value)).toEqual(['Birthday party photography', 'Shop product photos', 'Photo support for shops']);
+  });
+
+  it('"Add an offer" adds a row that keeps', async () => {
+    timeZone('Asia/Kolkata');
+    const { engine } = withRead({ ...READ3, offers: READ3.offers.slice(0, 2) });
+    await toCard();
+    fireEvent.click(screen.getByRole('button', { name: 'Add an offer' }));
+    const box = screen.getByRole('textbox', { name: 'New offer' });
+    fireEvent.change(box, { target: { value: 'Wedding albums' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect((screen.getByRole('checkbox', { name: 'Wedding albums' }) as HTMLInputElement).checked).toBe(true);
+    const plan = await keepAndSave(engine);
+    expect(plan.offers.map((offer) => offer.name.value)).toEqual(['Birthday party photography', 'Shop product photos', 'Wedding albums']);
+  });
+
+  it('with no offer kept, Keep this plan is locked and says why', async () => {
+    timeZone('Asia/Kolkata');
+    withRead(READ3);
+    await toCard();
+    for (const offer of READ3.offers) fireEvent.click(screen.getByRole('checkbox', { name: offer.name }));
+    const keep = screen.getByRole('button', { name: 'Keep this plan' });
+    expect(keep.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Keep at least one offer.')).toBeTruthy();
+  });
+
+  it('a rename asked in the chat that code cannot read gets one fixed line, and no AI read', async () => {
+    timeZone('Asia/Kolkata');
+    const { reads } = withRead(READ3);
+    await toCard();
+    const say = screen.getByRole('textbox', { name: 'Message Chausar' });
+    fireEvent.change(say, { target: { value: 'call it something nicer please' } });
+    await act(async () => { fireEvent.submit(say.closest('form')!); });
+    expect(await screen.findByText("I couldn't rename it here. Type the name on the right.")).toBeTruthy();
+    expect(reads).toHaveLength(1);
+  });
+});
+
+/* One-shot C4 task 3: "I don't have a day job" is the first answer of the day-job step, and it is recorded. */
+describe('onboarding: the day-job step (C4 task 3)', () => {
+  it("lists the no day job answer first; picking it unlocks Continue, says so, and records it", async () => {
+    timeZone('Asia/Kolkata');
+    const { engine } = start();
+    fireEvent.change(await skipAi(), { target: { value: IDEA } });
+    await press('Send');
+    const keep = await screen.findByRole('button', { name: 'Keep this plan' }, { timeout: 4000 });
+    await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
+    await act(async () => { fireEvent.click(keep); });
+    await confirmProfession();
+    const radios = await screen.findAllByRole('radio', {}, { timeout: 4000 });
+    expect(radios[0]!.getAttribute('value')).toBe('no-day-job');
+    expect(screen.getByRole('radio', { name: "I don't have a day job" })).toBe(radios[0]);
+    const go = screen.getByRole('button', { name: 'Continue' });
+    expect(go.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(radios[0]!);
+    expect(screen.getByText("You don't have a day job, so no contract limits this business.")).toBeTruthy();
+    expect(go.getAttribute('aria-disabled')).toBeNull();
+    await act(async () => { fireEvent.click(go); });
+    await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 });
+    const view = await createFakeClient(engine).request('venture.compliance.get', {} as never);
+    expect(view.recorded?.sideWork).toBe('no-day-job');
   });
 });

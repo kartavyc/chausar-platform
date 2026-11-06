@@ -11,7 +11,7 @@ import {formatMoney} from '../../../../platform/runtime/owner-format';
 import {countryProfile} from '../../../../platform/runtime/venture/core/countries';
 import {digest as priceDigest} from '../../../../platform/runtime/portable';
 import type {RoomPrice} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
-import type {ReceiptLite} from './types';
+import type {QueueItemView,ReceiptLite} from './types';
 import {FakeYoutubeServiceRun} from './fake-youtube-service-run';
 import {fakeYoutubeMediaIntake} from './fake-youtube-intake';
 import {isYoutubeService,validateYoutubeServiceIntake} from '../../../../platform/runtime/venture/playbooks/youtube/service-fields';
@@ -20,7 +20,7 @@ import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/web
 import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
 import {fakeSellerPreflight} from './fake-seller-preflight';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
-import {templateOutline,TEMPLATE_OUTLINE_LINE} from '../../../../platform/runtime/venture/delivery/template-outline';
+import {figureWords,templateOutline,TEMPLATE_OUTLINE_LINE,type TemplateOutline} from '../../../../platform/runtime/venture/delivery/template-outline';
 import {reviewTemplate} from './fake-template-review';
 /**
  * Orders, delivery runs and client files for the fake engine (the Work place), kept per business. It keeps
@@ -128,6 +128,27 @@ export class FakeWorkDesk {
   private orderPrices=new Map<string,{price:RoomPrice;receipt:ReceiptLite}>();
   private invoiceSnapshots = new Map<string, { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[]; treatment?: string; rateBps?: string }>();
   invoiceSnapshot(biz: string, id: string) { return clone(this.invoiceSnapshots.get(biz + ':' + id)); }
+  /** C4 task 16: a template draft's view, with the receipt of each amount, as views/queue-view.ts runItem and delivery/deliverable.ts draftAmounts give it. */
+  templateDraftView(biz:string,businessName:string,kind:unknown,id:unknown):QueueItemView|null{
+    if(kind!=='draft')return null;
+    const run=(this.deliveries[biz]??[]).find(item=>item.id===id);
+    const text=run?.editedText??run?.renderedText;
+    // A template draft only: a sample row's draft has its own view or none, as before.
+    if(!run||!text||run.servedBy!=='template')return null;
+    const sections:QueueItemView['sections']=[];
+    let current:QueueItemView['sections'][number]={lines:[]};
+    for(const line of text.split('\n').filter(item=>item.trim()&&!item.startsWith('# '))){
+      if(line.startsWith('## ')){if(current.heading||current.lines.length)sections.push(current);current={heading:line.slice(3),lines:[]};}else current.lines.push(line);
+    }
+    if(current.heading||current.lines.length)sections.push(current);
+    const amounts=((run.deliverable as unknown as TemplateOutline|null)?.sections??[]).flatMap(section=>section.parts).flatMap(part=>{
+      if(part.kind!=='figure')return [];
+      const receipt=this.host.receipt?.(part.receiptId)??[...this.orderPrices.values()].find(value=>value.receipt.id===part.receiptId)?.receipt;
+      const figure=receipt?.figures.find(item=>item.key===part.figureKey);
+      return figure&&text.includes(figure.display)?[{display:figure.display,receiptId:part.receiptId}]:[];
+    });
+    return{kind:'draft',id:run.id,businessName,agent:this.host.agentName(),title:run.deliverable?.title??'Draft',line:'You send it yourself.',sections,amounts};
+  }
   roomPrice(biz:string,id:string){const kept=this.orderPrices.get(biz+':'+id);return kept?clone(kept.price):undefined;}
   orderReceipt(biz:string,id:string){return clone([...this.orderPrices.entries()].find(([key,value])=>key.startsWith(biz+':')&&value.receipt.id===id)?.[1].receipt);}
   private narrationPrices=new Map<string,{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}>();
@@ -252,7 +273,8 @@ export class FakeWorkDesk {
       // 4J3: each order with its stage steps and what waits on the owner, as the engine reads them (fake-previews.ts).
       case 'venture.order.list': {
         const invoices = this.host.invoices?.() ?? [];
-        return clone((this.orders[biz] ?? []).map((order) => withFakeOrderSteps(order, invoices)));
+        // C4 task 11 (money/orders.ts orderPrice): each order's price is its receipt's Total figure, with the receipt id.
+        return clone((this.orders[biz] ?? []).map((order) => ({ ...withFakeOrderSteps(order, invoices), price: this.orderPrice(order) })));
       }
       case 'venture.order.create': return this.withNewClient(p, (p, fresh) => {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p,fresh);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p,fresh);});});
       case 'venture.order.deliver': return this.deliver(biz, p);
@@ -276,6 +298,12 @@ export class FakeWorkDesk {
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
+  }
+
+  private orderPrice(order: OrderLite): { display: string; receiptId: string } | null {
+    const receipt = this.host.receipt?.(order.priceReceiptId);
+    const total = receipt?.figures.find((figure) => figure.key === 'total');
+    return receipt && total ? { display: total.display, receiptId: receipt.id } : null;
   }
 
   private order(biz: string, id: unknown): OrderLite {
@@ -461,10 +489,13 @@ export class FakeWorkDesk {
     if(this.host.plan()?.playbook?.id==='social-agency')throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
     const social=this.r5Delivery.start(order,runId,p)??this.phoneDelivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p);
     if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
-    const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
+    const clientRecord = this.host.clients().find((c) => c.id === order.clientId);
+    const client = clientRecord?.name ?? 'the client';
     const at = this.host.now();
     runs.unshift({
       runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '',
+      // C4 task 12: as the engine's summary: since when it waits on the owner, and who it works for.
+      waitingSince: at, ...(clientRecord ? { client: { id: clientRecord.id, name: clientRecord.name } } : {}),
       progress: { done: 1, total: 2 },
       steps: [
         { id: 'write', purpose: 'Prepare the template outline', state: 'done' },
@@ -474,7 +505,7 @@ export class FakeWorkDesk {
     const receipt=this.host.receipt?.(order.priceReceiptId)??this.orderPrices.get(biz+':'+order.id)?.receipt;
     const total=receipt?.figures.find(figure=>figure.key==='total');
     const deliverable=templateOutline(this.host.plan()?.blueprint.serviceType??'other',total?{receiptId:order.priceReceiptId,figureKey:'total'}:null);
-    const blocks=['# '+deliverable.title,...deliverable.sections.map(section=>'## '+section.heading+'\n'+section.parts.map(part=>part.kind==='text'?part.text:total!.label+': '+total!.display).join(' '))];
+    const blocks=['# '+deliverable.title,...deliverable.sections.map(section=>'## '+section.heading+'\n'+section.parts.map(part=>part.kind==='text'?part.text:figureWords(total!.label,total!.display)).join(' '))];
     if(deliverable.questionsForClient.length)blocks.push(['Questions for you:',...deliverable.questionsForClient.map(question=>'- '+question)].join('\n'));
     const renderedText=TEMPLATE_OUTLINE_LINE+'\n\n'+blocks.join('\n\n');
     const run: DeliveryLite&{preview:null} = { id: runId, at, orderId: order.id, status: 'ready-for-review', servedBy:'template', practice: false, deliverable, renderedText, preview:null, verdict: null, awaitingYou: true };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { assertFiguresProved, assertInkRules } from '../helpers/ink-rules';
@@ -21,6 +21,20 @@ async function open(hash: string, before?: (engine: FakeEngine) => Promise<unkno
 }
 
 describe('the receipt sheet is the proof', () => {
+  // C4 T27 (83.x1): under the figure, what was counted and over which dates.
+  it('shows the basis line under the figure of a money sum; a receipt with no basis shows none', async () => {
+    const sheet = await open('#/money?sheet=receipt:R-0402');
+    await waitFor(() => expect(sheet.textContent).toContain('₹86,200'));
+    const line = sheet.querySelector('[data-basis]');
+    expect(line?.textContent).toBe('Counted: payments dated 1 to 31 Oct 2026');
+    const figures = sheet.querySelector('dl')!;
+    expect(figures.compareDocumentPosition(line!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    const other = await open('#/today?sheet=receipt:R-0415');
+    await waitFor(() => expect(other.textContent).toContain('₹15,000'));
+    expect(other.querySelector('[data-basis]')).toBeNull();
+  });
+
   it('marks the receipt sheet root, and the Ink rules pass on the whole page with it open', async () => {
     const sheet = await open('#/today?sheet=receipt:R-0415');
     await waitFor(() => expect(sheet.textContent).toContain('₹15,000'));

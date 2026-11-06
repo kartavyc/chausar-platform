@@ -172,6 +172,23 @@ describe('Clients: the Clients tab', () => {
     assertInkRules();
   });
 
+  // C4 task 18 (79.x1): the sheet leads with orders, invoices and what they owe; the timeline holds them too.
+  it('the sheet leads with Orders and invoices, the amount owed with its receipt, and the timeline holds the orders', async () => {
+    await start('#/clients?sheet=client:c-boat');
+    const sheet = await screen.findByRole('complementary', { name: 'Boat Audio' });
+    const first = await within(sheet).findByRole('region', { name: 'Orders and invoices' });
+    expect(sheet.querySelector('section')).toBe(first);
+    await within(first).findByRole('list', { name: 'Orders' });
+    const invoices = await within(first).findByRole('list', { name: 'Invoices' });
+    expect(within(invoices).getAllByRole('button', { name: /^Invoice / }).length).toBeGreaterThan(0);
+    const owes = within(first).getByText('Owes').parentElement!;
+    expect(owes.textContent).toMatch(/^Owes ₹26,200/);
+    expect(within(owes).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
+    const timeline = await waitFor(() => { const list = sheet.querySelector('[data-timeline]'); expect(list).toBeTruthy(); return list as HTMLElement; });
+    await waitFor(() => expect(timeline.querySelector('[data-kind="order"]')?.textContent).toMatch(/^Order for .+ (added|delivered)/));
+    assertInkRules();
+  });
+
   it('the toolbar holds Add client beside the tabs', async () => {
     await start('#/clients');
     await screen.findByRole('list', { name: 'Clients' });

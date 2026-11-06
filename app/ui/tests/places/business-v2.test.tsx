@@ -295,4 +295,18 @@ describe('Business in the Ink v2 look', () => {
     fireEvent.click(change);
     expect(screen.getByLabelText('One line')).toBeTruthy();
   });
+
+  it('C4 task 1: the change-plan form adds an offer, and takes out one the owner added', async () => {
+    const engine = start('#/business/plan');
+    fireEvent.click(await screen.findByRole('button', { name: 'Change plan' }));
+    fireEvent.change(screen.getByLabelText('Add an offer'), { target: { value: 'Wedding albums' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
+    await waitFor(async () => expect((await createFakeClient(engine).request('venture.blueprint.get', {}))!.blueprint.offers.map((o) => o.name.value)).toContain('Wedding albums'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Change plan' }));
+    const added = await screen.findByRole('checkbox', { name: 'Wedding albums' });
+    expect((added as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(added);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
+    await waitFor(async () => expect((await createFakeClient(engine).request('venture.blueprint.get', {}))!.blueprint.offers.map((o) => o.name.value)).not.toContain('Wedding albums'));
+  });
 });

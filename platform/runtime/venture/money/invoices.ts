@@ -14,7 +14,7 @@ import {
   activateTerm, digest, exactPayload, isoDate, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx,
 } from '../records.ts';
 import { creditViewsOn } from './credits.ts';
-import { invoiceNext, invoiceTimeline } from './invoice-states.ts';
+import { invoiceNext, invoiceTimeline, sentOf } from './invoice-states.ts';
 import { inclusiveUnit, rateChangeOf, tdsLine } from './tax-kinds.ts';
 import { creditedOn, paymentState } from './ledger.ts';
 import { booksReceiptFor, BILLED_COVERS_MORE, EXPERIMENTAL_NOTE } from './books.ts';
@@ -182,6 +182,7 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
     ...(lateOf(invoice, today) ? { late: lateOf(invoice, today)! } : {}),
     ...(billed ? { billed } : {}),
     ...(howToPay ? { howToPay } : {}),
+    sent: sentOf(state, venture, invoice.id),
   };
 }
 
@@ -541,6 +542,6 @@ export async function listInvoices(deps: VentureDeps, ctx: Context, payload: unk
     .map(invoice => {
       // 4J4 (M9): an open invoice past its due day says how late it is, on the owner's calendar.
       const late = lateOf(invoice, today);
-      return { ...invoice, total: formatMoney(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, next: invoiceNext(state, { ...venture, country: invoiceCountry(state, venture, invoice) }, invoice, today), ...(late ? { late } : {}) };
+      return { ...invoice, total: formatMoney(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, next: invoiceNext(state, { ...venture, country: invoiceCountry(state, venture, invoice) }, invoice, today), ...(late ? { late } : {}), sent: sentOf(state, venture, invoice.id) };
     });
 }

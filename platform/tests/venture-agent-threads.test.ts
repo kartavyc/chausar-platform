@@ -5,6 +5,7 @@
 // run waits on the owner's question is that question's answer. Keys never enter a thread. Keeper is code, not AI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { ANSWER_INSTRUCTIONS } from '../runtime/venture/agents/answer.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { appendAgentMessage } from '../runtime/venture/agents/store.ts';
 import { holdsIdNumber } from '../runtime/venture/agents/threads.ts';
@@ -433,4 +434,12 @@ test('thread (4B3): the reply to a request on the floor names the proposal it ra
   const view = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
   const reply = view.items.find((item: any) => item.type === 'message' && item.message.id === sent.added[1].message.id);
   assert.equal(reply.message.proposalId, proposal.id);
+});
+
+// One-shot C4 task 10 (154.f1): an agent's chat answer is short unless the owner asks for more. The rule sits in the
+// fixed instructions, ahead of anything that changes per question (D2's prompt-weight rule).
+test('C4: the agent chat instructions ask for at most two short paragraphs, under 60 words, unless the owner asks for more', () => {
+  assert.equal(typeof ANSWER_INSTRUCTIONS, 'string');
+  assert.match(ANSWER_INSTRUCTIONS, /at most two short paragraphs, under 60 words, unless the owner asks for more/);
+  assert.ok(ANSWER_INSTRUCTIONS.indexOf('under 60 words') < ANSWER_INSTRUCTIONS.indexOf('figure part'), 'the length rule comes early in the fixed instructions');
 });

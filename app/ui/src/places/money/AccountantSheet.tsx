@@ -1,9 +1,10 @@
 /**
- * Invite your accountant (W4 4J7's 'books' share link, from the business menu; `?sheet=accountant:books`): a read-only
- * link to one month's invoices and payments, with the receipts behind their totals, for the owner's accountant. Making
- * the link is the owner's choice, inside the app; it lasts a week and can be taken back. On this computer the engine
- * keeps the link but cannot serve it (no public address), and says so in its own words: then Export for your CA is
- * the way to hand the month over. Chausar sends nothing: the owner shares the link themselves.
+ * Share with your CA (C4 T24; `?sheet=accountant:books`, from For your CA and the business menu's Invite your accountant):
+ * the one sheet, with two ways to hand one month over. Save the files (ExportButton.tsx), and Make a link (W4 4J7's 'books'
+ * share link: a read-only link to the month's invoices and payments, with the receipts behind their totals). Making the
+ * link is the owner's choice, inside the app; it lasts a week and can be taken back. Links open only on the hosted app, so
+ * on the desktop there is no Make a link at all. Where a page cannot serve one (a local web page) the engine says so in
+ * its own words. Chausar sends nothing: the owner shares the files or the link themselves.
  */
 
 import { useId, useState } from 'react';
@@ -14,6 +15,7 @@ import { Sheet } from '../../parts/Sheet';
 import type { ShareLink } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { copyText } from '../clients/handoff';
+import { ExportButton } from './ExportButton';
 import { messageOf, monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
@@ -63,18 +65,25 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
   return (
     <Sheet label={t('money.accountant.label')} title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
       {!link && (
-        <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); void make(); }}>
+        <div className={s.form}>
           <div className={s.field}>
             <label htmlFor={monthId} className={s.fieldLabel}>{t('money.month')}</label>
             <Select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => setMonth(event.currentTarget.value)}>
               {months.map((item) => <option key={item} value={item}>{monthWords(item)}</option>)}
             </Select>
           </div>
-          <p className={s.quietLine}>{t('money.accountant.shows')}</p>
-          <div className={s.buttons}>
-            <Button variant="primary" type="submit" disabled={busy}>{t('money.accountant.make')}</Button>
-          </div>
-        </form>
+          <p className={s.quietLine}>{t('money.export.holds')}</p>
+          <div className={s.buttons}><ExportButton month={month} /></div>
+          {/* C4 T24 (A4 row 29): a link opens only on the hosted app; the desktop never offers one. */}
+          {!engine.saveMoneyExport && (
+            <>
+              <p className={s.quietLine}>{t('money.accountant.shows')}</p>
+              <div className={s.buttons}>
+                <Button disabled={busy} onClick={() => void make()}>{t('money.accountant.make')}</Button>
+              </div>
+            </>
+          )}
+        </div>
       )}
       {link && (
         <div className={v.link}>

@@ -125,3 +125,15 @@
     padding: var(--pad-tile-compact);
   }
 }
+
+/* C4 task 12: the client in a finished job's line, a quiet link to their sheet. */
+.client {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.client:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}

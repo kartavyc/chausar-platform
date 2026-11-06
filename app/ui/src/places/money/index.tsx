@@ -3,15 +3,15 @@
  * #/money/invoices, ...), as a row of tabs (Overview, Invoices, Bills, and More). Every figure here is text the engine formatted, through the
  * Figure part with its receipt, or labelled a model estimate. The screen never adds, parses or rounds an amount.
  *
- * Simple first: the overview is plain money in and out; tax detail sits one step away under Books, and a business not
- * registered for GST never sees GST at all.
+ * Simple first: the overview is plain money in and out; tax detail sits one step away under For your CA (the Books page,
+ * C4 T24; C1 moves it under More), and a business not registered for GST never sees GST at all.
  *
- * Above the overview (W4 4J20): the businesses on this computer as chips (Across.tsx, W4 4J6), the month the tiles show
- * (?month=2026-09, this month when none) and Export for your CA for that month. Margins takes the same month.
+ * Above the overview (W4 4J20): the businesses on this computer as chips (Across.tsx, W4 4J6) and the month the tiles show
+ * (?month=2026-09, this month when none). Margins takes the same month. Saving a month for the CA is one sheet (C4 T24).
  *
  * Sheets: `invoice` (one invoice; a draft is issued from it), `payment` (record a payment against an invoice),
- * `limit` (what to do when a spend limit is used up, W4 4F2) and `accountant` (a read-only month of books for the
- * owner's accountant, from the business menu).
+ * `limit` (what to do when a spend limit is used up, W4 4F2) and `accountant` (Share with your CA, C4 T24: the files or a
+ * link, from For your CA and the business menu).
  */
 
 import { useT } from '../../text';
@@ -30,7 +30,6 @@ import { AccountantSheet } from './AccountantSheet';
 import { AcrossChips, AcrossView, useAcrossChoice } from './Across';
 import { Bills } from './Bills';
 import { Books } from './Books';
-import { ExportButton } from './ExportButton';
 import { InvoiceSheet } from './InvoiceSheet';
 import { BillingSheet } from './BillingSheet';
 import { Invoices } from './Invoices';
@@ -85,7 +84,6 @@ function PlaceBody() {
           {sub === undefined && <AcrossChips across={across} chosen={null} overview />}
           <span className={v.barEnd}>
             <MonthPicker month={month} />
-            {sub === undefined && <ExportButton month={month} />}
           </span>
         </div>
       )}

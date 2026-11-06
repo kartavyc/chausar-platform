@@ -37,7 +37,7 @@ export const READS = [
   'venture.people.services', 'venture.persona.get', 'venture.phone.access', 'venture.pipeline.followups',
   'venture.pipeline.list', 'venture.pipeline.settings', 'venture.playbook.guidance', 'venture.playbooks.list',
   'venture.posting.limits.get', 'venture.queue.list', 'venture.queue.view', 'venture.receipt.get',
-  'venture.report.list', 'venture.routines.list', 'venture.routines.runs', 'venture.rules.list',
+  'venture.report.list', 'venture.routines.list', 'venture.routines.suggestions', 'venture.routines.runs', 'venture.rules.list',
   'venture.rules.locks', 'venture.runs.get', 'venture.runs.list', 'venture.salesProposal.get',
   'venture.settings.drafts', 'venture.share.list', 'venture.simulation.scenarios', 'venture.social.calendar',
   'venture.speechOut.providers', 'venture.spend.list', 'venture.spend.policy.get', 'venture.talk.get',

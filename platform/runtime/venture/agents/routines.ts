@@ -10,12 +10,15 @@
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, formatVentureDate, identifier, listRecords, plainText, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import type {
-  IsoTime, RoutineInput, RoutineRecord, RoutineRunRecord, RoutineRunsView, RoutineRunView, RoutineSchedule, RoutinesView, RoutineView, VentureDeps, VentureRecord,
+  IsoTime, RoutineInput, RoutineRecord, RoutineSuggestion, RoutineSuggestionsView, RoutineRunRecord, RoutineRunsView, RoutineRunView, RoutineSchedule, RoutinesView, RoutineView, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { readAs } from '../delivery/shared.ts';
 import { secretFindings } from '../core/secrets.ts';
 import { holdsIdNumber, ID_REFUSED, KEY_REFUSED } from './threads.ts';
 import { teamAgents } from '../chief/routing.ts';
+import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { teamFlagship } from '../views/team-shape.ts';
+import { AGENT_ID } from '../views/shared.ts';
 import { ventureTimeZone } from '../local-day.ts';
 import { formatClock } from '../../owner-format.ts';
 import { ERASED_NAMED } from './notes.ts';
@@ -88,6 +91,14 @@ export function checkSchedule(raw: unknown, nowMs: number = Number.NEGATIVE_INFI
     check(typeof clean.timeZone === 'string' && knownTimeZone(clean.timeZone), 'INVALID_VENTURE_REQUEST', 'Choose a time zone by its name, like Asia/Kolkata.');
     return { kind: 'calendar', weekdays: [...(days as number[])].sort((a, b) => a - b), time: clean.time, timeZone: clean.timeZone };
   }
+  if (body.kind === 'monthly') {
+    // C4 task 32: one day of the month, 1 to 28, so the routine runs in every month.
+    const clean = exactPayload(body, ['kind', 'day', 'time', 'timeZone'], ['kind', 'day', 'time', 'timeZone']);
+    check(Number.isInteger(clean.day) && (clean.day as number) >= 1 && (clean.day as number) <= 28, 'INVALID_VENTURE_REQUEST', 'Choose a day of the month from 1 to 28.');
+    check(typeof clean.time === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clean.time), 'INVALID_VENTURE_REQUEST', 'Give the time as HH:MM on a 24-hour clock, like 09:00.');
+    check(typeof clean.timeZone === 'string' && knownTimeZone(clean.timeZone), 'INVALID_VENTURE_REQUEST', 'Choose a time zone by its name, like Asia/Kolkata.');
+    return { kind: 'monthly', day: clean.day as number, time: clean.time, timeZone: clean.timeZone };
+  }
   throw new ChausarError('INVALID_VENTURE_REQUEST', CRON_WORDS);
 }
 
@@ -98,6 +109,8 @@ function momentIn(iso: IsoTime, timeZone: string, order: VentureRecord['country'
   return `${formatVentureDate(`${w.y}-${pad(w.m)}-${pad(w.d)}`, order)}, ${formatClock(`${pad(w.h)}:${pad(w.min)}`)}`;
 }
 
+/** 1st, 2nd, 3rd, 4th ... 21st ... 28th. */
+export const ordinal = (day: number) => `${day}${day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th'}`;
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
 /** The schedule in words with its time zone: "Every Monday 9:00 am, Asia/Kolkata". once and interval read in the business's zone. */
@@ -109,6 +122,7 @@ export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord
     const every = schedule.everyMinutes % (24 * 60) === 0 ? `${schedule.everyMinutes / (24 * 60)} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, zone, order)}, ${zone}`;
   }
+  if (schedule.kind === 'monthly') return `On the ${ordinal(schedule.day)} of each month, ${formatClock(schedule.time)}, ${schedule.timeZone}`;
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map(day => DAY_NAMES[day - 1]));
   return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
 }
@@ -208,7 +222,7 @@ export function removeRoutine(tx: VentureTx, id: string, by: RoutineRecord['setB
 /** One routine as the owner reads it. withPrompt: only for a role that may change routines (4J22a). */
 export function routineView(state: State, venture: VentureRecord, routine: RoutineRecord, nowMs: number, withPrompt = true): RoutineView {
   const order = venture.country?.dateOrder ?? 'year-month-day';
-  const zone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : ventureTimeZone(venture.country ?? { code: 'XX' });
+  const zone = routine.schedule.kind === 'calendar' || routine.schedule.kind === 'monthly' ? routine.schedule.timeZone : ventureTimeZone(venture.country ?? { code: 'XX' });
   const next = routine.on ? nextOccurrence(routine.schedule, nowMs) : null;
   const who = askedName(state, venture, routine.agent);
   const line = !routine.on ? 'Off. Nothing runs.'
@@ -281,6 +295,58 @@ export async function routinesRemoveHandler(deps: VentureDeps, ctx: Context, pay
     const removed = removeRoutine(tx, id, 'owner');
     return { removed: true as const, line: `${removed.name} is removed. Its history stays.` };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Ready routines from the plan (one-shot C4 task 32)
+// ---------------------------------------------------------------------------
+
+/** A step that names its own rhythm, and the schedule code gives it: the 1st of each month, Mondays, or weekdays, at 09:00. */
+const RHYTHMS: readonly { words: RegExp; schedule: (timeZone: string) => RoutineSchedule }[] = Object.freeze([
+  { words: /\b(?:monthly|every month|each month|month-end|month end)\b/i, schedule: timeZone => ({ kind: 'monthly', day: 1, time: '09:00', timeZone }) },
+  { words: /\b(?:weekly|every week|each week)\b/i, schedule: timeZone => ({ kind: 'calendar', weekdays: [1], time: '09:00', timeZone }) },
+  { words: /\b(?:daily|every day|each day)\b/i, schedule: timeZone => ({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '09:00', timeZone }) },
+]);
+/** At most this many ready routines are offered. */
+const SUGGESTIONS_MAX = 2;
+
+/**
+ * Up to two routines the business's accepted plan already names: each step whose title says its rhythm ("Draft the
+ * monthly report for review"), with the agent the playbook gives that step and the schedule code reads from the words.
+ * Code only; none when the plan names no recurring step, and none for a step a routine of that name already covers.
+ * Nothing is stored: the owner adds one through the form and saves it, and each run waits on Today as every routine does.
+ */
+export function routineSuggestions(state: State, venture: VentureRecord): RoutineSuggestion[] {
+  const plan = acceptedBlueprintOrNull(state, venture);
+  if (!plan) return [];
+  const steps = plan.flagshipSteps
+    ? plan.flagshipSteps.filter(step => step.doneBy !== 'person').map(step => ({ id: step.id, title: step.title.value }))
+    : plan.deliverySteps.map(step => ({ id: step.id, title: step.title.value }));
+  const timeZone = ventureTimeZone(venture.country ?? { code: 'XX' });
+  const team = teamAgents(state, venture).map(agent => agent.id);
+  const roleOf = teamFlagship(state, venture)?.roleOf ?? {};
+  const taken = new Set(liveRoutines(state, venture.id).map(routine => routine.name.toLowerCase()));
+  const found: RoutineSuggestion[] = [];
+  for (const step of steps) {
+    if (found.length >= SUGGESTIONS_MAX) break;
+    const rhythm = RHYTHMS.find(item => item.words.test(step.title));
+    const name = step.title.trim().slice(0, MAX_NAME);
+    if (!rhythm || taken.has(name.toLowerCase())) continue;
+    const owner = roleOf[step.id];
+    const agent = owner && team.includes(owner) ? owner : team.includes(AGENT_ID) ? AGENT_ID : null;
+    const schedule = rhythm.schedule(timeZone);
+    const prompt = checkPrompt(`${name.replace(/[.\s]+$/, '')} for this business, from its own records and plan. Keep it as a draft for my approval.`);
+    found.push({ name, agent, prompt, schedule, when: whenWords(schedule, venture), step: step.title });
+    taken.add(name.toLowerCase());
+  }
+  return found;
+}
+
+/** venture.routines.suggestions {} (read): the ready routines from the plan, at most two; writes nothing. */
+export async function routinesSuggestionsHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<RoutineSuggestionsView> {
+  exactPayload(payload, []);
+  const { state, venture } = readAs(deps, ctx, 'read');
+  return { suggestions: routineSuggestions(state, venture) };
 }
 
 /**

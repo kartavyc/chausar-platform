@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { SAMPLE_STATEMENT_PATH, STATEMENT_FORMATS } from '../../../../platform/runtime/venture/build/bank-formats';
 
 /**
  * Connections > Bank account (Ink v2 wave 2, 2D): the sheet lists each account with its consent line, Renew and Stop,
@@ -197,6 +198,18 @@ describe('Connections > Bank account', () => {
     expect(within(accountOf(sheet, 'HDFC current')).getByText('Alerts show on Today only. No address is set, so nothing is sent.')).toBeTruthy();
   });
 
+  // C4 (T28, 231.x1): the banks named are the parser's own list; the sample is a file the app ships.
+  it('names the banks the parser reads, from its own list, and offers a sample file', async () => {
+    start();
+    const sheet = await openSheet();
+    const line = sheet.querySelector('[data-banks]') as HTMLElement;
+    for (const format of STATEMENT_FORMATS) expect(line.textContent).toContain(format.bank);
+    expect(line.textContent).toBe(`Reads CSV statements from ${STATEMENT_FORMATS.slice(0, -1).map((format) => format.bank).join(', ')} and ${STATEMENT_FORMATS.at(-1)!.bank}, and others with date and amount columns. See a sample file`);
+    const sample = within(sheet).getByRole('link', { name: 'See a sample file' });
+    expect(sample.getAttribute('href')).toBe(SAMPLE_STATEMENT_PATH);
+    expect(sample.getAttribute('download')).toBe('sample-bank-statement.csv');
+  });
+
   it('a statement can be imported from inside the sheet', async () => {
     const engine = start();
     const sheet = await openSheet();
@@ -205,7 +218,7 @@ describe('Connections > Bank account', () => {
     fireEvent.change(within(sheet).getByLabelText('Account'), { target: { value: 'HDFC current' } });
     fireEvent.change(within(sheet).getByLabelText('Statement file (CSV)'), { target: { files: [new File([csv], 'october.csv', { type: 'text/csv' })] } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
-    await waitFor(() => expect(within(sheet).getByText('Added 1 transaction to HDFC current.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Added 1 transaction from 21 Oct. See them under Connections, in your bank account.')).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.import')).toEqual([{ csv, account: 'HDFC current' }]);
   });
 

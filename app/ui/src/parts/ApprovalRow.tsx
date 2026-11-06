@@ -13,6 +13,7 @@ import { Receipt } from './Receipt';
 // W4 4J19: the row's meta line, facts, the price beside Approve and amounts at their places.
 import { BesideApprove, changeProof, MetaLine, provedText, RowFacts } from './ApprovalMeta';
 import { Row } from './Row';
+import { STARTS_WORK, usePausedWork } from './paused';
 import { stateText } from './states';
 import type { QueueAction, QueueDecision, QueueKind, QueueList, QueueRow } from '../engine/types';
 import s from './ApprovalRow.module.css';
@@ -189,8 +190,10 @@ export function decidedWords(row: QueueRow, line: string, t: T): { title: string
  * locked until the thing is looked at, the note that says so, and whether it asks once more. The card and Today's next
  * best step (W4 4I2) both read it here, so the two never say different things.
  */
-export function primaryOf(row: QueueRow, viewed: boolean, t: T): ApprovalPrimary {
+export function primaryOf(row: QueueRow, viewed: boolean, t: T, paused = false): ApprovalPrimary {
   const primary = row.actions.find((a) => a.primary) ?? row.actions[0]!;
+  // C4 task 5: while the business is paused, a primary that starts new work is locked, and says why.
+  if (paused && STARTS_WORK.has(primary.id)) return { label: primary.label, locked: true, note: t('today.paused.locked'), asksAgain: Boolean(primary.secondAsk) };
   const locked = Boolean(primary.requiresView && !viewed);
   const viewAction = row.actions.find((a) => VIEW_ACTIONS.has(a.id))?.id;
   // The note names a one-word action, as D does ("Approve unlocks after you watch it"); a longer one ("Send to CA") is
@@ -294,7 +297,8 @@ export function ApprovalRow({
   const isViewed = current.digest === row.digest ? (viewed ?? viewedHere) : viewedHere;
   const primary = current.actions.find((a) => a.primary) ?? current.actions[0]!;
   const others = current.actions.filter((a) => a !== primary);
-  const { locked, note: lockNote } = primaryOf(current, isViewed, t);
+  const paused = usePausedWork();
+  const { locked, note: lockNote } = primaryOf(current, isViewed, t, paused);
   /** W4 4E4: the answer box asks for a day (a next step from call notes with no day written). */
   const asksDay = current.needs?.answer === 'day';
   const eyebrow = showBusiness ? (current.agent ? `${current.businessName} · ${current.agent}` : current.businessName) : (current.agent ?? '');
@@ -518,13 +522,13 @@ export function ApprovalRow({
           data-key="primary"
           disabled={busy}
           locked={locked}
-          lockedReason={t('approval.unlock', { action: primary.label })}
+          lockedReason={paused && lockNote ? lockNote : t('approval.unlock', { action: primary.label })}
           lockedNoteId={hintId}
           onClick={() => { if (!locked) choose(primary); }}
         >
           {primary.label}
         </Button>
-        {locked && <span id={hintId} className="sr-only">{t('approval.unlock', { action: primary.label })}</span>}
+        {locked && <span id={hintId} className="sr-only">{paused && lockNote ? lockNote : t('approval.unlock', { action: primary.label })}</span>}
       </>
     );
 

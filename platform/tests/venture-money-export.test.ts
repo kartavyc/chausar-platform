@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import * as fsp from 'node:fs/promises';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
 import { APP_ONLY_METHODS, METHOD_OWNERS, W4_METHOD_LEVELS, type MoneyExportFile, type SumReceiptRecord } from '../runtime/venture/contracts.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
@@ -238,7 +238,8 @@ test('the save channel answers only the app\'s window, asks the engine for the m
     assert.deepEqual(asked, [], 'nothing was asked of the engine for a refused request');
 
     const saved = await saving.saveMoneyExport(trusted, { month: '2026-10' }, deps);
-    assert.deepEqual(saved, { ok: true, result: { saved: true, name: 'chosen.csv', line: 'Saved chosen.csv for your CA. Chausar did not send it anywhere.' } });
+    // C4 (T24): the CSV and a read-me; the window gets names, the folder's own name and an id, never a path.
+    assert.deepEqual({ ...saved, result: { ...saved.result, id: 'id' } }, { ok: true, result: { saved: true, name: 'chosen.csv', readme: 'chosen-read-me.txt', count: 2, folder: basename(dir), id: 'id', line: `Saved 2 files to ${basename(dir)}. Chausar did not send them anywhere.` } });
     assert.deepEqual(asked, [['venture.money.export', { month: '2026-10' }]]);
     assert.equal(shown[0].defaultPath, join(dir, 'ledger-cafe-books-2026-10-for-ca.csv'));
     assert.ok(shown[0].properties.includes('showOverwriteConfirmation'), 'the system dialog asks before a file is replaced');
@@ -261,7 +262,7 @@ test('the save channel answers only the app\'s window, asks the engine for the m
     assert.ok(!denied.error.message.includes(dir) && /another folder/.test(denied.error.message), denied.error.message);
     picked = null;
     assert.deepEqual(await saving.saveMoneyExport(trusted, { month: '2026-10' }, deps), { ok: true, result: null }, 'cancelled: nothing written');
-    assert.deepEqual((await readdir(dir)).sort(), ['chosen.csv', 'late.csv']);
+    assert.deepEqual((await readdir(dir)).sort(), ['chosen-read-me.txt', 'chosen.csv', 'late.csv']);
   });
 });
 
@@ -274,9 +275,9 @@ test('4J20: the desktop also saves the signed receipts beside the CSV, named fro
     const dialog = { showSaveDialog: async () => ({ canceled: false, filePath: join(dir, 'october.csv') }) };
     const deps = { dialog, window: { webContents: contents }, engine, assertTrustedSender: contract.assertTrustedSender, publicError: contract.publicError, documents: dir };
     const saved = await saving.saveMoneyExport(trusted, { month: '2026-10' }, deps);
-    assert.deepEqual(saved, { ok: true, result: { saved: true, name: 'october.csv', receipts: 'october-receipts.json', line: 'Saved october.csv and october-receipts.json for your CA. Chausar did not send them anywhere.' } });
+    assert.deepEqual({ ...saved, result: { ...saved.result, id: 'id' } }, { ok: true, result: { saved: true, name: 'october.csv', receipts: 'october-receipts.json', readme: 'october-read-me.txt', count: 3, folder: basename(dir), id: 'id', line: `Saved 3 files to ${basename(dir)}. Chausar did not send them anywhere.` } });
     assert.deepEqual(JSON.parse(await readFile(join(dir, 'october-receipts.json'), 'utf8')), receipts);
-    assert.deepEqual((await readdir(dir)).sort(), ['october-receipts.json', 'october.csv']);
+    assert.deepEqual((await readdir(dir)).sort(), ['october-read-me.txt', 'october-receipts.json', 'october.csv']);
   });
 });
 
@@ -296,7 +297,7 @@ test('4J20: both names are checked before either is written: a new CSV beside an
     assert.equal(saved.result.receipts, 'october-receipts.json');
     assert.deepEqual(JSON.parse(await readFile(join(dir, 'october-receipts.json'), 'utf8')), receipts);
     assert.equal(await readFile(join(dir, 'october.csv'), 'utf8'), 'Section\r\n');
-    assert.deepEqual((await readdir(dir)).sort(), ['october-receipts.json', 'october.csv']);
+    assert.deepEqual((await readdir(dir)).sort(), ['october-read-me.txt', 'october-receipts.json', 'october.csv']);
   });
 
   await folder(async dir => {

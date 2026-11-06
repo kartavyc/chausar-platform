@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import { Field } from '../../parts/Field';
-import { refusalWords } from '../../parts/custody';
+import { PassphraseField } from '../../parts/PassphraseField';
+import { noteOpenedWithPassphrase, refusalWords } from '../../parts/custody';
 import type { Openable, WelcomeFound } from './boot';
 import type { Leaving } from './started';
 import type { Deleted } from '../../engine/types';
@@ -117,13 +117,17 @@ function Shell({ status, children }: { status: ReactNode; children: ReactNode })
   );
 }
 
-/** A business locked with a passphrase: its own field under its row, cleared once sent; the cursor goes in it. */
+/**
+ * A business locked with a passphrase: its own field under its row, with the cursor in it. C4 task 35 (31.f2): a wrong
+ * one stays in the field with the cursor, so a typo can be fixed; once it opens the field is gone with the screen.
+ */
 function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; onOpened: () => void; onForgot: () => void }) {
   const t = useT();
   const client = useEngine();
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
   const live = useRef(true);
   // Set on every mount: StrictMode mounts, unmounts and mounts again, and a flag left false would hide the refusal.
   useEffect(() => {
@@ -135,15 +139,17 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!passphrase) { setProblem(t('custody.enterPassphrase')); return; }
-    const typed = passphrase;
-    setPassphrase('');
     setBusy(true);
     setProblem(null);
     try {
-      await client.request('workspace.open', { ...business.params, passphrase: typed });
+      await client.request('workspace.open', { ...business.params, passphrase });
+      noteOpenedWithPassphrase();
       onOpened();
     } catch (error) {
-      if (live.current) setProblem(refusalWords(error, t));
+      if (live.current) {
+        setProblem(refusalWords(error, t));
+        field.current?.focus();
+      }
     } finally {
       if (live.current) setBusy(false);
     }
@@ -151,9 +157,9 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
 
   return (
     <form className={s.ask} onSubmit={(event) => void submit(event)}>
-      <Field
-        label={t('onboarding.welcome.passphraseFor', { name })} type="password" autoComplete="current-password" spellCheck={false}
-        autoFocus value={passphrase} onChange={(event) => setPassphrase(event.currentTarget.value)}
+      <PassphraseField
+        label={t('onboarding.welcome.passphraseFor', { name })} autoComplete="current-password"
+        autoFocus inputRef={field} value={passphrase} onChange={setPassphrase}
       />
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <div className={s.actions}>

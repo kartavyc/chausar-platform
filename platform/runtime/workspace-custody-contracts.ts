@@ -14,10 +14,12 @@ export const CUSTODY_METHODS = Object.freeze([
   'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export',
   // Ink v2 wave 4 (4J6): the owner starts a new never-contact list once the old one can no longer be checked.
   'workspace.custody.neverContactReset',
+  // One-shot C4 task 38: the business name and day inside a move file, read with its code, before moving it here.
+  'workspace.transfer.peek',
 ] as const);
 export type CustodyMethod = typeof CUSTODY_METHODS[number];
 /** Answered before the vault check; they also answer with a vault open. */
-export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import']);
+export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.transfer.peek']);
 /** The owner, in the app (desktop channel, untainted), with a vault open. */
 export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset']);
 /** These change which vault is open or replace its state: engine transitions. */
@@ -30,10 +32,26 @@ export const BACKUP_AFTER_METHODS: readonly string[] = Object.freeze([
 ]);
 export const AUTO_BACKUP = Object.freeze({ everyMs: 21_600_000, minGapMs: 120_000, keepRecent: 10, keepDailyDays: 14, keepWeeklyWeeks: 8, keepSafety: 5 });
 export const TRANSFER = Object.freeze({ prefix: 'CHT-', length: 24, alphabet: '0123456789ABCDEFGHJKMNPQRSTVWXYZ', maxTextChars: 1_900_000 });
-/** A4 review (L3, hands-on row 113): a move file's name, by this computer's own date (never the UTC day). */
+/**
+ * A4 review (L3, hands-on row 113): a move file's name, by this computer's own date (never the UTC day). One-shot C4
+ * task 38 (218.d1): its own extension, .chausar-move; a move file an older Chausar named .backup still opens (the
+ * import reads the text, never the name).
+ */
+export const MOVE_EXTENSION = '.chausar-move';
 export function moveFileName(at: Date): string {
   const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-  return `chausar-move-${day}.backup`;
+  return `chausar-move-${day}${MOVE_EXTENSION}`;
+}
+const EXPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/**
+ * One-shot C4 task 36 (206.w1): the name an export of the whole business is offered under in the save dialog, from the
+ * business's name and the day where the owner is: "Pune Frames, 3 Nov 2026.vault" (.json for a readable copy). Letters
+ * a file name can't hold become spaces; an empty name reads "Chausar business".
+ */
+export function exportFileName(business: string, at: Date, timeZone: string, plaintext: boolean): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(at).map(part => [part.type, part.value]));
+  const name = business.replace(/[<>:"/\\|?*\p{Cc}]/gu, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 80) || 'Chausar business';
+  return `${name}, ${Number(parts.day)} ${EXPORT_MONTHS[Number(parts.month) - 1]} ${parts.year}.${plaintext ? 'json' : 'vault'}`;
 }
 export const BUSINESS_LIST_MAX = 50;
 export const BACKUP_LIST_MAX = 200;
@@ -53,6 +71,12 @@ export type BusinessCustodyView = {
   recovery: RecoveryState;
   storage: 'experimental-file' | 'postgres';
   backups: { auto: boolean; count: number; newestAt: IsoTime | null; nextDueAt: IsoTime | null; lastError: string | null };
+  /** C4 task 36: the name the save dialog offers for an encrypted export today (exportFileName). */
+  exportName?: string;
+  /** C4 task 37: how many exports of this business are in Chausar's own exports folder (Delete keeps them). */
+  exportsHere?: number;
+  /** C4 task 38 (219.x1): when a move file was made, until the owner dismisses the line; null when none waits. */
+  moveMadeAt?: IsoTime | null;
 };
 export type CustodyView = { computer: ComputerCustodyView; business: BusinessCustodyView | null };
 export type BusinessOnComputer = {
@@ -86,7 +110,9 @@ export type CustodyPayloads = {
   'workspace.custody.recoveryCode': { passphrase?: string };
   'workspace.backups.create': Record<string, never>;
   'workspace.backups.restore': { file: string; confirmed: true };
-  'workspace.transfer.export': { passphrase?: string };
+  /** dismiss (C4 task 38): takes away the "Move file made" line; nothing else changes. */
+  'workspace.transfer.export': { passphrase?: string } | { dismiss: true };
+  'workspace.transfer.peek': { fileText: string; transferCode: string };
   /** confirmation: the open business's name, typed by the owner. */
   'workspace.custody.neverContactReset': { confirmation: string };
 };
@@ -100,7 +126,8 @@ export type CustodyResults = {
   'workspace.custody.recoveryCode': { custody: CustodyView; recoveryCode: string };
   'workspace.backups.create': BackupView;
   'workspace.backups.restore': { workspace: WorkspaceCreateResult['workspace']; restoredFrom: BackupView; safety: BackupView };
-  'workspace.transfer.export': { fileName: string; text: string; transferCode: string; bytes: number };
+  'workspace.transfer.export': { fileName: string; text: string; transferCode: string; bytes: number } | { dismissed: true };
+  'workspace.transfer.peek': { name: string; movedOutAt: IsoTime | null };
   'workspace.custody.neverContactReset': { line: string };
 };
 

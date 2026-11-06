@@ -302,7 +302,7 @@ describe('Work v2: finished', () => {
     const books = await tileOf('Matched September bank lines to invoices', finished);
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
+    expect(within(books).getByText('Took 4 min')).toBeTruthy();
     const reach = await tileOf('Estimated reach for episode 14', finished);
     // The model's words sit inside the estimate itself, so they read as labelled wherever they stand.
     const estimate = within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]') as HTMLElement | null;
@@ -346,7 +346,7 @@ describe('Work v2: orders by client', () => {
     expect(await screen.findByRole('complementary', { name: 'Boat Audio' })).toBeTruthy();
   });
 
-  it('each order is a card: the request, its status chip, the price receipt, its invoice, one sentence, and Open on Today when it waits on you', async () => {
+  it('each order is a card: the request, its status chip, the price receipt, its invoice, one sentence, and Read draft when its draft waits on you', async () => {
     await start();
     const orders = await screen.findByRole('region', { name: 'Orders' });
     const ep14 = await tileOf('Two mentions in episode 14', orders);
@@ -355,15 +355,18 @@ describe('Work v2: orders by client', () => {
     expect(within(ep14).getByText('Ready for you to read')).toBeTruthy();
     expect(within(ep14).getByText(/^Ordered 20 Oct/)).toBeTruthy();
     expect(within(ep14).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
-    expect(within(ep14).getByRole('link', { name: 'Open on Today' }).getAttribute('href')).toBe('#/today');
+    // C4 task 13: the draft opens here, not on Today.
+    expect(within(ep14).getByRole('button', { name: 'Read draft' })).toBeTruthy();
     const ep12 = await tileOf('Two mentions in episode 12', orders);
     await waitFor(() => expect(ep12.textContent).toContain('Invoiced as INV-0039. Waiting for payment.'));
     expect(within(ep12).getByText('Issued')).toBeTruthy();
     expect(within(ep12).getByText('INV-0039')).toBeTruthy();
     expect(within(ep12).getByText(/^due 28 Oct/)).toBeTruthy();
     // Its price and its invoice total, each with its receipt (the sample bills the order at its price, R-0416).
-    const total = within(ep12).getByText('₹26,200').closest('[data-figure]') as HTMLElement;
-    expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
+    // C4 task 11: the price shows as its figure too, so the amount is there twice, each figure with its receipt.
+    const figures = within(ep12).getAllByText('₹26,200').map((amount) => amount.closest('[data-figure]') as HTMLElement);
+    expect(figures).toHaveLength(2);
+    for (const total of figures) expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     expect(within(ep12).getAllByRole('button', { name: receiptMark('R-0416') })).toHaveLength(2);
     expect(within(ep12).queryByRole('link', { name: 'Open on Today' })).toBeNull();
     // W4 4J19 flips wave 3's "no steps yet": each order draws the engine's stage steps (4J3).

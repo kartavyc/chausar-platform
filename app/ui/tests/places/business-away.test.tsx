@@ -97,11 +97,27 @@ describe('Business > Away', () => {
     const reply = screen.getByRole('region', { name: 'A reply for your own mail app' });
     expect(within(reply).getByText('Chausar sends nothing. Copy this into the auto-reply of your own mail app.')).toBeTruthy();
     const quoted = reply.querySelector('[data-content]')!;
-    expect(quoted.textContent).toContain('I am away from 28 Oct 2026 to 5 Nov 2026 and back on 6 Nov 2026.');
+    // C4 task 40: the reply in the owner's words, signed with the business; no year when it is this year.
+    expect(quoted.textContent).toContain("I'm away 28 Oct to 5 Nov and back on 6 Nov. I'll reply then.");
     await click(within(reply).getByRole('button', { name: 'Copy' }));
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('I am away from 28 Oct 2026'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("I'm away 28 Oct to 5 Nov"));
     expect(await within(reply).findByText('Copied')).toBeTruthy();
     assertInkRules();
+  });
+
+  it('C4 task 40: Clear the days shows only while away, and ends Away at once', async () => {
+    const { calls } = await start('#/business/away');
+    await screen.findByText(/You are not away/);
+    expect(screen.queryByRole('button', { name: 'Clear the days' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('First day away'), { target: { value: '2026-10-23' } });
+    fireEvent.change(screen.getByLabelText('Last day away'), { target: { value: '2026-10-25' } });
+    await click(screen.getByRole('button', { name: 'Set the days' }));
+    await screen.findByText(/^You are away until/);
+    await click(screen.getByRole('button', { name: 'Clear the days' }));
+    expect(of(calls, 'venture.away.set').at(-1)).toEqual({ clear: true });
+    expect(await screen.findByText('You are not away. Set the days you will be away and Chausar lists what falls due.')).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'A reply for your own mail app' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear the days' })).toBeNull();
   });
 
   it('says what the engine refused, in its words', async () => {

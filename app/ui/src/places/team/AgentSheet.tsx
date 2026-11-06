@@ -174,7 +174,8 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <section className={s.section}>
             <h3 id={runsId} className={s.small}>{t('team.runs')}</h3>
             {runs.error && <p className={s.failed}>{t('team.failed', { message: runs.error.message })}</p>}
-            {runs.data && mine.length === 0 && <p className={s.quiet}>{t('team.runsNone')}</p>}
+            {/* C4 task 10 (58.x1): an empty Runs tab says when it starts, with the way to Work. */}
+            {runs.data && mine.length === 0 && <p className={s.quiet}>{t('team.runsStart')} <a href="#/work">{t('team.runsStartLink')}</a></p>}
             {mine.length > 0 && (
               <ul className={s.runs} aria-labelledby={runsId}>
                 {mine.map((one) => <RunLine key={one.runId} run={one} agentId={agent.id} />)}

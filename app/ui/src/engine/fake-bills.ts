@@ -28,6 +28,11 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MINOR = /^(0|[1-9]\d{0,13})$/;
 const lineTax = (line: HeldLine) => Math.floor((line.amount * line.rate + 5000) / 10000);
 const vendorKey = (vendor: string) => vendor.trim().replace(/\s+/g, ' ').toLowerCase();
+/** C4 (T22): a new bill's due date this many days after its bill date when its vendor has no earlier bill (money/bills.ts). */
+const DEFAULT_DUE_DAYS = 15;
+const dayMs = 86_400_000;
+const addDays = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00.000Z`) + days * dayMs).toISOString().slice(0, 10);
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / dayMs);
 const text = (value: unknown, field: string, max: number): string => {
   const said = typeof value === 'string' ? value.trim() : '';
   if (!said || said.length > max || /[\n\r\t]/.test(said)) throw new EngineError('INVALID_VENTURE_REQUEST', `${field} must be one line of 1 to ${max} characters.`);
@@ -98,7 +103,35 @@ export class FakeBills {
   private view(bill: HeldBill, withReceipt = false): BillView {
     const balance = bill.total - bill.paid;
     const state: BillView['state'] = bill.status === 'draft' ? 'draft' : balance <= 0 ? 'paid' : bill.dueDate < this.today() ? 'overdue' : bill.paid > 0 ? 'partial' : 'posted';
-    return { id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: this.money(bill.total, bill.currency), paid: this.money(bill.paid, bill.currency), balance: this.money(balance, bill.currency), state, recurring: bill.recurring, ...(withReceipt ? { receiptId: this.balanceReceipt(bill) } : {}) };
+    const [first, ...rest] = bill.lines;
+    // C4 (T22): what it is for, and whether it is due today, as money/bills.ts says them.
+    const purpose = !first ? null : rest.length ? `${first.description}, and ${rest.length} more` : vendorKey(first.description) === vendorKey(bill.vendor) ? null : first.description;
+    const dueToday = bill.status === 'posted' && balance > 0 && bill.dueDate === this.today();
+    return { id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: this.money(bill.total, bill.currency), paid: this.money(bill.paid, bill.currency), balance: this.money(balance, bill.currency), state, recurring: bill.recurring, ...(withReceipt ? { receiptId: this.balanceReceipt(bill) } : {}), dueToday, purpose };
+  }
+
+  /** C4 (T22): each vendor's days from bill date to due date on its newest bill. */
+  private terms(): { vendor: string; days: number }[] {
+    const newest = new Map<string, HeldBill>();
+    for (const bill of this.mine()) {
+      const held = newest.get(vendorKey(bill.vendor));
+      if (!held || bill.billDate > held.billDate || (bill.billDate === held.billDate && bill.at > held.at)) newest.set(vendorKey(bill.vendor), bill);
+    }
+    return [...newest.values()].map((bill) => ({ vendor: bill.vendor, days: daysBetween(bill.billDate, bill.dueDate) }));
+  }
+
+  /**
+   * C4 (T22): Today's notice for each posted bill with money left due today or overdue, as money/bills.ts billDueRows
+   * makes it: its only action is Open, to Money's bills; it leaves once paid.
+   */
+  dueRows(): { subject: string; version: string; createdAt: string; title: string; link: string }[] {
+    const today = this.today();
+    return this.mine().filter((b) => b.status === 'posted' && b.total > b.paid && b.dueDate <= today)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.at.localeCompare(b.at))
+      .map((b) => ({
+        subject: `bill-due:${b.id}`, version: `${b.dueDate}:${b.paid}:${b.dueDate === today ? 'today' : 'late'}`, createdAt: b.at, link: '#/money/bills',
+        title: b.dueDate === today ? `A bill to ${b.vendor} is due today.` : `A bill to ${b.vendor} was due on ${b.dueDate}.`,
+      }));
   }
 
   /** 4J20: one bill's balance receipt, as bills.list proves each row: its lines and their tax less each payment. */
@@ -149,14 +182,16 @@ export class FakeBills {
   private add(p: Record<string, unknown>): { bill: BillView; receiptId?: string } {
     const vendor = text(p.vendor, 'The vendor', 120);
     const lines = this.lines(p.lines);
-    if (typeof p.billDate !== 'string' || !DATE.test(p.billDate) || typeof p.dueDate !== 'string' || !DATE.test(p.dueDate)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Use dates like 2026-10-15.');
-    if (p.dueDate < p.billDate) throw new EngineError('INVALID_VENTURE_REQUEST', 'The due date must be on or after the bill date.');
+    if (typeof p.billDate !== 'string' || !DATE.test(p.billDate) || (p.dueDate !== undefined && (typeof p.dueDate !== 'string' || !DATE.test(p.dueDate)))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Use dates like 2026-10-15.');
+    // C4 (T22): no due date: the vendor's last terms, else 15 days after the bill date.
+    const dueDate = typeof p.dueDate === 'string' ? p.dueDate : addDays(p.billDate, this.terms().find((item) => vendorKey(item.vendor) === vendorKey(vendor))?.days ?? DEFAULT_DUE_DAYS);
+    if (dueDate < p.billDate) throw new EngineError('INVALID_VENTURE_REQUEST', 'The due date must be on or after the bill date.');
     if (p.recurring !== undefined && p.recurring !== null && p.recurring !== 'monthly' && p.recurring !== 'quarterly') throw new EngineError('INVALID_VENTURE_REQUEST', 'A bill repeats monthly or quarterly, or not at all.');
     const total = lines.reduce((sum, line) => sum + line.amount + lineTax(line), 0);
     // The real bill takes a waiting expected one's place, keeping its repeat unless told.
     const expected = this.mine().find((b) => b.status === 'draft' && vendorKey(b.vendor) === vendorKey(vendor));
     const recurring = p.recurring === undefined ? (expected?.recurring ?? null) : (p.recurring as HeldBill['recurring']);
-    const fields = { vendor, currency: this.currency(), lines, billDate: p.billDate, dueDate: p.dueDate, recurring, status: 'posted' as const, total };
+    const fields = { vendor, currency: this.currency(), lines, billDate: p.billDate, dueDate, recurring, status: 'posted' as const, total };
     let bill: HeldBill;
     if (expected) {
       Object.assign(expected, fields);
@@ -185,12 +220,12 @@ export class FakeBills {
     return { bill: this.view(bill), receiptId: id };
   }
 
-  private list(): { bills: BillView[]; owed: MoneyFigure | null } {
+  private list(): { bills: BillView[]; owed: MoneyFigure | null; terms: { vendor: string; days: number }[]; defaultDueDays: number } {
     const bills = this.mine().sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.billDate.localeCompare(b.billDate) || a.at.localeCompare(b.at));
-    return { bills: bills.map((bill) => this.view(bill, true)), owed: this.owed() };
+    return { bills: bills.map((bill) => this.view(bill, true)), owed: this.owed(), terms: this.terms(), defaultDueDays: DEFAULT_DUE_DAYS };
   }
 
-  private stop(p: Record<string, unknown>): { bills: BillView[]; owed: MoneyFigure | null } {
+  private stop(p: Record<string, unknown>): { bills: BillView[]; owed: MoneyFigure | null; terms: { vendor: string; days: number }[]; defaultDueDays: number } {
     const bill = this.mine().find((b) => b.id === p.billId);
     if (!bill) throw new EngineError('INVALID_VENTURE_REQUEST', 'This bill was not found.');
     const chain = this.mine().filter((b) => b.recurring !== null && vendorKey(b.vendor) === vendorKey(bill.vendor));

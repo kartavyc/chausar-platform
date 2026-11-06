@@ -141,7 +141,35 @@ describe('Business: Go or no go (5A2, M18)', () => {
     assertInkRules();
   });
 
-
+  // One-shot C4 task 25 (111.x1, 114.x1, 114.x2).
+  it('C4: says how it decides; each card has its date and how the figure was reached; Remove asks once, then takes only that card', async () => {
+    const { spy } = start({ hash: '#/business/go-no-go' });
+    expect(await screen.findByText('No go when the most you could lose is above your limit.')).toBeTruthy();
+    const make = async (subject: string) => {
+      await type(screen.getByLabelText('What you are deciding'), subject);
+      await type(screen.getByLabelText('What it costs to start, in rupees'), '5,000');
+      await type(screen.getByLabelText('What it costs each month, in rupees'), '1000');
+      await type(screen.getByLabelText('How many months you will try it'), '6');
+      await type(screen.getByLabelText('The most you are willing to lose, in rupees'), '50000');
+      await press(screen.getByRole('button', { name: 'Make the card' }));
+      return screen.findByRole('region', { name: subject });
+    };
+    const kept = await make('Kept idea');
+    const gone = await make('weekend photo shoot packs');
+    expect(gone.querySelector('[data-working]')?.textContent).toBe('₹5,000 to start + 6 months × ₹1,000');
+    expect(gone.textContent).toMatch(/\d{1,2} [A-Z][a-z]{2} \d{4}/);
+    assertInkRules();
+    await press(within(gone).getByRole('button', { name: 'Remove' }));
+    expect(calls(spy, 'venture.goNoGo.remove')).toEqual([]);
+    expect(within(gone).getByText('Remove this card?')).toBeTruthy();
+    await press(within(gone).getByRole('button', { name: 'Keep it' }));
+    expect(within(gone).queryByText('Remove this card?')).toBeNull();
+    await press(within(gone).getByRole('button', { name: 'Remove' }));
+    await press(within(gone).getByRole('button', { name: 'Remove' }));
+    expect(calls(spy, 'venture.goNoGo.remove').length).toBe(1);
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'weekend photo shoot packs' })).toBeNull());
+    expect(screen.getByRole('region', { name: 'Kept idea' })).toBe(kept);
+  });
 });
 
 describe('Business > Prices: a share is the advanced option, one step away (founder decision of 23 Oct)', () => {

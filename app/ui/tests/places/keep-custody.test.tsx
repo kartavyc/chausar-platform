@@ -157,6 +157,39 @@ describe('Keep this business: moving to another computer', () => {
     expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
     expect(document.body.textContent).not.toContain(SAMPLE_PASSPHRASE);
   });
+
+  // C4 task 38 (219.x1): the line stays after Done, with its local time, until the owner takes it away.
+  it('a made file leaves a lasting line with its time; Dismiss takes it away', async () => {
+    const { calls } = start('#/business/keep');
+    const move = await fold('Move to another computer');
+    expect(screen.queryByText(/^Move file made /)).toBeNull();
+    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await waitFor(() => expect(screen.getByText(/^Move file made .+. Delete it once the move is done.$/)).toBeTruthy());
+    expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
+    await press(within(move).getByRole('button', { name: 'Done' }));
+    expect(screen.getByText(/^Move file made /)).toBeTruthy();
+    await press(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(sent(calls, 'workspace.transfer.export').at(-1)).toEqual({ dismiss: true });
+    await waitFor(() => expect(screen.queryByText(/^Move file made /)).toBeNull());
+  });
+
+  // C4 task 38 (217.x1): no recovery code yet: the fold says to make one first, with its button.
+  it('with no recovery code the fold says to make one first, and its button shows the code', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    await engine.request('workspace.create', { name: 'Kite Studio', pack: 'services' });
+    const { calls } = start('#/business/keep', engine);
+    const move = await fold('Move to another computer');
+    expect(within(move).getByText('Make a recovery code first, in case the move goes wrong.')).toBeTruthy();
+    await press(within(move).getByRole('button', { name: 'Make the code' }));
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(1);
+    expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
+  });
+
+  it('with a recovery code the fold does not ask for one', async () => {
+    start('#/business/keep');
+    const move = await fold('Move to another computer');
+    expect(within(move).queryByText('Make a recovery code first, in case the move goes wrong.')).toBeNull();
+  });
 });
 
 describe('Keep this business: closing and locking', () => {
@@ -191,7 +224,9 @@ describe('Keep this business: export a copy', () => {
     expect((within(box).getByRole('radio', { name: 'Encrypted' }) as HTMLInputElement).checked).toBe(true);
     await press(within(box).getByRole('button', { name: 'Export a copy' }));
     expect(sent(calls, 'workspace.export')).toEqual([{ confirmed: true, plaintext: false }]);
-    expect(within(box).getByText(/^Saved to \/Users\/you\/Chausar\/exports\/chausar-lumen-\d+\.vault$/)).toBeTruthy();
+    // C4 task 36: the saved line names the file, never a path on this computer.
+    expect(within(box).getByText(/^Saved chausar-lumen-\d+\.vault\.$/)).toBeTruthy();
+    expect(box.textContent).not.toContain('/Users/');
 
     fireEvent.click(within(box).getByRole('radio', { name: 'Readable, not encrypted' }));
     expect(within(box).getByText('Anyone who opens a readable copy can read everything in it: clients, invoices and notes.')).toBeTruthy();
@@ -203,8 +238,42 @@ describe('Keep this business: export a copy', () => {
     fireEvent.click(within(box).getByRole('checkbox', { name: 'I understand. Make it readable.' }));
     await press(within(box).getByRole('button', { name: 'Export a copy' }));
     expect(sent(calls, 'workspace.export')).toEqual([{ confirmed: true, plaintext: false }, { confirmed: true, plaintext: true }]);
-    expect(within(box).getByText(/^Saved to .*\.json$/)).toBeTruthy();
+    expect(within(box).getByText(/^Saved chausar-lumen-\d+\.json\.$/)).toBeTruthy();
     expect(within(box).getByText("This copy isn't encrypted. Delete it once you're done with it.")).toBeTruthy();
+  });
+});
+
+describe('C4 task 36: backups and export', () => {
+  it('on the desktop, Export asks where to save; the saved line names the file and offers Show in folder; a cancel says nothing', async () => {
+    const saveBusinessExport = vi.fn(async (_plaintext: boolean) => ({ name: 'Pune Frames, 3 Nov 2026.vault', encrypted: true, id: 'a1b2c3d4e5f6a7b8c9' }) as { name: string; encrypted: boolean; id: string } | null);
+    const showSavedExport = vi.fn(async (_id: string) => {});
+    const { calls } = start('#/business/keep', new FakeEngine(), 'desktop', { saveBusinessExport, showSavedExport });
+    const box = await fold('Export a copy');
+    await press(within(box).getByRole('button', { name: 'Export a copy' }));
+    expect(saveBusinessExport).toHaveBeenCalledWith(false);
+    expect(sent(calls, 'workspace.export')).toEqual([]);
+    const said = within(box).getByRole('status');
+    expect(said.textContent).toContain('Saved Pune Frames, 3 Nov 2026.vault.');
+    await press(within(said).getByRole('button', { name: 'Show in folder' }));
+    expect(showSavedExport).toHaveBeenCalledWith('a1b2c3d4e5f6a7b8c9');
+    saveBusinessExport.mockResolvedValueOnce(null);
+    await press(within(box).getByRole('button', { name: 'Export a copy' }));
+    expect(within(box).queryByRole('status')).toBeNull();
+  });
+
+  it('Back up now says "Backed up just now"; each backup shows its size; after a restore one line says where it went back to', async () => {
+    const { calls } = start('#/business/keep');
+    const backupNow = await screen.findByRole('button', { name: 'Back up now' });
+    await press(backupNow);
+    expect(sent(calls, 'workspace.backups.create')).toHaveLength(1);
+    expect((await screen.findByText('Backed up just now')).closest('[role="status"]')).not.toBeNull();
+    const all = await fold(/^All backups, \d$/);
+    const rows = within(all).getAllByRole('listitem');
+    expect(rows.at(-1)!.textContent).toContain('47 KB');
+    await press(within(rows[0]!).getByRole('button', { name: 'Restore' }));
+    await press(within(rows[0]!).getByRole('button', { name: 'Restore this copy' }));
+    const line = await screen.findByText(/^Back to .+\. How it was a moment ago is saved as a backup\.$/);
+    expect(line.closest('[role="status"]')).not.toBeNull();
   });
 });
 
@@ -215,6 +284,10 @@ describe('Keep this business: delete this business', () => {
     const box = await fold('Delete this business');
     expect(await within(box).findByText('This deletes Lumen Studio and its backups from this computer. Copies you exported stay.')).toBeTruthy();
     expect(within(box).getByText("It can't delete a move file or a copy kept somewhere else.")).toBeTruthy();
+    // C4 task 37: what goes and what stays, from the custody view, and a copy first.
+    expect(box.querySelector('[data-delete-counts]')?.textContent).toBe('This removes 3 backups.');
+    await press(within(box).getByRole('button', { name: 'Export a copy first' }));
+    expect(((await screen.findByText('Export a copy', { selector: 'summary' })).closest('details') as HTMLDetailsElement).open).toBe(true);
     const name = within(box).getByLabelText('Type Lumen Studio to delete it') as HTMLInputElement;
     fireEvent.change(name, { target: { value: 'lumen studio' } });
     // B4: Delete stays dim until the name matches, and says so.
@@ -226,6 +299,7 @@ describe('Keep this business: delete this business', () => {
     // B3: Delete goes straight to Welcome back, which says what was deleted; there is no Continue to press.
     expect(await screen.findByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
     expect(screen.getByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
+    expect(screen.getByText('Lumen Studio is deleted. 3 backups removed.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
     expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledgerline']);
     expect(sent(calls, 'workspace.open')).toEqual([]);
@@ -237,11 +311,13 @@ describe('Keep this business: delete this business', () => {
   it('review of A1 row 1: after Delete it lists the exported copies it kept, says which is readable, and shows one in its folder', async () => {
     const engine = new FakeEngine({ only: ['lumen', 'ledgerline'] });
     const shown: string[] = [];
-    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
     const client = createFakeClient(engine);
     const sealed = (await client.request('workspace.export', { confirmed: true, plaintext: false })) as { path: string };
     const readable = (await client.request('workspace.export', { confirmed: true, plaintext: true })) as { path: string };
+    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
     const box = await fold('Delete this business');
+    // C4 task 37: the two exports made above stay, and the line says so.
+    await waitFor(() => expect(box.querySelector('[data-delete-counts]')?.textContent).toBe('This removes 3 backups. Your 2 exports stay.'));
     fireEvent.change(await within(box).findByLabelText('Type Lumen Studio to delete it'), { target: { value: 'Lumen Studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));
     expect(await screen.findByText('These copies you exported are still on this computer:')).toBeTruthy();
@@ -297,6 +373,25 @@ describe('Keep this business: the recovery code shown once', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: "I've saved it somewhere safe" }));
     await press(screen.getByRole('button', { name: 'Done' }));
     expect(document.body.textContent).not.toContain(code);
+  });
+
+  // C4 task 35 (25.x1): Print is a view of the code and the business name, nothing else, gone after the print.
+  it('Print opens the print view with the code and the business name only; it goes after printing', async () => {
+    const print = vi.fn();
+    vi.stubGlobal('print', print);
+    start('#/business/keep');
+    await press(await screen.findByRole('button', { name: 'Make a new one' }));
+    const code = (await screen.findByRole('group', { name: 'Recovery code' })).textContent!;
+    expect(document.querySelector('[data-print-view]')).toBeNull();
+    await press(screen.getByRole('button', { name: 'Print' }));
+    expect(print).toHaveBeenCalledTimes(1);
+    const view = document.querySelector('[data-print-view]')!;
+    expect(view.textContent).toContain(code);
+    expect(view.textContent).toContain('Lumen Studio');
+    expect(view.querySelectorAll('button, input, a')).toHaveLength(0);
+    await act(async () => { window.dispatchEvent(new Event('afterprint')); });
+    expect(document.querySelector('[data-print-view]')).toBeNull();
+    vi.unstubAllGlobals();
   });
 });
 

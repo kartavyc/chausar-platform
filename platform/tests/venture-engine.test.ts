@@ -100,8 +100,8 @@ test('after workspace.create, every other venture method called with {} reaches 
   // Batch 7 added twenty-one (6G1, 6G2, 6G3, 6G4).
   // Batches 8 and 9 added twenty (6H1, 6H2, 6H3, 6I1).
   // 6J2 added six feedback methods. One-shot A2 added venture.ai.setup.trust, which the engine answers (and refuses here).
-  // C3 added venture.work.list, which the engine answers.
-  assert.equal(methods.length, 365);
+  // C3 added venture.work.list, which the engine answers. C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove.
+  assert.equal(methods.length, 368);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
 });

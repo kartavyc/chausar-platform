@@ -24,6 +24,8 @@ import { reopenMark, RESTORED_LINE, revisionWords, SEND_BACK_MAX, startRevision,
 import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
 import { sumReceipt } from '../money/sums.ts';
 import { setPlan } from '../money/set-plan.ts';
+import { undoOwnerPrice } from '../core/owner-price.ts';
+import { REJECT_LINE } from './queue.ts';
 
 /** The words each action leaves on its decision and says back. */
 export const ACTION_WORDS = Object.freeze({
@@ -42,6 +44,7 @@ export const ACTION_WORDS = Object.freeze({
   signoffEdit: "Your version of these papers needs its professional's signature. Edit it in Work, then send it from the sign-off desk.",
   nothing: 'Nothing to undo here.',
   outside: "This went out, so it can't be undone.",
+  rejectTooLate: 'Too late to undo: this draft moved on since you rejected it.',
   planUndo: 'Your plan change is still a draft in the business menu. Accept it there.',
   priceBack: (offer: string) => `You took back the new price for ${offer}.`,
   priceInUse: 'Too late to undo: this price is already in use.',
@@ -234,6 +237,8 @@ export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload:
   const body = exactPayload(payload, ['rowId'], ['rowId']);
   check(idOk(body.rowId), 'INVALID_VENTURE_REQUEST', 'Send the id of the row to undo.');
   const rowId = body.rowId;
+  // C4 task 33: the owner's own price, applied on Save without a Today row (core/owner-price.ts).
+  if (rowId.startsWith('price-set:')) return undoOwnerPrice(deps, ctx, rowId);
   authorize(deps.store, ctx, 'approve');
   const state = deps.store.read();
   const venture = currentVenture(state);
@@ -260,6 +265,11 @@ export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload:
     const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => `run:${item.id}` === decision.subject);
     check(run && run.revision?.rowId === rowId, 'UNDO_TOO_LATE', TOO_LATE_LINE);
     await undoRevision(deps, ctx, run.id, rowId);
+    return { restored: true, line: RESTORED_LINE };
+  }
+  // C4 task 15: a draft's reject, until the agent acts on it.
+  if (decision.subject.startsWith('run:') && decision.action === 'deny' && decision.line === REJECT_LINE) {
+    await undoReject(deps, ctx, decision.subject.slice('run:'.length), rowId);
     return { restored: true, line: RESTORED_LINE };
   }
   check(!wentOut(decision), 'UNDO_OUTSIDE_EFFECT', ACTION_WORDS.outside);
@@ -312,6 +322,29 @@ async function undoPriceAccept(deps: VentureDeps, ctx: Context, rowId: string, v
     recordDecision(tx, { subject: decision.subject, action: 'undo', who: 'owner', ruleId: null, reason: line, rowId: null });
     tx.emit('queue.changed', { rowId });
     return { restored: true, line };
+  });
+}
+
+/**
+ * One-shot C4 task 15: takes back a reject. The run returns to waiting on the owner exactly as it was and its correction
+ * signal is withdrawn, so the improvement loop never learns from it. Too late once anything used it: a newer run of the
+ * order, a revision, the signal turned into a practice case, an improvement run since, or a reject that moved the order.
+ */
+async function undoReject(deps: VentureDeps, ctx: Context, runId: string, rowId: string): Promise<void> {
+  await ventureAction(deps, ctx, 'approve', 'queue.undo', tx => {
+    const run = tx.find('venture-delivery-run', runId);
+    const from = run?.rejectedFrom;
+    check(run && from && run.status === 'rejected' && !run.revision, 'UNDO_TOO_LATE', ACTION_WORDS.rejectTooLate);
+    const newer = tx.list('venture-delivery-run').some(item => item.orderId === run.orderId && item.id !== run.id && item.at >= run.at);
+    const signal = tx.list('venture-signal').filter(item => item.runId === runId && item.source === 'owner-rejected' && !item.withdrawnAt).at(-1);
+    const learned = signal !== undefined && (signal.scenarioId !== null || tx.list('venture-improvement-run').some(item => item.at >= signal.at));
+    check(!newer && !learned, 'UNDO_TOO_LATE', ACTION_WORDS.rejectTooLate);
+    if (signal) tx.replace({ ...signal, withdrawnAt: tx.now });
+    tx.replace({ ...run, status: 'ready-for-review', verdict: from.verdict, editedText: from.editedText, practice: from.practice, rejectedFrom: null, reopened: reopenMark(run, tx.now) });
+    undoDecision(tx, rowId);
+    recordDecision(tx, { subject: `run:${runId}`, action: 'undo', who: 'owner', ruleId: null, reason: 'You took back the reject.', rowId });
+    tx.emit('run.step', { runId });
+    tx.emit('queue.changed', { rowId });
   });
 }
 

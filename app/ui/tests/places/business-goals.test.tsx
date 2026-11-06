@@ -65,6 +65,35 @@ describe('Business > Goals', () => {
     assertInkRules(document.body);
   });
 
+  it("C4 task 34: last month's invoiced figure sits beside the amount field with its receipt, and the pace sentence is Today's", async () => {
+    await start({
+      override: {
+        'venture.goals.get': async (params, asked) => ({ ...(await asked('venture.goals.get', params) as GoalView), lastMonth: { display: '₹98,300', receiptId: 'R-0777' } }),
+      },
+    });
+    const goal = await tile('October 2026 goal');
+    const last = await waitFor(() => { const found = goal.querySelector('[data-last-month]'); expect(found).not.toBeNull(); return found as HTMLElement; });
+    expect(last.textContent).toContain('Invoiced in September');
+    expect(within(last).getByRole('button', { name: receiptMark('R-0777') })).toBeTruthy();
+    // Beside the field: inside the form, just after the amount.
+    expect(last.closest('form')).not.toBeNull();
+    // The pace sentence from the same engine field Today's goal reads (pacePercent), in Today's words.
+    const pace = goal.querySelector('[data-goal-pace]');
+    expect(pace?.textContent).toBe("Today's pace is 74%.");
+    expect(within(goal).getByRole('img').getAttribute('aria-label')).toContain(pace!.textContent!);
+    assertFiguresProved(goal);
+  });
+
+  it('C4 task 34: with nothing invoiced last month, the field says so instead of a figure', async () => {
+    await start({
+      override: {
+        'venture.goals.get': async (params, asked) => ({ ...(await asked('venture.goals.get', params) as GoalView), lastMonth: { display: '₹0', receiptId: null } }),
+      },
+    });
+    const goal = await tile('October 2026 goal');
+    await waitFor(() => expect(goal.querySelector('[data-last-month]')?.textContent).toBe('No invoices last month'));
+  });
+
   it('sets a goal for a later month, sent as typed for the engine to read', async () => {
     const { calls } = await start();
     const goal = await tile('October 2026 goal');

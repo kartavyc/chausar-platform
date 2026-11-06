@@ -189,8 +189,13 @@ export async function decide(client: EngineClient, row: QueueRow, action: QueueA
   const session = sessionFor(client);
   session.begin(row);
   try {
-    const decision = await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra });
-    return session.settle(row, decision, t, decision.undoable ? takeBack(client, row) : undefined);
+    const answer = await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra });
+    const decision = session.settle(row, answer, t, answer.undoable ? takeBack(client, row) : undefined);
+    // C4 task 15: a rejected draft's line carries Undo for as long as the engine allows it; it leaves once the row's subject moves on.
+    if (decision.outcome === 'done' && action === 'deny' && row.kind === 'draft' && row.viewRef?.kind === 'draft') {
+      session.keep(row, decision.line, decision.receiptId, true, async () => (await client.request('venture.queue.undo', { rowId: row.id })).line, true);
+    }
+    return decision;
   } finally {
     session.end(row.id);
   }

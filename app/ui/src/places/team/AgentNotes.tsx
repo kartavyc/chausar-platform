@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
-import { useOwnerZone } from '../../shell/clock';
+import { useOwnerCountry, useOwnerZone } from '../../shell/clock';
+import { formatCount } from '../../../../../platform/runtime/owner-format';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type AgentNoteView, type AgentView } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -26,6 +27,9 @@ type Draft = { noteId: string | null; text: string; basedOn: string | null };
 export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** W6 6G2: a retired agent's shelf: no new notes or corrections; Forget and Undo still work. */ readOnly?: boolean }) {
   const t = useT();
   const zone = useOwnerZone();
+  const country = useOwnerCountry() ?? 'IN';
+  /** C4 task 10 (57.w1): the characters line shows only while the box has focus or the owner typed in it. */
+  const [writing, setWriting] = useState(false);
   const client = useEngine();
   const listId = useId();
   const changesId = useId();
@@ -38,6 +42,7 @@ export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** 
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const data = notes.data;
+  useEffect(() => { if (!draft) setWriting(false); }, [draft]);
   const alive = new Set((data?.notes ?? []).map((note) => note.id));
 
   // A correction whose note changed since: once the list is read again, the draft is based on the note as it is now,
@@ -84,7 +89,9 @@ export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** 
 
   const form = (labelKey: string) => (
     <form className={c.noteForm} onSubmit={save}>
-      <Field multiline label={t(labelKey)} value={draft?.text ?? ''} rows={3} onChange={(event) => { const text = event.currentTarget.value; setDraft((was) => (was ? { ...was, text } : was)); }} />
+      <Field multiline label={t(labelKey)} value={draft?.text ?? ''} rows={3} onFocus={() => setWriting(true)}
+        onChange={(event) => { const text = event.currentTarget.value; setWriting(true); setDraft((was) => (was ? { ...was, text } : was)); }} />
+      {writing && data && <p className={c.used}>{t('team.notes.used', { used: formatCount(data.usedChars, country), limit: formatCount(data.limitChars, country) })}</p>}
       <div className={c.actions}>
         <Button size="sm" onClick={() => { setDraft(null); setProblem(null); }} disabled={busy}>{t('team.notes.cancel')}</Button>
         <Button size="sm" variant="primary" type="submit" disabled={busy || !draft || draft.text.trim() === ''}>{t('team.notes.save')}</Button>
@@ -98,7 +105,6 @@ export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** 
         <h3 id={listId} className={s.small}>{t('team.notes.title', { name: agent.name })}</h3>
         {notes.error && <p className={s.failed}>{t('team.notes.failed', { message: notes.error.message })}</p>}
         {!data && !notes.error && <p className={s.quiet}>{t('team.notes.loading')}</p>}
-        {data && <p className={c.used}>{t('team.notes.used', { used: data.usedChars, limit: data.limitChars })}</p>}
         {data && data.notes.length === 0 && <p className={s.quiet}>{t('team.notes.none', { name: agent.name })}</p>}
         {data && data.notes.length > 0 && (
           <ul className={c.notes} aria-labelledby={listId}>

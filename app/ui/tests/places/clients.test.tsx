@@ -246,14 +246,14 @@ describe('client sheet', () => {
     expect(files.textContent).not.toContain('practice');
   });
 
-  it('shows what the client owes in the sheet line, with its receipt', async () => {
+  it('shows what the client owes in the first section, with its receipt', async () => {
     start();
     const sheet = await openClient('Boat Audio');
-    const owes = await within(sheet).findByText('owes');
+    const owes = await within(sheet).findByText('Owes');
     const line = owes.parentElement!;
     // Ink v2 (3E2): the amount is a Figure, its receipt chip beside it with a gap rather than a space character.
     // 4Z3: the receipt is a mark beside it; its code is not printed.
-    expect(line.textContent).toMatch(/^owes ₹26,200\s*$/);
+    expect(line.textContent).toMatch(/^Owes ₹26,200\s*$/);
     expect(within(line).getByRole('button', { name: 'Open receipt for ₹26,200' }).getAttribute('data-receipt')).toBe('R-0416');
     expect(within(line).getByText('₹26,200').className).not.toContain('mono'); // B2: the body font
     expect(within(line).getByText('₹26,200').closest('[data-figure]')).toBeTruthy();

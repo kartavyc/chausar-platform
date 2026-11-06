@@ -3,6 +3,7 @@ import { useT, type T } from '../text';
 import { useClock, useOwnerZone } from '../shell/clock';
 import { dayKeyIn, formatDay, formatTime } from '../../../../platform/runtime/owner-format';
 import { Avatar, ChausarAvatar, type DeptId } from './Avatar';
+import { Button } from './Button';
 import { cx } from './cx';
 import { Icon } from './Icon';
 import { ModelEstimate } from './ModelEstimate';
@@ -11,7 +12,11 @@ import s from './ChatThread.module.css';
 
 /** One thing in a thread, oldest first. `at` is the engine's ISO time; the part writes the day and the time. */
 export type ThreadEntry =
-  | { kind: 'owner'; id: string; at: string; text: string }
+  | {
+    kind: 'owner'; id: string; at: string; text: string;
+    /** C4 task 30: this message failed to send: marked "Not sent", the reason under it, and Try again in place of the time. */
+    unsent?: { problem: string; busy: boolean; onRetry: () => void } | undefined;
+  }
   /** The agent's words. `estimate` when they carry a model-written figure with no receipt (spec 5.4). */
   | {
     kind: 'agent'; id: string; at: string; text: string; estimate?: boolean | undefined;
@@ -112,11 +117,20 @@ export function ChatThread({ agent, entries, older, now, className }: ChatThread
   function drawBlock(block: Block) {
     if (block.kind === 'day') return <p key={`day-${block.key}`} className={s.day} data-day="">{block.label}</p>;
     if (block.kind === 'owner') {
+      const unsent = block.entry.unsent;
       return (
-        <div key={block.entry.id} className={s.mine} data-from="owner">
+        <div key={block.entry.id} className={s.mine} data-from="owner" data-unsent={unsent ? '' : undefined}>
           <span className="sr-only">{t('thread.fromYou')}</span>
           <p className={s.mineText} dir="auto" data-content="">{block.entry.text}</p>
-          {timeOf(block.entry.at)}
+          {unsent ? (
+            <>
+              <p className={s.notSent}>
+                <span>{t('thread.notSent')}</span>
+                <Button variant="quiet" size="sm" disabled={unsent.busy} onClick={unsent.onRetry}>{t('thread.tryAgain')}</Button>
+              </p>
+              <p className={s.notSentWhy} role="alert">{unsent.problem}</p>
+            </>
+          ) : timeOf(block.entry.at)}
         </div>
       );
     }

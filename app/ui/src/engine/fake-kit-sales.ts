@@ -19,6 +19,7 @@ const METHODS = new Set<string>([
   'venture.salesProposal.get',
   'venture.goNoGo.card',
   'venture.goNoGo.list',
+  'venture.goNoGo.remove',
 ]);
 
 // The engine's words (kit/proposal.ts), exactly.
@@ -175,6 +176,16 @@ export class FakeKitSalesDesk {
       case 'venture.goNoGo.list': {
         if (Object.keys(p).length) throw invalid('This takes nothing.');
         return { cards: this.cards.filter((c) => c.business === this.host.current()).map((c) => clone(c.view)).reverse() };
+      }
+      case 'venture.goNoGo.remove': {
+        // C4 (T25), as kit/go-no-go.ts: only this business's card; its receipt goes with it; said as a decision.
+        for (const key of Object.keys(p)) if (key !== 'cardId') throw invalid(`Unknown field: ${key}.`);
+        const at = this.cards.findIndex((c) => c.view.id === p.cardId && c.business === this.host.current());
+        if (at < 0) throw invalid('That card is not here any more.');
+        const [gone] = this.cards.splice(at, 1);
+        const line = `You removed the card for ${gone!.view.subject}.`;
+        this.host.noteDecision?.(`go-no-go:${gone!.view.id}`, 'remove-card', line);
+        return { removed: true, line };
       }
       default: throw new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.');
     }
@@ -408,6 +419,7 @@ export class FakeKitSalesDesk {
       maxLoss: maxLoss === null ? null : { minor: String(maxLoss), display: inrMinor(maxLoss), receiptId: id },
       limit: limitMinor === null ? null : { minor: limitMinor, display: inrMinor(BigInt(limitMinor)) },
       spendsNothing: verdict === 'GO' ? SPENDS_NOTHING : null,
+      working: maxLoss === null ? null : `${inrMinor(BigInt(upfrontMinor!))} to start + ${months} ${months === '1' ? 'month' : 'months'} × ${inrMinor(BigInt(monthlyMinor!))}`,
     };
     this.cards.push({ business: this.host.current(), view, figures, explanation });
     return clone(view);

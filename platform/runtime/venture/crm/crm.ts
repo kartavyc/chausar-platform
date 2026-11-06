@@ -10,6 +10,7 @@ import type {
 } from '../contracts.ts';
 import { listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
+import { blueprintsOf } from '../core/lookups.ts';
 import { recordEvidence } from '../evidence/ledger.ts';
 import { crmChange } from './history.ts';
 import {
@@ -67,15 +68,33 @@ function checkMember(state: State, venture: VentureRecord, member: string): void
 }
 const linkOf = (state: State, ventureId: string, member: string) => listRecords(state, 'venture-crm-link', ventureId).find(link => link.member === member) ?? null;
 
-/** A client's timeline: what the owner logged, the sends and replies on their pipeline cards, and their invoices. */
+/** The offers' names by id, the newest plan's name winning. */
+function offerNames(state: State, venture: VentureRecord): ReadonlyMap<string, string> {
+  return new Map(blueprintsOf(state, venture.id).flatMap(plan => plan.offers.map(offer => [offer.id, offer.name.value] as const)));
+}
+
+/**
+ * A client's timeline: what the owner logged, the sends and replies on their pipeline cards, their invoices, and (C4 task
+ * 18) their orders and the drafts the owner decided. What the books keep after Forget stays there and leaves this list:
+ * timelineClearedAt holds anything from before it back.
+ */
 function clientTimeline(state: State, venture: VentureRecord, clientId: string): TimelineEntryView[] {
+  const cleared = listRecords(state, 'venture-client', venture.id).find(item => item.id === clientId)?.timelineClearedAt ?? '';
+  const orders = listRecords(state, 'venture-order', venture.id).filter(order => order.clientId === clientId && !order.internal && order.at > cleared);
+  const orderIds = new Set(orders.map(order => order.id));
+  const names = offerNames(state, venture);
+  const drafts = listRecords(state, 'venture-delivery-run', venture.id).flatMap(run => (run.verdict && !run.practice && orderIds.has(run.orderId) && run.verdict.at > cleared
+    ? [{ id: run.id, choice: run.verdict.choice, on: localDayAt(run.verdict.at, venture.country), at: run.verdict.at }] : []));
   const people = new Set(listRecords(state, 'venture-person', venture.id).filter(person => person.clientId === clientId).map(person => person.id));
   const touches = listRecords(state, 'venture-opportunity', venture.id)
     .filter(card => card.clientId === clientId || people.has(card.personId))
     .flatMap(card => (card.touches ?? []).map((touch, index) => ({ id: `${card.id}:${index}`, what: touch.what, on: touch.on, at: touch.at, channel: touch.channel })));
-  const invoices = listRecords(state, 'venture-invoice', venture.id).filter(invoice => invoice.clientId === clientId)
+  const invoices = listRecords(state, 'venture-invoice', venture.id).filter(invoice => invoice.clientId === clientId && invoice.at > cleared)
     .map(invoice => ({ id: invoice.id, number: invoice.number, status: invoice.status, on: invoice.issueDate, at: invoice.at }));
-  return timelineOf({ clientId, logged: listRecords(state, 'venture-crm-entry', venture.id), touches, invoices });
+  return timelineOf({
+    clientId, logged: listRecords(state, 'venture-crm-entry', venture.id), touches, invoices, drafts,
+    orders: orders.map(order => ({ id: order.id, offer: names.get(order.offerId) ?? null, on: localDayAt(order.at, venture.country), at: order.at, deliveredOn: order.deliveredOn })),
+  });
 }
 
 export function clientCrmView(state: State, venture: VentureRecord, clientId: string): ClientCrmView {
@@ -366,6 +385,8 @@ export function eraseCrmNaming(tx: VentureTx, input: { personIds: ReadonlySet<st
   }
   if (drop.size) tx.state.conversations = tx.state.conversations.filter(record => !drop.has((record as { id?: string })?.id ?? ''));
   if (!input.erase) return;
+  // C4 task 18: the client's orders, drafts and invoices stay in the books; the timeline shows nothing from before this.
+  for (const client of tx.list('venture-client')) if (input.clientIds.has(client.id)) tx.replace<ClientRecord>({ ...client, timelineClearedAt: tx.now });
   for (const entry of tx.list('venture-crm-entry')) if (names(entry.text)) tx.replace<CrmEntryRecord>({ ...entry, text: ERASED_ENTRY });
   for (const company of tx.list('venture-company')) {
     const name = names(company.name) ? 'A company' : company.name, note = names(company.note) ? null : company.note;

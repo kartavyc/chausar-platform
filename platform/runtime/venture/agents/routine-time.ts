@@ -1,5 +1,5 @@
 // Existing Intl schedule arithmetic, shared exactly with browser rehearsal.
-export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string};
+export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string}|{kind:'monthly';day:number;time:string;timeZone:string};
 type IsoTime=string;
 const MINUTE_MS=60_000,DAY_MS=24*60*MINUTE_MS;
 const formats = new Map<string, Intl.DateTimeFormat>();
@@ -75,7 +75,8 @@ export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, u
   for (let i = -1; i <= days + 1; i += 1) {
     const date = new Date(Date.UTC(first.y, first.m - 1, first.d + i));
     const day = { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
-    if (!schedule.weekdays.includes(isoWeekday(day.y, day.m, day.d))) continue;
+    // C4 task 32: a monthly schedule runs on one day of the month (1 to 28, so every month has it).
+    if (schedule.kind === 'monthly' ? day.d !== schedule.day : !schedule.weekdays.includes(isoWeekday(day.y, day.m, day.d))) continue;
     const at = instantAt(day.y, day.m, day.d, hour!, minute!, schedule.timeZone);
     if (at <= afterMs || at > upToMs) continue;
     count += 1;
@@ -96,9 +97,10 @@ export function nextOccurrence(schedule: RoutineSchedule, afterMs: number): IsoT
   return firstOf(schedule, afterMs);
 }
 
-/** The first calendar occurrence after an instant, looked for a day further at a time, for eight days. */
-function firstOf(schedule: Extract<RoutineSchedule, { kind: 'calendar' }>, afterMs: number): IsoTime | null {
-  for (let span = DAY_MS; span <= 8 * DAY_MS; span += DAY_MS) {
+/** The first calendar occurrence after an instant, looked for a day further at a time, for eight days (a month's 32). */
+function firstOf(schedule: Extract<RoutineSchedule, { kind: 'calendar' | 'monthly' }>, afterMs: number): IsoTime | null {
+  const days = schedule.kind === 'monthly' ? 32 : 8;
+  for (let span = DAY_MS; span <= days * DAY_MS; span += DAY_MS) {
     const found = occurrencesBetween(schedule, afterMs, afterMs + span);
     if (found.count) return found.count === 1 ? found.latest : found.previous;
   }

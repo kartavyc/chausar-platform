@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { appendChiefMessage } from '../runtime/venture/chief/store.ts';
 import { chiefFit, FIT_LINE } from '../runtime/venture/chief/fit.ts';
-import { ANSWER_CAP_MICROS } from '../runtime/venture/chief/answer.ts';
+import { ANSWER_CAP_MICROS, CHIEF_INSTRUCTIONS, askedFirst } from '../runtime/venture/chief/answer.ts';
 import { lastLineOf } from '../runtime/venture/chief/threads.ts';
 import type { ChiefThreadRecord, WaysView } from '../runtime/venture/contracts.ts';
 import { handlers as moneyHandlers } from '../runtime/venture/money/index.ts';
@@ -583,4 +583,31 @@ test("chief: only code says a brief was passed; the model's own claims go, with 
   scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks.")])]);
   const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
   assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }]);
+});
+
+// One-shot C4 task 31 (98.w1): the chief leads with the answer. Its fixed instructions say the first sentence answers
+// the question from the tool figures, and the figures it shows put the row asked about first: "invoiced", "billed" or
+// "sales" the billed row; "owe" or "due" the owed row; "received" or "paid" the received row.
+test('chief C4: the instructions lead with the answer, and the row asked about comes first', async () => {
+  assert.match(CHIEF_INSTRUCTIONS, /The first sentence answers the question asked, from the tool figures/);
+  assert.match(CHIEF_INSTRUCTIONS, /never restate the figures in prose/);
+  assert.ok(CHIEF_INSTRUCTIONS.indexOf('The first sentence answers') < CHIEF_INSTRUCTIONS.indexOf('Everything the tools return'), 'in the fixed instructions, early');
+  const figures = [
+    { receiptId: 'sum_owed', key: 'total', label: 'Clients owe you', display: '₹26,200.00' },
+    { receiptId: 'sum_in', key: 'total', label: 'Came in this month', display: '₹86,200.00' },
+    { receiptId: 'sum_b', key: 'billed', label: 'Billed (without tax), this month', display: '₹1,18,400.00' },
+    { receiptId: 'sum_r', key: 'received', label: 'Received (with tax), this month', display: '₹86,200.00' },
+  ];
+  assert.equal(askedFirst(figures, 'What did we invoice this month?')[0]!.receiptId, 'sum_b');
+  assert.equal(askedFirst(figures, 'How much sales did we do?')[0]!.receiptId, 'sum_b');
+  assert.equal(askedFirst(figures, 'What is due to us?')[0]!.receiptId, 'sum_owed');
+  assert.equal(askedFirst(figures, 'What got paid this month?')[0]!.receiptId, 'sum_in');
+  assert.deepEqual(askedFirst(figures, 'How are we doing?').map(item => item.receiptId), figures.map(item => item.receiptId), 'nothing asked: the order stays');
+
+  const env = await chiefBusiness();
+  env.models.main = 'template';
+  env.models.fast = 'template';
+  await env.chief('venture.chief.thread.send', { text: 'What did we invoice this month?' });
+  const reply = listRecords(env.store.read(), 'venture-chief-message').filter(record => record.from === 'chief').at(-1)!;
+  assert.match(reply.worked![0]!.label, /^Billed/, 'the table leads with the billed row');
 });

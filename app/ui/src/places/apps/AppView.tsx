@@ -32,7 +32,8 @@ function saveFile(fileName: string, document: string): void {
  * Chausar's code-written replies), the app running in its locked box, Pin to Today and Export, and a box to ask for a
  * change, which makes a new version. Beside it, the permission screen when the version on screen needs something not
  * allowed yet (Allow sends the digest of exactly what it lists); otherwise what the app may do with Turn off, its
- * versions with Use and Undo, and Delete. Before Allow the app does not run.
+ * versions with Use and Undo, and Delete. Before Allow the app does not run. C4 task 29: an app with no data of its own
+ * offers Preview with sample data: it runs afresh on made-up rows under a banner, every write refused, until Back to your data.
  */
 export function AppView({ id }: { id: string }) {
   const t = useT();
@@ -46,6 +47,7 @@ export function AppView({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [moved, setMoved] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [sample, setSample] = useState(false);
   const app = fresh && fresh.id === id ? fresh : loaded.data?.app;
 
   async function run(work: () => Promise<{ app: MiniAppView; line: string; next?: Undo }>) {
@@ -66,6 +68,9 @@ export function AppView({ id }: { id: string }) {
   }
 
   if (!app) return loaded.error ? <p className={s.quiet} role="alert">{t('apps.failed', { message: loaded.error.message })}</p> : <LoadingPlace shape="cards" />;
+
+  // A permission to ask for again ends the preview with the app it ran.
+  const showingSample = sample && !app.ask;
 
   const pin = () => void run(async () => {
     const done = await client.request('venture.apps.pin', { app: app.id, pinned: !app.pinned });
@@ -129,12 +134,20 @@ export function AppView({ id }: { id: string }) {
             ? <p className={s.locked} role="status">{t('apps.view.moved')}</p>
             : app.ask
               ? <p className={s.locked}>{t('apps.view.locked')}</p>
-              : <MiniAppFrame key={`${app.id}:${app.version}`} app={app} title={t('apps.view.frame', { name: app.name })} onMoved={() => setMoved(true)} />}
+              : (
+                <>
+                  {showingSample && <p className={s.sampleBanner} role="status">{t('apps.preview.banner')}</p>}
+                  <MiniAppFrame key={`${app.id}:${app.version}:${showingSample ? 'sample' : 'yours'}`} app={app} title={t('apps.view.frame', { name: app.name })} onMoved={() => setMoved(true)} sample={showingSample} />
+                </>
+              )}
         </section>
         <div className={s.actions}>
           {/* B4: an app waiting on Allow can't run, so it can't be pinned or exported yet. One line says why, for both. */}
           <Button onClick={pin} disabled={busy || (Boolean(app.ask) && !app.pinned)} aria-describedby={app.ask && !app.pinned ? allowId : undefined}>{app.pinned ? t('apps.view.unpin') : t('apps.view.pin')}</Button>
           <Button onClick={() => void exportApp()} disabled={busy || Boolean(app.ask)} aria-describedby={app.ask ? allowId : undefined}>{t('apps.view.export')}</Button>
+          {showingSample
+            ? <Button variant="quiet" onClick={() => setSample(false)}>{t('apps.preview.back')}</Button>
+            : app.empty && !app.ask && !moved && <Button variant="quiet" onClick={() => setSample(true)}>{t('apps.preview.go')}</Button>}
         </div>
         {app.ask && <p id={allowId} className={s.quiet}>{t('apps.view.allowFirst')}</p>}
         {line && (

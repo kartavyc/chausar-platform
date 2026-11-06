@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useId, type InputHTMLAttributes, type Ref, type TextareaHTMLAttributes } from 'react';
 import { useT } from '../text';
 import { Icon } from './Icon';
 import s from './Field.module.css';
@@ -10,7 +10,7 @@ interface Shared {
   /** A short mark inside the box ("INR", "%") the owner reads with the value. Hidden from readers: the label says it. */
   adornment?: string | undefined;
 }
-type InputField = Shared & { multiline?: false } & Omit<InputHTMLAttributes<HTMLInputElement>, 'id'>;
+type InputField = Shared & { multiline?: false; ref?: Ref<HTMLInputElement> | undefined } & Omit<InputHTMLAttributes<HTMLInputElement>, 'id'>;
 type TextField = Shared & { multiline: true } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'>;
 
 /** While a date box is empty it says this in the body face, not the browser's "dd-mm-yyyy". */

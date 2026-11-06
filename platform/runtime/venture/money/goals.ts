@@ -153,9 +153,9 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
       paceReceiptId = paceSteps.id;
       paceBy = { display: paceSteps.figures[0].display, receiptId: paceSteps.id };
     }
-  } else {
-    lastMonth = await figureFor(deps, ctx, venture.id, invoicedPlan(state, venture, { type: 'invoiced', month: previousMonth(chosen), which: 'issued' }));
   }
+  // C4 task 34 (13.x1): last month's invoiced sum with its receipt, set or not, for the figure beside the goal's field.
+  lastMonth = await figureFor(deps, ctx, venture.id, invoicedPlan(state, venture, { type: 'invoiced', month: previousMonth(chosen), which: 'issued' }));
 
   let ahead: Pick<GoalView, 'next' | 'briefing'> = { next: null, briefing: null };
   if (isCurrent) {

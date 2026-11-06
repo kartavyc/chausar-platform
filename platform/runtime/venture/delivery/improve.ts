@@ -9,6 +9,7 @@
 // as an experiment with its control, budget and rules; a change that did not help against a real control waits its
 // retry spacing; the run stops at its budget (Ink v2 wave 4, 4J16, experiments.ts).
 import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
+import { liveSignals } from './check-signals.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
 import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
 import type {
@@ -355,7 +356,7 @@ async function improveRun(deps: VentureDeps, ctx: Context, payload: unknown, sta
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
   const type = blueprint.serviceType;
-  const signals = listRecords(state, 'venture-signal', venture.id);
+  const signals = liveSignals(state, venture.id);
   const latestEpisodes = newestFirst(listRecords(state, 'venture-simulation-run', venture.id)).filter(run => run.playbookHash === parent.hash).flatMap(run => run.episodes);
   check(signals.length > 0 || latestEpisodes.some(episode => !episode.passed), 'IMPROVEMENT_NOT_READY',
     'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.');

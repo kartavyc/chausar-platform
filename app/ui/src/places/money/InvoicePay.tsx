@@ -11,6 +11,10 @@
  * each press asks the engine again (S7: the first file was kept, so an email added later was never used), and a failure
  * names the button.
  *
+ * One-shot C4 (T20): after each share opened the owner's own app (or the file was saved) the sheet records it on the
+ * invoice (venture.invoice.shared), so its timeline says so. "Mark as sent" is the owner's own word that it went: only
+ * that makes the invoice sent. Opening WhatsApp or a mail app is not sending.
+ *
  * BillPart: a draft can bill part of its order instead (an advance, a milestone, a part payment or what is left), sent
  * as typed; the engine cuts it and refuses anything past the order's total.
  */
@@ -98,12 +102,21 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     try { await work(); } catch (error) { setProblem(t(failed, { message: messageOf(error) })); }
     setBusy(false);
   }
+  /**
+   * C4 (T20): records a share the owner made on the invoice and shows the invoice it answers. The share already happened,
+   * so a note that could not be written never hides the line that says what opened.
+   */
+  const note = async (how: 'whatsapp' | 'email' | 'file') => {
+    try { onChanged(await engine.request('venture.invoice.shared', { invoiceId: invoice.id, how })); } catch { /* the share stands; only its note is missing */ }
+  };
+  const markSent = () => act(async () => { onChanged(await engine.request('venture.invoice.shared', { invoiceId: invoice.id, how: 'marked' })); });
   // A6 (S7): every press asks the engine again, so the file and its links follow the invoice and the client as they are now.
   const fileNow = (): Promise<InvoicePdfView> => engine.request('venture.invoice.pdf', { invoiceId: invoice.id });
   const save = () => act(async () => {
     const made = await fileNow();
     if (!saveFile(made)) { setProblem(t('money-pay.cantSave')); return; }
     setSaid(made.note ?? t('money-pay.saved', { name: made.fileName }));
+    await note('file');
   });
   /** A6: what the desktop opened, in words, and the file offered in its folder. */
   const shared = (result: InvoiceShareResult) => {
@@ -114,6 +127,8 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     setSaid(result.note ? `${line} ${result.note}` : line);
     // A6 round 1: on a draft too, since a mail app that opens it read-only leaves the owner to attach the file again.
     setKept(file);
+    // C4 (T20): an app opened with it; when no mail app opened there is nothing to note.
+    if (result.how === 'whatsapp' || result.opened !== 'none') void note(result.how);
   };
   const whatsapp = () => {
     if (engine.shareInvoice) { void act(async () => shared(await engine.shareInvoice!(invoice.id, 'whatsapp')), 'money-pay.whatsappFailed'); return; }
@@ -126,6 +141,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
         await performHandoff({ action: 'whatsapp', url: made.share.whatsappUrl } as Parameters<typeof performHandoff>[0], tab);
       } catch (error) { tab?.close(); throw error; }
       setSaid(t('money-pay.shareNote'));
+      await note('whatsapp');
     }, 'money-pay.whatsappFailed');
   };
   const email = () => act(async () => {
@@ -133,6 +149,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     const made = await fileNow();
     await performHandoff({ action: 'mailto', url: made.share.mailtoUrl } as Parameters<typeof performHandoff>[0], null);
     setSaid(t('money-pay.shareNote'));
+    await note('email');
   }, 'money-pay.emailFailed');
   const showKept = async (name: string) => {
     // A6 round 1: a file that cannot be shown takes the line above with it, so no stale "opened" line sits over the problem.
@@ -206,6 +223,8 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           <Button size="sm" disabled={busy} onClick={() => void save()}>{t('money-pay.saveFile')}</Button>
           <Button size="sm" disabled={busy} onClick={whatsapp}>{t('money-pay.whatsapp')}</Button>
           <Button size="sm" disabled={busy} onClick={() => void email()}>{t('money-pay.email')}</Button>
+          {/* C4 (T20): the owner's own word that it went; until then the invoice reads "Issued, not sent". */}
+          {invoice.status === 'issued' && view.sent === false && <Button size="sm" variant="quiet" disabled={busy} onClick={() => void markSent()}>{t('money-pay.markSent')}</Button>}
         </div>
       )}
       {/* B4 task 5: Saved, Shared and a refusal share one slot that is there before the press. */}

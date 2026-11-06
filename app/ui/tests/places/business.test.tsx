@@ -221,34 +221,26 @@ describe('Business: prices', () => {
     expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
-  it('sets a price as typed; the engine prices it with a receipt and the change waits on Today, for one press with an Undo (B4)', async () => {
+  it("C4 task 33: the owner's own price applies on Save, says so with Undo, and nothing waits on Today", async () => {
     const { engine } = start('#/business/prices');
+    const before = ((await engine.request('venture.queue.list', {})) as QueueList).rows.map((row) => row.id);
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
     await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000'));
-    const waiting = await region('Waiting on you');
-    const row = within(waiting).getByText('New price for Shorts from your long video').closest('li')!;
-    // The price the press decides is on the card, whole: no fold and no eyebrow beside it.
-    expect(row.querySelector('[data-change-count]')).toBeNull();
-    expect(row.textContent).toContain('Was not set');
-    expect(row.querySelector('del')).toBeNull();
-    expect(row.textContent).not.toContain('Lumen Studio');
-    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
-    // B3 (row 33, bug 9): one decided line in the engine's words; the card never comes back with Read and Accept.
-    await waitFor(() => expect(waiting.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
-    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(waiting.querySelectorAll('[data-row]')).toHaveLength(1);
-    expect(within(waiting).queryByRole('button', { name: 'Read' })).toBeNull();
-    expect(within(waiting).queryByRole('button', { name: 'Accept' })).toBeNull();
-    expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000');
-    // Opened again in this session: the line, not a card.
-    await act(async () => { window.location.hash = '#/business/plan'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    await act(async () => { window.location.hash = '#/business/prices'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    const again = await region('Waiting on you');
-    await waitFor(() => expect(again.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
-    expect(within(again).queryByRole('button', { name: 'Accept' })).toBeNull();
+    const decided = await screen.findByText('You set the price of Shorts from your long video to ₹12,000 a project.');
+    expect(decided.closest('[data-price-decided]')).not.toBeNull();
+    expect(screen.queryByText('Waiting on you', { selector: 'h2' })).toBeNull();
+    const queue = (await engine.request('venture.queue.list', {})) as QueueList;
+    expect(queue.rows.map((row) => row.id).filter((id) => !before.includes(id))).toEqual([]);
+    // Undo puts back exactly the version before: no price again, and the line says what happened.
+    const holder = decided.closest('[data-price-decided]') as HTMLElement;
+    await act(async () => { fireEvent.click(within(holder).getByRole('button', { name: 'Undo' })); });
+    await screen.findByText('You took back the new price for Shorts from your long video.');
+    await waitFor(async () => expect((await plan(engine)).blueprint.offers.find((offer) => offer.id === 'offer_shorts')?.pricing.unitPriceMinor).toBeNull());
+    await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('Price not set'));
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 
   it('Undo on an accepted price restores the old price and the row, and every screen reads again (B4)', async () => {
@@ -260,8 +252,8 @@ describe('Business: prices', () => {
     client.request = ((method: string, params: unknown) => { asked.push(method); return base(method as never, params as never); }) as typeof client.request;
     render(<App client={client} language="en" />);
     const shorts = await offerRow('Shorts from your long video');
-    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
-    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    // C4 task 33: Save on this page applies at once, so this row is a price from elsewhere (B4 task 7).
+    await act(async () => { await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '12000' }] } }); });
     const waiting = await region('Waiting on you');
     const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
@@ -290,10 +282,10 @@ describe('Business: prices', () => {
   });
 
   it('a price decided on Prices shows the same line on Today, not "resolved elsewhere" (B3)', async () => {
-    start('#/business/prices');
+    const { engine } = start('#/business/prices');
     const shorts = await offerRow('Shorts from your long video');
-    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
-    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    // C4 task 33: Save on this page applies at once, so this row is a price from elsewhere (B4 task 7).
+    await act(async () => { await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '12000' }] } }); });
     const waiting = await region('Waiting on you');
     const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
@@ -305,6 +297,18 @@ describe('Business: prices', () => {
     await act(async () => { fireEvent.click(more); });
     await waitFor(() => expect(needs.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
     expect(needs.textContent).not.toContain(common['approval.elsewhere']);
+  });
+
+  it('C4 task 33: Undo says when it is too late, once a quote used the new price', async () => {
+    const { engine } = start('#/business/prices');
+    const shorts = await offerRow('Shorts from your long video');
+    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    const decided = await screen.findByText('You set the price of Shorts from your long video to ₹12,000 a project.');
+    await act(async () => { await engine.request('venture.price.quote', { offerId: 'offer_shorts', quantity: '3' }); });
+    await act(async () => { fireEvent.click(within(decided.closest('[data-price-decided]') as HTMLElement).getByRole('button', { name: 'Undo' })); });
+    expect((await screen.findByRole('alert')).textContent).toContain('Too late to undo');
+    expect((await plan(engine)).blueprint.offers.find((offer) => offer.id === 'offer_shorts')?.pricing.unitPriceMinor).not.toBeNull();
   });
 
   it('an offer with no price says so and the engine refuses to price it', async () => {

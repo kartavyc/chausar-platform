@@ -73,11 +73,12 @@ describe('4Z3: the fake engine agrees with its own spend policy, as the engine d
 });
 
 describe('4Z3: which currency leads AI spend', () => {
-  it('Money: in India, rupees lead the AI spend tile, the dollars small beneath with two decimals and the rate', async () => {
+  // C4 (T23): one currency on the tile; the dollars are in the receipt, the rate in the spend settings.
+  it('Money: in India, rupees lead the AI spend tile, alone', async () => {
     await start('#/money');
     const spend = await tile('AI spend this month');
     await waitFor(() => expect(lead(spend)).toBe('₹60.10'));
-    expect(within(spend).getByText('$0.72 at ₹83.50 per $1')).toBeTruthy();
+    expect(spend.textContent).not.toContain('$0.72');
     expect(spend.textContent).not.toContain('USD 0.7198');
     // The split by department under it leads the same way.
     await waitFor(() => expect(spend.textContent).toContain('₹18'));
@@ -85,11 +86,11 @@ describe('4Z3: which currency leads AI spend', () => {
     assertInkRules();
   });
 
-  it('Money: with Dollars first, dollars lead with two decimals and the rupees sit beneath', async () => {
+  it('Money: with Dollars first, dollars lead with two decimals, alone', async () => {
     await start('#/money', { lead: 'usd' });
     const spend = await tile('AI spend this month');
     await waitFor(() => expect(lead(spend)).toBe('$0.72'));
-    expect(within(spend).getByText('₹60.10 at ₹83.50 per $1')).toBeTruthy();
+    expect(spend.textContent).not.toContain('₹60.10');
     assertInkRules();
   });
 
@@ -111,8 +112,8 @@ describe('4Z3: which currency leads AI spend', () => {
     await start('#/money/spend', { lead: 'usd', rate: true });
     const paid = await tile('Paid calls');
     await waitFor(() => expect(paid.textContent).toContain('$0.72 this month (includes estimates)'));
-    // The page says the rate once, in its settings: beside the total, the other amount alone.
-    expect(paid.textContent).toContain('₹60.10');
+    // C4 (T23): one currency; the page says the rate once, in its settings.
+    expect(paid.textContent).not.toContain('₹60.10');
     expect(paid.textContent).not.toContain('per $1');
     expect((await screen.findByRole('region', { name: 'Limits and rates' })).textContent).toContain('₹83.50 per $1');
     window.location.hash = '#/money/businesses';

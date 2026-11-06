@@ -109,7 +109,7 @@ describe('fake engine: moving a business', () => {
     const here = new FakeEngine();
     const move = (await here.request('workspace.transfer.export', {})) as MoveFile;
     expect(move.transferCode).toBe(SAMPLE_MOVE_CODE);
-    expect(move.fileName).toMatch(/^chausar-move-\d{4}-\d{2}-\d{2}\.backup$/);
+    expect(move.fileName).toMatch(/^chausar-move-\d{4}-\d{2}-\d{2}\.chausar-move$/);
     const there = new FakeEngine({ fresh: true });
     expect(await refusal(there.request('workspace.transfer.import', { fileText: move.text, transferCode: 'CHT-WRONG' }))).toMatchObject({ code: 'TRANSFER_CODE_WRONG' });
     expect(await refusal(there.request('workspace.transfer.import', { fileText: 'not a move file', transferCode: move.transferCode }))).toMatchObject({ code: 'TRANSFER_INVALID' });

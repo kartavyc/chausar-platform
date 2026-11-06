@@ -79,7 +79,8 @@ test('away: promises falling due, what keeps running, approvals that wait and an
   await answeredOrder(env, plan, '2026-09-01T10:00:00.000Z', 2);
   await answeredOrder(env, plan, '2026-09-05T10:00:00.000Z', 1);
   const unmeasured = await call<AwayView>(env, 'venture.away.set', { from: '2026-10-18', to: '2026-10-24' });
-  assert.equal(unmeasured.autoReply, 'Thank you for your message. I am away from 18 Oct 2026 to 24 Oct 2026 and back on 25 Oct 2026. I will reply after I am back.\n\nLedger Cafe Books');
+  // C4 task 40 (201.w2): shorter, in the owner's words, no year when it is this year, signed with the business.
+  assert.equal(unmeasured.autoReply, "Thanks for your message! I'm away 18 to 24 Oct and back on 25 Oct. I'll reply then.\n\nLedger Cafe Books");
 
   await answeredOrder(env, plan, '2026-09-10T10:00:00.000Z', 2);
   const away = await call<AwayView>(env, 'venture.away.set', { from: '2026-10-18', to: '2026-10-24' });
@@ -89,7 +90,7 @@ test('away: promises falling due, what keeps running, approvals that wait and an
   // 4J13: routines keep running while the owner is away; each run still waits for the owner's approval on Today.
   assert.deepEqual(away.keepsRunning, ['Backups of this business', 'Routine: Weekly report']);
   assert.equal(away.approvalsWaiting, queue.needsYou);
-  assert.equal(away.autoReply, 'Thank you for your message. I am away from 18 Oct 2026 to 24 Oct 2026 and back on 25 Oct 2026. I usually reply within 2 days, so you can expect my answer by 27 Oct 2026.\n\nLedger Cafe Books');
+  assert.equal(away.autoReply, "Thanks for your message! I'm away 18 to 24 Oct and back on 25 Oct. I'll reply then.\n\nLedger Cafe Books");
   assert.equal(away.line, `Away from 18 Oct 2026 to 24 Oct 2026. ${queue.needsYou} ${queue.needsYou === 1 ? 'thing waits' : 'things wait'} for you.`);
   assert.deepEqual(await call<AwayView>(env, 'venture.away.get', {}), away);
   assert.equal(listRecords(env.store.read(), 'venture-journal-entry').length, 0, 'Chausar sends nothing');
@@ -111,4 +112,29 @@ test('away: promises falling due, what keeps running, approvals that wait and an
   assert.deepEqual(back.since, { from: '2026-10-18', to: '2026-10-24', rowIds: since });
   assert.match(back.line, /^You were away from 18 Oct 2026 to 24 Oct 2026\. \d+ (thing|things) came in since you left\.$/);
   void started; void failed;
+});
+
+test('C4 task 40: the reply names the owner and the business, and a year only when it is not this one; Clear the days ends Away now', async () => {
+  const env = await setup();
+  await seedBlueprint(env);
+  const core = (await import('../runtime/venture/core/index.ts')).handlers;
+  await core['venture.owner.set']!(env.deps, owner, { firstName: 'Asha' });
+  const across = await call<AwayView>(env, 'venture.away.set', { from: '2026-12-30', to: '2027-01-02' });
+  assert.equal(across.autoReply, "Thanks for your message! I'm away 30 Dec to 2 Jan 2027 and back on 3 Jan 2027. I'll reply then.\n\nAsha, Ledger Cafe Books");
+  const months = await call<AwayView>(env, 'venture.away.set', { from: '2026-10-30', to: '2026-11-02' });
+  assert.equal(months.autoReply, "Thanks for your message! I'm away 30 Oct to 2 Nov and back on 3 Nov. I'll reply then.\n\nAsha, Ledger Cafe Books");
+
+  // Clear the days: Away ends now and the record keeps when; asking again has nothing to clear.
+  const now = await call<AwayView>(env, 'venture.away.set', { from: '2026-10-15', to: '2026-10-20' });
+  assert.ok(now.away);
+  await assert.rejects(call(env, 'venture.away.set', { clear: true }, phone), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(call(env, 'venture.away.set', { clear: false }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.away.set', { clear: true, from: '2026-10-15' }), code('INVALID_VENTURE_REQUEST'));
+  const cleared = await call<AwayView>(env, 'venture.away.set', { clear: true });
+  assert.equal(cleared.away, null);
+  assert.equal(cleared.autoReply, null);
+  const latest = listRecords(env.store.read(), 'venture-away').at(-1)!;
+  assert.equal(latest.clearedAt, env.now());
+  assert.equal((await call<AwayView>(env, 'venture.away.get', {})).away, null);
+  await assert.rejects(call(env, 'venture.away.set', { clear: true }), code('INVALID_VENTURE_REQUEST'));
 });

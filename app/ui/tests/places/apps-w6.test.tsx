@@ -40,6 +40,39 @@ async function send(label: string, text: string) {
 }
 
 describe('Apps (6H1)', () => {
+  // C4 task 29 (founder decision 3): the button only when the app has no data; the banner while on sample rows; every call says sample.
+  it('an app with no data offers Preview with sample data; the banner stays while it runs on it; Back to your data returns', async () => {
+    window.location.hash = '#/apps?app=miniapp_sample';
+    const base = createFakeClient(new FakeEngine());
+    const client: EngineClient = {
+      ...base,
+      request: (async (method: string, params?: Record<string, unknown>) => {
+        const answer = await base.request(method as never, params as never);
+        return method === 'venture.apps.get' ? { app: { ...(answer as { app: object }).app, empty: true } } : answer;
+      }) as EngineClient['request'],
+    };
+    render(<App client={client} language="en" />);
+    const go = await screen.findByRole('button', { name: 'Preview with sample data' });
+    expect(screen.queryByText('Sample data, not your records')).toBeNull();
+    const frame = () => document.querySelector('iframe[data-mini-app]') as HTMLIFrameElement;
+    const live = frame();
+    await click(go);
+    expect(screen.getByText('Sample data, not your records')).toBeTruthy();
+    expect(frame()).not.toBe(live);
+    expect(frame().getAttribute('data-sample')).toBe('');
+    expect(screen.queryByRole('button', { name: 'Preview with sample data' })).toBeNull();
+    await click(screen.getByRole('button', { name: 'Back to your data' }));
+    expect(screen.queryByText('Sample data, not your records')).toBeNull();
+    expect(frame().hasAttribute('data-sample')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Preview with sample data' })).toBeTruthy();
+  });
+
+  it('an app with data of its own offers no preview', async () => {
+    await start('#/apps?app=miniapp_sample');
+    await screen.findByRole('button', { name: 'Pin to Today' });
+    expect(screen.queryByRole('button', { name: 'Preview with sample data' })).toBeNull();
+  });
+
   it('the rail has Apps between Money and Connections; the place lists the sample app, the make box and the rules', async () => {
     await start();
     const rail = screen.getByRole('navigation', { name: 'Places' });

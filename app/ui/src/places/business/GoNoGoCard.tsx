@@ -4,7 +4,8 @@
  * by a model. The owner types amounts in rupees as they would write them, and the engine reads them as it reads a
  * price; this page sends the text as typed and works nothing out. Hold names every answer missing; the most the owner
  * could lose is a figure with the receipt that works it out; every Go card says that Go spends nothing. Each card is
- * kept and listed here, newest first (venture.goNoGo.list).
+ * kept and listed here, newest first (venture.goNoGo.list), with its date and how the figure was reached; Remove takes
+ * one card off the list (venture.goNoGo.remove, C4 T25) after a plain ask. SEAM: that ask is local until B4's Confirm lands.
  */
 
 import { useState, type FormEvent } from 'react';
@@ -14,6 +15,7 @@ import { Button } from '../../parts/Button';
 import { Chip, type ChipTone } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
+import { useDay } from '../../parts/when';
 import type { GoNoGoCardView, GoNoGoInputName, GoNoGoVerdict } from '../../engine/types';
 import { salesWords } from '../clients/Proposal';
 import { TileSection } from './shared';
@@ -68,19 +70,39 @@ export function GoNoGoCard() {
           </div>
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <div className={s.end}><Button variant="primary" type="submit" disabled={busy}>{busy ? t('kit-sales.goNoGo.deciding') : t('kit-sales.goNoGo.decide')}</Button></div>
+          <p className={s.note}>{t('kit-sales.goNoGo.rule')}</p>
         </form>
       </TileSection>
       {cards.error && <p className={s.problem} role="alert">{t('kit-sales.goNoGo.failed', { message: salesWords(cards.error, t) })}</p>}
       {cards.data && list.length === 0 && <p className={s.note}>{t('kit-sales.goNoGo.none')}</p>}
-      {list.map((card) => <CardTile key={card.id} card={card} />)}
+      {list.map((card) => <CardTile key={card.id} card={card} onRemoved={cards.reload} />)}
     </div>
   );
 }
 
-function CardTile({ card }: { card: GoNoGoCardView }) {
+function CardTile({ card, onRemoved }: { card: GoNoGoCardView; onRemoved: () => void }) {
   const t = useT();
+  const engine = useEngine();
+  const day = useDay();
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function remove() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await engine.request('venture.goNoGo.remove', { cardId: card.id });
+      onRemoved();
+    } catch (error) {
+      setProblem(salesWords(error, t));
+      setBusy(false);
+      setAsking(false);
+    }
+  }
+
   return (
-    <TileSection title={card.subject}>
+    <TileSection title={card.subject} meta={day(card.at)}>
       <p className={s.verdict}>
         <Chip tone={TONE[card.verdict]}>{t(`kit-sales.goNoGo.verdict.${card.verdict}`)}</Chip>
         <span>{t(`kit-sales.goNoGo.says.${card.verdict}`)}</span>
@@ -98,6 +120,8 @@ function CardTile({ card }: { card: GoNoGoCardView }) {
               <dd data-num="">{card.limit.display}</dd>
             </div>
           )}
+          {/* C4 T25: how the figure was reached, under the same receipt. */}
+          {card.working && <p className={s.note} data-working="">{card.working}</p>}
         </dl>
       )}
       {card.spendsNothing && <p className={s.note}>{t('kit-sales.goNoGo.spendsNothing')}</p>}
@@ -107,6 +131,16 @@ function CardTile({ card }: { card: GoNoGoCardView }) {
           <ul className={s.unknown}>{card.unknown.map((item) => <li key={item.input}>{t(`kit-sales.goNoGo.input.${item.input}`)}</li>)}</ul>
         </>
       )}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+      <div className={s.end}>
+        {asking ? (
+          <>
+            <span className={s.note}>{t('kit-sales.goNoGo.removeAsk')}</span>
+            <Button variant="quiet" disabled={busy} onClick={() => setAsking(false)}>{t('kit-sales.goNoGo.removeKeep')}</Button>
+            <Button disabled={busy} onClick={() => void remove()}>{t('kit-sales.goNoGo.remove')}</Button>
+          </>
+        ) : <Button variant="quiet" onClick={() => setAsking(true)}>{t('kit-sales.goNoGo.remove')}</Button>}
+      </div>
     </TileSection>
   );
 }

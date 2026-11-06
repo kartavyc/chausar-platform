@@ -137,6 +137,15 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   }
 
   const recommended = view?.tools.find((tool) => tool.found)?.cli ?? null;
+  /** C4 task 4: Claude Code signed in on this computer, offered when Codex fails. */
+  const claudeReady = view?.tools.some((tool) => tool.cli === 'claude-code' && tool.found && tool.signedIn === 'yes' && tool.setup?.state !== 'review' && tool.setup?.state !== 'refused') ?? false;
+
+  /** C4 task 4: Try again after a Codex failure: its sign-in again, or a fresh look when it was the test call that failed. */
+  async function retry(tool: ToolLite) {
+    if (tool.login.state === 'failed') { await signIn(tool.cli); return; }
+    setTrouble(null);
+    try { setView(await client.request('venture.ai.tools', {})); } catch (error) { setTrouble({ cli: tool.cli, line: messageOf(error), again: () => void retry(tool) }); }
+  }
 
   function toolTile(tool: ToolLite) {
     const preset = presetOf(tool.cli);
@@ -148,6 +157,8 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
     const primary = tool.cli === recommended;
     const hint = t(tool.cli === 'codex' ? 'first-run.ai.hint.codex' : 'first-run.ai.hint.claude');
     const failed = trouble?.cli === tool.cli ? trouble : null;
+    // C4 task 4: a Codex that failed offers three ways on in its own card, in place of its usual button.
+    const codexFailed = tool.cli === 'codex' && (tool.login.state === 'failed' || tool.tested === 'failed');
     return (
       <Tile key={tool.cli} as="section" span={4} label={nameOf(tool.cli)} className={s.option} card>
         <div className={s.optionHead}><Icon name={tool.cli === 'codex' ? 'clock' : 'sparkles'} size={20} /><h2 className={s.optionName}>{nameOf(tool.cli)}</h2></div>
@@ -155,7 +166,21 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
         <span>{signedIn ? <Chip tone="done">{t('first-run.ai.signedIn')}</Chip> : tool.found ? <Chip tone="line">{t('first-run.ai.installed', { name: tool.label })}</Chip> : <Chip tone="idle">{t('first-run.ai.notInstalled')}</Chip>}</span>
         <div className={s.optionAction}>
           {failed ? (
-            <InlineError fix={{ label: t('first-run.ai.tryAgain'), onSelect: failed.again, busy: busy !== null }}>{failed.line}</InlineError>
+            <>
+              <InlineError fix={{ label: t('first-run.ai.tryAgain'), onSelect: failed.again, busy: busy !== null }}>{failed.line}</InlineError>
+              {tool.cli === 'codex' && (
+                <div className={s.finishTools}>
+                  {claudeReady && <Button disabled={busy !== null || !presetOf('claude-code')} onClick={() => void use('claude-code')}>{t('first-run.ai.useClaude')}</Button>}
+                  <Button variant="quiet" onClick={onSkip}>{t('first-run.ai.withTemplates')}</Button>
+                </div>
+              )}
+            </>
+          ) : codexFailed ? (
+            <div className={s.finishTools}>
+              <Button variant={primary ? 'primary' : 'secondary'} disabled={busy !== null} onClick={() => void retry(tool)}>{t('first-run.ai.tryAgain')}</Button>
+              {claudeReady && <Button disabled={busy !== null || !presetOf('claude-code')} onClick={() => void use('claude-code')}>{t('first-run.ai.useClaude')}</Button>}
+              <Button variant="quiet" onClick={onSkip}>{t('first-run.ai.withTemplates')}</Button>
+            </div>
           ) : choosing ? (
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null} aria-busy={busy === tool.cli || undefined} onClick={() => void choose(tool)}>{t('first-run.ai.setup.use')}</Button>
           ) : refused ? null : signedIn ? (

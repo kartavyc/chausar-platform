@@ -78,3 +78,9 @@ test('under venture/, no own number grouping (toLocaleString) and no raw clock s
   const clock = code.filter(({ f, text }) => /\.slice\(11, ?16\)/.test(text) && !Object.hasOwn(TIME_KEYS, f)).map(({ f }) => f);
   assert.deepEqual(clock, [], 'times the owner reads go through ownerClock or formatTime');
 });
+
+test('C4 task 36: formatBytes reads a size in steps of 1024, never 0 KB', async () => {
+  const { formatBytes } = await import('../runtime/owner-format.ts');
+  assert.deepEqual([0, 1, 512, 1023, 1024, 1500, 47_902, 1_048_576, 1_258_291, 12_582_912, 1_610_612_736].map(formatBytes),
+    ['0 bytes', '1 byte', '512 bytes', '1023 bytes', '1 KB', '1 KB', '47 KB', '1 MB', '1.2 MB', '12 MB', '1.5 GB']);
+});

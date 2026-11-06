@@ -34,7 +34,7 @@ const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
-  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset',
+  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek',
   // One-shot C3: the app's own preferences on this computer (APP_PREFERENCE_METHODS, platform/runtime/app-preferences.ts).
   'app.preferences.get', 'app.preferences.set',
   // One-shot C3: which step long work is on, for a page opened mid-job (ENGINE_METHODS, answered by the engine).
@@ -160,7 +160,7 @@ const METHODS = Object.freeze([
   'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
   // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
   'venture.order.chain',
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list', 'venture.goNoGo.remove',
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
   'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
@@ -169,6 +169,10 @@ const METHODS = Object.freeze([
   'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
+  // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent".
+  'venture.invoice.shared',
+  // One-shot C4 (T32): the ready routines from the plan.
+  'venture.routines.suggestions',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
@@ -246,6 +250,8 @@ function validateRequest(input) {
   if (!isRecord(input)) throw failure('INVALID_REQUEST', 'Use a named request with an object payload.');
   assertJson(input);
   if (Object.keys(input).some(name => !['method', 'payload'].includes(name)) || !allowedMethods.has(input.method) || (input.payload !== undefined && !isRecord(input.payload))) throw failure('INVALID_REQUEST', 'This desktop request is not supported.');
+  // One-shot C4 task 36: where an export goes is chosen in main's own save dialog (export-save.cjs), never by the window.
+  if (input.method === 'workspace.export' && input.payload && Object.hasOwn(input.payload, 'path')) throw failure('INVALID_REQUEST', 'Choose where to save the copy in the save dialog.');
   const canonical = JSON.stringify({ method: input.method, payload: input.payload ?? {} });
   if (Buffer.byteLength(canonical) > MAX_REQUEST_BYTES) throw failure('REQUEST_TOO_LARGE', 'The desktop request exceeds the size limit.');
   return JSON.parse(canonical);

@@ -6,6 +6,7 @@
 import {check,digest} from '../../../portable.ts';
 import {currencyMinorDigits,decimalMinor,formatMinor} from '../../../currency.ts';import {formatMoney} from '../../../owner-format.ts';
 import {moneyAmounts} from '../kit/documents/money.ts';
+import {figureWords} from '../../delivery/template-outline.ts';
 import {csvText,docxEntries,xlsxEntries,type PackSection} from '../kit/documents/pack.ts';
 import type {ZipEntry} from '../kit/ooxml/zip-core.ts';
 import {DOCUMENT_TYPES,type DocumentBody,type DocumentFigures,type DocumentSection,type DocumentType} from './records.ts';
@@ -136,10 +137,10 @@ export function takeDraft(body:DocumentBody,runId:string,text:string):DocumentBo
  return {...next,takenFromRun:runId,approval:null};
 }
 
-/** The figures as lines of words, made by code from minor units: the owner form on the desk, the exact form in the exported document. */
+/** The figures as lines of words, made by code from minor units: the owner form on the desk, the exact form in the exported document, which holds no engine label (C4 task 16: the receipt travels in the pack). */
 export function figureLines(figures:DocumentFigures,form:'owner'|'exact'='owner'):string[]{
  const show=(minor:string)=>form==='exact'?formatMinor(minor,figures.currency):formatMoney(minor,figures.currency);
- return [...figures.lines.map(line=>`${line.label}: ${line.quantity} at ${show(line.unitMinor)} is ${show(line.lineMinor)}`),`Total: ${show(figures.totalMinor)}`,`Receipt ${figures.receiptId}`];
+ return [...figures.lines.map(line=>`${line.label}: ${line.quantity} at ${show(line.unitMinor)} is ${show(line.lineMinor)}`),...(form==='exact'?[figureWords('Total',show(figures.totalMinor))]:[`Total: ${show(figures.totalMinor)}`,`Receipt ${figures.receiptId}`])];
 }
 
 /** The export pack's parts: the Word document, and the figures workbook, CSV and receipt when the document has figures. */

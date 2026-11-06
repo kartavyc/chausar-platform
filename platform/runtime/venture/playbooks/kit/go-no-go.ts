@@ -9,8 +9,9 @@ import { formatMoney, plainMoney } from '../../../owner-format.ts';
 import { check, type Context, type State } from '../../../contracts.ts';
 import { numberGuard, sumMoney } from '../../../calculator.ts';
 import { digest, exactPayload, listRecords, readVenture, singleLine, ventureAction } from '../../records.ts';
-import type { GoNoGoRecord, MinorString, PriceStep, RowFigure, RowFigureReceipt, VentureDeps, VentureRecord } from '../../contracts.ts';
+import type { Display, GoNoGoRecord, MinorString, PriceStep, RowFigure, RowFigureReceipt, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { ownerPrice } from '../../core/words.ts';
+import { recordDecision } from '../../journal/decisions.ts';
 import type { GoNoGoBody, GoNoGoCardView, GoNoGoInputName, GoNoGoListView, GoNoGoVerdict } from './records-sales.ts';
 
 /** The inputs a card reads, in its order, with their plain labels and the words HOLD asks for them with. */
@@ -78,6 +79,19 @@ function working(inputs: Readonly<Record<GoNoGoInputName, string | null>>, curre
   return { verdict, unknown, maxLossMinor, limitMinor, steps, explanation, allowedNumbers };
 }
 
+/**
+ * C4 (T25): how the most the owner could lose was reached, in the owner's money words, from the steps the receipt holds:
+ * "₹5,000 to start + 6 months × ₹1,000". Null while there is no loss worked out.
+ */
+function workingLine(record: GoNoGoRecord): Display | null {
+  const [multiply, add] = record.steps;
+  if (!multiply || !add) return null;
+  const [monthly, months] = multiply.inputs;
+  const [upfront] = add.inputs;
+  const show = (minor: string) => formatMoney(minor, record.currency);
+  return `${show(upfront)} to start + ${months} ${months === '1' ? 'month' : 'months'} × ${show(monthly)}`;
+}
+
 /** A stored card as the screens read it, with its line in the engine's words. */
 export function cardView(record: GoNoGoRecord): GoNoGoCardView {
   const show = (minor: string) => formatMoney(minor, record.currency);
@@ -93,6 +107,7 @@ export function cardView(record: GoNoGoRecord): GoNoGoCardView {
     maxLoss: record.maxLossMinor === null ? null : { minor: record.maxLossMinor, display: show(record.maxLossMinor), receiptId: record.id },
     limit: record.limitMinor === null ? null : { minor: record.limitMinor, display: show(record.limitMinor) },
     spendsNothing: record.verdict === 'GO' ? GO_SPENDS_NOTHING : null,
+    working: workingLine(record),
   };
 }
 
@@ -120,8 +135,26 @@ export async function goNoGoCard(deps: VentureDeps, ctx: Context, payload: unkno
 export async function goNoGoList(deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoNoGoListView> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
-  const cards = listRecords(state, 'venture-go-no-go', venture.id).sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
+  const cards = listRecords(state, 'venture-go-no-go', venture.id).filter(card => !card.removedAt).sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
   return { cards: cards.map(cardView) };
+}
+
+/**
+ * venture.goNoGo.remove {cardId} (prepare, C4 T25): takes one of this business's cards off the list and records it as a
+ * decision. The stored card is marked removed, as a knowledge source or a routine is; its receipt no longer opens.
+ */
+export async function goNoGoRemove(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ removed: true; line: string }> {
+  const body = exactPayload(payload, ['cardId'], ['cardId']);
+  check(typeof body.cardId === 'string', 'INVALID_VENTURE_REQUEST', 'Choose a card to remove.');
+  const cardId = body.cardId;
+  return ventureAction(deps, ctx, 'prepare', 'goNoGo.remove', tx => {
+    const record = tx.find('venture-go-no-go', cardId);
+    check(record && record.ventureId === (tx.venture as VentureRecord).id && !record.removedAt, 'INVALID_VENTURE_REQUEST', 'That card is not here any more.');
+    tx.replace<GoNoGoRecord>({ ...record, removedAt: tx.now });
+    const line = `You removed the card for ${record.subject}.`;
+    recordDecision(tx, { subject: `go-no-go:${record.id}`, action: 'remove-card', ruleId: null, reason: line, rowId: null });
+    return { removed: true as const, line };
+  });
 }
 
 /**
@@ -130,10 +163,10 @@ export async function goNoGoList(deps: VentureDeps, ctx: Context, payload: unkno
  */
 export function goNoGoReceipt(state: State, venture: VentureRecord, id: string): RowFigureReceipt {
   const record = listRecords(state, 'venture-go-no-go', venture.id).find(item => item.id === id);
-  check(record, 'RECEIPT_NOT_FOUND', 'This card was not found.');
+  check(record && !record.removedAt, 'RECEIPT_NOT_FOUND', 'This card was not found.');
   check(record.maxLossMinor !== null && record.explanation !== null, 'RECEIPT_NOT_FOUND', 'This card has no loss worked out yet: it is waiting for your inputs.');
   const again = working(record.inputs, record.currency);
-  const { id: _id, kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, digest: stored, ...body } = record;
+  const { id: _id, kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, digest: stored, removedAt: _removed, ...body } = record;
   const show = (minor: string) => formatMoney(minor, record.currency);
   const figure = (key: string, label: string, amount: string): RowFigure => ({ key, label, amount, unit: 'minor', currency: record.currency, display: show(amount) });
   const { upfront: upfrontMinor, monthly: monthlyMinor, limit: limitMinor } = record.inputs;

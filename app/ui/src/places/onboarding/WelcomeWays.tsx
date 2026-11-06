@@ -6,6 +6,7 @@ import type { BackupLite, ParamsOf } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { InlineError } from '../../parts/InlineError';
+import { PassphraseField } from '../../parts/PassphraseField';
 import { NewPassphrase } from '../../parts/Secret';
 import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWords } from '../../parts/custody';
 import type { Openable } from './boot';
@@ -194,10 +195,11 @@ function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => 
       {ask && (
         <div className={s.ask}>
           {reason && <p className={s.note}>{reason}</p>}
-          <Field
-            label={t(ask === 'passphrase' ? 'onboarding.restore.passphrase' : 'onboarding.recover.code')} type="password" spellCheck={false}
-            autoComplete={ask === 'passphrase' ? 'current-password' : 'off'} autoFocus value={secret} onChange={(event) => setSecret(event.currentTarget.value)}
-          />
+          {ask === 'passphrase' ? (
+            <PassphraseField label={t('onboarding.restore.passphrase')} autoComplete="current-password" autoFocus value={secret} onChange={setSecret} />
+          ) : (
+            <Field label={t('onboarding.recover.code')} type="password" spellCheck={false} autoComplete="off" autoFocus value={secret} onChange={(event) => setSecret(event.currentTarget.value)} />
+          )}
           {pair.node}
         </div>
       )}
@@ -233,6 +235,24 @@ export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { 
   const [here, setHere] = useState<Openable | null>(null);
   const [codeWrong, setCodeWrong] = useState<string | null>(null);
   const missing = !file ? t('onboarding.move.fileFirst') : file === alreadyHere ? t('onboarding.move.anotherFile') : !code.trim() ? t('onboarding.move.codeFirst') : undefined;
+  const zone = useOwnerZone();
+  // C4 task 38 (223.x1): with the file and a whole code, the engine reads the name and day inside, quietly, before
+  // Move it here; nothing is written and a refusal says nothing here (Move it here says it).
+  const [inside, setInside] = useState<{ name: string; movedOutAt: string | null } | null>(null);
+  useEffect(() => {
+    setInside(null);
+    if (!file || code.replace(/[^A-Za-z0-9]/g, '').length < 24) return;
+    let live = true;
+    void (async () => {
+      try {
+        const fileText = await file.text();
+        if (fileText.length > TRANSFER_MAX_CHARS) return;
+        const seen = await client.request('workspace.transfer.peek', { fileText, transferCode: code.trim() });
+        if (live) setInside(seen);
+      } catch { /* quiet: Move it here gives the engine's words */ }
+    })();
+    return () => { live = false; };
+  }, [file, code, client]);
 
   async function move() {
     if (!file) { setProblem(t('onboarding.move.fileFirst')); return; }
@@ -276,11 +296,14 @@ export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { 
   return (
     <Way title={t('onboarding.move.title')} lead={t('onboarding.move.lead')} onBack={onBack}>
       <div className={s.ask}>
+        <p className={s.note}>{t('onboarding.move.how')}</p>
         <FilePick
-          choose={t('onboarding.move.choose')} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
-            onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); setCodeWrong(null); setHere(null); }}
+          choose={t('onboarding.move.choose')} accept=".chausar-move,.backup,application/json" aria-label={t('onboarding.move.file')}
+          onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); setCodeWrong(null); setHere(null); }}
         />
-        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); }} onKeyDown={onEnter} />
+        {/* C4 task 38 (222, B3's handoff): a stale error goes as soon as the owner types. */}
+        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); setProblem(null); }} onKeyDown={onEnter} />
+                {inside && <p className={s.note} role="status">{t(inside.movedOutAt ? 'onboarding.move.inside' : 'onboarding.move.insideName', { name: inside.name, when: inside.movedOutAt ? momentOf(inside.movedOutAt, zone) : '' })}</p>}
         {pair.node}
         {problem && <InlineError fix={here ? { label: t('onboarding.move.open', { name: here.name ?? t('onboarding.welcome.noName') }), onSelect: () => onOpen(here) } : undefined}>{problem}</InlineError>}
         <div className={s.actions}><Button variant="primary" disabled={busy} disabledReason={busy ? undefined : missing} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
@@ -318,7 +341,7 @@ export function ByFolder({ onOpened, onBack }: WayProps) {
     <Way title={t('onboarding.folder.title')} lead={t('onboarding.folder.lead')} onBack={onBack}>
       <form className={s.ask} onSubmit={(event) => void submit(event)}>
         <Field label={t('onboarding.folder.folder')} value={folder} spellCheck={false} maxLength={64} onChange={(event) => setFolder(event.currentTarget.value)} />
-        <Field label={t('onboarding.folder.passphrase')} type="password" autoComplete="current-password" spellCheck={false} value={passphrase} onChange={(event) => setPassphrase(event.currentTarget.value)} />
+        <PassphraseField label={t('onboarding.folder.passphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         <div className={s.actions}><Button variant="primary" type="submit" disabled={busy}>{t('onboarding.welcome.open')}</Button></div>
       </form>

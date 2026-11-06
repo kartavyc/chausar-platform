@@ -140,12 +140,36 @@ describe('the Arrange sheet', () => {
     await settle();
     expect(blocks().indexOf('earlier')).toBeLessThan(blocks().indexOf('working'));
     const team = within(sheet).getByRole('listitem', { name: 'Team at work' });
+    // C4 task 6: the name is text with a pencil; the field opens for this part only.
+    await act(async () => { fireEvent.click(within(team).getByRole('button', { name: 'Rename Team at work' })); });
     const field = within(team).getByRole('textbox', { name: 'Name for Team at work' });
     fireEvent.change(field, { target: { value: 'Profit' } });
     await act(async () => { fireEvent.click(within(team).getByRole('button', { name: 'Rename' })); });
     await settle();
     expect(within(sheet).getByRole('alert').textContent).toContain('cannot sound like money');
     assertInkRules(view.container);
+  });
+
+  it('C4 task 6: names are text with a pencil; Enter renames, Escape puts the name back', async () => {
+    const { spy } = await start('#/today');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange this page' })); });
+    const sheet = await screen.findByRole('complementary', { name: 'Arrange Today' });
+    // At rest the only box is the saved view's name.
+    expect(within(sheet).getAllByRole('textbox').map((box) => box.getAttribute('aria-label') ?? (box as HTMLInputElement).labels?.[0]?.textContent)).toEqual(['View name']);
+    const team = within(sheet).getByRole('listitem', { name: 'Team at work' });
+    await act(async () => { fireEvent.click(within(team).getByRole('button', { name: 'Rename Team at work' })); });
+    const field = within(team).getByRole('textbox', { name: 'Name for Team at work' });
+    fireEvent.change(field, { target: { value: 'Helpers' } });
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(within(team).queryByRole('textbox')).toBeNull();
+    expect(calls(spy, 'venture.layout.change')).toEqual([]);
+    await act(async () => { fireEvent.click(within(team).getByRole('button', { name: 'Rename Team at work' })); });
+    const again = within(team).getByRole('textbox', { name: 'Name for Team at work' });
+    expect((again as HTMLInputElement).value).toBe('Team at work');
+    fireEvent.change(again, { target: { value: 'Helpers' } });
+    await act(async () => { fireEvent.keyDown(again, { key: 'Enter' }); });
+    await settle();
+    expect(calls(spy, 'venture.layout.change')).toEqual([{ place: 'today', change: { op: 'rename', block: 'team', name: 'Helpers' } }]);
   });
 
   it('saves a view and switches to it', async () => {

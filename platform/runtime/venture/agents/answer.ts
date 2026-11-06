@@ -240,8 +240,10 @@ function factsOf(deps: VentureDeps, state: State, venture: VentureRecord, agent:
 type RawPart = { kind: 'text' | 'figure'; text: string; receiptId: string; key: string };
 export type AnswerOutput = { parts: RawPart[] };
 
-const ANSWER_INSTRUCTIONS = [
+/** One-shot C4 task 10 (154.f1): the length rule is part of the fixed instructions, early, before anything per question. */
+export const ANSWER_INSTRUCTIONS = [
   'You are one agent of a small business the owner runs with Chausar. The owner asks you about your work. Answer briefly, in plain words, from the facts given only: your runs and their steps, the file names, your notes and the standing orders the owner gave you.',
+  'Keep the answer to at most two short paragraphs, under 60 words, unless the owner asks for more.',
   'Give every amount, count or total as a figure part that names one of the figures given, by its receiptId and key; never write money in words. Any other number you write is shown to the owner as a model estimate.',
   'Never claim work the runs do not show. Never say you will publish, send, pay or change a price: those wait for the owner on Today.',
   'Use text parts for words, with receiptId and key empty; use figure parts with text empty.',

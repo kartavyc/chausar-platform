@@ -64,12 +64,12 @@ describe('Work: runs', () => {
     expect(books.textContent).toContain('Bookkeeper');
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
+    expect(within(books).getByText('Took 4 min')).toBeTruthy();
     const reach = await rowOf('Estimated reach for episode 14', previous);
     expect(reach.textContent).toContain('Researcher');
     expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
     expect(within(reach).getByText('model estimate')).toBeTruthy();
-    expect(within(reach).getByText('Worked for 2 min')).toBeTruthy();
+    expect(within(reach).getByText('Took 2 min')).toBeTruthy();
     expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
   });
 
@@ -331,7 +331,8 @@ describe('Work: new order', () => {
 
   it('adds an order for a client with their files; it lands as received', async () => {
     const { calls, sheet, clientField, service } = await openForm();
-    expect(within(service).getByRole('option', { name: 'Shorts from your long video, no price yet' }).hasAttribute('disabled')).toBe(true);
+    // C4 task 11: an unpriced service can be picked so the form says how to set its price; it never submits.
+    expect(within(service).getByRole('option', { name: 'Shorts from your long video, no price yet' })).toBeTruthy();
     expect((service as HTMLSelectElement).value).toBe('offer_sponsor');
     fireEvent.change(clientField, { target: { value: 'c-boat' } });
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });

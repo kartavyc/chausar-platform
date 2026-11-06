@@ -453,3 +453,40 @@ test('a gate set to wait reads "for you" to the one who set it, and "for an appr
   assert.equal(await gateLine(owner), "You set 'work' to wait for you.");
   assert.equal(await gateLine(cofounder), "The owner set 'work' to wait for an approval.");
 });
+
+// One-shot C4 task 26 (116.x1): a decision opens what it decided, worked out by code from its subject; null when gone.
+test('C4: a decision says what it opens: its invoice, its run, its client, the plan or a price; nothing once that thing has gone', async () => {
+  const env = await setup();
+  const plan = await seedBlueprint(env, { price2: '1500000' });
+  const { client, order } = await seedOrder(env, plan);
+  const prepared = await money['venture.invoice.prepare']!(env.deps, owner, { orderId: order.id, dueInDays: 15 }) as InvoiceView;
+  await money['venture.invoice.issue']!(env.deps, owner, { invoiceId: prepared.invoice.id, digest: prepared.invoice.digest });
+  const run = await seedRun(env, order, {});
+  await ventureAction(env.deps, owner, 'prepare', 'seed.opens', tx => {
+    recordDecision(tx, { subject: `run:${run.id}`, action: 'accepted', ruleId: null, reason: 'Draft accepted.', rowId: null });
+    recordDecision(tx, { subject: `client:${client.id}`, action: 'approve', ruleId: null, reason: 'Kept the client.', rowId: null });
+    recordDecision(tx, { subject: 'client:client_gone', action: 'approve', ruleId: null, reason: 'A client who has gone.', rowId: null });
+    recordDecision(tx, { subject: 'run:delivery_gone', action: 'accepted', ruleId: null, reason: 'A run that has gone.', rowId: null });
+    recordDecision(tx, { subject: 'invoice:invoice_gone', action: 'approve', ruleId: null, reason: 'An invoice that has gone.', rowId: null });
+    recordDecision(tx, { subject: `order:${order.id}`, action: 'approve', ruleId: null, reason: 'Kept the order.', rowId: null });
+    recordDecision(tx, { subject: `plan:${(tx.venture as { id: string }).id}`, action: 'accept', ruleId: null, reason: 'Plan version 2 accepted.', rowId: null });
+    recordDecision(tx, { subject: `plan:${(tx.venture as { id: string }).id}`, action: 'approve', ruleId: null, reason: 'Price of Monthly books set to ₹1,000.', rowId: null });
+    recordDecision(tx, { subject: 'step:work', action: 'allow-session', ruleId: null, reason: 'A step opens nothing.', rowId: null });
+  });
+  const list = await decisions(env);
+  const opens = (reason: string) => list.find(item => item.reason === reason)?.opens;
+  const issued = list.find(item => item.subject === `invoice:${prepared.invoice.id}`)!;
+  assert.deepEqual(issued.opens, { kind: 'invoice', id: prepared.invoice.id });
+  assert.deepEqual(opens('Draft accepted.'), { kind: 'run', id: run.id });
+  assert.deepEqual(opens('Kept the client.'), { kind: 'client', id: client.id });
+  assert.deepEqual(opens('Kept the order.'), { kind: 'order', id: order.id });
+  assert.equal(opens('Plan version 2 accepted.')?.kind, 'plan');
+  assert.equal(opens('Price of Monthly books set to ₹1,000.')?.kind, 'price');
+  assert.equal(opens('A client who has gone.'), null);
+  assert.equal(opens('A run that has gone.'), null);
+  assert.equal(opens('An invoice that has gone.'), null);
+  assert.equal(opens('A step opens nothing.'), null);
+  // A client removed after the decision: the decision stays and opens nothing.
+  await env.store.update(state => { state.conversations = state.conversations.filter(item => item.id !== client.id); });
+  assert.equal((await decisions(env)).find(item => item.reason === 'Kept the client.')?.opens, null);
+});

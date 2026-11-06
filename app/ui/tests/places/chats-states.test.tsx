@@ -155,3 +155,35 @@ describe('Old chats from the Chats list (C1 task 12)', () => {
     expect(within(chatList()).queryByRole('link', { name: /old chat/i })).toBeNull();
   });
 });
+
+/* One-shot C4 task 8: "Pick a time" sends the instant of the owner's own day and time; a time already past shows the
+ * engine's refusal in place. The business is in India, so 9:00 am on 24 October is 03:30 UTC on any computer. */
+describe('Snooze: Pick a time (C4 task 8)', () => {
+  async function openPick() {
+    const { spy } = await start('#/chats?thread=chiefthread-titles');
+    const snooze = await within(await screen.findByRole('group', { name: 'Chat actions' })).findByRole('button', { name: 'Snooze' });
+    await act(async () => { fireEvent.click(snooze); });
+    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Pick a time' })); });
+    const form = screen.getByRole('form', { name: 'Pick a time' });
+    return { spy, form };
+  }
+
+  it('9:00 am tomorrow in Asia/Kolkata is sent as its instant', async () => {
+    const { spy, form } = await openPick();
+    fireEvent.change(within(form).getByLabelText('Day'), { target: { value: '2026-10-24' } });
+    fireEvent.change(within(form).getByLabelText('Time'), { target: { value: '09:00' } });
+    await act(async () => { fireEvent.click(within(form).getByRole('button', { name: 'Snooze' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-titles', state: 'snoozed', until: '2026-10-24T03:30:00.000Z' }]);
+    expect((await screen.findByRole('status', { name: 'Chat change' })).textContent).toContain('Snoozed until 24 Oct 2026, 9:00 am.');
+  });
+
+  it('a time already past shows the engine\'s refusal in place', async () => {
+    const { form } = await openPick();
+    fireEvent.change(within(form).getByLabelText('Day'), { target: { value: '2026-10-22' } });
+    fireEvent.change(within(form).getByLabelText('Time'), { target: { value: '09:00' } });
+    await act(async () => { fireEvent.click(within(form).getByRole('button', { name: 'Snooze' })); });
+    await settle();
+    expect(within(form).getByRole('alert').textContent).toBe('Pick a time that is still ahead.');
+  });
+});

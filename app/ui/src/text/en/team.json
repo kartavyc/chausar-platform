@@ -70,6 +70,8 @@
   "team.spendLink": "See spend in Money",
   "team.runs": "Jobs",
   "team.runsNone": "No jobs yet.",
+  "team.runsStart": "It starts when you add an order on Work.",
+  "team.runsStartLink": "Open Work",
   "team.addAgent": "Add an agent",
   "team.stats.done": "Done this week",
   "team.keeper.code": "Fixed rules, no AI",

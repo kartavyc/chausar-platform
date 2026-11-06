@@ -23,6 +23,8 @@ export function LaunchStages() {
   const [phase, setPhase] = useState<'idle' | 'ask' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const [view, setView] = useState<LaunchStatusView | null>(null);
+  // C4 task 17: right after going live, one line and an Undo (back to Practice is allowed any time, delivery/launch.ts).
+  const [justLive, setJustLive] = useState(false);
   const reasonId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (phase === 'ask') cancelRef.current?.focus(); }, [phase]);
@@ -33,6 +35,7 @@ export function LaunchStages() {
     setProblem(null);
     try {
       setView(await client.request('venture.launch.advance', { to }));
+      setJustLive(to === 'live');
     } catch (error) {
       setProblem(t('business.launch.failed', { message: messageOf(error) }));
     } finally {
@@ -61,6 +64,12 @@ export function LaunchStages() {
           {data.stage === 'practice' && live && !live.allowed
             ? <p className={s.note} id={reasonId}>{live.reason}</p>
             : current && <p className={s.line}>{current.reason}</p>}
+          {justLive && data.stage === 'live' && (
+            <p className={s.line} role="status" data-live-line="">
+              {t('business.launch.liveLine')}{' '}
+              <Button variant="quiet" size="sm" disabled={phase !== 'idle'} onClick={() => void move('practice')}>{t('business.launch.undo')}</Button>
+            </p>
+          )}
           {phase === 'ask' ? (
             <div className={s.foldBody} data-second-ask="">
               <p className={s.line}>{t('business.launch.ask')}</p>

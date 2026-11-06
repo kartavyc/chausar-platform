@@ -85,12 +85,12 @@ describe('Money v2: the sub-pages', () => {
     await screen.findByRole('group', { name: 'Businesses' });
     expect(rowLinks(nav)).toEqual([['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills']]);
     expect(within(nav).getByRole('button', { name: 'More' })).toBeTruthy();
-    expect(await moreLinks(nav)).toEqual([['Books', '#/money/books'], ['Margins', '#/money/margins'], ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses']]);
+    expect(await moreLinks(nav)).toEqual([['For your CA', '#/money/books'], ['Margins', '#/money/margins'], ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses']]);
     expect(nav.querySelector('svg')).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBe('page');
     await go('#/money/books');
-    expect(rowLinks(nav)).toEqual([['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books']]);
-    expect(within(nav).getByRole('link', { name: 'Books' }).getAttribute('aria-current')).toBe('page');
+    expect(rowLinks(nav)).toEqual([['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['For your CA', '#/money/books']]);
+    expect(within(nav).getByRole('link', { name: 'For your CA' }).getAttribute('aria-current')).toBe('page');
     expect(within(nav).getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBeNull();
     expect(await moreLinks(nav)).toEqual([['Margins', '#/money/margins'], ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses']]);
   });
@@ -123,15 +123,16 @@ describe('Money v2: the overview tiles', () => {
     assertInkRules();
   });
 
-  it('AI spend in rupees sits beside the dollars, under the same receipt', async () => {
+  // C4 (T23): one currency on the tile, whichever the engine leads with.
+  it('AI spend shows one currency on the tile', async () => {
     const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
     start('#/money', {
       override: { 'venture.money.overview': overview({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$0.25', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) },
     });
     const spend = await tile('AI spend this month');
-    const rupees = await within(spend).findByText(`₹20.88 ${at}`);
-    expect(within(spend).getByText('$0.25')).toBeTruthy();
-    expect(rupees.closest('[data-figure-group]')?.querySelector('[data-receipt="R-0412"]')).toBeTruthy();
+    expect(await within(spend).findByText('$0.25')).toBeTruthy();
+    expect(spend.textContent).not.toContain('₹20.88');
+    expect(spend.querySelector('[data-receipt="R-0412"]')).toBeTruthy();
     assertInkRules();
   });
 
@@ -196,9 +197,9 @@ describe('Money v2: the overview tiles', () => {
     expect(owedFigure?.textContent).toContain('₹26,200');
     await counted(owed, '1 open invoice', '1');
     const spend = await tile('AI spend this month');
-    // 4Z3: a business in India with a rupee rate leads with rupees, the dollars beneath with two decimals and the rate.
+    // 4Z3: a business in India with a rupee rate leads with rupees; C4 (T23): the dollars are in the receipt.
     expect(await within(spend).findByText('₹60.10')).toBeTruthy();
-    expect(spend.textContent).toContain('$0.72 at ₹83.50 per $1');
+    expect(spend.textContent).not.toContain('$0.72');
     // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
     expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     assertInkRules();
@@ -332,7 +333,8 @@ describe('Money v2: the invoices table', () => {
     const { calls } = start('#/money/invoices', { engine });
     const table = await screen.findByRole('table', { name: /invoices/i });
     const draft = (await within(table).findByRole('button', { name: 'Draft · Boat Audio' })).closest('tr')!;
-    expect(within(table).getAllByRole('row')[1]).toBe(draft);
+    // C4 (T21): row 0 is the column heads, row 1 the Draft section's heading.
+    expect(within(table).getAllByRole('row')[2]).toBe(draft);
     expect(draft.textContent).toContain('Draft');
     const issue = within(draft).getByRole('button', { name: 'Issue' });
     expect(issue.dataset.variant).toBe('primary');
@@ -484,6 +486,8 @@ describe('Money v2: the sheets', () => {
 
   it('the invoice sheet says in its own words what happened; only an engine refusal is marked as engine words', async () => {
     const engine = new FakeEngine({ now: NOW });
+    // C4 (T21): pay details set, so Issue asks its plain question.
+    await engine.request('venture.billing.set', { upiId: 'lumen.studio@okaxis' });
     // Boat Audio's episode 14 order, not invoiced yet.
     const draft = (await engine.request('venture.invoice.prepare', { orderId: 'o-boat-14' })) as { invoice: { id: string } };
     start(`#/money/invoices?sheet=invoice:${draft.invoice.id}`, { engine });
@@ -503,7 +507,9 @@ describe('Money v2: the invoices table on a phone', () => {
     expect(table.getAttribute('role')).toBe('table');
     for (const group of table.querySelectorAll('thead, tbody')) expect(group.getAttribute('role')).toBe('rowgroup');
     for (const row of table.querySelectorAll('tr')) expect(row.getAttribute('role')).toBe('row');
-    for (const head of table.querySelectorAll('th')) expect(head.getAttribute('role')).toBe('columnheader');
+    for (const head of table.querySelectorAll('thead th')) expect(head.getAttribute('role')).toBe('columnheader');
+    // C4 (T21): a section's heading heads its row.
+    for (const head of table.querySelectorAll('tbody th')) expect(head.getAttribute('role')).toBe('rowheader');
     for (const cell of table.querySelectorAll('td')) expect(cell.getAttribute('role')).toBe('cell');
     const row = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
     await waitFor(() => expect(row.textContent).toContain('₹26,200'));

@@ -10,10 +10,12 @@ import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
+import noteStyles from '../../shell/StorageNotice.module.css';
 import { StartAtLogin } from '../onboarding/StartAtLogin';
 import { PausedNote } from '../../shell/PausedNote';
+import { PausedWork } from '../../parts/paused';
 import { useNarrow } from '../../shell/useNarrow';
-import { refusalWords } from '../../parts/custody';
+import { refusalWords, takeOpenedWithPassphrase } from '../../parts/custody';
 import { PlaceTiles } from '../../parts/Tile';
 import { LeftContext } from '../onboarding/started';
 import { ApprovalRow, decidedWords, primaryOf, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
@@ -111,6 +113,13 @@ function sentences(first: string | undefined, second: string | undefined): strin
   return /[.!?।]$/.test(first.trim()) ? `${first} ${second}` : `${first}. ${second}`;
 }
 
+/** C4 task 35 (32.x1): after a passphrase opened this business, one quiet line on Today's first view, once. */
+function OpenedNote() {
+  const t = useT();
+  const [opened] = useState(takeOpenedWithPassphrase);
+  return opened ? <p className={noteStyles.notice} role="status">{t('today.openedAgain')}</p> : null;
+}
+
 export function Place() {
   // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
   return <PlaceTiles><PlaceBody /></PlaceTiles>;
@@ -125,6 +134,8 @@ function PlaceBody() {
   const narrow = useNarrow();
   const openOutreach = useOutreachOpen(); // 4E4: a follow-up's handoff, Reply in Mail, Add notes
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
+  // C4 task 5: while paused, cards that would start new work lock their primary (parts/paused.ts).
+  const business = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
   // The same read as the goal card's (one answer for both): whether the next best step holds the page's filled button.
@@ -179,13 +190,16 @@ function PlaceBody() {
 
   // W4 4B3: an agent's chat opens a card here by its subject (`?row=proposal:<id>`; a row's id is its subject and its
   // version). Once the card is listed it comes into view through goToRow, and the address lets go of it.
-  const askedRow = route.query.row;
+  // One-shot C4 task 7: the notification centre (and Team's empty state) ask the same with `?focus=<rowId>`, once.
+  const askedRow = route.query.row ?? route.query.focus;
   useEffect(() => {
     if (!askedRow) return;
-    const row = live.find((r) => r.id === askedRow || r.id.startsWith(`${askedRow}:`));
+    // C4 task 10: `focus` may name a kind ("plan"): the first card of that kind; `read` opens what it is about too.
+    const row = live.find((r) => r.id === askedRow || r.id.startsWith(`${askedRow}:`)) ?? live.find((r) => r.kind === askedRow);
     if (!row) return;
     goToRow(row.id);
-    const { row: _asked, ...rest } = route.query;
+    if (route.query.read && row.viewRef) look(row);
+    const { row: _asked, focus: _focus, read: _read, ...rest } = route.query;
     setQuery(rest);
   }, [askedRow, live.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -398,7 +412,7 @@ function PlaceBody() {
       />
     ),
     // A5 fix round 1: start at login, asked once here when the first run ended without an answer.
-    notices: () => <><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
+    notices: () => <><OpenedNote /><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
     goal: () => <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />,
     team: () => <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} title={nameOf('team')} />,
     needs: () => (
@@ -433,7 +447,7 @@ function PlaceBody() {
   const ideasHidden = drawn.some((block) => block.id === 'ideas' && !block.shown);
 
   return (
-    <>
+    <PausedWork.Provider value={Boolean(business.data?.paused)}>
       {slot(0)}
       {slot(1)}
       <LayoutNotice layout={layout.data} reload={layout.reload} />
@@ -456,7 +470,7 @@ function PlaceBody() {
         {ideasHidden && <IdeasFold ideas={false} />}
         <FeedbackQuestion />
       </div>
-    </>
+    </PausedWork.Provider>
   );
 }
 

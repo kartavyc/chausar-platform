@@ -1,4 +1,4 @@
-import type { DetailsHTMLAttributes, ReactNode } from 'react';
+import type { DetailsHTMLAttributes, ReactNode, Ref } from 'react';
 import { cx } from './cx';
 import { Icon } from './Icon';
 import s from './Fold.module.css';
@@ -11,6 +11,7 @@ export interface FoldProps extends Omit<DetailsHTMLAttributes<HTMLDetailsElement
   summaryClassName?: string | undefined;
   summaryId?: string | undefined;
   'data-fold'?: string | undefined;
+  ref?: Ref<HTMLDetailsElement> | undefined;
 }
 
 /**

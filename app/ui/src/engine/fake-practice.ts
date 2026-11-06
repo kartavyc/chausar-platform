@@ -97,6 +97,9 @@ const PASSING: readonly CheckLite[] = [
 ];
 
 /** A version of the playbook, as the fake keeps it. blueprintDigest: the accepted plan it was made for. */
+/** C4 task 17: a practice client's draft, as delivery/deliverable.ts renders one. */
+const practiceDraftText = (scenario: ScenarioLite) => `# A reply for ${scenario.title}\n\n## Summary\nThanks for your message. This reply sets out how we will handle it.\n\n## Next steps\nOnce you confirm the details, we will start.`;
+
 interface Version { id: string; version: number; hash: string; origin: 'plan' | 'improvement'; parentId: string | null; blueprintDigest: string }
 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
@@ -264,10 +267,10 @@ export class FakePracticeDesk {
   private episode(scenario: ScenarioLite, index: number, byModel: boolean): EpisodeLite {
     if (scenario.id.endsWith('-pushback')) {
       const checks: CheckLite[] = [{ check: 'house-style', passed: false, detail: 'The draft uses a word on the avoid list: free.' }, ...PASSING.slice(1)];
-      return { scenarioId: scenario.id, index, passed: false, firstFailure: 'house-style', checks };
+      return { scenarioId: scenario.id, index, passed: false, firstFailure: 'house-style', checks, renderedText: practiceDraftText(scenario) };
     }
     const checks: CheckLite[] = [...PASSING, ...(byModel ? [{ check: 'rules-judge', passed: true, detail: PRACTICE_WORDS.passed }] : [])];
-    return { scenarioId: scenario.id, index, passed: true, firstFailure: null, checks };
+    return { scenarioId: scenario.id, index, passed: true, firstFailure: null, checks, renderedText: practiceDraftText(scenario) };
   }
 
   // ---------------------------------------------------------------------------------------------------------------

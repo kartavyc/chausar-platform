@@ -16,6 +16,7 @@
   "layout.down": "Move {name} down",
   "layout.name": "Name for {name}",
   "layout.rename": "Rename",
+  "layout.renamePart": "Rename {name}",
   "layout.views": "Saved views",
   "layout.views.none": "No saved views yet.",
   "layout.view.name": "View name",

@@ -6,6 +6,8 @@ import { Button } from '../../parts/Button';
 import { ConnectorLabel } from '../../parts/ConnectorLabel';
 import { Tile } from '../../parts/Tile';
 import { goTo, openSheet } from '../../shell/navigation';
+import { useOwnerCountry } from '../../shell/clock';
+import { formatCount } from '../../../../../platform/runtime/owner-format';
 import f from './FirstRun.module.css';
 
 /**
@@ -22,10 +24,14 @@ export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'co
   const headingId = useId();
   const list = useResource('venture.needs.list', {});
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
+  /** C4 task 4: the services the owner pressed Set up for here (skipping one is not setting it up). */
+  const [started, setStarted] = useState<ReadonlySet<string>>(new Set());
+  const country = useOwnerCountry() ?? 'IN';
   const first = place === 'first-run';
 
   /** The service's own connect: its connector sheet in Connections (from the first run, the app opens there). */
   function setUp(need: NeedLite, from: Element | null) {
+    setStarted((was) => new Set([...was, need.id]));
     const sub = need.connect.place === 'connections/ai' ? 'ai' : 'needs';
     if (first) {
       if (need.connect.connectorId && sub === 'needs') window.location.hash = `#/connections/needs?sheet=connector:${need.connect.connectorId}`;
@@ -37,6 +43,9 @@ export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'co
     else if (need.connect.connectorId) openSheet('connector', need.connect.connectorId, from);
   }
 
+  // C4 task 4: how many of the services that can be set up today are, so the owner knows they can close this step.
+  const settable = (list.data?.needs ?? []).filter((need) => need.label !== 'planned' && (need.connect.connectorId !== null || need.connect.place !== null));
+  const setUpCount = settable.filter((need) => started.has(need.id)).length;
   const title = list.data?.family ? t('first-run.needs.list', { family: list.data.family.label }) : t('first-run.needs.listPlain');
   return (
     <section className={f.wrap} aria-labelledby={headingId}>
@@ -71,6 +80,7 @@ export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'co
       )}
       {first && (
         <div className={f.needsFoot}>
+          {settable.length > 0 && <p className={f.hint}>{t('first-run.needs.count', { done: formatCount(setUpCount, country), total: formatCount(settable.length, country) })}</p>}
           <Button variant="primary" size="lg" onClick={() => { goTo('today'); onDone?.(); }}>{t('first-run.needs.done')}</Button>
         </div>
       )}

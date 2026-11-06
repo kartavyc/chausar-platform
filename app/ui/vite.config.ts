@@ -1,8 +1,10 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
+const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The built page carries the same strict policy the servers send: no inline script or style. Dev mode skips it
  *  because Vite's dev client injects styles at runtime; the built files never do. */
@@ -23,6 +25,8 @@ export default defineConfig({
   publicDir: 'public',
   plugins: [react(), strictPolicy()],
   css: { modules: { localsConvention: 'camelCaseOnly' } },
+  // C4 task 41: this copy's version and when it was built, from the build's own clock (parts/build-info.ts).
+  define: { 'import.meta.env.VITE_CHAUSAR_VERSION': JSON.stringify(version), 'import.meta.env.VITE_CHAUSAR_BUILT_AT': JSON.stringify(new Date().toISOString()) },
   build: {
     outDir: fileURLToPath(new URL('./dist', import.meta.url)),
     emptyOutDir: true,

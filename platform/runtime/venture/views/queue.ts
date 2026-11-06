@@ -255,6 +255,9 @@ export function runError(state: State, run: DeliveryRunRecord): string {
   return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This job stopped before it finished. Nothing was sent to the client.';
 }
 
+/** The line a rejected draft leaves on Today, which is also how its Undo knows it (queue-actions.ts). */
+export const REJECT_LINE = 'Draft rejected. The agent learns from it.';
+
 const reviewReason = (answer: string | null): DeliveryReason =>
   answer !== null && (DELIVERY_REASONS as readonly string[]).includes(answer) ? answer as DeliveryReason : 'other';
 
@@ -313,7 +316,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     if (run.status === 'ready-for-review' && run.awaitingYou) {
       const review = (verdict: 'accepted' | 'rejected'): Perform => async (d, ctx, input) => {
         await deliveryReviewHandler(d, ctx, verdict === 'accepted' ? { runId: run.id, verdict } : { runId: run.id, verdict, reason: reviewReason(input.answer) });
-        return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : 'Draft rejected. The agent learns from it.' };
+        return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : REJECT_LINE };
       };
       const viewDraft = { kind: 'draft' as const, id: run.id };
       // AI-native CA firm: papers held only for the CA's sign-off, not yet with the CA, go to the CA from this row.
@@ -567,6 +570,8 @@ const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/social/revision-due.ts')).revisionDueRows(deps, ctx, state, venture)],
   ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
   ['money', moneyRows], // 4J5: credit notes waiting to be issued
+  // One-shot C4 (T22): a bill due today or overdue, as a notice whose only action is Open, loaded on use
+  ['notice', async (deps, ctx, state, venture) => (await import('../money/bills.ts')).billDueRows(deps, ctx, state, venture)],
   ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead
   // Ink v2 wave 5 (5A1): kit chains that stopped or wait on the client past a stage's waitDays, as notices, loaded on use
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/kit/chain.ts')).chainRows(deps, ctx, state, venture)],

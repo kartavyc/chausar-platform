@@ -154,6 +154,8 @@ const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
   'venture.country.suggest',
   'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
+  // One-shot C4 task 38: a move file's name and day, read with its code before moving it here.
+  'workspace.transfer.peek',
   // Ink v2 wave 4 (4J8): the Start gallery's ways to earn, a pre-vault method on the engine too.
   'venture.playbooks.list',
   // W6 6C6: the profession's rules, shown when onboarding picks it, before any vault exists.
@@ -390,6 +392,7 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      noteDecision: (subject: string, action: string, reason: string) => this.w4.noteDecision(subject, action, reason),
       // A2 review: the Codex setup Your AI shows, from the first run's Codex (fake-first-run.ts).
       codexSetup: () => this.firstRun.connectionsSetup(),
       nativeCanResume:(run:RunDetail)=>this.work.nativeCanResume(run),
@@ -565,6 +568,8 @@ export class FakeEngine {
     const job = FAKE_WORK[method];
     if (job && !this.inWork.has(method)) return this.longWork(method, params, job);
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
+    // C4 task 33: the Undo of the owner's own price (core/owner-price.ts) belongs to the plan's desk, before the queue's own undo.
+    if (method === 'venture.queue.undo' && typeof p.rowId === 'string' && p.rowId.startsWith('price-set:')) return this.desk.undoOwnerPrice(p.rowId);
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method === 'venture.queue.undo' && typeof p.rowId === 'string') {
       // B4 task 7, as views/queue-actions.ts: a price taken back; any other undo is the approvals desk's.
@@ -607,7 +612,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.phoneDelivery.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.phoneDelivery.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id) ?? this.work.templateDraftView(this.current, this.businesses.find((b) => b.id === this.current)?.name ?? '', p.kind, p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -738,6 +743,7 @@ export class FakeEngine {
     return {
       total: `$0.72${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
       totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
+      ...(rate ? {} : { needsRate: true }),
     };
   }
 
@@ -798,7 +804,7 @@ export class FakeEngine {
     const size = p.size === undefined ? undefined : sizeOf(item, p.size);
     if (p.digest !== pure.digest) throw new EngineError('APPROVAL_STALE', 'The rules for this profession changed. Read them again.');
     if (!this.ventures.get(this.current)) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
-    const next = { professionId: item.id, sideWork: p.sideWork as 'allowed' | 'not-allowed' | 'not-sure', acknowledgedOn: localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }) };
+    const next = { professionId: item.id, sideWork: p.sideWork as 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure', acknowledgedOn: localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }) };
     // Left out, the size answer already saved for this profession is kept.
     const kept = size ?? (recorded?.professionId === item.id ? saved : null);
     this.complianceRecords.set(this.current, next);
@@ -933,6 +939,13 @@ export class FakeEngine {
         this.rows.push({...row,digest:digestOf(row)});
       }
     }
+    // C4 (T22): a bill due today or overdue in the open business, as a notice whose only action is Open.
+    this.rows = this.rows.filter((row) => !row.id.startsWith('bill-due:'));
+    const openBusiness = this.open ? this.businesses.find((b) => b.id === this.current) : undefined;
+    if (openBusiness) for (const due of this.money.billDueRows()) {
+      const row = { id: `${due.subject}:${due.version}`, businessId: openBusiness.id, businessName: openBusiness.name, kind: 'notice' as const, createdAt: due.createdAt, title: due.title, actions: [{ id: 'open' as const, label: 'Open', primary: true }], notice: { probe: 'bill' as const, severity: 'medium' as const, link: due.link } };
+      this.rows.push({ ...row, digest: digestOf(row) });
+    }
     // A vault may be locked while its source files are read asynchronously.
     this.rows=this.rows.filter(row=>!row.id.startsWith('tender-gap:')||this.businesses.some(b=>b.id===row.businessId&&(b.opens==='with-this-computer'||this.open&&b.id===this.current)));
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
@@ -950,7 +963,8 @@ export class FakeEngine {
     if (!row) return { outcome: 'refused', line: 'This is no longer here.', reason: 'RESOLVED_ELSEWHERE' };
     if (this.decided.has(row.id)) return { outcome: 'refused', line: 'You decided this already.', reason: 'ALREADY_DECIDED' };
     if (p.digest !== row.digest) return { outcome: 'stale', line: 'This click did not run anything. Here is the new version.', latest: clone(row) };
-    const action = row.actions.find((a) => a.id === p.action);
+    // C4 task 13: as views/queue.ts: a draft waiting for review takes a Reject also when its row lists Read and Approve only.
+    const action = row.actions.find((a) => a.id === p.action) ?? (p.action === 'deny' && row.kind === 'draft' && row.viewRef?.kind === 'draft' ? { id: 'deny' as const, label: 'Reject', primary: false } : undefined);
     if (!action) return { outcome: 'refused', line: 'That is not a choice for this row.', reason: 'INVALID_ACTION' };
     if (action.requiresView && p.viewed !== true) return { outcome: 'refused', line: 'Open it and read it first.', reason: 'VIEW_FIRST' };
     if (row.kind === 'locked') return { outcome: 'refused', line: 'This business opens with its passphrase.', reason: 'PASSPHRASE_REQUIRED' };
@@ -959,6 +973,7 @@ export class FakeEngine {
     if (row.needs?.answer === 'day' && action.id === 'approve' && !/^\d{4}-\d{2}-\d{2}$/.test(p.answer?.trim() ?? '')) return { outcome: 'refused', line: 'Pick the day for this step first.', reason: 'INVALID_VENTURE_REQUEST' };
     if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
+    if (row.id.startsWith('bill-due:') && action.id === 'open') return { outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Money, then Bills.' };
     if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
     const va=this.w4.quality.decideVa(row,action.id);if(va){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:va};}
     const social=this.work.r5Delivery.decide(row,action.id)??this.work.phoneDelivery.decide(row,action.id)??this.work.devDelivery.decide(row,action.id)??this.work.careerDelivery.decide(row,action.id)??this.work.vaDelivery.decide(row,action.id)??this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
@@ -1004,6 +1019,21 @@ export class FakeEngine {
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
       return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.', ...(undoable ? { undoable: true as const } : {}) };
+    }
+    // C4 task 13: a draft's Approve or Reject moves its run, as the engine's review does (views/queue.ts). A sample row whose draft isn't listed moves nothing.
+    if (row.kind === 'draft' && row.viewRef?.kind === 'draft' && (action.id === 'approve' || action.id === 'deny')) {
+      const verdict = action.id === 'deny' ? 'rejected' : 'accepted';
+      const runId = row.viewRef.id;
+      try {
+        let prior: DeliveryLite | undefined;
+        this.reviseDelivery(runId, (run) => { prior = clone(run); return { ...run, status: verdict === 'accepted' && run.editedText ? 'edited' : verdict, awaitingYou: false, canAccept: false, ...(verdict === 'rejected' ? { editedText: null } : {}) }; });
+        // C4 task 15: a reject can be taken back, in the engine's words.
+        if (verdict === 'rejected' && prior) {
+          this.w4.noteReject(row, runId, prior);
+          this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+          return { outcome: 'done', line: 'Draft rejected. The agent learns from it.' };
+        }
+      } catch { /* not listed */ }
     }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
@@ -1177,6 +1207,7 @@ export class FakeEngine {
       case 'workspace.recover': return this.recover(p);
       case 'workspace.restore': return this.restoreAsNew(p);
       case 'workspace.transfer.import': return this.moveHere(p);
+      case 'workspace.transfer.peek': return this.movePeek(p);
       case 'workspace.delete': return this.deleteBusiness(p);
       case 'venture.countries': return clone(COUNTRIES);
       case 'venture.country.suggest': return fakeCountrySuggestion(p, this.desk.request(this.open && this.ventures.has(this.current) ? 'venture.models.status' : 'venture.ai.status', {}) as ModelStatusLite, this.hosted, COUNTRIES);
@@ -1344,6 +1375,18 @@ export class FakeEngine {
     return { ...this.openHere(restored), folder: id };
   }
 
+  /** C4 task 38, as the engine: the name and day inside a move file with the right code; a wrong code as import says it. Nothing written. */
+  private movePeek(p: Record<string, unknown>) {
+    if (Object.keys(p).some((key) => key !== 'fileText' && key !== 'transferCode')) throw new EngineError('INVALID_REQUEST', 'Send the move file and its code.');
+    const text = typeof p.fileText === 'string' ? p.fileText : '';
+    if (text.length > MOVE_MAX_CHARS) throw new EngineError('TRANSFER_TOO_LARGE', CUSTODY_ERROR_WORDS.TRANSFER_TOO_LARGE);
+    let file: { backupFormat?: unknown; business?: unknown; name?: unknown; madeAt?: unknown };
+    try { file = JSON.parse(text) as typeof file; } catch { file = {}; }
+    if (file.backupFormat !== SAMPLE_MOVE_FORMAT || typeof file.business !== 'string' || typeof file.name !== 'string') throw new EngineError('TRANSFER_INVALID', CUSTODY_ERROR_WORDS.TRANSFER_INVALID);
+    if (p.transferCode !== SAMPLE_MOVE_CODE) throw new EngineError('TRANSFER_CODE_WRONG', CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG);
+    return { name: file.name, movedOutAt: typeof file.madeAt === 'string' ? file.madeAt : null };
+  }
+
   /** workspace.transfer.import: the move file and its code. A business already here is opened from the list instead. */
   private moveHere(p: Record<string, unknown>) {
     this.notWhileOpen();
@@ -1371,11 +1414,13 @@ export class FakeEngine {
     this.ventures.delete(business.id);
     this.desk.forgetAiSetup(business.id);
     const exportsKept = this.desk.exportsOf(business.id);
+    // C4 task 37, as the engine: the name and how many backups went.
+    const backupsRemoved = (this.desk.request('workspace.backups.list', {}) as { backups: { name: string | null }[] }).backups.filter((b) => b.name === business.name).length;
     this.desk.dropBackups(business.id);
     this.rows = this.rows.filter((r) => r.businessId !== business.id);
     this.open = false;
     this.current = '';
-    return { deleted: true, copiesRemoved: [], exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+    return { deleted: true, name: business.name, backupsRemoved, copiesRemoved: [], exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
   }
 
   private templateInterview(countryCode: string): InterviewQuestionLite[] {

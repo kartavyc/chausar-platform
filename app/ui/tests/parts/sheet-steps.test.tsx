@@ -93,11 +93,11 @@ describe('RunSheet', () => {
     expect(onAnswer).toHaveBeenCalledWith('Yes, share a private link');
   });
 
-  it('a finished run folds to "Worked for" with its result and receipt', () => {
+  it('a finished run folds to "Took" with its result and receipt', () => {
     const { container } = render(<RunSheetView run={run('27')} onClose={() => {}} />);
     const fold = container.querySelector('details[data-fold="worked"]') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
-    expect(fold.querySelector('summary')!.textContent).toBe('Worked for 4 min');
+    expect(fold.querySelector('summary')!.textContent).toBe('Took 4 min');
     expect(container.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(screen.getAllByRole('button', { name: receiptMark('R-0412') }).length).toBeGreaterThan(0);
   });

@@ -10,6 +10,7 @@ import {
   APP_PERMISSIONS, APP_TOOLS, appCodeFindings, appDocument, appUri, exportDocument, permissionsOf, type AppPermission,
 } from '../../../../platform/runtime/venture/apps/frame';
 import { APP_ERRORS, APP_IDEAS, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from '../../../../platform/runtime/venture/apps/words';
+import { APP_PREVIEW_ONLY, DATA_READS, NOT_IN_PREVIEW, sampleAnswer } from '../../../../platform/runtime/venture/apps/sample-data';
 import { appCalcPlan, appCalcSubject } from '../../../../platform/runtime/venture/apps/calc';
 import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, type ClientLite, type MiniAppCallResult, type MiniAppCard, type MiniAppMessage, type MiniAppView, type OrderLite, type ReceiptLite } from './types';
@@ -187,11 +188,20 @@ export class FakeAppsDesk {
     return { id: app.id, name: app.name, version: app.current, summary: version.summary, reads: version.permissions.map((item) => PERMISSION_WORDS[item].chip), pinned: app.pinned, madeAt: app.at, allowed: this.ask(app) === null };
   }
 
+  /** C4 task 29, as the engine: the app reads the business, and every read it may make has nothing to show. */
+  private readsEmpty(allowed: ReadonlySet<AppPermission>): boolean {
+    const reads = Object.keys(APP_TOOLS).filter((tool) => DATA_READS.has(tool) && allowed.has(APP_TOOLS[tool]!));
+    if (!reads.length) return false;
+    return reads.every((tool) => (tool === 'clients_list' ? this.host.clients().every((client) => client.self)
+      : tool === 'orders_list' ? this.host.orders().length === 0 : this.host.invoices().length === 0));
+  }
+
   private view(app: HeldApp): MiniAppView {
     const version = this.version(app);
     const allowed = new Set(this.allowed(app));
     return {
       ...this.card(app), uri: appUri(app.id, app.current), document: appDocument(version.html, app.name),
+      empty: this.readsEmpty(allowed),
       versions: app.versions.map((item) => ({ version: item.version, at: item.at, summary: item.summary, current: item.version === app.current })),
       permissions: version.permissions.map((item) => ({ id: item, verb: PERMISSION_WORDS[item].verb, line: PERMISSION_WORDS[item].line })),
       grant: app.grant ? { permissions: [...app.grant.permissions], at: app.grant.at } : null,
@@ -230,7 +240,8 @@ export class FakeAppsDesk {
   }
 
   private call(p: Record<string, unknown>): MiniAppCallResult {
-    const body = exact(p, ['app', 'tool', 'arguments']);
+    const body = exact(p, Object.hasOwn(p, 'sample') ? ['app', 'tool', 'arguments', 'sample'] : ['app', 'tool', 'arguments']);
+    if (Object.hasOwn(body, 'sample') && body.sample !== true) throw invalid('Send sample: true, or leave it out.');
     if (typeof body.tool !== 'string' || !Object.hasOwn(APP_TOOLS, body.tool)) throw new EngineError('APP_TOOL_UNKNOWN', APP_ERRORS.unknownTool);
     const args = exact(body.arguments, Object.keys((body.arguments ?? {}) as object));
     const app = this.find({ app: body.app }, ['app']);
@@ -238,6 +249,12 @@ export class FakeAppsDesk {
     if (!this.allowed(app).includes(APP_TOOLS[body.tool]!)) throw new EngineError('APP_NOT_ALLOWED', APP_ERRORS.notAllowed);
     const none = () => { if (Object.keys(args).length) throw invalid('This tool takes no arguments.'); };
     const result = (structuredContent: unknown): MiniAppCallResult => ({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false });
+    // C4 task 29, as the engine: the made-up rows, and nothing kept.
+    if (body.sample === true) {
+      const rows = sampleAnswer(body.tool, this.host.currency(), this.host.now().slice(0, 10));
+      if (!rows) throw new EngineError(APP_PREVIEW_ONLY, NOT_IN_PREVIEW);
+      return result(rows);
+    }
     switch (body.tool) {
       case 'clients_list': none(); return result({ clients: this.host.clients().filter((client) => !client.self).map((client) => ({ id: client.id, name: client.name })) });
       case 'orders_list': none(); return result({ orders: this.host.orders().map((order) => ({ id: order.id, clientId: order.clientId, status: order.status, request: order.request.length > 160 ? `${order.request.slice(0, 157)}...` : order.request })) });

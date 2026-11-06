@@ -289,7 +289,7 @@ test('receipts: correctDraft replaces a refuted figure, keeps the punctuation af
     text('The GST on this order comes to'), { kind: 'figure', receiptId: 'receipt_1', figureKey: 'tax' }, text('.'),
     { kind: 'figure', receiptId: 'receipt_1', figureKey: 'total' },
   ]);
-  assert.match(renderDeliverable(fixed.deliverable, [PRICE], { dateOrder: 'day-month-year' }), /comes to GST at 18%: INR 449\.82\. Total: INR 2,948\.82/);
+  assert.match(renderDeliverable(fixed.deliverable, [PRICE], { dateOrder: 'day-month-year' }), /comes to GST at 18%: INR 449\.82\. INR 2,948\.82 in total/);
   assert.equal(fixed.deliverable.estimate, undefined, 'no number of the model\'s own is left, so the draft is no longer an estimate');
   assert.equal(fixed.corrections.length, 1);
   const [note] = fixed.corrections;

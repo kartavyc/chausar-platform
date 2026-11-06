@@ -16,7 +16,7 @@
 import { authorize, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, findRecord, listRecords, type VentureTx } from '../records.ts';
 import type {
-  ConnectorPostRecord, DecisionRecord, DecisionsView, DecisionView, Display, IsoTime, JournalEntry, JournalRecord, QueueActionId, ToolCallRecord,
+  ConnectorPostRecord, DecisionOpens, DecisionRecord, DecisionsView, DecisionView, Display, IsoTime, JournalEntry, JournalRecord, QueueActionId, ToolCallRecord,
   VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { playbookInUse, teamFlagship } from '../views/team-shape.ts';
@@ -243,7 +243,7 @@ function journalDecisions(state: State, venture: VentureRecord, reader: string |
   for (const { record, today } of records) {
     record.journal.forEach((step, index) => {
       if (step.state !== 'approved' && step.state !== 'rejected') return;
-      const base = { id: `${record.id}/${index}`, at: step.at, subject: today ?? `journal:${record.id}`, rule: null, ruleId: null, reason: step.line, agentId: null, mine: reader !== null && step.by === reader };
+      const base = { id: `${record.id}/${index}`, at: step.at, subject: today ?? `journal:${record.id}`, rule: null, ruleId: null, reason: step.line, agentId: null, mine: reader !== null && step.by === reader, opens: null };
       if (members.has(step.by)) {
         const approved = step.state === 'approved';
         const who = whoIs(state, step.by), subject = subjectOf(state, step.by, reader);
@@ -258,6 +258,28 @@ function journalDecisions(state: State, venture: VentureRecord, reader: string |
   return listed;
 }
 
+/** A plan row that changed a price, and the owner's own price, say so in these words (views/queue.ts, core/owner-price.ts). */
+const PRICE_REASON = /^(?:Price of |New prices? )/;
+
+/**
+ * C4 (T26): what a decision opens, worked out by code from its subject: an invoice, a run, an order, a client, the plan
+ * or a price. Null for any other subject, and once that record is gone or belongs to another business.
+ */
+function opensOf(state: State, venture: VentureRecord, subject: string, reason: Display): DecisionOpens {
+  const at = subject.indexOf(':');
+  if (at < 0) return null;
+  const kind = subject.slice(0, at), id = subject.slice(at + 1);
+  const here = (record: { ventureId: string } | undefined) => record !== undefined && record.ventureId === venture.id;
+  switch (kind) {
+    case 'invoice': return here(findRecord(state, 'venture-invoice', id)) ? { kind: 'invoice', id } : null;
+    case 'run': return here(findRecord(state, 'venture-delivery-run', id)) ? { kind: 'run', id } : null;
+    case 'order': return here(findRecord(state, 'venture-order', id)) ? { kind: 'order', id } : null;
+    case 'client': return here(findRecord(state, 'venture-client', id)) ? { kind: 'client', id } : null;
+    case 'plan': return { kind: PRICE_REASON.test(reason) ? 'price' : 'plan', id: venture.id };
+    default: return null;
+  }
+}
+
 /** Every decision of the open business, newest first, a Today click listed once. */
 export function decisionViews(state: State, venture: VentureRecord, reader: string | null = null): DecisionView[] {
   const today = listRecords(state, 'venture-queue-decision', venture.id).map((record): DecisionView => {
@@ -266,22 +288,23 @@ export function decisionViews(state: State, venture: VentureRecord, reader: stri
     return {
       id: record.id, at: record.at, subject: record.subject, action: record.action, who, rule: null, ruleId: null, reason: record.line,
       line: words(ACTION_WORDS[record.action] ?? record.action, record.line, subjectOf(state, record.decidedBy, reader)), by: record.decidedBy, agentId: null,
-      mine: reader !== null && record.decidedBy === reader,
+      mine: reader !== null && record.decidedBy === reader, opens: null,
     };
   });
   const others: DecisionView[] = [];
+  const unopened = { opens: null };
   for (const record of listRecords(state, 'venture-decision', venture.id)) {
     const member = record.who !== 'timeout' && record.who !== 'saved-rule' && record.who !== 'chausar';
     const line = member ? DECISION_WORDS.decided(subjectOf(state, record.memberId, reader), record.reason) : record.who === 'timeout' ? DECISION_WORDS.timeout(record.reason) : record.reason;
     others.push({
       id: record.id, at: record.at, subject: record.subject, action: record.action, who: record.who, rule: ruleWords(state, venture, record.ruleId), ruleId: record.ruleId,
-      reason: record.reason, line, by: member ? record.memberId : null, agentId: agentOfRule(state, venture, record.ruleId), mine: member && reader !== null && record.memberId === reader,
+      reason: record.reason, line, by: member ? record.memberId : null, agentId: agentOfRule(state, venture, record.ruleId), mine: member && reader !== null && record.memberId === reader, ...unopened,
     });
   }
   for (const gate of listRecords(state, 'venture-team-gate', venture.id)) {
     const who = whoIs(state, gate.memberId);
     const words = DECISION_WORDS.gate(stepTitle(state, venture, gate.stepId), gate.gate, subjectOf(state, gate.memberId, reader));
-    others.push({ id: gate.id, at: gate.at, subject: `step:${gate.stepId}`, action: `gate-${gate.gate}`, who, rule: null, ruleId: null, reason: words, line: words, by: gate.memberId, agentId: gate.agentId, mine: reader !== null && gate.memberId === reader });
+    others.push({ id: gate.id, at: gate.at, subject: `step:${gate.stepId}`, action: `gate-${gate.gate}`, who, rule: null, ruleId: null, reason: words, line: words, by: gate.memberId, agentId: gate.agentId, mine: reader !== null && gate.memberId === reader, ...unopened });
   }
   others.push(...journalDecisions(state, venture, reader));
   for (const group of allowedGroups(state, venture)) {
@@ -290,7 +313,7 @@ export function decisionViews(state: State, venture: VentureRecord, reader: stri
       id: groupId(group), at: group.at, subject: `step:${group.stepId}`, action: tools, who: 'saved-rule',
       rule: group.rule === 'auto' ? DECISION_WORDS.autoRule(group.title) : DECISION_WORDS.sessionRule(group.title), ruleId: group.ruleId,
       reason: group.calls.length === 1 ? DECISION_WORDS.ran(tools) : DECISION_WORDS.ranMany(group.calls.length, tools), line: ruleLine(group), by: null,
-      agentId: group.agentId, mine: false,
+      agentId: group.agentId, mine: false, ...unopened,
     });
   }
   // The record of what a Today click ran is that click, matched to its exact row (ranByClicks).
@@ -299,7 +322,8 @@ export function decisionViews(state: State, venture: VentureRecord, reader: stri
   return views.map((view, index) => ({ view, index }))
     .sort((a, b) => (a.view.at < b.view.at ? 1 : a.view.at > b.view.at ? -1 : b.index - a.index))
     .map(({ view }) => view)
-    .slice(0, DECISIONS_MAX);
+    .slice(0, DECISIONS_MAX)
+    .map(view => ({ ...view, opens: opensOf(state, venture, view.subject, view.reason) }));
 }
 
 /** venture.decisions.list {} (read): who decided what, when, on what rule and why, newest first. */

@@ -147,7 +147,16 @@ export class FakeCrmDesk {
     const touches = this.host.touches(card => card.clientName === client.name || people.has(card.personId));
     const invoices = (this.host.ask('venture.invoice.list', {}) as { id: string; at: string; clientId: string; number: string | null; status: string; issueDate: string | null }[])
       .filter(invoice => invoice.clientId === clientId).map(invoice => ({ id: invoice.id, number: invoice.number, status: invoice.status, on: invoice.issueDate, at: invoice.at }));
-    return timelineOf({ clientId, logged: this.book().entries, touches, invoices });
+    // C4 task 18, as the engine: the client's orders and the drafts the owner decided.
+    const orders = (this.host.ask('venture.order.list', {}) as { id: string; at: string; clientId: string; offerId: string; internal?: true; deliveredOn: string | null }[]).filter(order => order.clientId === clientId && !order.internal);
+    const offers = new Map(((this.host.ask('venture.blueprint.get', {}) as { blueprint?: { offers?: { id: string; name: { value: string } }[] } }).blueprint?.offers ?? []).map(offer => [offer.id, offer.name.value]));
+    const orderIds = new Set(orders.map(order => order.id));
+    const drafts = (this.host.ask('venture.delivery.list', {}) as { id: string; orderId: string; practice?: boolean; verdict?: { choice: 'accepted' | 'edited' | 'rejected'; at: string } | null }[])
+      .flatMap(run => (run.verdict && !run.practice && orderIds.has(run.orderId) ? [{ id: run.id, choice: run.verdict.choice, on: run.verdict.at.slice(0, 10), at: run.verdict.at }] : []));
+    return timelineOf({
+      clientId, logged: this.book().entries, touches, invoices, drafts,
+      orders: orders.map(order => ({ id: order.id, offer: offers.get(order.offerId) ?? null, on: order.at.slice(0, 10), at: order.at, deliveredOn: order.deliveredOn })),
+    });
   }
 
   private clientView(clientId: string): ClientCrmView {

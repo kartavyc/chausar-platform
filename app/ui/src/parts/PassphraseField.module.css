@@ -1,0 +1,17 @@
+/* PassphraseField (C4 task 35): the field, then one quiet row under it with Show and, while it is on, Caps Lock. */
+.passphrase {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.under {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.caps {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
