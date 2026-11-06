@@ -86,6 +86,8 @@ export type GoNoGoCardView = {
   verdict: GoNoGoVerdict;
   /** The card's one line, in the engine's words. */
   line: Display;
+  /** C5 task 14: on NO-GO, what would make it a go, worked out by code (kit/go-no-go-fit.ts). */
+  toGo?: { line: Display; months: number | null; monthly: { minor: MinorString; display: Display } | null };
   /** Each input the owner did not know, with its plain label (HOLD lists them all). */
   unknown: { input: GoNoGoInputName; label: Display }[];
   /** The maximum loss with the receipt that works it out (venture.receipt.get with the card's id). */

@@ -6,6 +6,7 @@
  * template (no AI is connected here) and runs no kit playbook, so the honest exit never decides here.
  */
 
+import { goNoGoFit } from '../../../../platform/runtime/venture/playbooks/kit/go-no-go-fit';
 import { formatMoney } from '../../../../platform/runtime/owner-format';
 import {
   EngineError,
@@ -408,6 +409,8 @@ export class FakeKitSalesDesk {
       maxLoss: maxLoss === null ? null : { minor: String(maxLoss), display: inrMinor(maxLoss), receiptId: id },
       limit: limitMinor === null ? null : { minor: limitMinor, display: inrMinor(BigInt(limitMinor)) },
       spendsNothing: verdict === 'GO' ? SPENDS_NOTHING : null,
+      // C5 task 14: what would make it a go, by the engine's own code.
+      ...(verdict === 'NO-GO' ? { toGo: goNoGoFit({ upfront: upfrontMinor!, monthly: monthlyMinor!, months: months!, limit: limitMinor! }, (minor) => inrMinor(BigInt(minor))) } : {}),
     };
     this.cards.push({ business: this.host.current(), view, figures, explanation });
     return clone(view);

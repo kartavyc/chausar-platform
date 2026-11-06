@@ -97,3 +97,26 @@ test('each card is stored and listed, newest first; inputs are checked before an
   await assert.rejects(card(env, { playbook: 'general', subject: 'x', inputs: INPUTS, extra: true }), code('INVALID_VENTURE_REQUEST'));
   assert.equal(listRecords(env.store.read(), 'venture-go-no-go').length, 2, 'a refused card stores nothing');
 });
+
+// C5 task 14: "What would make it a go?" On NO-GO, code works out the months that fit and the monthly cost that fits
+// over the same months, each rebuilt on the receipt; when nothing fits it says so.
+test('NO-GO says what would make it a go: 6 months fit, or 5,000 a month; the receipt rebuilds both', async () => {
+  const env = await setup();
+  const made = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '20,000', monthly: '10,000', months: '12', limit: '80,000' } });
+  assert.equal(made.verdict, 'NO-GO');
+  assert.deepEqual(made.toGo, { line: 'It would be a go at 6 months, or at ₹5,000 a month.', months: 6, monthly: { minor: '500000', display: '₹5,000' } });
+  const proof = await receipt(env, made.id);
+  assert.equal(proof.stale, false);
+  assert.deepEqual(proof.figures.filter(figure => figure.key.startsWith('fit-')).map(figure => [figure.key, figure.amount, figure.display]), [
+    ['fit-months', '6', '6 months'], ['fit-monthly', '500000', '₹5,000'],
+  ]);
+  const rounded = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '0', monthly: '100', months: '3', limit: '100' } });
+  assert.deepEqual(rounded.toGo, { line: 'It would be a go at 1 month, or at ₹33.33 a month.', months: 1, monthly: { minor: '3333', display: '₹33.33' } });
+  const tight = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '10,000', monthly: '5,000', months: '4', limit: '12,000' } });
+  assert.deepEqual(tight.toGo, { line: 'It would be a go at ₹500 a month.', months: null, monthly: { minor: '50000', display: '₹500' } });
+  const over = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '90,000', monthly: '1,000', months: '2', limit: '80,000' } });
+  assert.deepEqual(over.toGo, { line: 'Even with no monthly cost, the upfront cost is over your limit.', months: null, monthly: null });
+  assert.equal((await receipt(env, over.id)).figures.some(figure => figure.key.startsWith('fit-')), false);
+  const go = await card(env, { playbook: 'general', subject: 'A studio', inputs: INPUTS });
+  assert.equal(go.toGo, undefined);
+});

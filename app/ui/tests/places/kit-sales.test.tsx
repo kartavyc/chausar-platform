@@ -124,6 +124,20 @@ describe('Business: Go or no go (5A2, M18)', () => {
     assertInkRules();
   });
 
+  // C5 task 14: on No go, the card says what would make it a go, in the engine's words.
+  it('No go says what would make it a go, and when nothing can', async () => {
+    start({ hash: '#/business/go-no-go' });
+    await type(await screen.findByLabelText('What you are deciding'), 'A studio');
+    await type(screen.getByLabelText('What it costs to start, in rupees'), '20,000');
+    await type(screen.getByLabelText('What it costs each month, in rupees'), '10,000');
+    await type(screen.getByLabelText('How many months you will try it'), '12');
+    await type(screen.getByLabelText('The most you are willing to lose, in rupees'), '80,000');
+    await press(screen.getByRole('button', { name: 'Make the card' }));
+    const card = await screen.findByRole('region', { name: 'A studio' });
+    expect(within(card).getByText('It would be a go at 6 months, or at ₹5,000 a month.')).toBeTruthy();
+    assertInkRules();
+  });
+
   it('Hold names every answer missing; an amount the engine cannot read is refused in plain words', async () => {
     const { spy } = start({ hash: '#/business/go-no-go' });
     await type(await screen.findByLabelText('What you are deciding'), 'Product photos');
