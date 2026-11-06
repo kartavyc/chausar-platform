@@ -12,7 +12,7 @@ import { memoryAdd, memoryForget, memoryList, memoryReplace, memoryVisibility } 
 import { agentsCapabilitiesHandler } from './capabilities.ts';
 import { knowledgeAddHandler, knowledgeListHandler, knowledgeRemoveHandler, knowledgeTestHandler } from './knowledge.ts';
 import { ideasDismissHandler, ideasListHandler, ideasStartHandler } from './ideas.ts';
-import { routinesListHandler, routinesRemoveHandler, routinesRunsHandler, routinesSetHandler } from './routines.ts';
+import { routinesListHandler, routinesRemoveHandler, routinesRunsHandler, routinesSetHandler, routinesSuggestionsHandler } from './routines.ts';
 import { voiceGetHandler, voiceLearnHandler, voiceSetHandler } from './voice.ts';
 import { personaGetHandler, personaSetHandler, personaTestHandler } from './persona.ts';
 import { agentsExportHandler, agentsImportHandler } from './export.ts';
@@ -37,6 +37,7 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.memory.visibility': memoryVisibility, 'venture.memory.forget': memoryForget,
   // 4J13 routines
   'venture.routines.list': routinesListHandler,
+  'venture.routines.suggestions': routinesSuggestionsHandler,
   'venture.routines.runs': routinesRunsHandler,
   'venture.routines.set': routinesSetHandler,
   'venture.routines.remove': routinesRemoveHandler,

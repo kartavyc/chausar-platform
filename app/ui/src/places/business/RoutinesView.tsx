@@ -6,7 +6,7 @@ import { formatClock, formatDay, formatTime } from '../../../../../platform/runt
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { stateText } from '../../parts/states';
-import type { AgentView, RoutineSchedule, RoutineView } from '../../engine/types';
+import type { AgentView, RoutineSchedule, RoutineSuggestion, RoutineView } from '../../engine/types';
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
 import { ModelReceipt } from '../../parts/ModelReceipt';
@@ -36,7 +36,7 @@ function whenOf(routine: RoutineView, t: T): string {
 function nextOf(routine: RoutineView, t: T, ownerZone: string): string {
   if (!routine.on) return t('business.routines.offLine');
   if (!routine.next) return t('business.routines.noMore');
-  const timeZone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : FIRST_ZONE;
+  const timeZone = routine.schedule.kind === 'calendar' || routine.schedule.kind === 'monthly' ? routine.schedule.timeZone : FIRST_ZONE;
   const at = new Date(routine.next);
   try {
     return t('business.routines.nextRun', { day: formatDay(at, timeZone, 'short'), time: formatTime(at, timeZone) });
@@ -78,24 +78,43 @@ export function RoutinesView() {
   const list = useResource('venture.routines.list', {});
   const team = useResource('venture.team.list', {});
   const [said, setSaid] = useState<string | null>(null);
+  const readyId = useId();
   const agents = (team.data?.agents ?? []).filter((agent) => agent.kind !== 'code' && agent.chat !== false);
   const routines = list.data?.routines ?? [];
   const zone = routines.find((one) => one.schedule.kind === 'calendar')?.schedule;
   const firstZone = zone?.kind === 'calendar' ? zone.timeZone : FIRST_ZONE;
-  const changed = (line?: string) => { setSaid(line ?? null); list.reload(); };
+  const changed = (line?: string) => { setSaid(line ?? null); setPrefill(null); list.reload(); };
+  // C4 task 32: with no routine yet, up to two ready ones the plan names; Add fills the form, the owner still saves.
+  const ready = useResource('venture.routines.suggestions', {}, { skip: !list.data || routines.length > 0 });
+  const suggestions = routines.length === 0 ? ready.data?.suggestions ?? [] : [];
+  const [prefill, setPrefill] = useState<{ key: number; routine: RoutineSuggestion } | null>(null);
   return (
     <div className={s.page}>
       <p className={s.lead}>{t('business.routines.lead')}</p>
       {list.error && !list.data && <p className={s.problem} role="alert">{t('business.failed', { message: list.error.message })}</p>}
       {!list.data && !list.error && <p className={s.note}>{t('business.loading')}</p>}
       {list.data && routines.length === 0 && <p className={s.line}>{t('business.routines.none')}</p>}
+      {suggestions.length > 0 && (
+        <>
+          <p id={readyId} className={s.note}>{t('business.routines.ready')}</p>
+          <ul aria-labelledby={readyId} className={r.list}>
+            {suggestions.map((one) => (
+              <li key={one.name} className={s.line} data-suggestion="">
+                <span className={s.strong} data-suggestion-name="">{one.name}</span>{' '}
+                <span className={s.note}>{one.when}</span>{' '}
+                <Button size="sm" onClick={() => setPrefill((now) => ({ key: (now?.key ?? 0) + 1, routine: one }))}>{t('business.routines.addReady')}</Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {said && <p className={s.note} role="status">{said}</p>}
       {routines.length > 0 && (
         <div className={r.list}>
           {routines.map((routine) => <RoutineCard key={routine.id} routine={routine} agents={agents} zone={firstZone} onChanged={changed} />)}
         </div>
       )}
-      <AddRoutine agents={agents} zone={firstZone} onAdded={() => changed()} />
+      <AddRoutine agents={agents} zone={firstZone} prefill={prefill} onAdded={() => changed()} />
     </div>
   );
 }
@@ -182,12 +201,15 @@ function History({ id }: { id: string }) {
 }
 
 /** "Add a routine", folded until opened, with the same form a routine's Change opens. */
-function AddRoutine({ agents, zone, onAdded }: { agents: AgentView[]; zone: string; onAdded: () => void }) {
+function AddRoutine({ agents, zone, prefill, onAdded }: { agents: AgentView[]; zone: string; prefill: { key: number; routine: RoutineSuggestion } | null; onAdded: () => void }) {
   const t = useT();
+  const fold = useRef<HTMLDetailsElement>(null);
+  // C4 task 32: a ready routine's Add opens the fold with the form filled.
+  useEffect(() => { if (prefill && fold.current) fold.current.open = true; }, [prefill]);
   return (
-    <details className={s.fold} data-fold="add-routine">
+    <details ref={fold} className={s.fold} data-fold="add-routine">
       <summary>{t('business.routines.add')}</summary>
-      <RoutineForm agents={agents} zone={zone} onSaved={onAdded} />
+      <RoutineForm key={prefill?.key ?? 0} agents={agents} zone={zone} prefill={prefill?.routine} onSaved={onAdded} />
     </details>
   );
 }
@@ -197,21 +219,24 @@ function AddRoutine({ agents, zone, onAdded }: { agents: AgentView[]; zone: stri
  * once or every so many minutes keeps its schedule (the engine's words show) and changes only the rest. Save asks a
  * second time: a routine is standing configuration. initial: the routine being changed, sent back with its id.
  */
-function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: AgentView[]; zone: string; initial?: RoutineView; onSaved: () => void; onCancel?: () => void }) {
+function RoutineForm({ agents, zone, initial, prefill, onSaved, onCancel }: { agents: AgentView[]; zone: string; initial?: RoutineView; prefill?: RoutineSuggestion; onSaved: () => void; onCancel?: () => void }) {
   const t = useT();
   const client = useEngine();
-  const calendar = initial?.schedule.kind === 'calendar' ? initial.schedule : null;
-  const [name, setName] = useState(initial?.name ?? '');
-  const [agent, setAgent] = useState(initial?.agent ?? '');
-  const [prompt, setPrompt] = useState(initial?.prompt ?? '');
+  // prefill (C4 task 32): a ready routine from the plan; a monthly one keeps its schedule as the engine wrote it.
+  const start = initial ?? prefill;
+  const calendar = start?.schedule.kind === 'calendar' ? start.schedule : null;
+  const fixed = start && calendar === null ? start.schedule : null;
+  const [name, setName] = useState(start?.name ?? '');
+  const [agent, setAgent] = useState(start?.agent ?? '');
+  const [prompt, setPrompt] = useState(start?.prompt ?? '');
   const [days, setDays] = useState<number[]>(calendar ? [...calendar.weekdays] : []);
   const [time, setTime] = useState(calendar?.time ?? '09:00');
   const [timeZone, setTimeZone] = useState(calendar?.timeZone ?? zone);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  useEffect(() => { if (!initial) setTimeZone(zone); }, [zone, initial]);
-  const keeps = initial !== undefined && calendar === null;
+  useEffect(() => { if (!initial && !calendar) setTimeZone(zone); }, [zone, initial, calendar]);
+  const keeps = fixed !== null;
   const ready = name.trim() !== '' && prompt.trim() !== '' && (keeps || (days.length > 0 && time !== '' && timeZone.trim() !== ''));
 
   function submit(event: FormEvent) {
@@ -225,7 +250,7 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
     setBusy(true);
     setProblem(null);
     try {
-      const schedule: RoutineSchedule = keeps ? initial!.schedule : { kind: 'calendar', weekdays: [...days].sort((a, b) => a - b), time, timeZone: timeZone.trim() };
+      const schedule: RoutineSchedule = fixed ?? { kind: 'calendar', weekdays: [...days].sort((a, b) => a - b), time, timeZone: timeZone.trim() };
       await client.request('venture.routines.set', { routine: {
         ...(initial ? { id: initial.id,...(initial.recordReport?{recordReport:initial.recordReport}:{}) } : {}), name: name.trim(), agent: agent === '' ? null : agent, prompt: prompt.trim(), on: initial?.on ?? true, schedule,
       } });
@@ -248,7 +273,7 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
         </select>
       </label>
       <Field multiline rows={3} label={t('business.routines.prompt')} hint={t('business.routines.promptHint')} value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.currentTarget.value)} />
-      {keeps ? <p className={s.note}>{initial!.when}</p> : (
+      {keeps ? <p className={s.note}>{start!.when}</p> : (
         <>
           <fieldset className={r.days}>
             <legend className={r.legend}>{t('business.routines.days')}</legend>

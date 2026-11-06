@@ -86,6 +86,39 @@ describe('Business > Routines (4J22a)', () => {
     expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday 8:30 am, Asia/Kolkata');
   });
 
+  it('C4 task 32: with no routines, the ready ones from the plan each have Add, which fills the form; the owner still saves', async () => {
+    const monthly = { name: 'Draft the monthly report for review', agent: null, prompt: 'Draft the monthly report for review for this business, from its own records and plan. Keep it as a draft for my approval.', schedule: { kind: 'monthly', day: 1, time: '09:00', timeZone: 'Asia/Kolkata' }, when: 'On the 1st of each month, 9:00 am, Asia/Kolkata', step: 'Draft the monthly report for review' };
+    const weekly = { name: 'Send the weekly summary', agent: null, prompt: 'Send the weekly summary for this business, from its own records and plan. Keep it as a draft for my approval.', schedule: { kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' }, when: 'Every Monday 9:00 am, Asia/Kolkata', step: 'Send the weekly summary' };
+    const { calls } = start({ 'venture.routines.list': () => ({ routines: [] }), 'venture.routines.suggestions': () => ({ suggestions: [monthly, weekly] }) });
+    const ready = await screen.findByRole('list', { name: 'Ready from your plan' });
+    const items = within(ready).getAllByRole('listitem');
+    expect(items.map((item) => item.querySelector('[data-suggestion-name]')!.textContent)).toEqual([monthly.name, weekly.name]);
+    expect(items[0]!.textContent).toContain('On the 1st of each month, 9:00 am, Asia/Kolkata');
+    await press(items[0]!, 'Add');
+    const form = screen.getByRole('form', { name: 'Add a routine' });
+    expect((form.closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe(monthly.name);
+    expect((within(form).getByLabelText('What to ask') as HTMLTextAreaElement).value).toBe(monthly.prompt);
+    expect(form.textContent).toContain('On the 1st of each month, 9:00 am, Asia/Kolkata');
+    expect(calls.some((c) => c.method === 'venture.routines.set')).toBe(false);
+    await press(form, 'Save routine');
+    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
+    const set = calls.find((c) => c.method === 'venture.routines.set')!;
+    expect(set.params).toEqual({ routine: { name: monthly.name, agent: null, prompt: monthly.prompt, on: true, schedule: monthly.schedule } });
+    // A weekly one fills the days, the time and the zone.
+    await press(items[1]!, 'Add');
+    const again = screen.getByRole('form', { name: 'Add a routine' });
+    await waitFor(() => expect((within(again).getByLabelText('Name') as HTMLInputElement).value).toBe(weekly.name));
+    expect((within(again).getByRole('checkbox', { name: 'Monday' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(again).getByRole('checkbox', { name: 'Tuesday' }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('C4 task 32: no ready routines, no list', async () => {
+    start({ 'venture.routines.suggestions': () => ({ suggestions: [] }), 'venture.routines.list': () => ({ routines: [] }) });
+    await screen.findByText('No routines yet.');
+    expect(screen.queryByRole('list', { name: 'Ready from your plan' })).toBeNull();
+  });
+
   it('a prompt that leans on the chat is refused in the engine words', async () => {
     start({ 'venture.routines.set': () => { throw new EngineError('ROUTINE_NOT_STANDALONE', 'A routine runs without the chat, so "like before" would point at nothing. Say in full what you want each time.'); } });
     await screen.findByRole('article', { name: 'Weekly review' });
