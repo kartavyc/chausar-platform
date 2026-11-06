@@ -634,5 +634,6 @@
   "run.agentApproval.deny": "कदम रोकें",
   "run.agentApproval.external-input": "टूल का सवाल",
   "run.agentApproval.answer": "जवाब भेजें",
-  "run.agentApproval.cost": "ख़र्च"
+  "run.agentApproval.cost": "ख़र्च",
+  "shell.chunk.failed": "यह पेज नहीं खुला।"
 }
