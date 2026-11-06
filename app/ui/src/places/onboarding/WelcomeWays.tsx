@@ -15,6 +15,7 @@ import s from './Onboarding.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
+import { Progress } from '../../parts/Progress';
 
 /**
  * The ways into a business that is not open, beside Welcome back's list (app/renderer/launch.js showRecover,
@@ -199,6 +200,7 @@ function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => 
         <span className={s.businessNote}>{t(`custody.kind.${backup.kind}`)}</span>
         <Button disabled={busy} onClick={() => void restore()}>{t('onboarding.restore.go')}</Button>
       </div>
+      {busy && <Progress kind="restore" active />}
       {ask && (
         <div className={s.ask}>
           {reason && <p className={s.note}>{reason}</p>}
@@ -314,6 +316,7 @@ export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { 
         {pair.node}
         {problem && <InlineError fix={here ? { label: t('onboarding.move.open', { name: here.name ?? t('onboarding.welcome.noName') }), onSelect: () => onOpen(here) } : undefined}>{problem}</InlineError>}
         <div className={s.actions}><Button variant="primary" disabled={busy} disabledReason={busy ? undefined : missing} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
+        {busy && <Progress kind="move-in" active />}
       </div>
     </Way>
   );

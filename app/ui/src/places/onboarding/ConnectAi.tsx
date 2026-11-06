@@ -13,7 +13,7 @@ import s from './FirstRun.module.css';
 import { ProviderTrouble } from '../../parts/ProviderTrouble';
 import { ConsentWords } from '../../parts/ConsentWords';
 import { InlineError } from '../../parts/InlineError';
-import { Progress } from '../../parts/Progress';
+import { useWaitLabel } from '../../parts/Progress';
 
 /** How often the screen looks again while a tool's own sign-in waits for the owner. */
 export const LOGIN_POLL_MS = 1500;
@@ -31,13 +31,20 @@ const connectedTo = (status: ModelStatusLite | undefined) => Boolean(status && O
  * Using a signed-in tool is the connection's consent: the button sits right above the engine's own words of what the
  * connection sends, and sends that consent's digest (venture.ai.connect).
  */
-const TOOL_STEPS = ['claude-code', 'codex'] as const;
+const TOOL_STEPS = ['codex', 'claude-code'] as const;
+
+function ToolChecking({ watching }: { watching: boolean }) {
+  const t = useT();
+  const label = useWaitLabel(t('first-run.ai.checking'), watching);
+  return <Chip tone="idle"><span>{label}</span></Chip>;
+}
 
 export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void; onSkip: () => void }) {
   const t = useT();
   const client = useEngine();
   const headingId = useId();
-  const tools = useResource('venture.ai.tools', {});
+  const codex = useResource('venture.ai.tools', { cli: 'codex' });
+  const claude = useResource('venture.ai.tools', { cli: 'claude-code' });
   /** One-shot C3 task 11: the owner stops watching the check; the key and Skip are here, and the answer is still taken when it lands. */
   const [stopLooking, setStopLooking] = useState(false);
   const options = useResource('venture.ai.options', {});
@@ -58,21 +65,26 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   const [copied, setCopied] = useState(false);
   const opened = useRef(new Set<string>());
 
-  useEffect(() => { if (tools.data) setView(tools.data); }, [tools.data]);
+  const keepTools = useCallback((answer: ToolsLite) => setView(was => ({
+    ...answer,
+    tools: TOOL_STEPS.flatMap(cli => answer.tools.find(tool => tool.cli === cli) ?? was?.tools.find(tool => tool.cli === cli) ?? []),
+  })), []);
+  useEffect(() => { if (codex.data) keepTools(codex.data); }, [codex.data, keepTools]);
+  useEffect(() => { if (claude.data) keepTools(claude.data); }, [claude.data, keepTools]);
   const waiting = view?.tools.find((tool) => tool.login.state === 'starting' || tool.login.state === 'waiting');
 
   // While a sign-in waits, look again: the tool's own status says when it finished.
   useEffect(() => {
     if (!waiting) return;
     const timer = setTimeout(() => {
-      client.request('venture.ai.tools', {}).then(setView, (error: unknown) => setTrouble({
+      client.request('venture.ai.tools', { cli: waiting.cli }).then(keepTools, (error: unknown) => setTrouble({
         cli: waiting.cli,
         line: messageOf(error),
-        again: () => { setTrouble(null); tools.reload(); },
+        again: () => { setTrouble(null); (waiting.cli === 'codex' ? codex : claude).reload(); },
       }));
     }, LOGIN_POLL_MS);
     return () => clearTimeout(timer);
-  }, [client, view, waiting, tools.reload]);
+  }, [client, view, waiting, keepTools, codex.reload, claude.reload]);
 
   // The owner pressed Sign in: the tool's page opens once, as soon as the tool prints its link.
   useEffect(() => {
@@ -101,7 +113,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
     setTrouble(null); setNote(null); setBusy(tool.cli);
     try {
       await client.request('venture.ai.setup.trust', { cli: 'codex', sha256 });
-      setView(await client.request('venture.ai.tools', {}));
+      keepTools(await client.request('venture.ai.tools', { cli: tool.cli }));
     } catch (error) {
       if (error instanceof EngineError && error.code === 'CODEX_NOT_CHOSEN') setNote({ cli: tool.cli, line: error.message });
       else setTrouble({ cli: tool.cli, line: messageOf(error), again: () => void choose(tool) });
@@ -117,7 +129,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
     try {
       const { words } = await client.request('venture.ai.claude.install', {});
       setNote({ cli: 'claude-code', line: words });
-      setView(await client.request('venture.ai.tools', {}));
+      keepTools(await client.request('venture.ai.tools', { cli: 'claude-code' }));
     } catch (error) {
       if (error instanceof EngineError && error.code === 'CLAUDE_INSTALL_NOT_CHOSEN') setNote({ cli: 'claude-code', line: error.message });
       else setTrouble({ cli: 'claude-code', line: messageOf(error), again: () => void install() });
@@ -167,7 +179,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   async function retry(tool: ToolLite) {
     if (tool.login.state === 'failed') { await signIn(tool.cli); return; }
     setTrouble(null);
-    try { setView(await client.request('venture.ai.tools', {})); } catch (error) { setTrouble({ cli: tool.cli, line: messageOf(error), again: () => void retry(tool) }); }
+    try { keepTools(await client.request('venture.ai.tools', { cli: tool.cli })); } catch (error) { setTrouble({ cli: tool.cli, line: messageOf(error), again: () => void retry(tool) }); }
   }
 
   function toolTile(tool: ToolLite) {
@@ -237,9 +249,17 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
       <p className={s.sub}>{t('first-run.ai.sub')}</p>
       <Bento className={s.grid} as="section" labelledBy={headingId}>
         {/* One-shot C3 task 11: each tool's step as it is looked at, never a bare wait. */}
-        {view ? view.tools.map(toolTile) : tools.error
-          ? <InlineError className={s.wide} fix={{ label: t('first-run.ai.tryAgain'), onSelect: tools.reload }}>{tools.error.message}</InlineError>
-          : !stopLooking && <Progress kind="ai-tools" active stepIds={TOOL_STEPS} onStopWaiting={() => setStopLooking(true)} stopWaitingLabel={t('first-run.ai.stopLooking')} labelOf={(cli) => t(cli === 'codex' ? 'first-run.ai.checkingCodex' : 'first-run.ai.checkingClaude')} />}
+        {TOOL_STEPS.map(cli => {
+          const tool = view?.tools.find(item => item.cli === cli);
+          if (tool) return toolTile(tool);
+          const read = cli === 'codex' ? codex : claude;
+          if (read.data && !read.error) return null;
+          return <Tile key={cli} as="section" span={4} label={nameOf(cli)} className={s.option} card>
+            <div className={s.optionHead}><Icon name={cli === 'codex' ? 'clock' : 'sparkles'} size={20} /><h2 className={s.optionName}>{nameOf(cli)}</h2></div>
+            <p className={s.optionLine}>{t(cli === 'codex' ? 'first-run.ai.codex.line' : 'first-run.ai.claude.line')}</p>
+            {read.error ? <InlineError fix={{ label: t('first-run.ai.tryAgain'), onSelect: read.reload }}>{read.error.message}</InlineError> : <ToolChecking watching={!stopLooking} />}
+          </Tile>;
+        })}
         <Tile as="section" span={4} label={t('first-run.ai.key.name')} className={s.option} card>
           <div className={s.optionHead}><Icon name="lock" size={20} /><h2 className={s.optionName}>{t('first-run.ai.key.name')}</h2></div>
           <p className={s.optionLine}>{t('first-run.ai.key.line')}</p>
@@ -278,6 +298,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
         )}
 
         <div className={s.footer}>
+          {!stopLooking && (codex.loading || claude.loading) && <Button variant="quiet" onClick={() => setStopLooking(true)}>{t('first-run.ai.stopLooking')}</Button>}
           <Button variant="quiet" onClick={onSkip}>{t('first-run.ai.skip')}</Button>
           <p className={s.hint}>{t('first-run.ai.limits')}</p>
         </div>
