@@ -10,7 +10,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
  * Every state is the engine's answer, in its words.
  */
 
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -43,7 +43,10 @@ export function PhoneReach() {
   // Nothing set up is the engine's answer: no bot and no phone access. Until the two answers come it stays closed.
   const nothingSetUp = telegram.data?.connected === false && phone.data?.on === false;
   const [pressed, setPressed] = useState<boolean | null>(null);
-  const open = pressed ?? nothingSetUp;
+  useEffect(() => {
+    if (telegram.data && phone.data) setPressed((current) => current ?? nothingSetUp);
+  }, [telegram.data, phone.data, nothingSetUp]);
+  const open = pressed ?? false;
   return (
     <Fold summary={t('business.notify.phoneGroup')} className={s.fold} open={open} onToggle={(event) => { if (event.currentTarget.open !== open) setPressed(event.currentTarget.open); }}>
       {open && (
