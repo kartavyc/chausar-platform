@@ -38,7 +38,7 @@ export function OrderSteps({ order }: { order: OrderLite }) {
           return (
             <li key={`${stage.id}:${index}`} className={s.step} data-state={stage.state} data-waits-on={stage.waitsOn}>
               {index > 0 && <span className={s.line} data-reached={reached ? '' : undefined} aria-hidden="true" />}
-              <span className={s.dot} aria-hidden="true">{mark && <Icon name={mark} size={12} />}</span>
+              <span className={s.dot} aria-hidden="true" title={stage.state === 'always-asks' ? t('work.steps.manual') : undefined}>{mark && <Icon name={mark} size={12} />}</span>
               <span className={s.label}>{name(stage.id)}</span>
               <span className="sr-only">, {[t(`work.steps.state.${stage.state}`), ...extra].join(', ')}</span>
             </li>

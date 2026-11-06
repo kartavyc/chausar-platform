@@ -1,0 +1,23 @@
+name: B4 focused red
+on:
+  push:
+    branches: ['b2c/os-b4-red-*']
+permissions:
+  contents: read
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/business-quiet-b4.test.tsx --maxWorkers=1
+      - name: Launch date engine regression
+        if: '!cancelled()'
+        run: node --test --test-name-pattern="launch stages: the owner" platform/tests/venture-delivery.test.ts

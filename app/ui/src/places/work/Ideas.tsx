@@ -97,8 +97,8 @@ export function Ideas() {
       {open === 0 && !adding ? (
         <EmptyState title={t(dropped.length ? 'kit-rules.emptyOpen' : 'kit-rules.empty')} actions={[{ label: t('kit-rules.add'), onSelect: () => setAdding(true) }]} />
       ) : open > 0 && (
-        <div className={s.board}>
-          {FORWARD.map((stage) => <Column key={stage} stage={stage} ideas={all.filter((idea) => idea.stage === stage)} handlers={handlers} />)}
+        <div className={s.board} data-ideas-layout={open < 5 ? 'list' : 'board'}>
+          {FORWARD.filter((stage) => open >= 5 || all.some(idea => idea.stage === stage)).map((stage) => <Column key={stage} stage={stage} ideas={all.filter((idea) => idea.stage === stage)} handlers={handlers} />)}
         </div>
       )}
       {dropped.length > 0 && (
