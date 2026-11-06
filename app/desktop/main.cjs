@@ -77,9 +77,12 @@ const workerRestart = require('./worker-restart.cjs').createWorkerRestart({
   start: () => { startupTask = launchEngine(); return startupTask; },
   onReconnecting: () => { engine?.reconnecting?.(); },
   note: fields => { timeline.note('engine-restart', fields); },
-  onGiveUp: () => { dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
+  onGiveUp: () => { engineGate.changed(); dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
 });
 function firstPainted() { timeline.mark('first-paint'); void updateWiring?.notePaint(); }
+// D4 task 3: what the window asks waits here for the start or a restart, for at most a minute, and goes once (engine-gate.cjs).
+let startFailure = null;
+const engineGate = require('./engine-gate.cjs').createEngineGate({ current: () => engine, waiting: () => !stopping && (!engineStarted || workerRestart.pending()), startError: () => startFailure });
 /** D4 task 2: what the start decides before anything shows: the build, the demo, a refusal, the beta's background state. */
 async function prepareStart() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -150,7 +153,7 @@ function sendEngineStatus(status) {
 const currentEngine = () => engine;
 function createHarness() {
   const engine = new EngineHarness({ workerPath: engineFiles.worker, environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
-  engine.on('status', status => { if (engine !== currentEngine()) return; if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
+  engine.on('status', status => { if (engine !== currentEngine()) return; engineGate.changed(); if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
@@ -364,6 +367,7 @@ if (singleInstance) app.whenReady().then(async () => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
+      const engine = await engineGate.ready();
       if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
@@ -402,7 +406,7 @@ if (singleInstance) app.whenReady().then(async () => {
   });
   // A6 (answer 6, and the file for answer 7): Email it and Share on WhatsApp on an invoice. Main makes the file and keeps
   // it in Chausar's own share folder, beside the vaults, never in them; the window names only the invoice and how.
-  const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine, folder: join(app.getPath('userData'), 'share'), whatsappApp, emlApp: () => invoiceShare.emlHandler() });
+  const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine: engineGate.engine, folder: join(app.getPath('userData'), 'share'), whatsappApp, emlApp: () => invoiceShare.emlHandler() });
   ipcMain.handle('chausar:invoice:share', (event, input) => invoiceShare.shareInvoice(event, input, shareDeps()));
   // C5 task 16: Send to my CA, a draft or WhatsApp with the month's file; the window names only the month and how.
   ipcMain.handle('chausar:pack:share', (event, input) => require('./pack-share.cjs').sharePack(event, input, shareDeps()));
@@ -410,13 +414,13 @@ if (singleInstance) app.whenReady().then(async () => {
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: engineFiles.extractWorker, runtimeRoot: engineFiles.runtimeRoot }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
-  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
+  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
   // C5 task 35: the brief for Lovable or Replit as a file: the engine makes it, the owner picks where.
-  ipcMain.handle('chausar:brief:saveFile', (event, input) => require('./brief-save.cjs').saveBriefFile(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  ipcMain.handle('chausar:brief:saveFile', (event, input) => require('./brief-save.cjs').saveBriefFile(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
-  ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') }));
   const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject({ projectFolder: engineFiles.projectFolder });
-  const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:youtube:saveProject', (event, input) => youtubeProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:youtube:openProject', (event, input) => youtubeProjects.open(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:apptest:pickApk', (event, input) => require('./app-test-apk.cjs').pickClientApk(event, input, youtubeProjectDeps()));
@@ -425,7 +429,7 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
   // One-shot C4 task 36: Export asks where to save in main's save dialog; the window gets the name, and Show in folder an id.
-  { const exportSave = require('./export-save.cjs'); const exportDeps = () => ({ dialog, shell, window, engine, assertTrustedSender, publicError, documents: app.getPath('documents') });
+  { const exportSave = require('./export-save.cjs'); const exportDeps = () => ({ dialog, shell, window, engine: engineGate.engine, assertTrustedSender, publicError, documents: app.getPath('documents') });
     ipcMain.handle(exportSave.SAVE_CHANNEL, (event, input) => exportSave.saveBusinessExport(event, input, exportDeps()));
     ipcMain.handle(exportSave.SHOW_CHANNEL, (event, input) => exportSave.showSavedExport(event, input, exportDeps())); }
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
@@ -435,7 +439,7 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle(require('./ipc-contract.cjs').DIAGNOSTICS_PREVIEW_CHANNEL, (event, input) => diagnosticsExport.preview(event, input, diagnosticsDeps()));
   ipcMain.handle(require('./ipc-contract.cjs').DIAGNOSTICS_SAVE_CHANNEL, (event, input) => diagnosticsExport.save(event, input, diagnosticsDeps()));
   // C5 tasks 21, 23: an exported copy and a backup folder, picked here so the window never names a path.
-  const keepDeps = () => ({ dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  const keepDeps = () => ({ dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:copy:pick', (event, input) => require('./keep-files.cjs').pickCopy(event, input, keepDeps()));
   ipcMain.handle('chausar:copy:import', (event, input) => require('./keep-files.cjs').importCopy(event, input, keepDeps()));
   ipcMain.handle('chausar:backups:folder', (event, input) => require('./keep-files.cjs').setBackupFolder(event, input, keepDeps()));
@@ -464,7 +468,7 @@ if (singleInstance) app.whenReady().then(async () => {
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
   try { startupTask = startUp(); await startupTask; if (stopping) return; if (releaseBeta && hiddenStart && !window) void updateWiring?.notePaint(); }
-  catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
+  catch (error) { startFailure = error; engineGate.changed(); if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
 // D4 task 2: a window needs no engine; it waits with the owner. Before the start has decided, the window it opens is the one.
 const askForWindow = () => { if (stopping) return; if (startPrepared) createWindow(); else hiddenStart = false; };
@@ -473,7 +477,7 @@ app.on('activate', () => { if (!window) askForWindow(); });
 app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
-  event.preventDefault(); stopping = true; workerRestart.stop();
+  event.preventDefault(); stopping = true; workerRestart.stop(); engineGate.changed();
   // C5 task 32: the engine says if a run is busy and makes the safety copy before it stops; the install runs once it has.
   let prepared = null;
   startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => updateWiring?.prepareQuit()).then(answer => { prepared = answer ?? null; }, () => {}).then(() => engine?.stop()).then(result => {

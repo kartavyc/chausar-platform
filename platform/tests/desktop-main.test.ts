@@ -235,6 +235,63 @@ test('D4: the boot marker clears only when the engine is ready and the window ha
   assert.deepEqual(cleared, ['cleared']);
 });
 
+// One-shot D4 task 3: a request made while the engine starts waits for it, within a bound, and is sent once.
+test('D4: a request sent while the engine starts gets the engine answer after it is ready, sent once', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  await flush();
+  assert.deepEqual(d.engines[0].asked, [], 'nothing is sent until it is ready');
+  open();
+  const reply = await pending;
+  assert.equal(reply.ok, true); assert.equal(reply.result.method, 'workspace.status');
+  assert.deepEqual(d.engines[0].asked, ['workspace.status']);
+});
+
+test('D4: a start that fails answers the waiting request with its plain reason', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate, startGateFails: 'The engine did not start before its deadline.' });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  open();
+  const reply = await pending;
+  assert.deepEqual([reply.ok, reply.error.code, reply.error.message], [false, 'ENGINE_START_FAILED', 'The engine did not start before its deadline.']);
+  assert.deepEqual(d.engines[0].asked, []);
+});
+
+test('D4: a start that never finishes answers ENGINE_STARTING after 60 seconds, and sends nothing', async t => {
+  const { gate } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  await new Promise<void>(accept => setImmediate(accept));
+  t.mock.timers.tick(59_000);
+  let settled = false; void pending.then(() => { settled = true; });
+  await new Promise<void>(accept => setImmediate(accept));
+  assert.equal(settled, false, 'still waiting at 59 seconds');
+  t.mock.timers.tick(1_001);
+  const reply = await pending;
+  assert.deepEqual([reply.ok, reply.error.code, reply.error.message], [false, 'ENGINE_STARTING', 'Chausar is still starting. Try again in a moment.']);
+  assert.deepEqual(d.engines[0].asked, []);
+});
+
+test('D4: a request made during a restart waits for the fresh worker and goes there once', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  d.engines[0].die();
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  t.mock.timers.tick(1_000);
+  for (let count = 0; count < 8; count += 1) await new Promise<void>(accept => setImmediate(accept));
+  assert.equal(d.engines.length, 2, 'the restart made a fresh worker');
+  d.engines[1].emit('status', { state: 'ready', healthy: true });
+  const reply = await pending;
+  assert.equal(reply.ok, true);
+  assert.deepEqual([d.engines[0].asked, d.engines[1].asked], [[], ['workspace.status']]);
+});
+
 test('desktop reports actual window, background and sleep transitions before shutdown', async () => {
   const d = await desktop(['--background']); const engine = d.engines[0];
   // D4: the window opens first, so the engine's first report already has it open.
