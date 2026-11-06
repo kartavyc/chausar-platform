@@ -7,7 +7,7 @@ import { SERVICE_TYPES, type BusinessOnComputer } from '../engine/types';
 import { refusalWords } from '../parts/custody';
 import { initialsOf } from '../parts/Avatar';
 import { Icon } from '../parts/Icon';
-import { LeftContext, StartedContext } from '../places/onboarding/started';
+import { LeftContext, StartedContext } from './started';
 import { RunControlsMenu } from './RunControlsMenu';
 import { SETTINGS_HREF } from './settings';
 import s from './BusinessMenu.module.css';

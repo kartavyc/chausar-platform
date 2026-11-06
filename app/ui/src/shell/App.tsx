@@ -23,7 +23,7 @@ import { useNarrow } from './useNarrow';
 import { useMotionPreference } from './motionPreference';
 import { OwnerZone } from './clock';
 import { PairScreen } from './PairScreen';
-import { BootScreen } from '../places/onboarding/BootScreen';
+import { BootScreen } from './BootScreen';
 // W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
 import { AiGo } from '../parts/layout/AiGo';
 import { HelpButton } from './HelpButton';

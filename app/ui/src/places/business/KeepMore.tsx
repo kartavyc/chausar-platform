@@ -11,7 +11,7 @@ import { PassphraseField } from '../../parts/PassphraseField';
 import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { formatBytes, formatTime } from '../../../../../platform/shared/owner-format.ts';
-import { LeftContext, StartedContext } from '../onboarding/started';
+import { LeftContext, StartedContext } from '../../shell/started';
 import { CopyImport } from '../onboarding/CopyImport';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';

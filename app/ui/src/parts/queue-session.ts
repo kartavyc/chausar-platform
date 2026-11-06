@@ -6,10 +6,10 @@
  */
 
 import { useSyncExternalStore } from 'react';
-import { useEngine } from '../../engine/context';
-import { readBack, type DecideExtra } from '../../parts/ApprovalRow';
-import type { T } from '../../text';
-import type { EngineClient, QueueActionId, QueueDecision, QueueRow } from '../../engine/types';
+import { useEngine } from '../engine/context';
+import { readBack, type DecideExtra } from './ApprovalRow';
+import type { T } from '../text';
+import type { EngineClient, QueueActionId, QueueDecision, QueueRow } from '../engine/types';
 
 /**
  * undo (W4 4J19): a send back or an edit made here can be taken back until its revision starts; it answers the line to

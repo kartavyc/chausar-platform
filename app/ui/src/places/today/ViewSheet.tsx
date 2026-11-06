@@ -5,7 +5,7 @@ import { Sheet } from '../../parts/Sheet';
 import { AmountsText } from '../../parts/AmountsText';
 import type { SheetComponentProps } from '../../shell/sheets';
 import type { QueueItemView } from '../../engine/types';
-import { useTodaySession } from './session';
+import { useTodaySession } from '../../parts/queue-session';
 import { EngineViewText } from './CardPreview';
 import s from './Today.module.css';
 

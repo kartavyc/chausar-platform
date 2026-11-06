@@ -150,6 +150,8 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build the Ink frontend
         run: npm run build:ui
+      - name: Check the frontend size budget
+        run: node scripts/ui-chunks.mjs --check
 
   # D2: a push to a branch other than main gets this lane only, on Ubuntu. The fast tier is still about a thousand
   # files (each file is its own process), so it runs as three time-balanced shards side by side; the changed UI tests
