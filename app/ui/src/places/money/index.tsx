@@ -1,6 +1,6 @@
 /**
  * Money (D-Money): an overview, invoices, bills, books, margins, spend and the journal, each one address (#/money,
- * #/money/invoices, ...), as a segmented row of links. Every figure here is text the engine formatted, through the
+ * #/money/invoices, ...), as a row of tabs (Overview, Invoices, Bills, and More). Every figure here is text the engine formatted, through the
  * Figure part with its receipt, or labelled a model estimate. The screen never adds, parses or rounds an amount.
  *
  * Simple first: the overview is plain money in and out; tax detail sits one step away under Books, and a business not
@@ -21,6 +21,7 @@ import { PageTitle } from '../../parts/PageTitle';
 // W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
 import { Tabs, type TabLink } from '../../parts/Tabs';
+import { MONEY_PRIMARY } from '../../shell/nav';
 import { Icon } from '../../parts/Icon';
 import type { SheetComponent } from '../../shell/sheets';
 import { AccountantSheet } from './AccountantSheet';
@@ -66,7 +67,9 @@ export function Place() {
       <PageTitle title={t('place.money')} line={sub === undefined ? t('money.line') : undefined} tools={sub === undefined ? <ArrangeButton place="money" /> : undefined} />
       <StorageNotice />
       <div className={s.toolbar}>
-        <Tabs mode="links" label={t('money.nav')} value={sub ?? 'overview'} items={links} />
+        {/* C1 task 3: Overview, Invoices and Bills in the row; Books, Margins, Spend, Journal (and Businesses) under More at
+            every width, so no tab appears or leaves as data arrives. The page on screen is always in the row. */}
+        <Tabs mode="links" label={t('money.nav')} value={sub ?? 'overview'} items={links} primary={MONEY_PRIMARY} />
       </div>
       {monthly && (
         <div className={v.bar}>
