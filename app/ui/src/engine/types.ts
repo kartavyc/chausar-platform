@@ -2547,6 +2547,7 @@ export type DiagnosticsPreview = { id: string; files: { name: string; bytes: num
 export type EngineStatus =
   | { state: 'ok' }
   | { state: 'starting' }
+  | { state: 'reconnecting' }
   | { state: 'offline' }
   | { state: 'unpaired' }
   | { state: 'session-ended' }

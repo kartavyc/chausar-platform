@@ -268,3 +268,24 @@ test('C5 task 26: the host hooks write no timing line, and a broken timing write
   assert.deepEqual(await asked, { open: false });
   assert.equal(seen.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 29: a dead worker fails what was pending; nothing is kept to send to the next one.
+// ---------------------------------------------------------------------------
+
+test('C5 task 29: a pending approval fails when the worker dies, and a harness said to be reconnecting refuses in plain words', async () => {
+  const context = setup({ requestTimeoutMs: 1000 });
+  await ready(context);
+  const statuses: unknown[] = [];
+  context.harness.on('status', (status: unknown) => statuses.push(status));
+  const approval = context.harness.request('venture.queue.decide', { id: 'x', decision: 'approve' });
+  const sent = context.child.sent.length;
+  context.child.connected = false;
+  context.child.emit('exit', 1, null);
+  await assert.rejects(approval, code('ENGINE_EXITED'));
+  assert.equal(context.child.sent.length, sent, 'not sent again');
+  context.harness.reconnecting();
+  assert.equal(context.harness.state, 'reconnecting');
+  assert.deepEqual(statuses.at(-1), { state: 'reconnecting', healthy: false });
+  await assert.rejects(context.harness.request('workspace.status'), (error: any) => error.code === 'ENGINE_UNAVAILABLE' && /reconnecting/i.test(error.message));
+});

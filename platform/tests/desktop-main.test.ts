@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: unknown; userFiles?: Map<string, string> } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: unknown; startFails?: boolean[] } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -38,10 +38,16 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     visible = true; focused = false; minimized = false;
     isVisible() { return this.visible; } isFocused() { return this.focused; }
   }
+  const startFails: boolean[] = options.startFails ?? [];
   class Harness extends EventEmitter {
     state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
-    async start() {} async request(method: string) { return { method, experimental: true }; }
+    asked: string[] = [];
+    async start() { if (startFails.shift() === true) throw new Error('The worker did not start.'); }
+    async request(method: string) { this.asked.push(method); return { method, experimental: true }; }
+    // C5 task 29: the worker dies: the real harness says failed, then exit.
+    die() { this.state = 'failed'; this.emit('status', { state: 'failed', healthy: false }); this.emit('exit', { code: 1, signal: null }); }
+    reconnecting() { this.state = 'reconnecting'; this.emit('status', { state: 'reconnecting', healthy: false }); }
     async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
     async stop() { this.stops++; this.state = 'stopped'; return { graceful: true, forced: false }; }
     watching: boolean[] = [];
@@ -603,4 +609,103 @@ test('C5 task 27: main answers Export diagnostics for the app window only, and t
   await bridge.previewDiagnostics('C:/x');
   await bridge.saveDiagnostics('abc');
   assert.deepEqual(plain(calls), [['chausar:diagnostics:preview', { dumps: true }], ['chausar:diagnostics:preview', { dumps: false }], ['chausar:diagnostics:save', { id: 'abc' }]]);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 29: a worker that died is started again, by a fresh harness, after 1 s, 5 s, then 30 s.
+// ---------------------------------------------------------------------------
+
+const statusesOf = (window: any) => plain(window.webContents.sent.filter(([channel]: [string]) => channel === 'chausar:engine-status').map(([, status]: [string, { state: string }]) => status.state));
+
+test('C5 task 29: a worker that dies twice then stays: two restarts at the backoff times, reconnecting then ready, no error box', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const window = d.windows[0];
+  d.engines[0].die();
+  assert.deepEqual(statusesOf(window).at(-1), 'reconnecting');
+  assert.equal(statusesOf(window).includes('failed'), false, 'the window never hears failed while a restart is pending');
+  t.mock.timers.tick(999); await flush();
+  assert.equal(d.engines.length, 1);
+  t.mock.timers.tick(1); await flush(); await flush();
+  assert.equal(d.engines.length, 2, 'a fresh harness after 1 s');
+  assert.equal(d.engines[0].stops, 1, 'the old one was stopped first, so its lock is free');
+  d.engines[1].emit('status', { state: 'ready', healthy: true });
+  assert.equal(statusesOf(window).at(-1), 'ready');
+  d.engines[1].die();
+  assert.equal(statusesOf(window).at(-1), 'reconnecting');
+  t.mock.timers.tick(4999); await flush();
+  assert.equal(d.engines.length, 2);
+  t.mock.timers.tick(1); await flush(); await flush();
+  assert.equal(d.engines.length, 3, 'a fresh harness after 5 s more');
+  d.engines[2].emit('status', { state: 'ready', healthy: true });
+  assert.equal(statusesOf(window).at(-1), 'ready');
+  assert.deepEqual(d.errors, []);
+  assert.equal(d.app.quits, 0);
+  // Each restart is a line in the timeline, and the new worker hears the host's state.
+  assert.deepEqual(linesOf(d, 'startup.jsonl').filter(line => line.op === 'engine-restart').map(({ attempt, delayMs }) => [attempt, delayMs]), [[1, 1000], [2, 5000]]);
+  assert.deepEqual(d.engines[2].lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
+  // The window's requests go to the new worker; nothing was sent to it by itself, an approval above all.
+  assert.deepEqual(d.engines[2].asked, []);
+  const own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  assert.deepEqual(d.engines[2].asked, ['workspace.status']);
+});
+
+test('C5 task 29: dying four times shows the box once and quits', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const [index, wait] of [1000, 5000, 30000].entries()) {
+    d.engines[index].die();
+    t.mock.timers.tick(wait); await flush(); await flush();
+    d.engines[index + 1].emit('status', { state: 'ready', healthy: true });
+  }
+  assert.equal(d.engines.length, 4);
+  assert.deepEqual(d.errors, []);
+  d.engines[3].die();
+  assert.equal(d.errors.length, 1);
+  assert.match(d.errors[0], /could not restart/);
+  assert.equal(d.app.quits, 1);
+  d.engines[3].die();
+  t.mock.timers.tick(100_000); await flush();
+  assert.equal(d.errors.length, 1);
+  assert.equal(d.engines.length, 4);
+  assert.equal(statusesOf(d.windows[0]).at(-1), 'failed');
+});
+
+test('C5 task 29: a restart that fails to start counts as the next failure, and a failed first start is the box as today', async t => {
+  const d = await desktop([], Promise.resolve(), true, { startFails: [false, true, false] });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  d.engines[0].die();
+  t.mock.timers.tick(1000); await flush(); await flush();
+  assert.equal(d.engines.length, 2);
+  t.mock.timers.tick(5000); await flush(); await flush();
+  assert.equal(d.engines.length, 3);
+  assert.deepEqual(d.errors, []);
+  t.mock.timers.reset();
+  const first = await desktop([], Promise.resolve(), true, { startFails: [true] });
+  assert.deepEqual(first.errors, ['The worker did not start.']);
+  assert.equal(first.app.quits, 1);
+  assert.equal(first.engines.length, 1, 'no restart of an engine that never started');
+});
+
+test('C5 task 29: quitting during the wait stops the restart, and the old worker is stopped once', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  d.engines[0].die();
+  d.app.emit('before-quit', { preventDefault() {} }); await flush(); await flush();
+  t.mock.timers.tick(100_000); await flush();
+  assert.equal(d.engines.length, 1);
+  assert.equal(d.engines[0].stops, 1);
+  assert.equal(d.app.quits, 1);
+  assert.deepEqual(d.errors, []);
+});
+
+test('C5 task 29: a worker that stops while Chausar quits is not started again', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  d.app.emit('before-quit', { preventDefault() {} });
+  d.engines[0].die();
+  await flush(); await flush();
+  t.mock.timers.tick(100_000); await flush();
+  assert.equal(d.engines.length, 1);
 });

@@ -159,6 +159,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     bridge.onEngineStatus(({ state }) => {
       if (state === 'ready') status.set({ state: 'ok' });
       else if (state === 'starting') status.set({ state: 'starting' });
+      else if (state === 'reconnecting') status.set({ state: 'reconnecting' });
       else status.set({ state: 'offline' });
     });
   }
@@ -216,7 +217,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       return result;
     } catch (error) {
       const e = asEngineError(error);
-      if (e.code.startsWith('ENGINE_')) status.set({ state: 'offline' });
+      // C5 task 29: while the desktop restarts its worker, a refused request changes nothing: the status line says why.
+      if (e.code.startsWith('ENGINE_') && status.get().state !== 'reconnecting') status.set({ state: 'offline' });
       throw e;
     }
   }

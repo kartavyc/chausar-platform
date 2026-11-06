@@ -26,7 +26,8 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 
 export function BootScreen({ status, children }: { status: ReactNode; children: (checking: boolean) => ReactNode }) {
   const client = useEngine();
-  const ready = useEngineStatus().state === 'ok';
+  const engineState = useEngineStatus().state;
+  const ready = engineState === 'ok';
   const hosted = client.transport === 'hosted';
   const [shown, setShown] = useState<Shown>({ kind: 'checking' });
   const [generation, setGeneration] = useState(0);
@@ -67,6 +68,18 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
       setProblem(messageOf(error));
     }
   }, [client, started]);
+
+  // C5 task 29: a restarted worker has no business open, so once it is back the start-up check runs again: a business
+  // this computer can open comes back by itself, and one that needs its passphrase asks on Welcome back.
+  const reconnected = useRef(false);
+  useEffect(() => {
+    if (engineState === 'reconnecting') reconnected.current = true;
+    else if (engineState === 'ok' && reconnected.current) {
+      reconnected.current = false;
+      settled.current = false;
+      setCheck((c) => c + 1);
+    }
+  }, [engineState]);
 
   useEffect(() => {
     if (settled.current) return;

@@ -81,6 +81,8 @@ class EngineHarness extends EventEmitter {
     this.worker = null; this.state = 'stopped'; this.waiting = new Map(); this.startup = null; this.shutdown = null;
   }
   status(state) { this.state = state; this.emit('status', Object.freeze({ state, healthy: state === 'ready' })); }
+  /** C5 task 29: main is starting a fresh worker after this one died; requests until then get plain words. */
+  reconnecting() { this.status('reconnecting'); }
   failPending(error) { for (const pending of this.waiting.values()) { clearTimeout(pending.timer); pending.reject(error); } this.waiting.clear(); }
   start() {
     if (this.startup && this.state === 'stopped') return Promise.reject(failure('ENGINE_RESTART_REFUSED', 'Create a fresh harness before restarting the engine.'));
@@ -167,6 +169,7 @@ class EngineHarness extends EventEmitter {
     });
   }
   #send(input, timeoutMs) {
+    if (this.state === 'reconnecting') return Promise.reject(failure('ENGINE_UNAVAILABLE', 'Chausar is reconnecting. Try again in a moment.'));
     if (this.state !== 'ready' || !this.worker?.connected) return Promise.reject(failure('ENGINE_UNAVAILABLE', 'The engine is unavailable. Restart Chausar.'));
     if (this.waiting.size >= this.options.maxPending) return Promise.reject(failure('ENGINE_BUSY', 'Too many desktop requests are pending. Wait for them to finish.'));
     return new Promise((resolve, reject) => {

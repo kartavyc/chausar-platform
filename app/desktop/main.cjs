@@ -64,6 +64,14 @@ function lifecycleChanged() {
     if (!stopping) { dialog.showErrorBox('Chausar jobs stopped', 'The engine could not confirm the desktop state. Restart Chausar before running jobs.'); app.quit(); }
   });
 }
+// C5 task 29: a worker that died unexpectedly is started again, three times at most (worker-restart.cjs).
+let engineEnvironment = null; let engineStarted = false; let lastToldStatus = null;
+const workerRestart = require('./worker-restart.cjs').createWorkerRestart({
+  start: () => { startupTask = launchEngine(); return startupTask; },
+  onReconnecting: () => { engine?.reconnecting?.(); },
+  note: fields => { timeline.note('engine-restart', fields); },
+  onGiveUp: () => { dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
+});
 function firstPainted() { timeline.mark('first-paint'); }
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -88,8 +96,34 @@ async function startEngine() {
   const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
-  engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
-  engine.on('status', status => { if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
+  engineEnvironment = environment;
+  await launchEngine();
+}
+/** C5 task 29: one worker: a fresh harness with every listener, started. Also what a restart runs, after the old one stopped. */
+async function launchEngine() {
+  await engine?.stop().catch(() => {});
+  if (stopping) return;
+  const harness = createHarness(), restarted = engineStarted;
+  engine = harness;
+  const starting = harness.start();
+  timeline.mark('engine-forked');
+  await starting;
+  engineStarted = true;
+  timeline.mark('engine-ready');
+  await reportJobLifecycle();
+  if (restarted) harness.reportWatching?.(windowWatching());
+}
+/** C5 task 29: what the window hears: one word through a whole restart, and each state once. */
+function sendEngineStatus(status) {
+  const told = workerRestart.statusForWindow(status);
+  if (told?.state === lastToldStatus) return;
+  lastToldStatus = told?.state;
+  if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, told);
+}
+const currentEngine = () => engine;
+function createHarness() {
+  const engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
+  engine.on('status', status => { if (engine !== currentEngine()) return; if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
@@ -105,11 +139,7 @@ async function startEngine() {
       .then(value => answer({ ok: true, value: value ?? null }), error => answer({ ok: false, code: error?.code }));
   });
   engine.on('forms', (request, answer, verify) => formsBrowser.handle(request, answer, verify));
-  const starting = engine.start();
-  timeline.mark('engine-forked');
-  await starting;
-  timeline.mark('engine-ready');
-  await reportJobLifecycle();
+  return engine;
 }
 // The tray (Ink v2 wave 4, package 4G3; catalogue O13 and O23), there whenever Chausar runs, so the count it shows is
 // true in every mode. Its tooltip says whether a run is working (busy lingers 1.5 s after the last run stops, so a short
@@ -246,6 +276,7 @@ function createTray() {
 // One-shot A7: the window shows the founder's logo on Windows (the ico, every size) and Linux (a tar.gz has no desktop
 // entry to take it from); macOS takes the bundle's icns. Chausar.exe carries the logo too (scripts/desktop-after-pack.cjs).
 const WINDOW_ICON = { win32: 'icons/icon.ico', linux: 'icons/png/256x256.png' }[process.platform];
+const windowWatching = () => !!window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() && window.isFocused();
 function createWindow(hash = '') {
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa', title: appName(), show: false,
     ...(WINDOW_ICON ? { icon: join(__dirname, WINDOW_ICON) } : {}),
@@ -266,7 +297,7 @@ function createWindow(hash = '') {
   // focused; alerts outside the app wait while they are. Told to the engine on each change.
   // The tray's count was news since the owner last looked (4G3): looking clears it.
   const tellWatching = () => {
-    const watching = !!window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() && window.isFocused();
+    const watching = windowWatching();
     engine?.reportWatching?.(watching);
     if (watching) { setTrayCount(0); clearCountNotice(); }
   };
@@ -399,7 +430,7 @@ app.on('activate', () => { if (!window && engine?.state === 'ready') createWindo
 app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
-  event.preventDefault(); stopping = true;
+  event.preventDefault(); stopping = true; workerRestart.stop();
   startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
   }).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });

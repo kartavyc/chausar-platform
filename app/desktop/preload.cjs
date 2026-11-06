@@ -141,7 +141,7 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   firstPaint: () => ipcRenderer.invoke('chausar:first-paint'),
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
-    const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];
+    const states = ['starting', 'ready', 'failed', 'stopping', 'stopped', 'reconnecting'];
     const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed' }));
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
