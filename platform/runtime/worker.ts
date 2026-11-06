@@ -63,6 +63,12 @@ export function runEngineWorker(engine: Engine) {
       catch (error) { reply({ id: message.id, error: ownerError(error) }); }
       return;
     }
+    // C5 task 32: at quit, only from main: whether a run is busy, and the safety copy before the vault closes.
+    if (message?.kind === 'host-update-prepare' && typeof message.id === 'string') {
+      try { reply({ id: message.id, result: await engine.prepareUpdateInstall(message.payload) }); }
+      catch (error) { reply({ id: message.id, error: ownerError(error) }); }
+      return;
+    }
     if (!message || typeof message.id !== 'string' || typeof message.method !== 'string') return;
     try { reply({ id: message.id, result: await engine.request(message.method, message.payload) }); }
     // Only Chausar's own refusals keep their words; an engine bug never shows its source text (owner-error.ts).

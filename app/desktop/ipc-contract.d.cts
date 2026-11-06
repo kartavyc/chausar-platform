@@ -3,6 +3,7 @@ export type DesktopMethod = typeof METHODS[number];
 export const REQUEST_CHANNEL: string;
 export const STATUS_CHANNEL: string;
 export const FIRST_PAINT_CHANNEL: string;
+export const UPDATE_SHOW_CHANNEL: string;
 export const DIAGNOSTICS_PREVIEW_CHANNEL: string;
 export const DIAGNOSTICS_SAVE_CHANNEL: string;
 export const VENTURE_EVENT_CHANNEL: string;

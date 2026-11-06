@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: unknown; startFails?: boolean[] } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[] } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -38,7 +38,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     visible = true; focused = false; minimized = false;
     isVisible() { return this.visible; } isFocused() { return this.focused; }
   }
-  const startFails: boolean[] = options.startFails ?? [];
+  const startFails: boolean[] = options.startFails ?? [], order: unknown[] = options.order ?? [];
   class Harness extends EventEmitter {
     state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
@@ -49,7 +49,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     die() { this.state = 'failed'; this.emit('status', { state: 'failed', healthy: false }); this.emit('exit', { code: 1, signal: null }); }
     reconnecting() { this.state = 'reconnecting'; this.emit('status', { state: 'reconnecting', healthy: false }); }
     async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
-    async stop() { this.stops++; this.state = 'stopped'; return { graceful: true, forced: false }; }
+    async stop() { this.stops++; order.push('engine stopped'); this.state = 'stopped'; return { graceful: true, forced: false }; }
+    async prepareUpdateInstall(input: unknown) { order.push('prepared'); order.push(plain(input)); return { busy: false, openDataSchema: 1, backup: 'made' }; }
     watching: boolean[] = [];
     reportWatching(value: boolean) { this.watching.push(value); return true; }
   }
@@ -74,7 +75,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
     if (name === './money-export.cjs') return require('./money-export.cjs');
-    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}) }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+    if (name === './updates.cjs' && options.updates) return options.updates;
+    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('pending-release.json') && options.pending) return options.pending; if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}), ...options.metadata }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       appendFile: async (path: string, text: string) => { logged.push({ path: String(path), text }); }, stat: async () => { throw Object.assign(new Error('No file.'), { code: 'ENOENT' }); }, rename: async () => {},
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
@@ -84,7 +86,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, crashStarts, processHandlers, logged, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, crashStarts, processHandlers, logged, order, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -708,4 +710,80 @@ test('C5 task 29: a worker that stops while Chausar quits is not started again',
   await flush(); await flush();
   t.mock.timers.tick(100_000); await flush();
   assert.equal(d.engines.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 32: install on quit and the boot marker, called from main. update-wiring.cjs has its own tests.
+// ---------------------------------------------------------------------------
+
+const UPDATE_KEYS = { chausarUpdatePublicKey: 'the-public-key', chausarUpdateFeed: 'https://downloads.example.com/feed.json', chausarWindowsPublisher: 'Chausar', chausarPreview: false };
+const standInUpdates = (order: unknown[], answer = { state: 'installer-started', version: '3.0.0' }) => ({
+  startBoot: async () => { order.push('boot started'); return { attempts: 1, failed: false }; },
+  clearBoot: async () => { order.push('boot cleared'); },
+  onFailedBoot: async () => '',
+  verifyStaged: async () => true,
+  installOnQuit: async (input: any) => { order.push('install'); order.push(input.staged.artifactPath); return answer; },
+});
+const PENDING = JSON.stringify({ manifest: { version: '3.0.0' }, signature: 'sig', artifactPath: '/owned/app/updates/stage/release.artifact' });
+
+test('C5 task 32: the boot marker starts before the engine, and clears only at ready plus first paint', async () => {
+  const order: unknown[] = [];
+  const d = await desktop([], Promise.resolve(), true, { metadata: UPDATE_KEYS, updates: standInUpdates(order) });
+  await flush();
+  assert.deepEqual(order, ['boot started'], 'the engine is ready; no paint yet');
+  assert.equal(d.engines.length, 1);
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  await d.handlers.get(require('./ipc-contract.cjs').FIRST_PAINT_CHANNEL)(own);
+  await flush();
+  assert.deepEqual(order, ['boot started', 'boot cleared']);
+});
+
+test('C5 task 32: before-quit asks the engine first, stops it, then installs; a build with no key does none of it', async () => {
+  const order: unknown[] = [];
+  const d = await desktop([], Promise.resolve(), true, { order, metadata: UPDATE_KEYS, updates: standInUpdates(order), pending: PENDING });
+  await flush();
+  d.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(order.slice(1), ['prepared', { backup: true }, 'engine stopped', 'install', '/owned/app/updates/stage/release.artifact']);
+  assert.equal(d.app.quits, 1);
+
+  const plainOrder: unknown[] = [];
+  const none = await desktop([], Promise.resolve(), true, { updates: standInUpdates(plainOrder), pending: PENDING });
+  none.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(plainOrder, []);
+  assert.deepEqual(none.order, ['engine stopped']);
+  assert.equal(none.app.quits, 1);
+  const window = none.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const refused = await none.handlers.get(require('./ipc-contract.cjs').UPDATE_SHOW_CHANNEL)(own, { kind: 'staged' });
+  assert.deepEqual([refused.ok, refused.error.code], [false, 'UPDATES_NOT_SET_UP']);
+});
+
+test('C5 task 32: a start in the tray has no window to paint, so it clears the marker when the engine is ready', async () => {
+  const order: unknown[] = [];
+  const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta', metadata: UPDATE_KEYS, updates: standInUpdates(order) });
+  await flush(); await flush();
+  assert.equal(d.windows.length, 0);
+  assert.deepEqual(order, ['boot started', 'boot cleared']);
+});
+
+test('C5 task 32: Show installer answers the app window only and names only which one; the worker hears the build\'s keys', async () => {
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop([], Promise.resolve(), true, { metadata: UPDATE_KEYS, updates: standInUpdates([]) });
+  const environment = d.engines[0].options.environment;
+  assert.deepEqual([environment.CHAUSAR_UPDATE_PUBLIC_KEY, environment.CHAUSAR_UPDATE_FEED, environment.CHAUSAR_WINDOWS_PUBLISHER], ['the-public-key', 'https://downloads.example.com/feed.json', 'Chausar']);
+  const handler = d.handlers.get(contract.UPDATE_SHOW_CHANNEL), window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  assert.equal((await handler({ sender: {}, senderFrame: own.senderFrame }, { kind: 'staged' })).error.code, 'UNTRUSTED_SENDER');
+  for (const bad of [{}, { kind: 'previous' }, { kind: 'staged', path: 'C:/x' }, null]) assert.equal((await handler(own, bad)).error.code, 'INVALID_REQUEST', JSON.stringify(bad));
+  let bridge: any; const calls: unknown[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (...parts: unknown[]) => { calls.push(parts); return { ok: true }; } } }) });
+  await bridge.showUpdateInstaller('staged');
+  assert.deepEqual(plain(calls), [['chausar:updates:showInstaller', { kind: 'staged' }]]);
+});
+
+test('C5 task 32: the engine says if a run is busy and makes the safety copy over main\'s own route; no window can ask', async () => {
+  const contract = require('./ipc-contract.cjs');
+  assert.equal(contract.METHODS.includes('updates.prepareInstall'), false);
+  const source = await readFile(new URL('../runtime/worker.ts', import.meta.url), 'utf8');
+  assert.match(source, /message\?\.kind === 'host-update-prepare'/);
 });

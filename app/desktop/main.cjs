@@ -66,13 +66,15 @@ function lifecycleChanged() {
 }
 // C5 task 29: a worker that died unexpectedly is started again, three times at most (worker-restart.cjs).
 let engineEnvironment = null; let engineStarted = false; let lastToldStatus = null;
+// C5 tasks 31, 32: the update check's settings for the worker, the boot marker, and install on quit (update-wiring.cjs).
+let updateWiring = null;
 const workerRestart = require('./worker-restart.cjs').createWorkerRestart({
   start: () => { startupTask = launchEngine(); return startupTask; },
   onReconnecting: () => { engine?.reconnecting?.(); },
   note: fields => { timeline.note('engine-restart', fields); },
   onGiveUp: () => { dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
 });
-function firstPainted() { timeline.mark('first-paint'); }
+function firstPainted() { timeline.mark('first-paint'); void updateWiring?.notePaint(); }
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   if (stopping) return;
@@ -98,6 +100,9 @@ async function startEngine() {
   if (stopping) return;
   Object.assign(environment, require('./update-wiring.cjs').updateEnvironment(metadata, { userData: app.getPath('userData'), packaged: app.isPackaged }));
   engineEnvironment = environment;
+  updateWiring = require('./update-wiring.cjs').createUpdateWiring({ metadata, userData: app.getPath('userData'), packaged: app.isPackaged, version: metadata.version, platform: process.platform, appImage: process.env.APPIMAGE ?? null, updates: require('./updates.cjs'), engine: () => engine, dialog, shell, note: line => { void diagnostics.line('main.jsonl', line); }, fs: require('node:fs/promises') });
+  await updateWiring.beforeStart();
+  if (stopping) return;
   await launchEngine();
 }
 /** C5 task 29: one worker: a fresh harness with every listener, started. Also what a restart runs, after the old one stopped. */
@@ -111,6 +116,7 @@ async function launchEngine() {
   await starting;
   engineStarted = true;
   timeline.mark('engine-ready');
+  void updateWiring?.noteReady();
   await reportJobLifecycle();
   if (restarted) harness.reportWatching?.(windowWatching());
 }
@@ -345,6 +351,16 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // C5 task 32: Show installer, for the downloaded release; checked again right before it's shown.
+  ipcMain.handle(require('./ipc-contract.cjs').UPDATE_SHOW_CHANNEL, async (event, input) => {
+    try {
+      assertTrustedSender(event, window?.webContents);
+      if (input === null || typeof input !== 'object' || Object.keys(input).length !== 1 || input.kind !== 'staged') throw Object.assign(new Error('Say which installer to show.'), { code: 'INVALID_REQUEST' });
+      if (!updateWiring?.enabled) throw Object.assign(new Error("Updates aren't set up in this copy of Chausar."), { code: 'UPDATES_NOT_SET_UP' });
+      await updateWiring.showInstaller(input.kind);
+      return { ok: true };
+    } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
   // C5 task 26: the window has painted (app/ui/src/shell/first-paint.ts).
   ipcMain.handle(require('./ipc-contract.cjs').FIRST_PAINT_CHANNEL, event => {
     try { assertTrustedSender(event, window?.webContents); firstPainted(); return { ok: true }; }
@@ -423,7 +439,7 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result: { day: await background.askLater(day) } };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); }
+  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); else void updateWiring?.notePaint(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
 app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
@@ -432,7 +448,10 @@ app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true; workerRestart.stop();
-  startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
+  // C5 task 32: the engine says if a run is busy and makes the safety copy before it stops; the install runs once it has.
+  let prepared = null;
+  startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => updateWiring?.prepareQuit()).then(answer => { prepared = answer ?? null; }, () => {}).then(() => engine?.stop()).then(result => {
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
+    return updateWiring?.installAfterStop(prepared);
   }).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
 });

@@ -33,6 +33,8 @@ const FIRST_PAINT_CHANNEL = 'chausar:first-paint';
 // C5 task 27: Export diagnostics. The window reads what's inside, with crash files only when ticked, then saves that preview by its id.
 const DIAGNOSTICS_PREVIEW_CHANNEL = 'chausar:diagnostics:preview';
 const DIAGNOSTICS_SAVE_CHANNEL = 'chausar:diagnostics:save';
+// C5 task 32: Show installer: the window names only which release; main checks it again and shows it in the file manager.
+const UPDATE_SHOW_CHANNEL = 'chausar:updates:showInstaller';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -357,4 +359,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

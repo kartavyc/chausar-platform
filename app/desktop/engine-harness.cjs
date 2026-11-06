@@ -147,6 +147,8 @@ class EngineHarness extends EventEmitter {
   // these: renderer requests are { method, payload } only (validateRequest), and these carry a kind and no method.
   codexChoice(payload) { return this.#send({ kind: 'host-codex-choice', payload: codexPayload(payload) }, this.options.requestTimeoutMs); }
   confirmCodex(payload) { return this.#send({ kind: 'host-codex-confirm', payload: confirmPayload(payload) }, this.options.requestTimeoutMs); }
+  // C5 task 32: at quit, before the engine stops: is a run busy, and the safety copy. Main's own route, like the two above.
+  prepareUpdateInstall(payload) { return this.#send({ kind: 'host-update-prepare', payload: { backup: payload?.backup === true } }, this.options.requestTimeoutMs); }
   // Trusted main-process lifecycle only. No renderer method can manufacture this cancellation.
   closeForms() { try { if (this.worker?.connected) this.worker.send({ kind: 'host-forms-closed' }, () => {}); } catch {} }
   // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert

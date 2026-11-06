@@ -3199,6 +3199,16 @@ export class Engine {
   private updateService(): UpdateService {
     return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsPublisher: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
   }
+  /**
+   * C5 task 32, trusted main-process route only, at quit: is a run busy, the open data's version, and the safety copy of the
+   * open business while its vault is still open (D12 attach points 1 and 2). A failed copy is said; main then installs nothing.
+   */
+  async prepareUpdateInstall(payload: { backup?: unknown }): Promise<{ busy: boolean; openDataSchema: number | null; backup: 'made' | 'failed' | 'none-open' | 'skipped' }> {
+    const busy = this.updatesBusy(), open = this.vault ? this.vault.read().schemaVersion : null;
+    if (busy || payload?.backup !== true) return { busy, openDataSchema: open, backup: 'skipped' };
+    if (!this.vault) return { busy, openDataSchema: open, backup: 'none-open' };
+    return { busy, openDataSchema: open, backup: await this.custodySerial(() => this.safetyBackup()) ? 'made' : 'failed' };
+  }
   /** A run is busy: a request is being answered, a job is running, or an owner's-AI job has a tool running. */
   private updatesBusy(): boolean {
     if (this.#activeRequests > 0 || this.#transition) return true;
