@@ -1,0 +1,66 @@
+name: Recorded places snapshot checks
+on:
+  push:
+    branches: ['b2c/os-recordings-check-*']
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/dispatch-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Real engine place scenarios
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          timeout 600s node --test platform/tests/engine-dispatch-d11.test.ts platform/tests/recordings/money.recording.test.ts platform/tests/recordings/clients.recording.test.ts platform/tests/recordings/apps.recording.test.ts platform/tests/recordings/connections.recording.test.ts platform/tests/recordings/business.recording.test.ts 2>&1 | tee /tmp/dispatch-receipts/tests.log
+      - name: Focused receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recordings-focused-receipts
+          path: /tmp/dispatch-receipts
+      - name: Engine types
+        if: always()
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/dispatch-receipts/types.log
+      - name: UI types
+        if: always()
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          npm run typecheck:ui 2>&1 | tee /tmp/dispatch-receipts/ui-types.log
+      - name: Source checks
+        if: always()
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          node scripts/check.mjs 2>&1 | tee /tmp/dispatch-receipts/checks.log
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recordings-snapshot-receipts
+          path: /tmp/dispatch-receipts
+
+
+
+
+
+
+
+
+
