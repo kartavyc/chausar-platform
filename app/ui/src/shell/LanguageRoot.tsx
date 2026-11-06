@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useEngine, useEngineStatus } from '../engine/context';
 import { LanguageChoiceContext, TextProvider, prepareLanguage, type Language } from '../text';
+import { setDateLanguage } from '../parts/when';
 
 export function LanguageRoot({ language: first, children }: { language: Language; children: ReactNode }) {
   const client = useEngine();
@@ -17,6 +18,7 @@ export function LanguageRoot({ language: first, children }: { language: Language
 
   const apply = useCallback(async (next: Language) => {
     await prepareLanguage(next);
+    setDateLanguage(next);
     setLanguage(next);
     document.documentElement.lang = next;
   }, []);

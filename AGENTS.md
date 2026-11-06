@@ -28,7 +28,7 @@ What the app does and its known limits stays public, in this repository: `docs/v
 - Prices are always owner-set. Share prices are an advanced option one step away; a fixed price is the default. GST and tax fields only for businesses that need them.
 - AI voices and presenters are disclosed; rights are recorded at intake.
 - DPDP: minimum data, Forget really deletes, an opt-out is honoured at once.
-- India first; rupees by default from the owner's time zone and words, never from the computer's language setting. English only for now (Hindi was removed in wave 6; keep the translation plumbing so it can return).
+- India first; rupees by default from the owner's time zone and words, never from the computer's language setting. English and Hindi: Hindi is a pack the owner picks, loaded only then; a missing Hindi key shows the English words.
 - Plain English, no em dashes anywhere (tests check).
 - Out of scope: GST e-invoicing, Account Aggregator feeds, AIS/26AS/Form 16/2B readers.
 

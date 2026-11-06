@@ -52,6 +52,15 @@ describe('who picks the language', () => {
   });
 });
 
+describe('the rule the repo states', () => {
+  it('AGENTS.md and CONTRIBUTING.md say English and Hindi, never English only', () => {
+    const rules = readFileSync(resolve(import.meta.dirname, '../../../AGENTS.md'), 'utf8');
+    expect(rules).not.toMatch(/English only/i);
+    expect(rules).toContain("English and Hindi: Hindi is a pack the owner picks, loaded only then; a missing Hindi key shows the English words.");
+    expect(readFileSync(resolve(import.meta.dirname, '../../../CONTRIBUTING.md'), 'utf8')).not.toMatch(/English only/i);
+  });
+});
+
 describe('the pack is lazy', () => {
   it('English is in the first chunk; Hindi and its fonts are not', () => {
     const source = read('../src/text/index.tsx');

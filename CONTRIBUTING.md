@@ -51,7 +51,7 @@ If you add, remove or upgrade a production dependency, run `node scripts/third-p
 - **No em dashes anywhere**: code, comments, docs, screen text and commit messages. Use a comma, a colon, a semicolon or brackets. Tests check this.
 - Screen text stays inside the word budgets in `app/ui/tests/baselines/words.json`. Budgets may only go down.
 - Screens use design tokens only: no inline styles, type never below 12 px, contrast 4.5:1 in both themes, no sideways scroll at 390 px.
-- English only for now. Keep the translation plumbing working.
+- English and Hindi: Hindi is a pack the owner picks; a missing Hindi key shows the English words. Chausar's own screen words only: engine lines and AI drafts stay English.
 
 ## Commits and pull requests
 
