@@ -433,6 +433,7 @@
   "business.away.when": "When you are away",
   "business.away.rule": "While you are away, no new work starts on its own. Routines you set prepare jobs that wait for you on Today.",
   "business.owner": "About you",
+  "business.buildLine": "Chausar {version}, built {day}",
   "business.owner.title": "Your name and what you don't sell",
   "business.owner.name": "Your first name",
   "business.owner.nameHint": "Chausar uses it only to greet you on Today.",
