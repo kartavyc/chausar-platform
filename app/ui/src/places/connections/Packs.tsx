@@ -39,7 +39,7 @@ export function Packs() {
       {list.data && (list.data.packs.length ? <ul className={s.group}>{list.data.packs.map(pack => <li key={pack.id} className={s.group}>
         <PackSummary pack={pack} />
         <div className={s.actions}><Button type="button" locked={busy} onClick={() => void act(async () => { await engine.request('venture.packs.remove', { packId: pack.id }); list.reload(); })}>{t('connections.packs.remove')}</Button></div>
-      </li>)}</ul> : <p className={connections.note}>{t('connections.packs.none')}</p>)}
+      </li>)}</ul> : null)}
       <FilePick choose={t('connections.packs.choose')} accept=".json,application/json" disabled={busy} onChange={event => { choose(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
       {preview && <div className={s.group} aria-live="polite">
         <PackSummary pack={preview.view} />

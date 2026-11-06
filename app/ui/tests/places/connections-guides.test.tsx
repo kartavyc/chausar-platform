@@ -90,7 +90,7 @@ describe('Connections: Check connections', () => {
     // Before a press only the last check is read (none yet here): no new read.
     await waitFor(() => expect(calls.filter((m) => m === 'venture.connectors.check')).toHaveLength(1));
     expect(within(tile).queryByRole('list', { name: 'What each check found' })).toBeNull();
-    fireEvent.click(within(tile).getByRole('button', { name: 'Check now' }));
+    fireEvent.click(within(tile).getByRole('button', { name: 'Check connections' }));
     const rows = await within(tile).findByRole('list', { name: 'What each check found' });
     // One read of the last check when the tile opens, then the one check pressed.
     expect(calls.filter((m) => m === 'venture.connectors.check')).toHaveLength(2);
@@ -100,7 +100,7 @@ describe('Connections: Check connections', () => {
     expect(items[0]!.textContent).toContain('Your Claude Haiku 5.5 key answered. Listing its models is free, so this check cost nothing.');
     expect(items[2]!.querySelector('[data-outcome]')?.textContent).toBe('Skipped');
     expect(items[2]!.textContent).toContain('Ends 13 Jan 2027');
-    expect(tile.querySelector('[data-health]')?.textContent).toBe('2 ready · 0 warnings · 0 blocking');
+    expect(tile.querySelector('[data-health]')?.textContent).toBe('All good');
     expect(within(tile).queryByRole('link', { name: /Reconnect/ })).toBeNull();
     assertInkRules();
   });
@@ -117,7 +117,7 @@ describe('Connections: Check connections', () => {
       } : answer),
     });
     const tile = await screen.findByRole('region', { name: 'Check connections' });
-    fireEvent.click(within(tile).getByRole('button', { name: 'Check now' }));
+    fireEvent.click(within(tile).getByRole('button', { name: 'Check connections' }));
     const rows = await within(tile).findByRole('list', { name: 'What each check found' });
     const [bank, key] = within(rows).getAllByRole('listitem');
     expect(bank!.textContent).toContain('Ended 20 Oct 2026');
@@ -144,7 +144,21 @@ describe('Connections: Check connections', () => {
   it('nothing connected says so', async () => {
     await start('#/connections', { edit: (method, answer) => (method === 'venture.connectors.check' ? { at: '2026-10-26T09:00:00.000Z', rows: [], health: { ready: 0, warnings: 0, blocking: 0 } } : answer) });
     const tile = await screen.findByRole('region', { name: 'Check connections' });
-    fireEvent.click(within(tile).getByRole('button', { name: 'Check now' }));
+    fireEvent.click(within(tile).getByRole('button', { name: 'Check connections' }));
     expect(await within(tile).findByText('Nothing is connected yet, so there was nothing to check.')).toBeTruthy();
   });
+});
+
+
+it('checks key connections even if the native AI check fails, without claiming all good (B4)', async () => {
+  const { calls } = await start('#/connections', { ai: true, edit: (method, answer) => {
+    if (method === 'venture.models.cli.status') throw new Error('The local AI check failed.');
+    return answer;
+  } });
+  const tile = await screen.findByRole('region', { name: 'Check connections' });
+  fireEvent.click(within(tile).getByRole('button', { name: 'Check connections' }));
+  await waitFor(() => expect(calls.filter(method => method === 'venture.connectors.check')).toHaveLength(2));
+  expect(await within(tile).findByRole('list', { name: 'What each check found' })).toBeTruthy();
+  expect(within(tile).getByRole('alert').textContent).toContain('The local AI check failed.');
+  expect(within(tile).queryByText('All good')).toBeNull();
 });

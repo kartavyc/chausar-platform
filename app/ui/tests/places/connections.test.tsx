@@ -130,6 +130,8 @@ describe('Connections', () => {
     await waitFor(() => expect(within(sheet).getByText('Added 2 transactions from 1 to 2 Oct. See them under Connections, in your bank account. 1 row could not be read.')).toBeTruthy());
     expect(spy.mock.calls.find(([method]) => method === 'venture.bank.import')![1]).toEqual({ csv, account: 'HDFC current' });
     expect(within(sheet).getByText('Line 4: The amount is not a number.')).toBeTruthy();
+    fireEvent.change(within(sheet).getByLabelText('Account'), { target: { value: 'HDFC current' } });
+    fireEvent.change(within(sheet).getByLabelText('Statement file (CSV)'), { target: { files: [new File([csv], 'october.csv', { type: 'text/csv' })] } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
     await waitFor(() => expect(within(sheet).getByText('Already imported, nothing added. 1 row could not be read.')).toBeTruthy());
   });
@@ -209,7 +211,7 @@ describe('Connections: Your AI', () => {
     const { engine } = start();
     const spy = vi.spyOn(engine, 'request');
     const section = await ai();
-    const recommended = (await within(section).findByText('Claude Haiku 5.5 and Sonnet 5.5')).closest('li')!;
+    const recommended = (await within(section).findByText('Anthropic key')).closest('li')!;
     fireEvent.click(within(recommended).getByRole('button', { name: 'Connect' }));
     const key = within(recommended).getByLabelText('Your Anthropic key') as HTMLInputElement;
     expect(key.type).toBe('password');
@@ -219,8 +221,8 @@ describe('Connections: Your AI', () => {
     expect((connect as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(within(recommended).getByRole('checkbox', { name: 'I agree' }));
     await act(async () => { fireEvent.click(connect); });
-    await waitFor(() => expect(section.textContent).toContain('Quick work: Claude Haiku 5.5'));
-    expect(section.textContent).toContain('Plans and drafts: Claude Sonnet 5.5');
+    await waitFor(() => expect(section.textContent).toContain('claude-haiku-5-5'));
+    expect(section.textContent).toContain('claude-sonnet-5-5');
     expect(key.value).toBe('');
     expect(document.body.textContent).not.toContain('sk-ant-secret-123');
     const sent = spy.mock.calls.filter(([method]) => method === 'venture.models.connect').map(([, params]) => params as Record<string, unknown>);
@@ -238,7 +240,7 @@ describe('Connections: Your AI', () => {
     });
     start('#/connections', engine);
     const section = await ai();
-    const recommended = (await within(section).findByText('Claude Haiku 5.5 and Sonnet 5.5')).closest('li')!;
+    const recommended = (await within(section).findByText('Anthropic key')).closest('li')!;
     fireEvent.click(within(recommended).getByRole('button', { name: 'Connect' }));
     const key = within(recommended).getByLabelText('Your Anthropic key') as HTMLInputElement;
     expect(key.closest('form')).toBeNull();
@@ -260,20 +262,20 @@ describe('Connections: Your AI', () => {
   it('with no AI connected, the AI app on this computer that can connect is offered at rest, the key pair one fold away', async () => {
     start();
     const section = await ai();
-    await waitFor(() => expect(section.textContent).toContain('Every choice'));
-    const found = await within(section).findAllByText('Claude Code on this computer');
-    const fold = [...section.querySelectorAll('details')].find((item) => item.querySelector(':scope > summary')?.textContent === 'Every choice')!;
+    await waitFor(() => expect(section.textContent).toContain('Other choices'));
+    const found = await within(section).findAllByText('Claude Code');
+    const fold = [...section.querySelectorAll('details')].find((item) => item.querySelector(':scope > summary')?.textContent === 'Other choices')!;
     const atRest = found.map((node) => node.closest('li')!).find((row) => !fold.contains(row))!;
     expect(atRest).toBeTruthy();
     expect(within(atRest).getByRole('button', { name: 'Connect' })).toBeTruthy();
-    expect(within(fold).queryAllByText('Claude Code on this computer')).toHaveLength(0);
-    expect(fold.contains(within(section).getByText('Claude Haiku 5.5 and Sonnet 5.5'))).toBe(true);
+    expect(within(fold).queryAllByText('Claude Code')).toHaveLength(0);
+    expect(fold.contains(within(section).getByText('Anthropic key'))).toBe(false);
   });
 
   it('Claude Code can connect by default without a pending-terms screen', async () => {
     start();
     const section = await ai();
-    const claudeCode = (await within(section).findByText('Claude Code on this computer')).closest('li')!;
+    const claudeCode = (await within(section).findByText('Claude Code')).closest('li')!;
     expect(claudeCode.textContent).not.toContain('terms');
     expect(claudeCode.textContent).toContain('Not yet tried');
     expect(within(claudeCode).getByRole('button', { name: 'Connect' })).toBeTruthy();
@@ -285,11 +287,11 @@ describe('Connections: Your AI', () => {
     start('#/connections', engine);
     const section = await ai();
     await waitFor(() => expect(section.textContent).toContain('$0.04 (estimate)'));
-    const connected = within(section).getByRole('list', { name: 'Connected' });
-    const haiku = within(connected).getByText('Claude Haiku 5.5').closest('li')!;
+    const connected = within(section).getByRole('list', { name: 'AI choices' });
+    const haiku = within(connected).getByText('Anthropic key').closest('li')!;
     await act(async () => { fireEvent.click(within(haiku).getByRole('button', { name: 'Disconnect' })); });
-    await waitFor(() => expect(within(connected).queryByText('Claude Haiku 5.5')).toBeNull());
-    expect(section.textContent).toContain('Quick work: No AI connected; using built-in templates');
+    await waitFor(() => expect(within(haiku).queryByRole('button', { name: 'Disconnect' })).toBeNull());
+    expect(section.textContent).toContain('No AI connected; using built-in templates');
     const status = (await engine.request('venture.models.status', {})) as ModelStatusLite;
     expect(status.tiers.fast.presetId).toBe('built-in-templates');
   });

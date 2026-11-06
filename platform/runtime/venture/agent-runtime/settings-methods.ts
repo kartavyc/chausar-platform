@@ -5,10 +5,10 @@ import { digest, exactPayload, readVenture, requireAppChannel, ventureAction } f
 import { recordDecision } from '../journal/decisions.ts';
 import { validateExternalCredentialScope } from './external-config.ts';
 import { teamRoles } from '../models/roles.ts';
-import { AI_SETTING_BOUNDARIES, agentSettingsOf, validateAiSettings, type AiSettingsView } from './settings.ts';
+import { AI_SETTING_BOUNDARIES, aiModelChoices, agentSettingsOf, validateAiSettings, type AiSettingsView } from './settings.ts';
 
 function view(state: State, venture: VentureRecord): Omit<AiSettingsView, 'models'> {
-  return { settings: agentSettingsOf(state, venture.id), boundaries: { ...AI_SETTING_BOUNDARIES }, agents: teamRoles(state, venture).map(({ agent, name }) => ({ id: agent, name })) };
+  return { settings: agentSettingsOf(state, venture.id), boundaries: { ...AI_SETTING_BOUNDARIES }, agents: teamRoles(state, venture).map(({ agent, name }) => ({ id: agent, name })), modelChoices: aiModelChoices() };
 }
 /** C1 task 13: Codex's own model list, read through the models port (kept per program), or null when there is none. */
 async function codexListed(deps: VentureDeps): Promise<string[] | null> {

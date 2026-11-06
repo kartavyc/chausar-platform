@@ -28,7 +28,6 @@ import { BUILDERS, BUILDER_NAMES, handOff } from '../business/handoff';
 import { BankImportSheet } from './BankImport';
 import { BankSheet } from './BankSheet';
 import { CanDo } from './CanDo';
-import { CliStatus } from './CliStatus';
 import { categoryIcon } from './categories';
 import { ExternalLink, openProblem } from './external';
 import { Posting, signInOffered } from './Posting';
@@ -37,6 +36,7 @@ import { YourAi } from './YourAi';
 import { YourNetwork } from './YourNetwork';
 import { PhoneRow } from './PhoneRow';
 import { Mailbox } from './Mailbox';
+import { GmailConnection } from './GmailConnection';
 import { CalendarFeed } from './CalendarFeed';
 // W5 5A6: pages you watch, mail files, apps on this computer, your n8n or Make, speech from text.
 import { KitConnect } from './KitConnect';
@@ -110,10 +110,9 @@ export function Place() {
   return (
     <>
       <PageTitle title={t('place.connections')} line={t('connections.line')} />
-      {venture.data && <p className={s.needsLink}><a href="#/connections/needs">{t('first-run.needs.link')}</a></p>}
+      {venture.data && <div className={s.needsRow}><a href="#/connections/needs">{t('first-run.needs.link')}</a></div>}
       <div className={s.place}>
         <YourAi focus={route.sub === 'ai'} />
-        <CliStatus />
         {venture.data && <ChecksTile />}
         {(cards.data || local) && (
           <div className={s.second} data-side={local ? undefined : 'none'}>
@@ -126,6 +125,7 @@ export function Place() {
         {/* C5 task 3: pair a phone by its QR code, on the desktop app only (the phone page itself cannot pair). */}
         {venture.data && local && <PhoneRow />}
         {venture.data && <YourNetwork />}
+        {venture.data && <GmailConnection />}
         {venture.data && <Mailbox />}
         {venture.data && <CalendarFeed />}
         {venture.data && <KitConnect />}
