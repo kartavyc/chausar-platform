@@ -20,7 +20,7 @@ const COMMITS = [
 ];
 
 test('commits are grouped: new, fixed, faster, then the rest; the batch marks and scopes go', () => {
-  const notes = releaseNotes({ version: '0.1.1', commits: COMMITS, whatsNew: { '0.1.1': ['You can see how much of your AI plan is left.', 'Drafts keep your edits.'] } });
+  const notes = releaseNotes({ version: '0.1.1', commits: COMMITS, whatsNew: { 'whats-new.0.1.1.1': 'You can see how much of your AI plan is left.', 'whats-new.0.1.1.2': 'Drafts keep your edits.' } });
   assert.equal(notes, [
     '# Chausar 0.1.1',
     '',
@@ -50,14 +50,14 @@ test('commits are grouped: new, fixed, faster, then the rest; the batch marks an
   ].join('\n'));
 });
 
-test('an unsigned Windows build says so; an empty What\'s new list is allowed', () => {
-  const notes = releaseNotes({ version: '0.1.1', commits: [], whatsNew: { '0.1.1': [] }, unsigned: true });
+test('an unsigned Windows build says so', () => {
+  const notes = releaseNotes({ version: '0.1.1', commits: [], whatsNew: { 'whats-new.0.1.1.1': 'One change.' }, unsigned: true });
   assert.match(notes, /^The Windows installer is not signed yet: Windows will warn about an unknown publisher\.$/m);
-  assert.doesNotMatch(notes, /## What's new/);
+  assert.match(notes, /## What's new/);
 });
 
 test('a missing What\'s new entry for the version is refused', () => {
-  assert.throws(() => releaseNotes({ version: '0.1.2', commits: COMMITS, whatsNew: { '0.1.1': ['x'] } }), /No What's new entry for 0\.1\.2/);
+  assert.throws(() => releaseNotes({ version: '0.1.2', commits: COMMITS, whatsNew: { 'whats-new.0.1.1.1': 'x' } }), /No What's new entry for 0\.1\.2/);
 });
 
 async function folder(t: TestContext) {
@@ -69,7 +69,7 @@ async function folder(t: TestContext) {
 test('the command reads a commit list and a What\'s new file, and writes the notes outside the checkout', async t => {
   const dir = await folder(t);
   await writeFile(join(dir, 'commits.txt'), `${COMMITS.join('\n')}\n`);
-  await writeFile(join(dir, 'whats-new.json'), JSON.stringify({ '0.1.1': ['One line.'] }));
+  await writeFile(join(dir, 'whats-new.json'), JSON.stringify({ 'whats-new.0.1.1.1': 'One line.' }));
   const script = fileURLToPath(new URL('../../scripts/release-notes.mjs', import.meta.url));
   const args = ['--version', '0.1.1', '--commits', join(dir, 'commits.txt'), '--whats-new', join(dir, 'whats-new.json'), '--output', join(dir, 'notes.md')];
   const result = spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', windowsHide: true });
@@ -78,4 +78,20 @@ test('the command reads a commit list and a What\'s new file, and writes the not
   const missing = spawnSync(process.execPath, [script, ...args.slice(0, 1), '9.9.9', ...args.slice(2)], { encoding: 'utf8', windowsHide: true });
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /No What's new entry for 9\.9\.9/);
+});
+
+
+test('the shipped C7 language pack supplies release lines in numeric order for exactly this version', async () => {
+  const words = JSON.parse(await readFile(new URL('../../app/ui/src/text/en/whats-new.json', import.meta.url), 'utf8'));
+  const packageJson = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  const notes = releaseNotes({ version: packageJson.version, commits: [], whatsNew: words });
+  assert.match(notes, /Your AI apps show how much/);
+  assert.doesNotMatch(notes, /Nothing new to show/);
+  const ordered = releaseNotes({ version: '1.2.3', commits: [], whatsNew: {
+    'whats-new.1.2.3.10': 'Tenth.', 'whats-new.1.2.30.1': 'Another version.',
+    'whats-new.1.2.3.2': 'Second.', 'whats-new.1.2.3.1': 'First.',
+  } });
+  assert.ok(ordered.indexOf('First.') < ordered.indexOf('Second.'));
+  assert.ok(ordered.indexOf('Second.') < ordered.indexOf('Tenth.'));
+  assert.doesNotMatch(ordered, /Another version/);
 });
