@@ -252,14 +252,16 @@ describe('Today on a phone: swipe', () => {
   it('a left swipe on a card with no Later moves it to the end for this session, with no engine call', async () => {
     const { decides, spy } = start();
     await loaded();
-    // Every row shows, so its new place can be seen.
+    // Other businesses stay in their own fold; the swipe moves to the end of this business.
+    const currentRows = () => [...needsYou().querySelectorAll('[data-row]')].filter(el => !el.closest('details')).map(el => el.getAttribute('data-row-id'));
+    // Every current-business row shows, so its new place can be seen.
     const more = screen.queryByRole('button', { name: /^Show \d+ more/ });
     if (more) await act(async () => { fireEvent.click(more); });
-    const before = rowIds();
+    const before = currentRows();
     expect(before.indexOf('q-price-sponsor')).toBeLessThan(before.length - 1);
     const calls = spy.mock.calls.length;
     await swipe('q-price-sponsor', -120);
-    const after = rowIds();
+    const after = currentRows();
     expect(after[after.length - 1]).toBe('q-price-sponsor');
     expect([...after].sort()).toEqual([...before].sort());
     expect(decides()).toHaveLength(0);
@@ -272,7 +274,7 @@ describe('Today on a phone: swipe', () => {
     await loaded();
     const more2 = screen.queryByRole('button', { name: /^Show \d+ more/ });
     if (more2) await act(async () => { fireEvent.click(more2); });
-    const again = rowIds();
+    const again = currentRows();
     expect(again[again.length - 1]).toBe('q-price-sponsor');
   });
 

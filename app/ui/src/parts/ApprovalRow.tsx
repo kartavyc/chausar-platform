@@ -513,7 +513,7 @@ export function ApprovalRow({
   const secondAsk = (buttonSizing: ButtonSize | undefined) => pending && (
     <>
       {others.filter((action) => VIEW_ACTIONS.has(action.id)).map((action) => (
-        <Button key={action.id} size={buttonSizing} onClick={() => choose(action)}>{action.label}</Button>
+        <Button key={action.id} variant={layout !== 'row' && current.kind === 'draft' ? 'quiet' : 'secondary'} size={buttonSizing} onClick={() => choose(action)}>{layout !== 'row' && current.kind === 'draft' ? t('approval.openDraft') : action.label}</Button>
       ))}
       <Button ref={cancelRef} size={buttonSizing} onClick={cancel}>{t('approval.cancel')}</Button>
       <Button variant="primary" size={buttonSizing} data-confirm="" onClick={() => void decide(pending)}>{pending.label}</Button>
@@ -704,9 +704,9 @@ export function ApprovalRow({
       {phase !== 'confirm' && phase !== 'answer' && phase !== 'reasons' && !toolsOpen && (
         <div className={s.acts}>
           {others.map((action, index) => (
-            <Button key={action.id} size={size} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
+            <Button key={action.id} variant={current.kind === 'draft' && VIEW_ACTIONS.has(action.id) ? 'quiet' : 'secondary'} size={size} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
               {action.id === 'watch' && <Icon name="play" size={size === 'sm' ? 14 : 16} filled />}
-              {action.label}
+              {current.kind === 'draft' && VIEW_ACTIONS.has(action.id) ? t('approval.openDraft') : action.label}
             </Button>
           ))}
           <Button
