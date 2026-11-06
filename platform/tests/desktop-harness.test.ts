@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { EngineHarness } from '../../app/desktop/engine-harness.cjs';
-import { ALL_METHODS, VENTURE_METHODS } from '../runtime/method-registry.ts';
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
+import { ALL_METHODS } from '../runtime/method-registry.ts';
 import ipcContract from '../../app/desktop/ipc-contract.cjs';
 import type { PhoneSessionInvite, PhoneSessionMetadata } from '../runtime/engine-phone-sessions.ts';
 import type { SessionGrant } from '../runtime/phone/contracts.ts';
@@ -60,9 +61,7 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: { sparse: Array(1_000_000_000) } }), code('INVALID_REQUEST'));
   let deep: any = {}; for (let i = 0; i < 34; i++) deep = { child: deep };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: deep }), code('INVALID_REQUEST'));
-  const source = (await Promise.all(['engine.ts', 'legacy/dispatch.ts'].map(file => readFile(new URL('../runtime/' + file, import.meta.url), 'utf8')))).join('\n');
-  const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z][a-zA-Z]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+)'/g)].map(match => match[1]);
-  implemented.push(...VENTURE_METHODS);
+  const implemented = Object.keys(ENGINE_HANDLERS);
   assert.ok(implemented.includes('jobs.calendar.configure'), 'Nested calendar methods must be included in the contract comparison.');
   assert.ok(implemented.includes('workspace.backup.v2.restoreInert'), 'Versioned archive methods must be included in the contract comparison.');
   // C5 tasks 21, 23: these two name a path, so only main asks them, after its own pick (keep-files.cjs): the decision is no.
