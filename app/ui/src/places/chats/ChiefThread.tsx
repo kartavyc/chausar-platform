@@ -24,6 +24,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useChanged } from '../../parts/useChanged';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type UiRunEvent } from '../../engine/types';
@@ -91,6 +92,7 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
   const [sent, setSent] = useState<{ thread: ChiefThreadSummary; messages: ChiefMessageView[] } | null>(null);
   const [micAsking, setMicAsking] = useState(false);
   const [box, setBox] = useState<{ words: string; n: number }>({ words: '', n: 0 });
+  const filled = useChanged(box.n);
   /** The consent as it was read at the refusal: its words and the digest Agree sends, and the message that waits. */
   const [consent, setConsent] = useState<{ stale: boolean; text: string; digest: string | null; words: string; problem: string | null; busy: boolean } | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -339,6 +341,7 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
           waitLabel={t('progress.writing')}
           key={box.n}
           initial={box.words}
+          changed={filled}
           label={t('chats.composer.label')}
           placeholder={t('chats.composer.placeholder')}
           onSend={unsent.sendKeeping}

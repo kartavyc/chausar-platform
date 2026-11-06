@@ -20,6 +20,8 @@ import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
 import { Progress } from '../../parts/Progress';
 import { Fold } from '../../parts/Fold';
+import { Reveal } from '../../parts/RevealBlock';
+import { useChanged } from '../../parts/useChanged';
 
 export type AboutMode = 'a' | 'b' | 'plan';
 type Mode = AboutMode;
@@ -75,6 +77,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
   const [reply, setReply] = useState('');
   const [thread, setThread] = useState<Bubble[]>([]);
   const [read, setReadOnly] = useState<AboutReadLite | null>(null);
+  const fieldChanged = useChanged(read?.family?.id);
   /** C4 task 1: the card's offers as the owner keeps, renames or adds them; reset with each new read. */
   const [rows, setRows] = useState<OfferRow[]>([]);
   const [adding, setAdding] = useState<string | null>(null);
@@ -289,7 +292,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
         <input id={`${fieldId}-name`} className={s.name} data-content="" data-plan-name="" maxLength={60}
           value={ownName ?? name ?? read.family?.label ?? ''} onChange={(event) => setOwnName(event.target.value)} onFocus={(event) => event.currentTarget.select()} />
       </div>
-      <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => { const tile = tiles.find(row => row.id === event.target.value); if (tile) void pick(tile.id, mode); }}>
+      <Select label={t('first-run.about.field')} id={fieldId} data-changed={fieldChanged} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => { const tile = tiles.find(row => row.id === event.target.value); if (tile) void pick(tile.id, mode); }}>
         {!read.family && <option value="">{t('first-run.about.pick')}</option>}
         {tiles.map((tile) => <option key={tile.id} value={tile.id}>{tile.label}</option>)}
       </Select>
@@ -299,13 +302,14 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
           <ul className={s.offers}>
             {rows.map((row) => (
               <li key={row.key} className={s.offer} data-content="">
-                {!row.kept ? (
-                  // Removed: one line and Undo (a seam for C3 task 13's removed-row part).
+                {!row.kept && (
                   <span className={s.offerRow}>
                     <span className={s.offerLine}>{t('first-run.about.removed', { name: row.name })}</span>
                     <Button variant="quiet" size="sm" onClick={() => change(row.key, { kept: true })}>{t('first-run.about.undo')}</Button>
                   </span>
-                ) : row.editing ? (
+                )}
+                <Reveal open={row.kept}>
+                {row.editing ? (
                   <input className={s.offerEdit} aria-label={t('first-run.about.renameOffer', { name: row.name })} defaultValue={row.name} maxLength={60} autoFocus
                     onKeyDown={(event) => offerKey(event, (value) => renameRow(row.key, value), () => change(row.key, { editing: false }))}
                     onBlur={(event) => renameRow(row.key, event.currentTarget.value)} />
@@ -320,7 +324,8 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
                     </Button>
                   </span>
                 )}
-                {row.kept && row.line && <span className={s.offerLine}>{row.line}</span>}
+                {row.line && <span className={s.offerLine}>{row.line}</span>}
+                </Reveal>
               </li>
             ))}
             {adding !== null && (

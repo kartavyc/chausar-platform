@@ -46,7 +46,7 @@ const box = () => screen.findByRole('textbox', { name: /^(What do you want to st
 async function type(text: string) { fireEvent.change(await box(), { target: { value: text } }); }
 async function press(name: string | RegExp) { await act(async () => { fireEvent.click(screen.getByRole('button', { name })); }); }
 // A card's own title, not the next best step tile above the cards that repeats the first one (W4 4I2, an h2).
-const cardTitle = (title: string) => screen.getAllByText(title).filter((node) => node.tagName !== 'H2');
+const cardTitle = (title: string) => screen.getAllByText(title).filter((node) => !node.closest('h2, [aria-hidden="true"], [inert]'));
 const titles = (titlesInOrder: string[]) => titlesInOrder.map((title) => {
   const [node, ...more] = cardTitle(title);
   expect(more, title).toHaveLength(0);
