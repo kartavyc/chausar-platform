@@ -53,6 +53,7 @@ import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
 import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
 import {eraseBooksNaming} from '../playbooks/bookkeeping-cfo/privacy.ts';
 import { eraseRoutinesNaming } from '../agents/routines.ts';
+import { eraseTrackerNaming } from '../trackers/privacy.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
 import { eraseAgentJobs, eraseAgentJobRecords } from '../agent-runtime/privacy.ts';
 import { stopClientAgentJobs, stopAgentJob } from '../agent-runtime/lifecycle.ts';
@@ -356,6 +357,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     if (names) eraseFileRequestsNaming(tx, mentionsName);
     // 4J22a: a routine's prompt or name that names them (the prompt erased, the routine switched off).
     if (names) eraseRoutinesNaming(tx, mentionsName);
+    // C7: a tracker row about them goes (by its person cell), and a cell or a tracker's name that names them is erased.
+    eraseTrackerNaming(tx, new Set([...ids, ...people.flatMap(person => (person.clientId ? [person.clientId] : []))]), mentionsName);
     // 4E3 (NOTES item 28, for every package): after the narrower scrubs above, the stored text of every other model call
     // of any purpose that names them (by a name their files gave, or one of their addresses) is erased the way 4B2 erases
     // a forgotten note: its texts become ERASED_NAMED_CALL with erasedAt, its digest, ids, costs and times kept; a waiting

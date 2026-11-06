@@ -2,6 +2,8 @@
 // and the chat consent (4B1); notes (4B2); routines (4J13); the business voice, personas, export and import (4J17); what
 // the AI knows, ideas and the capability page (4J18). The host loads this file on first use of a method it owns.
 // Package 4-0 registered every method with a NOT_BUILT_YET stub; each package replaces only its own lines.
+import { backupGetHandler, backupSetHandler } from './routine-backup.ts';
+import { TRACKER_HANDLERS } from '../trackers/trackers.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
 import { threadListHandler, threadSendHandler } from './threads.ts';
 import { proposalDecideHandler } from './proposals.ts';
@@ -40,6 +42,11 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.routines.runs': routinesRunsHandler,
   'venture.routines.set': routinesSetHandler,
   'venture.routines.remove': routinesRemoveHandler,
+  // C7: owner-made trackers
+  ...TRACKER_HANDLERS,
+  // C7: the backup AI for routines
+  'venture.routines.backup.get': backupGetHandler,
+  'venture.routines.backup.set': backupSetHandler,
   // 4J17 the business voice, personas, export and import
   'venture.voice.get': voiceGetHandler,
   'venture.voice.set': voiceSetHandler,

@@ -1450,6 +1450,22 @@ export interface CliStatusView {
   /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
   provider?: ProviderTroubleLite;
 }
+/** C7: owner-made trackers (venture.trackers.*). A receipt cell shows the receipt's figure; an estimate cell always carries its label. */
+export interface TrackerColumnLite { id: string; name: string; kind: 'text' | 'date' | 'choice' | 'count' | 'check' | 'person' | 'receipt' | 'estimate'; options?: string[] }
+export interface TrackerCellLite { column: string; value: string | number | boolean | null; display: Display; receiptId?: string; label?: 'model estimate' }
+export interface TrackerLite { id: string; name: string; columns: TrackerColumnLite[]; boardBy: string | null; keptBy: string[]; rows: number }
+export interface TrackerRowLite { id: string; at: string; cells: TrackerCellLite[]; addedBy: string; addedByName: string | null; canUndo: boolean }
+export interface TrackerStarterLite { id: 'content-calendar' | 'gst-due-dates'; name: string; columns: TrackerColumnLite[]; boardBy: string | null }
+export interface TrackersLite { trackers: TrackerLite[]; starters: TrackerStarterLite[] }
+export interface TrackerDetailLite { tracker: TrackerLite; rows: TrackerRowLite[] }
+/** C7: the backup AI for routines (venture.routines.backup.get and .set): each choice with the consent text it is sent under. */
+export interface BackupChoiceLite { presetId: string; label: Display; text: Display; digest: string }
+export interface BackupViewLite { on: boolean; order: string[]; choices: BackupChoiceLite[]; main: Display | null }
+/** C7: the plan meter (venture.models.plan): only what each tool reported, with its source and time. */
+export type PlanStateLite = 'ok' | 'near' | 'used-up' | 'unknown';
+export interface PlanWindowLite { kind: 'five-hour' | 'week'; usedPercent: number | null; resetsAt: string | null; state: PlanStateLite; line: Display }
+export interface PlanToolLite { cli: 'claude-code' | 'codex'; label: Display; state: PlanStateLite; windows: PlanWindowLite[]; readAt: string | null; source: Display; canCheck: boolean }
+export interface PlanViewLite { tools: PlanToolLite[] }
 /** A2: the AI provider's status page, in the engine's words, with where and when it was read. */
 export interface ProviderTroubleLite { line: string; source: string; readAt: string }
 /** A2: a Codex setup as the engine shows it: in use, found and waiting for the owner's yes, not usable, or none. */
@@ -2393,6 +2409,17 @@ export interface EngineMethods {
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   // A2: the owner's yes to the Codex found on this computer, with or without a business.
   'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
+  'venture.models.plan': { params: { fresh?: boolean }; result: PlanViewLite };
+  'venture.routines.backup.get': { params: Record<string, never>; result: BackupViewLite };
+  'venture.routines.backup.set': { params: { on: boolean; order: string[]; digests?: string[] }; result: BackupViewLite };
+  'venture.trackers.list': { params: Record<string, never>; result: TrackersLite };
+  'venture.trackers.get': { params: { id: string }; result: TrackerDetailLite };
+  'venture.trackers.set': { params: { tracker: { id?: string; name: string; columns: TrackerColumnLite[]; boardBy?: string | null; keptBy?: string[] } }; result: { tracker: TrackerLite } };
+  'venture.trackers.remove': { params: { id: string }; result: { removed: true } };
+  'venture.trackers.rows.add': { params: { trackerId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
+  'venture.trackers.rows.edit': { params: { rowId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
+  'venture.trackers.rows.remove': { params: { rowId: string }; result: { removed: true } };
+  'venture.trackers.rows.undo': { params: { rowId: string }; result: { undone: true } };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };

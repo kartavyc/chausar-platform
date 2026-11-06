@@ -289,6 +289,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-flow', 'venture-flow-run',
   // Wave 6 (6J2, D47): the owner's report choices (newest wins) and each crash or answer waiting for Send report (core/feedback.ts).
   'venture-feedback-setting', 'venture-feedback-item',
+  // C7: owner-made trackers and their rows (trackers/trackers.ts).
+  'venture-tracker', 'venture-tracker-row',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -5653,7 +5655,8 @@ export type AnyVentureRecord =
   | CrmChangeRecord | CompanyRecord | CrmLinkRecord | CrmEntryRecord | CrmListRecord | CrmListItemRecord | MemoryFactRecord
   | AgentRetirementRecord
   | MiniAppRecord
-  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord;
+  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord
+  | import('./trackers/trackers.ts').TrackerRecord | import('./trackers/trackers.ts').TrackerRowRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5887,6 +5890,17 @@ export const VENTURE_METHODS = [
   'venture.needs.list',
   // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
   'venture.ai.setup.trust',
+  'venture.models.plan',
+  'venture.routines.backup.get',
+  'venture.routines.backup.set',
+  'venture.trackers.list',
+  'venture.trackers.get',
+  'venture.trackers.set',
+  'venture.trackers.remove',
+  'venture.trackers.rows.add',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.undo',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -6042,6 +6056,17 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
   'venture.needs.list': 'core',
   'venture.ai.setup.trust': 'models',
+  'venture.models.plan': 'models',
+  'venture.routines.backup.get': 'agents',
+  'venture.routines.backup.set': 'agents',
+  'venture.trackers.list': 'agents',
+  'venture.trackers.get': 'agents',
+  'venture.trackers.set': 'agents',
+  'venture.trackers.remove': 'agents',
+  'venture.trackers.rows.add': 'agents',
+  'venture.trackers.rows.edit': 'agents',
+  'venture.trackers.rows.remove': 'agents',
+  'venture.trackers.rows.undo': 'agents',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6121,6 +6146,13 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set', 'venture.webhook.send',
   'venture.ca.confirmCitations', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.act',
+  'venture.routines.backup.set',
+  'venture.trackers.set',
+  'venture.trackers.remove',
+  'venture.trackers.rows.add',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.undo',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6659,6 +6691,17 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.trackers.rows.undo': { rowId: string };
+  'venture.trackers.rows.remove': { rowId: string };
+  'venture.trackers.rows.edit': { rowId: string; cells: Record<string, unknown> };
+  'venture.trackers.rows.add': { trackerId: string; cells: Record<string, unknown> };
+  'venture.trackers.remove': { id: string };
+  'venture.trackers.set': { tracker: { id?: string; name: string; columns: unknown[]; boardBy?: string | null; keptBy?: string[] } };
+  'venture.trackers.get': { id: string };
+  'venture.trackers.list': Record<string, never>;
+  'venture.routines.backup.set': { on: boolean; order: ModelPresetId[]; digests?: string[] };
+  'venture.routines.backup.get': Record<string, never>;
+  'venture.models.plan': { fresh?: boolean };
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -7053,6 +7096,17 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.trackers.rows.undo': { undone: true };
+  'venture.trackers.rows.remove': { removed: true };
+  'venture.trackers.rows.edit': { row: import('./trackers/trackers.ts').TrackerRowView };
+  'venture.trackers.rows.add': { row: import('./trackers/trackers.ts').TrackerRowView };
+  'venture.trackers.remove': { removed: true };
+  'venture.trackers.set': { tracker: import('./trackers/trackers.ts').TrackerView };
+  'venture.trackers.get': import('./trackers/trackers.ts').TrackerDetail;
+  'venture.trackers.list': import('./trackers/trackers.ts').TrackersView;
+  'venture.routines.backup.set': import('./agents/routine-backup.ts').BackupView;
+  'venture.routines.backup.get': import('./agents/routine-backup.ts').BackupView;
+  'venture.models.plan': import('./models/plan-view.ts').PlanView;
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];
@@ -7075,6 +7129,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
+  // C7: a tracker's refusals (trackers/cells.ts, trackers/trackers.ts).
+  'TRACKER_MONEY', 'TRACKER_NOT_FOUND', 'TRACKER_LIMIT', 'TRACKER_WORDS_HELD',
   'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
   'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
   // One-shot A4: Chausar's own PDF reader (core/pdf-text-core.ts) refuses a locked, unreadable or too complex file.

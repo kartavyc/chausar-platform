@@ -108,6 +108,17 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.needs.list': ['read', 'rui'],
   // A2: the owner's yes to the Codex found on this computer; it writes only Chausar's own trust folder.
   'venture.ai.setup.trust': ['approve', 'ui'],
+  'venture.trackers.rows.undo': ['prepare', 'u'],
+  'venture.trackers.rows.remove': ['prepare', 'u'],
+  'venture.trackers.rows.edit': ['prepare', 'u'],
+  'venture.trackers.rows.add': ['prepare', 'u'],
+  'venture.trackers.remove': ['approve', 'ui'],
+  'venture.trackers.set': ['approve', 'ui'],
+  'venture.trackers.get': ['read', 'rui'],
+  'venture.trackers.list': ['read', 'rui'],
+  'venture.routines.backup.set': ['approve', 'ui'],
+  'venture.routines.backup.get': ['read', 'rui'],
+  'venture.models.plan': ['read', 'rui'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */

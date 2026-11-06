@@ -43,6 +43,11 @@ export const READS = [
   'venture.speechOut.providers', 'venture.spend.list', 'venture.spend.policy.get', 'venture.talk.get',
   'venture.tax.working', 'venture.team.keeper', 'venture.team.list', 'venture.transcription.get',
   'venture.voice.get', 'venture.voiceConsent.list', 'venture.web.search', 'venture.work.get',
+  'venture.models.plan',
+  'venture.routines.backup.get',
+  'whatsNew.get',
+  'venture.trackers.list',
+  'venture.trackers.get',
   'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
 ] as const satisfies readonly MethodName[];
 

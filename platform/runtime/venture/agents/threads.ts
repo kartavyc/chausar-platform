@@ -21,6 +21,7 @@ import { chatAgent,type ChatAgent } from './roles.ts';
 import { detectStanding } from './standing.ts';
 import { appendAgentMessage,type AgentMessageInput } from './store.ts';
 import { RETIRED_LINE,retirementOf,SHELF_THREAD_LINE } from './retired.ts';
+import { agentTrackerTurn,keptTrackerNamed } from '../trackers/agent-rows.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
@@ -184,6 +185,16 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   if (kind === 'note') return noteRequest(deps, ctx, agentId, words);
 
   const agent = chatAgent(state, venture, agentId);
+  // C7: words that name a tracker this agent keeps: its rows land at once, marked with its name, with Undo.
+  const kept = keptTrackerNamed(state, venture, agent.id, words);
+  if (kept) {
+    const turn = await agentTrackerTurn(deps, ctx, route, { state, venture, agent, tracker: kept, words });
+    return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
+      const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
+      const reply = put(tx, { agent: agent.id, from: 'agent', text: turn.text, author: turn.callId ? 'model' : 'engine', callId: turn.callId });
+      return { added: [asItem(said), asItem(reply)], line: null };
+    });
+  }
   const waiting = waitingOn(deps, state, venture, agent);
   const intent = intentOf(words, agent.team);
   if (intent.kind === 'floor') return floorRequest(deps, ctx, agent.id, words, intent);

@@ -2117,6 +2117,17 @@ export class Engine {
       case 'venture.ca.dataPack.export':
       case 'venture.desk.list':
       case 'venture.desk.get':
+      case 'venture.models.plan':
+      case 'venture.routines.backup.get':
+      case 'venture.routines.backup.set':
+      case 'venture.trackers.list':
+      case 'venture.trackers.get':
+      case 'venture.trackers.set':
+      case 'venture.trackers.remove':
+      case 'venture.trackers.rows.add':
+      case 'venture.trackers.rows.edit':
+      case 'venture.trackers.rows.remove':
+      case 'venture.trackers.rows.undo':
       case 'venture.desk.act':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
