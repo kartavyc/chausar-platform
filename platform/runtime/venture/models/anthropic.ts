@@ -1,19 +1,24 @@
 // Chausar venture launcher, package P2 (models): the Anthropic Messages route, as raw HTTPS through the transport.
 // One route, no reroute: no thinking settings, sampling settings, tools or server-side fallbacks are sent.
 // A refusal or a cut-off answer is recorded as an error; Chausar never retries or switches models on its own.
-import type { ModelHttpResponse, ModelTask } from '../contracts.ts';
+import type { ModelHttpResponse, ModelPriceTable, ModelTask } from '../contracts.ts';
 import { sanitizeSchema } from './schema.ts';
 import { ENDPOINTS, isPlainRecord, readUsage, type Parsed } from './types.ts';
 
 export const ANTHROPIC_URL = ENDPOINTS['anthropic-messages'];
 export const ANTHROPIC_VERSION = '2023-06-01';
 
+/** Cache writes are requested only when both kinds of cache usage have saved prices. */
+export function cacheSystem(table: ModelPriceTable | null | undefined): boolean {
+  return table?.cacheReadMicrosPerMillion !== undefined && table.cacheWriteMicrosPerMillion !== undefined;
+}
+
 /** The exact request body. It never holds the key. Key order: model, max_tokens, system, messages, output_config. */
-export function anthropicBody(model: string, task: ModelTask<unknown>): string {
+export function anthropicBody(model: string, task: ModelTask<unknown>, table?: ModelPriceTable | null): string {
   return JSON.stringify({
     model,
     max_tokens: task.maxOutputTokens,
-    system: task.instructions,
+    system: cacheSystem(table) ? [{ type: 'text', text: task.instructions, cache_control: { type: 'ephemeral' } }] : task.instructions,
     messages: [{ role: 'user', content: JSON.stringify(task.input) }],
     output_config: { effort: 'low', format: { type: 'json_schema', schema: sanitizeSchema(task.schema) } },
   });

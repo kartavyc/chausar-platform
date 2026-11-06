@@ -5,11 +5,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { callCostMicros, estimateMaxCostMicros } from '../runtime/venture/models/cost.ts';
-import { parseAnthropic } from '../runtime/venture/models/anthropic.ts';
+import { anthropicBody, parseAnthropic } from '../runtime/venture/models/anthropic.ts';
 import { parseOpenAI } from '../runtime/venture/models/openai.ts';
 import { parseClaudeCli, parseCodexCli } from '../runtime/venture/models/cli.ts';
 import { readUsage } from '../runtime/venture/models/types.ts';
-import type { ModelPriceTable, SpendRate } from '../runtime/venture/contracts.ts';
+import type { ModelPriceTable, ModelTask, SpendRate } from '../runtime/venture/contracts.ts';
 import { listRateOfTable, modelTableOf } from '../runtime/venture/money/spend.ts';
 
 const table = (rates: Partial<ModelPriceTable>): ModelPriceTable => ({ currency: 'USD', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000',
@@ -76,4 +76,14 @@ test('the rate card carries the cache prices both ways: a table to its card line
   const plain = modelTableOf(listRateOfTable('model:anthropic-sonnet', table({}))! as SpendRate);
   assert.equal('cacheReadMicrosPerMillion' in plain, false);
   assert.equal('cacheWriteMicrosPerMillion' in listRateOfTable('model:x', table({}))!, false);
+});
+
+test('only two saved cache rates enable the fixed Anthropic system block, including zero rates', () => {
+  const task = { instructions: 'Fixed system instructions.', input: { changing: 'owner words' }, maxOutputTokens: 10, schema: { type: 'object', properties: {}, additionalProperties: false } } as unknown as ModelTask<unknown>;
+  for (const rate of [null, table({}), table({ cacheReadMicrosPerMillion: '0' }), table({ cacheWriteMicrosPerMillion: '0' })]) {
+    assert.equal(JSON.parse(anthropicBody('synthetic-model', task, rate)).system, task.instructions);
+  }
+  const body = JSON.parse(anthropicBody('synthetic-model', task, table({ cacheReadMicrosPerMillion: '0', cacheWriteMicrosPerMillion: '0' })));
+  assert.deepEqual(body.system, [{ type: 'text', text: task.instructions, cache_control: { type: 'ephemeral' } }]);
+  assert.equal(body.messages[0].content, JSON.stringify(task.input));
 });
