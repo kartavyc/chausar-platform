@@ -402,3 +402,17 @@ describe('a transcript made on this computer', () => {
     await expect(made.engine.request('fake.files.keepMade' as never, { orderId: made.order.id, name: 'x.srt', contentBase64: btoa('1\n00:00:00,000 --> 00:00:01,000\nHi\n') } as never)).rejects.toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
   });
 });
+
+describe('C4 task 12: a Finished row names its client and its day', () => {
+  it('the client is a link to the client sheet and the row has the date of the run', async () => {
+    window.location.hash = '#/work';
+    const fake = new FakeEngine();
+    render(<App client={createFakeClient(fake)} />);
+    const finished = await screen.findByRole('region', { name: 'Finished' });
+    const title = await within(finished).findByRole('button', { name: 'Matched September bank lines to invoices' });
+    const row = title.closest('[data-row]') as HTMLElement;
+    expect(within(row).getByText('21 Oct')).toBeTruthy();
+    fireEvent.click(within(row).getByRole('button', { name: 'Mehta Traders' }));
+    expect(window.location.hash).toContain('sheet=client%3Ac-mehta');
+  });
+});

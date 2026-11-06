@@ -14,6 +14,7 @@ import { Receipt } from './Receipt';
 import { Sheet } from './Sheet';
 import { Steps } from './Steps';
 import { evidenceLabel } from './evidence';
+import { tookWords, useWaitingWords, workedWords } from './run-time';
 // W4 4F3: the scope line, a stop's note, the calls in flight and the steer box.
 import { LiveCalls, RunScope, RunStopNote, SteerBox } from './RunSheetControls';
 // W4 4G4: "3 things need you (1 of 3)" with jumps.
@@ -65,6 +66,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
   const [sending, setSending] = useState(false);
   const evidence = run.steps.flatMap((step) => step.evidence ?? []);
   const finished = run.state === 'done';
+  const waitingWords = useWaitingWords();
 
   async function send(text: string) {
     if (!onAnswer || !text.trim()) return;
@@ -94,9 +96,9 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
         <>
           {[
             // B2: under a second there is no elapsed, so no "Started 0s ago"; the pieces join with a dot between.
-            run.elapsed ? <span key="started">{t('run.started', { elapsed: run.elapsed })}</span> : null,
+            run.elapsed ? <span key="started">{workedWords(run, t, 'run.started')}</span> : null,
             run.stop ? <span key="stop" className={s.waiting}>{t(run.stop.state === 'stopping' ? 'work.stop.stopping' : run.interrupted ? 'work.stop.interrupted' : 'work.stop.chip')}</span>
-              : run.state === 'waiting' ? <span key="wait" className={s.waiting}>{t('run.waiting')}</span> : null,
+              : run.state === 'waiting' ? <span key="wait" className={s.waiting}>{waitingWords(run) ?? t('run.waiting')}</span> : null,
             // 4F3 (U6): how long runs of these steps usually take, only once the engine has measured three.
             run.usually ? <span key="usually">{run.usually}</span> : null,
           ].filter(Boolean).flatMap((piece, index) => (index ? [' · ', piece] : [piece]))}
@@ -111,7 +113,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       {finished ? (
         <div>
           <details className={s.fold} data-fold="worked">
-            <summary>{run.elapsed ? t('run.workedFor', { elapsed: run.elapsed }) : t('steps.list')}</summary>
+            <summary>{run.elapsed ? tookWords(run, t, 'run.workedFor') : t('steps.list')}</summary>
             <Steps steps={run.steps} showTools />
           </details>
           {result}

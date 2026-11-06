@@ -7,6 +7,7 @@ import { Icon } from '../../parts/Icon';
 import { ProgressRing } from '../../parts/ProgressRing';
 import { SectionHead, Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
+import { useWaitingWords, workedWords } from '../../parts/run-time';
 import type { QueueRow, RunDetail, RunSummary } from '../../engine/types';
 import { useRunDetails } from './PreviousRuns';
 import { RoundGate, gateRow } from './RoundGate';
@@ -29,6 +30,8 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
   const t = useT();
   const titleId = useId();
   const waiting = run.state === 'waiting';
+  const waitingWords = useWaitingWords();
+  const waited = waiting ? waitingWords(run) : undefined;
   // W4 4F3: Stop and its dialog; a run the engine says is stopping reads Stopping until it says stopped.
   const stop = useStopRun(run, detail, onChanged);
   const stopping = run.stop?.state === 'stopping';
@@ -69,7 +72,8 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
         <p className={s.runStep}><StillArc />{steps[at]!.purpose}</p>
       ) : null}
       <div className={s.runFoot}>
-        {run.elapsed ? <span>{t('work.run.foot', { elapsed: run.elapsed })}</span> : <span />}
+        {/* C4 task 12: a run waiting on the owner says how long it has waited; the time it worked leaves that out. */}
+        {waited ? <span className={s.wait}>{waited}</span> : run.elapsed ? <span>{workedWords(run, t, 'work.run.foot')}</span> : <span />}
         {stopping ? <span className={s.runActs}><span className={s.stopping}>{t('work.stop.stopping')}</span>{stop.button}</span> : (
           <span className={s.runActs}>
             {/* While the round gate waits, its own Stop decides the run: the tile's Stop steps aside. */}

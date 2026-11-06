@@ -250,6 +250,8 @@ export const RUNS: RunDetail[] = [
   {
     runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', elapsed: '4 min',
     progress: { done: 3, total: 3 }, result: 'Matched 212 of 214 lines. 2 need your data.', receiptId: 'R-0412',
+    // C4 task 12: the client the run worked for, as the engine's summary carries it.
+    client: { id: 'c-mehta', name: 'Mehta Traders' },
     // 4H2 (U17): Ledgerline's main tier is its own Sonnet key (fixtures-business.ts), and the call named it.
     writtenBy: 'Written by Claude Sonnet 5.5',
     steps: [

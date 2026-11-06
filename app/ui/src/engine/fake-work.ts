@@ -468,10 +468,13 @@ export class FakeWorkDesk {
     if(this.host.plan()?.playbook?.id==='social-agency')throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
     const social=this.r5Delivery.start(order,runId,p)??this.phoneDelivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p);
     if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
-    const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
+    const clientRecord = this.host.clients().find((c) => c.id === order.clientId);
+    const client = clientRecord?.name ?? 'the client';
     const at = this.host.now();
     runs.unshift({
       runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '',
+      // C4 task 12: as the engine's summary: since when it waits on the owner, and who it works for.
+      waitingSince: at, ...(clientRecord ? { client: { id: clientRecord.id, name: clientRecord.name } } : {}),
       progress: { done: 1, total: 2 },
       steps: [
         { id: 'write', purpose: 'Prepare the template outline', state: 'done' },

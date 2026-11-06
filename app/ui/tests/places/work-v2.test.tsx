@@ -302,7 +302,7 @@ describe('Work v2: finished', () => {
     const books = await tileOf('Matched September bank lines to invoices', finished);
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
+    expect(within(books).getByText('Took 4 min')).toBeTruthy();
     const reach = await tileOf('Estimated reach for episode 14', finished);
     // The model's words sit inside the estimate itself, so they read as labelled wherever they stand.
     const estimate = within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]') as HTMLElement | null;

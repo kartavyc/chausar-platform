@@ -217,7 +217,7 @@
   "work.failedRun.noReason": "This job failed.",
   "work.finished": "Finished",
   "work.finished.more": "All finished jobs",
-  "work.finished.took": "Worked for {elapsed}",
+  "work.finished.took": "Took {elapsed}",
   "work.orders.meta": "{count} open for {clients}",
   "work.orders.clients": "Open Clients",
   "work.client.since": "Client since {date}",

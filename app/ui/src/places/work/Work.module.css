@@ -956,3 +956,15 @@
   font-weight: var(--weight-strong);
   color: var(--fg2);
 }
+
+/* C4 task 12: the client in a Finished row's line, a quiet link to their sheet. */
+.rowClient {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rowClient:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
