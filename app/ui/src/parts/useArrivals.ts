@@ -5,6 +5,6 @@ import { motionOff } from './motion';
 export function useArrivals(keys: readonly string[] | undefined): ReadonlySet<string> {
   const known = useRef<ReadonlySet<string> | null>(null);
   const arriving = new Set(keys && known.current && !motionOff() ? keys.filter(key => !known.current!.has(key)) : []);
-  useEffect(() => { if (keys !== undefined) known.current = new Set(keys); });
+  useEffect(() => { known.current = keys === undefined ? null : new Set(keys); });
   return arriving;
 }
