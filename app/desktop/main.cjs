@@ -1,8 +1,12 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
+const { app, crashReporter, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
 const { readFile, writeFile } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
+// C5 task 25: this computer's own diagnostic files; before anything else, so an early problem is noted too.
+const { createDiagnostics, startMainGuard } = require('./diagnostics.cjs');
+const diagnostics = createDiagnostics({ folder: join(app.getPath('userData'), 'diagnostics'), fs: require('node:fs/promises') });
+startMainGuard({ process, crashReporter, dialog, app, diagnostics });
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const singleInstance = app.requestSingleInstanceLock();
@@ -327,6 +331,8 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
   ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  // C5 task 35: the brief for Lovable or Replit as a file: the engine makes it, the owner picks where.
+  ipcMain.handle('chausar:brief:saveFile', (event, input) => require('./brief-save.cjs').saveBriefFile(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
   ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();

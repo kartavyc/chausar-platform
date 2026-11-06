@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: unknown; userFiles?: Map<string, string> } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -22,11 +22,13 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   // A6: the app this computer has for whatsapp:// links ('' when none), as Electron reads it.
   app.getApplicationNameForProtocol = (protocol: string) => (protocol === 'whatsapp://' ? options.whatsapp ?? '' : '');
   const opened: string[] = [], openedPaths: string[] = [], shownItems: string[] = [];
+  // C5 task 25: the crash reporter, the process's own error events and the lines main.cjs writes (a stand-in file system).
+  const crashStarts: unknown[] = [], processHandlers = new Map<string, (error: unknown) => void>(), logged: { path: string; text: string }[] = [];
   const shell = { openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); }, openPath: async (path: string) => { openedPaths.push(path); return ''; }, showItemInFolder: (path: string) => { shownItems.push(path); } };
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
-    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; windows.push(this); }
+    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.sent = []; this.webContents.send = (channel: string, value: unknown) => { this.webContents.sent.push([channel, value]); }; windows.push(this); }
     urls: string[] = [];
     loadURL(url: string) { this.webContents.mainFrame.url = url; this.urls.push(url); }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
@@ -59,7 +61,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, shell, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -67,15 +69,16 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
     if (name === './money-export.cjs') return require('./money-export.cjs');
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}) }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+      appendFile: async (path: string, text: string) => { logged.push({ path: String(path), text }); }, stat: async () => { throw Object.assign(new Error('No file.'), { code: 'ENOENT' }); }, rename: async () => {},
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
     return require(name);
-  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: options.platform ?? 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
+  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: options.platform ?? 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe', on: (name: string, handler: (error: unknown) => void) => { processHandlers.set(name, handler); } }, console: { error() {} }, URL, Response, Buffer,
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, crashStarts, processHandlers, logged, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -532,4 +535,24 @@ test('A6: main answers the invoice share and show channels for the window of the
   const showRefused = await show(trusted, { name: '../secret.pdf' });
   assert.deepEqual([showRefused.ok, showRefused.error.code], [false, 'INVALID_REQUEST']);
   assert.deepEqual(d.shownItems, []);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 25: the main-process guard and local crash dumps.
+// ---------------------------------------------------------------------------
+
+/** The lines main.cjs wrote to one diagnostics file, as objects, without their time. */
+function linesOf(d: { logged: { path: string; text: string }[] }, name: string) {
+  return d.logged.filter(({ path }) => path.replace(/[\\]/g, '/').endsWith(`/diagnostics/${name}`)).map(({ text }) => { const { at: _at, ...line } = JSON.parse(text); return line; });
+}
+
+test('C5 task 25: crash dumps stay here, and an error nothing caught writes one line, shows one plain dialog and quits', async () => {
+  const d = await desktop([]);
+  assert.deepEqual(plain(d.crashStarts), [{ uploadToServer: false }], 'the reporter starts with no upload');
+  assert.deepEqual([...d.processHandlers.keys()].sort(), ['uncaughtException', 'unhandledRejection']);
+  d.processHandlers.get('uncaughtException')!(new TypeError('the file secret-marker.txt'));
+  await flush(); await flush();
+  assert.deepEqual(linesOf(d, 'main.jsonl'), [{ op: 'uncaught', name: 'TypeError' }]);
+  assert.deepEqual(d.errors, ['Chausar hit a problem and needs to close. Nothing was sent anywhere.']);
+  assert.equal(d.app.quits, 1);
 });
