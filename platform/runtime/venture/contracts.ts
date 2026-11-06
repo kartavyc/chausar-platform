@@ -1004,7 +1004,7 @@ export type InvoiceView = {
   /** One-shot C6: an issued invoice with nothing left to pay. */
   paidInFull?: boolean;
 };
-export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
+export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean; zero?: true };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
 export type BooksPeriodKey = 'all' | 'this-month' | 'last-month' | 'this-year';
 export type BooksPeriodChoice = { key: BooksPeriodKey; label: string; from: IsoDate; to: IsoDate };

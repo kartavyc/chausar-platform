@@ -44,7 +44,7 @@ export function Place() {
     <div className={s.page}>
       <PageTitle title={t('chats.title')} line={t('chats.line')} />
       <div className={s.layout} data-phone={phone ? '' : undefined}>
-        {showList && <ChatList threads={threads} selected={threadId} onNew={() => askChausar('')} />}
+        {showList && <ChatList threads={threads} selected={threadId} newDisabled={!threadId && showThread} onNew={() => askChausar('')} />}
         {showThread && <ChiefThread threadId={threadId} ask={ask} onAskTaken={() => setAsk(null)} onListChanged={threads.reload} phone={phone} />}
       </div>
     </div>
