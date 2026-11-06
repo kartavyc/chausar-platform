@@ -7,6 +7,9 @@ import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
 import { FilePick } from '../../parts/FilePick';
+import { useArrivals } from '../../parts/useArrivals';
+import { cx } from '../../parts/cx';
+import leave from '../../parts/Leave.module.css';
 
 /**
  * W6 6F2 (D31): playbook packs. A pack adds markdown skills, MCP server suggestions and pure calculators, never code
@@ -17,6 +20,7 @@ export function Packs() {
   const t = useT(), engine = useEngine();
   const [open, setOpen] = useState(false);
   const list = useResource('venture.packs.list', {}, { skip: !open, refreshOn: event => event.type === 'queue.changed' });
+  const arriving = useArrivals(list.data?.packs.map(pack => pack.id));
   const [preview, setPreview] = useState<{ pack: unknown; view: PackView; digest: string } | null>(null);
   const [busy, setBusy] = useState(false), [said, setSaid] = useState<{ error: boolean; text: string } | null>(null);
   async function act(work: () => Promise<void>) {
@@ -36,10 +40,7 @@ export function Packs() {
     <div className={s.group}>
       <p className={connections.note}>{t('connections.packs.note')}</p>
       {list.error && <p role="alert">{list.error.message}</p>}
-      {list.data && (list.data.packs.length ? <ul className={s.group}>{list.data.packs.map(pack => <li key={pack.id} className={s.group}>
-        <PackSummary pack={pack} />
-        <div className={s.actions}><Button type="button" locked={busy} onClick={() => void act(async () => { await engine.request('venture.packs.remove', { packId: pack.id }); list.reload(); })}>{t('connections.packs.remove')}</Button></div>
-      </li>)}</ul> : null)}
+      {list.data && (list.data.packs.length ? <ul className={s.group}>{list.data.packs.map(pack => <PackRow key={pack.id} pack={pack} arriving={arriving.has(pack.id)} busy={busy} onRemove={() => void act(async () => { await engine.request('venture.packs.remove', { packId: pack.id }); list.reload(); })} />)}</ul> : null)}
       <FilePick choose={t('connections.packs.choose')} accept=".json,application/json" disabled={busy} onChange={event => { choose(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
       {preview && <div className={s.group} aria-live="polite">
         <PackSummary pack={preview.view} />
@@ -63,4 +64,14 @@ function PackSummary({ pack }: { pack: PackView }) {
     {pack.calculators.map(calc => <span key={calc.id} className={connections.note} data-content>{calc.name}: {calc.about}</span>)}
     {pack.mcpServers.map(server => <span key={server.id} className={connections.note} data-content>{t('connections.packs.server', { name: server.name })}</span>)}
   </div>;
+}
+
+/** Keep the entry marker through the save's final status refresh; starting-style moves only the new DOM row. */
+function PackRow({ pack, arriving, busy, onRemove }: { pack: PackView; arriving: boolean; busy: boolean; onRemove(): void }) {
+  const t = useT();
+  const [entered] = useState(arriving);
+  return <li className={cx(s.group, entered && leave.arrive)} data-arriving={entered ? '' : undefined}>
+    <PackSummary pack={pack} />
+    <div className={s.actions}><Button type="button" locked={busy} onClick={onRemove}>{t('connections.packs.remove')}</Button></div>
+  </li>;
 }
