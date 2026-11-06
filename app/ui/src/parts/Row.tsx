@@ -4,6 +4,7 @@ import { Icon } from './Icon';
 import type { IconName } from './icons';
 import { PendingLink } from './Provenance';
 import s from './Row.module.css';
+import leave from './Leave.module.css';
 
 export interface RowProps {
   id: string;
@@ -31,6 +32,7 @@ export interface RowProps {
   /** The row's link has no address yet: a disabled "link not ready yet" sits with the actions (catalogue U17). */
   linkPending?: boolean | undefined;
   className?: string;
+  arriving?: boolean | undefined;
 }
 
 /**
@@ -38,11 +40,12 @@ export interface RowProps {
  * circle), the title and its sub line, then the aside, the buttons and the end time. The row itself is focusable (J
  * and K move between rows); its title is the button that opens it. Lists of rows are <ul> elements.
  */
-export function Row({ id, eyebrow, title, line, children, actions, onOpen, secondAsk, mark, aside, end, dense, linkPending, className }: RowProps) {
+export function Row({ id, eyebrow, title, line, children, actions, onOpen, secondAsk, mark, aside, end, dense, linkPending, className, arriving }: RowProps) {
   const titleId = useId();
   return (
     <li
-      className={cx(s.row, className)}
+      className={cx(s.row, className, arriving && leave.arrive)}
+      data-arriving={arriving ? '' : undefined}
       data-row=""
       data-row-id={id}
       data-second-ask={secondAsk ? '' : undefined}

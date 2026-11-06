@@ -125,9 +125,13 @@ describe('5. Team and Work agree on a waiting run', () => {
 });
 
 describe('6. Network: the sources add up to more than the people, because one person is counted once', () => {
-  it('the line says each person counts once across files; each source says its count once, in the engine\'s line', async () => {
+  it('the tab keeps the unique people count; each source says its own count once, and the privacy fold explains access', async () => {
     start('#/clients/network');
-    expect((await screen.findByText(/people from your own files, each counted once\. Only you can search them\./)).textContent).toBe('9 people from your own files, each counted once. Only you can search them.');
+    const network = await screen.findByRole('link', { name: 'Network 9' });
+    expect(network.querySelector('[data-count]')?.textContent).toBe('9');
+    const privacy = await screen.findByRole('region', { name: 'Private to you' });
+    await act(async () => { fireEvent.click(within(privacy).getByText('What Chausar keeps', { selector: 'summary' })); });
+    expect(within(privacy).getByText(/No one else can search your network, and nothing is shared or posted/)).toBeTruthy();
     const tile = (await screen.findByRole('heading', { level: 2, name: 'Where your network comes from' })).closest('section') as HTMLElement;
     await waitFor(() => expect(within(tile).getByText('6 people, imported 21 Oct 2026.')).toBeTruthy());
     expect(tile.textContent).not.toMatch(/people kept/);

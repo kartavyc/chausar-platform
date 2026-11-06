@@ -18,7 +18,7 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
-import { Confirm } from '../../parts/Confirm';
+import { Confirm, ConfirmSlot } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
@@ -105,7 +105,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
 
   let body;
   if (!current) {
-    body = view.error ? <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p> : <p className={s.quietLine}>{t('money.loading')}</p>;
+    body = view.error ? <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p> : null;
   } else if (phase === 'done' && recorded) {
     body = (
       <>
@@ -162,12 +162,11 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
             ))}
             {list.data && others.length === 0 && <p className={s.quietLine}>{t('money.payment.splitNone')}</p>}
           </Fold>
-          {phase === 'form' && (
+          <ConfirmSlot asking={phase !== 'form'}>{phase === 'form' && (
             <div className={s.buttons}>
               <Button variant="primary" type="submit" disabledReason={missing}>{t('money.payment.record')}</Button>
             </div>
           )}
-        </form>
         {(phase === 'confirm' || phase === 'sending') && (
           <div className={s.block}><Confirm action={t('money.payment.confirm')} busy={phase === 'sending'} onCancel={() => setPhase('form')} onConfirm={() => void record(current)}>
             <p>{split ? t('money.payment.splitAsk', { amount: typedWords(amount, currency), date: day(receivedOn), method: t(`money.method.${method}`), count: String(allocations.length) }) : t('money.payment.ask', { amount: typedWords(amount, currency), date: day(receivedOn), method: t(`money.method.${method}`) })}</p>
@@ -180,6 +179,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
             {!split && india && tdsSection.trim() !== '' && tdsAmount.trim() !== '' && <p>{t('money.payment.tdsAsk', { amount: typedWords(tdsAmount, currency), section: tdsSection.trim() })}</p>}
           </Confirm></div>
         )}
+          </ConfirmSlot>
+        </form>
         {refusal && <p className={s.refusal} role="status" data-engine-line="">{refusal}</p>}
       </>
     );
@@ -187,6 +188,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
 
   return (
     <Sheet
+      loading={!current && !view.error}
       label={t('money.payment.label')}
       eyebrow={current ? invoiceTitle(t, current.invoice, current.client.name) : undefined}
       title={t(phase === 'done' ? 'money.payment.recorded' : 'money.payment.title')}

@@ -28,7 +28,7 @@ describe('Money w4: AI spend by department', () => {
     const tile = await spendTile();
     const bar = await within(tile).findByRole('img', { name: /^AI spend this month by department/ });
     expect([...bar.querySelectorAll('rect[data-dept]')].map((rect) => [rect.getAttribute('data-dept'), rect.getAttribute('width')]))
-      .toEqual([['mkt', '299'], ['prod', '632'], ['shared', '68']]);
+      .toEqual([['sales', '0'], ['money', '0'], ['ops', '0'], ['mkt', '299'], ['prod', '632'], ['shared', '68']]);
     const legend = [...tile.querySelectorAll('li[data-dept]')].map((row) => row.textContent);
     // The engine's amounts, led as the engine says (4Z3: rupees for a business in India with a rate); a part with no
     // share is left out of the legend.

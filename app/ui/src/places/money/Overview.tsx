@@ -40,7 +40,7 @@ import { LayoutNotice } from '../../parts/layout/LayoutNotice';
 import ls from '../../parts/layout/Layout.module.css';
 import v from './MoneyViews.module.css';
 import { Fold } from '../../parts/Fold';
-import { LoadingPlace } from '../../parts/Skeleton';
+import { LoadingPlace, useArrived } from '../../parts/Skeleton';
 
 /** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
 const onOverview = (event: VentureRunEvent) => onMoney(event) || onRuns(event);
@@ -64,6 +64,8 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const overview = useResource('venture.money.overview', {}, { refreshOn: onOverview });
   const layout = useLayout('money');
   const books = useResource('venture.books.summary', { period: month === thisMonth ? 'this-month' : month }, { refreshOn: onMoney });
+  const loading = !overview.data && !books.data && !overview.error && !books.error;
+  const arrived = useArrived(loading);
   const line = (id: MoneyOverviewLine['id']) => overview.data?.lines.find((item) => item.id === id);
   const billed = books.data?.figures.find((figure) => figure.operation === 'billed');
   const open = books.data ? byDue(books.data.openInvoices) : undefined;
@@ -100,12 +102,12 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const anyFold = [2, 3].some((index) => drawn[index]?.shown && (drawn[index]!.id === 'flow' ? hasFlow : hasDue));
 
   return (
-    <section className={`${s.overview} ${v.page}`} aria-label={t('money.sub.overview')}>
+    <section className={`${s.overview} ${v.page}`} aria-label={t('money.sub.overview')} data-arrived={arrived ? '' : undefined}>
       <LayoutNotice layout={layout.data} reload={layout.reload} />
       {overview.error && <Failed error={overview.error} />}
       {books.error && <Failed error={books.error} />}
       {views.failed && <Failed error={views.failed} />}
-      <LoadingPlace shape="tiles" loading={!overview.data && !books.data && !overview.error && !books.error} />
+      <LoadingPlace shape="tiles" loading={loading} />
       {emptyMonth && <EmptyState title={t('money.empty')} actions={[{ label: t('money.firstInvoice'), href: '#/money/invoices' }]} />}
       {!emptyMonth && <>
       {slot(0, () => (
