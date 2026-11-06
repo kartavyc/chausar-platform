@@ -16,7 +16,7 @@ if (mode.length !== 1 || !['--write', '--check'].includes(mode[0])) {
 const { ENV, NOT_ENV } = await import(pathToFileURL(join(root, 'platform', 'runtime', 'config', 'env.ts')).href);
 
 /** Where source may read a variable. Tests, fixtures and the generated files are not source. */
-const AREAS = ['platform/runtime', 'app/desktop', 'app/ui/src', 'scripts', '.github/workflows'];
+const AREAS = ['platform', 'app', 'scripts', '.github/workflows', 'containers', 'runtime-binaries'];
 const SKIP_FILES = new Set(['platform/runtime/config/env.ts', 'scripts/env-docs.mjs']);
 const SOURCE = /\.(?:ts|tsx|mts|cts|mjs|cjs|js|jsx|ya?ml)$/;
 
