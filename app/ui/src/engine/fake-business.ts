@@ -44,6 +44,10 @@ export interface DeskHost {
   business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made'; passphrase?: string | undefined } | null;
   /** Whether this computer's protected storage can keep a business key. */
   deviceKeys(): boolean;
+  /** C5 task 19: how big the open business is. */
+  storeBytes?(): number;
+  /** C5 task 20: what the owner last decided. */
+  lastDecided?(): string | null;
   /** 4H2: whether this answers as the hosted web server. */
   hosted?(): boolean;
   /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
@@ -59,6 +63,7 @@ const DESK_METHODS = new Set([
   'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
   'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.export',
+  'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
   'trust.update',
 ]);
 /** The engine's move file format, in the sample. The real file is the encrypted vault, sealed under the move code. */
@@ -226,6 +231,9 @@ export class FakeBusinessDesk {
       case 'workspace.backups.list': return { backups: clone(this.backupsOf(biz)), more: false };
       case 'workspace.backups.create': return clone(this.addBackup(biz, 'manual'));
       case 'workspace.backups.restore': return this.restoreBackup(biz, p);
+      // C5 task 24: the rehearsal has no Google client, as a build has none until the founder registers one.
+      case 'workspace.backups.drive.status': case 'workspace.backups.drive.connect': case 'workspace.backups.drive.disconnect':
+        throw new EngineError('DRIVE_NOT_SET_UP', "Google Drive needs Chausar's Google sign-in set up first. Until then, pick your Google Drive folder under Keep a copy on a drive.");
       case 'trust.update': {
         // trust.ts updatePolicy: only known fields, and send is one of three.
         if (Object.keys(p).some((key) => key !== 'send') || !['nothing', 'shape', 'samples'].includes(p.send as string)) throw new EngineError('INVALID_POLICY', 'Choose nothing, shape, or samples.');
@@ -396,7 +404,7 @@ export class FakeBusinessDesk {
     // C5 task 13 (core/blueprint.ts applyTaxPatch, core/tax-fields.ts): I charge GST, its rate and the GSTIN.
     if (patch.taxRegistered !== undefined) {
       if (typeof patch.taxRegistered !== 'boolean') throw invalid('Say yes or no to charging tax.');
-      next.backOffice.taxRegistered = told(patch.taxRegistered) as typeof next.backOffice.taxRegistered;
+      next.backOffice.taxRegistered = { value: patch.taxRegistered, label: 'told-by-you', by: 'owner' };
       if (!patch.taxRegistered) { next.backOffice.taxRateBps = '0'; next.backOffice.taxRateBy = 'not-registered'; }
     }
     if (patch.taxRate !== undefined) {
@@ -599,7 +607,7 @@ export class FakeBusinessDesk {
   }
 
   private addBackup(biz: string, kind: BackupLite['kind']): BackupLite {
-    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true };
+    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true, ...(this.host.lastDecided?.() ? { after: this.host.lastDecided!()! } : {}) };
     this.backupsOf(biz).unshift(backup);
     return backup;
   }
@@ -640,7 +648,8 @@ export class FakeBusinessDesk {
       computer,
       business: {
         folder: biz, unlock: held.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', recovery: held.recovery, storage: 'experimental-file',
-        backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null },
+        backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null, copy: null },
+        storeBytes: this.host.storeBytes?.() ?? 4_300_000, storeLimit: 32 * 1024 * 1024,
       },
     };
   }

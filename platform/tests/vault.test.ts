@@ -319,3 +319,14 @@ test('replaceFromBackup: the state equals the backup, the revision goes up, anot
   const reopened = await Vault.open({ directory: join(directory, 'live'), storage: 'experimental-file', passphrase: password });
   assert.equal(reopened.read().revision, before + 1); await reopened.close();
 });
+
+// C5 task 19: the store-size meter reads what the last save sealed, and after an open works it out once.
+test('storeBytes equals the JSON length of the state, after a commit and after reopening', async t => {
+  const directory = await fixture(t), { vault } = await Vault.create({ ...options(directory), name: 'Meter' });
+  await vault.update(state => { state.activity.push({ message: 'some more bytes' }); });
+  assert.equal(vault.storeBytes(), Buffer.byteLength(JSON.stringify(vault.read())));
+  await vault.close();
+  const opened = await Vault.open(options(directory));
+  t.after(() => opened.close());
+  assert.equal(opened.storeBytes(), Buffer.byteLength(JSON.stringify(opened.read())));
+});

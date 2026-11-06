@@ -59,3 +59,9 @@ export function useDayKey(): (value: When) => string {
 export function useOwnerHour(): number {
   return hourIn(useClock()(), useOwnerZone());
 }
+
+/** C5 task 19: bytes as the owner reads them: "4.1 MB", "23 MB". One decimal below ten, none from there. */
+export function formatBytes(bytes: number): string {
+  const megabytes = bytes / (1024 * 1024);
+  return `${megabytes < 10 ? Math.round(megabytes * 10) / 10 : Math.round(megabytes)} MB`;
+}
