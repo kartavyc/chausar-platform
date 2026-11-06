@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+import { RENDERER_METHODS } from '../runtime/method-registry.ts';
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
 // Ink v2 wave 1 (H3, H21): settling an outside action whose outcome is unknown, from inside the app. The owner looks
 // and says what they found: venture.journal.resolve { entryId, outcome: 'sent' | 'not-sent', note? } records it on the
 // journal entry, a post or a website edit that needs inspection. Nothing is sent or run again. Every proposed outside
@@ -279,14 +282,15 @@ test('venture.journal.resolve is an app-only views method registered everywhere 
   assert.ok((APP_ONLY_METHODS as readonly string[]).includes('venture.journal.resolve'));
   assert.equal(typeof views['venture.journal.resolve'], 'function');
   for (const error of ['JOURNAL_NOT_UNKNOWN', 'MODEL_OUTCOME_UNKNOWN']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(error), error);
-  const ipc = await readFile(new URL('../../app/desktop/ipc-contract.cjs', import.meta.url), 'utf8');
+  const { METHODS: ipc } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
   const types = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');
-  const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+
   const ui = await readFile(new URL('../../app/ui/src/engine/types.ts', import.meta.url), 'utf8');
-  assert.ok(ipc.includes("'venture.journal.resolve'"), 'ipc allowlist');
+  assert.ok(ipc.includes('venture.journal.resolve'), 'ipc allowlist');
   assert.ok(types.includes('"venture.journal.resolve"'), 'ipc types');
-  assert.ok(engine.includes("case 'venture.journal.resolve':"), 'engine routing');
-  assert.ok(ui.includes("'venture.journal.resolve'"), 'ui types');
+  assert.equal(typeof ENGINE_HANDLERS['venture.journal.resolve'], 'function', 'engine routing');
+  assert.match(ui, /\[M in keyof VenturePayloads\]/, 'UI methods are mapped from the canonical payload contract');
+  assert.ok(RENDERER_METHODS.includes('venture.journal.resolve'), 'the renderer registry grants the mapped UI request');
 });
 
 test('every line the settlement writes keeps the house style', async () => {

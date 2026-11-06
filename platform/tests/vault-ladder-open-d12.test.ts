@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Vault } from '../runtime/vault.ts';
@@ -105,7 +105,8 @@ test('a step that throws answers DATA_MIGRATION_FAILED and leaves the file uncha
 });
 
 test('no host passes test steps: migrationSteps is for tests only', async () => {
-  for (const file of ['worker.ts', 'server.ts', 'hosted/server.ts', 'engine.ts']) {
+  const areas = (await readdir(new URL('../runtime/engine/', import.meta.url))).filter(file => file.endsWith('.ts')).map(file => `engine/${file}`);
+  for (const file of ['worker.ts', 'server.ts', 'hosted/server.ts', 'engine.ts', ...areas]) {
     assert.doesNotMatch(await readFile(new URL(`../runtime/${file}`, import.meta.url), 'utf8'), /migrationSteps/, file);
   }
 });
