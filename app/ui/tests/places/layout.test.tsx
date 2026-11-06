@@ -129,6 +129,7 @@ describe('the Arrange sheet', () => {
     await settle();
     expect(calls(spy, 'venture.layout.change')).toEqual([{ place: 'today', change: { op: 'hide', block: 'ideas' } }]);
     const line = within(sheet).getByRole('status', { name: 'Layout change' });
+    expect(ideas.contains(line)).toBe(true);
     expect(line.textContent).toContain('You hid Ideas.');
     await waitFor(() => expect(blocks()).not.toContain('ideas'));
     await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Undo' })); });
