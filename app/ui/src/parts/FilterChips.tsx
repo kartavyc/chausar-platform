@@ -1,5 +1,8 @@
-import { Fragment, startTransition, useEffect, useRef } from 'react';
+import { startTransition, useEffect, useRef } from 'react';
 import { useT } from '../text';
+import { useFlip } from './flip';
+import { motionOff } from './motion';
+import { useLeavingList, useLeaveEnd } from './useLeaving';
 import { initialsOf } from './Avatar';
 import { DeptDot } from './Chip';
 import { cx } from './cx';
@@ -43,6 +46,7 @@ export interface FilterChipsProps {
 }
 
 const ALL = 'all';
+const optionKey = (option: FilterOption) => option.id;
 const isZero = (option: FilterOption) => option.count !== undefined && Number(option.count) === 0;
 
 /**
@@ -66,27 +70,45 @@ function worthDrawing(options: readonly FilterOption[], value: string, minItems:
  * the pressed chip is brought into view sideways when the row first shows it.
  */
 export function FilterChips({ label, options, value, onChange, scroll = false, minItems = 0, drawCounts = true, className }: FilterChipsProps) {
-  const t = useT();
-  const row = useRef<HTMLDivElement>(null);
+  const shown = worthDrawing(options, value, minItems);
+  const { drawn, left } = useLeavingList(shown, optionKey);
+  const row = useFlip<HTMLDivElement>(drawn.map(item => item.key).join('|'));
   // One-shot C3 task 15: the same sliding pill as the tabs.
   const pill = useSlidingPill(value);
   useEffect(() => {
     const pressed = row.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (row.current && pressed) revealInRow(row.current, pressed);
   }, [value]);
-  const shown = worthDrawing(options, value, minItems);
-  if (shown.length === 0) return null;
+  if (drawn.length === 0) return null;
   return (
     <div ref={row} className={cx(s.chips, className)} role="group" aria-label={label} data-scroll={scroll ? '' : undefined}>
       <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
-      {shown.map((option) => (
-        <Fragment key={option.id}>
-          {option.separatorBefore && <span className={s.separator} data-separator="" aria-hidden="true" />}
+      {drawn.map(item => <Choice key={item.key} option={item.item} value={value} onChange={onChange} drawCounts={drawCounts} leaving={item.leaving} arriving={item.arriving} done={() => left(item.key)} />)}
+    </div>
+  );
+}
+
+function Choice({ option, value, onChange, drawCounts, leaving, arriving, done }: {
+  option: FilterOption; value: string; onChange: (id: string) => void; drawCounts: boolean;
+  leaving: boolean; arriving: boolean; done: () => void;
+}) {
+  const t = useT();
+  const ref = useRef<HTMLButtonElement>(null);
+  useLeaveEnd(ref, leaving, done);
+  return (
+        <>
+          {!leaving && option.separatorBefore && <span className={s.separator} data-separator="" aria-hidden="true" />}
           <button
+            ref={ref}
             type="button"
             className={s.chip}
-            aria-pressed={option.id === value}
-            onClick={() => startTransition(() => onChange(option.id))}
+            aria-pressed={!leaving && option.id === value}
+            data-flip-id={option.id}
+            data-leaving={leaving ? '' : undefined}
+            data-arriving={arriving && !motionOff() ? '' : undefined}
+            inert={leaving}
+            aria-hidden={leaving || undefined}
+            onClick={() => { if (!leaving) startTransition(() => onChange(option.id)); }}
           >
             {option.locked ? (
               <Icon name="lock" size={14} />
@@ -108,8 +130,7 @@ export function FilterChips({ label, options, value, onChange, scroll = false, m
               </>
             )}
           </button>
-        </Fragment>
-      ))}
-    </div>
+        </>
+
   );
 }

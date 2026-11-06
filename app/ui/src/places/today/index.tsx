@@ -51,13 +51,18 @@ import { FeedbackQuestion } from '../../parts/FeedbackQuestion';
 import { RUN_EVENTS, agentStateOf, runStateOf, useRunDetails } from './runs';
 import s from './Today.module.css';
 // W6 6H3 (D40): the page's layout as data, the AI's changes with Undo and Keep, and the Arrange sheet.
-import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
+import { drawnBlocks, useLayout, type DrawnBlock } from '../../parts/layout/useLayout';
+import { MovingBlock } from '../../parts/layout/MovingBlock';
+import { useLeavingList } from '../../parts/useLeaving';
 import { LayoutNotice } from '../../parts/layout/LayoutNotice';
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
 import { LayoutSheet } from '../../parts/layout/LayoutSheet';
 import ls from '../../parts/layout/Layout.module.css';
 // W6 6H1 (D39): the mini apps the owner pinned to Today (nothing when none is pinned).
 import { PinnedApps } from '../apps';
+
+const blockKey = (block: DrawnBlock) => block.id;
+const FIXED_BLOCKS = new Set(['greeting', 'notices', 'goal', 'needs']);
 
 /** The team list changes with a posture or gate change, which the engine says with a queue change; the agents' states
  *  come from the runs, read on their own. */
@@ -393,8 +398,10 @@ function PlaceBody() {
   // W6 6H3 (D40): the page's blocks in the owner's layout. Approvals, the greeting's count, notices and the goal keep
   // their slots; the other blocks fill the remaining slots in the owner's order. Until the layout comes, the library's.
   const drawn = drawnBlocks('today', layout.data);
+  const moving = useLeavingList(drawn.filter(block => block.shown && !FIXED_BLOCKS.has(block.id)), blockKey);
+  const held = new Map(moving.drawn.map(row => [row.key, row]));
   const nameOf = (id: string) => drawn.find((block) => block.id === id)?.name;
-  const shown = (index: number) => Boolean(drawn[index]?.shown);
+  const shown = (index: number) => Boolean(drawn[index] && (drawn[index]!.shown || held.has(drawn[index]!.id)));
   const blockContent: Readonly<Record<string, () => ReactNode>> = {
     greeting: () => (
       <Greeting
@@ -430,10 +437,13 @@ function PlaceBody() {
     // W6 6H1 (D39): the mini apps the owner pinned to Today, a block of the layout (6H3) like the others.
     apps: () => <PinnedApps />,
   };
-  /** The block in slot `index`, in a wrapper that adds no box, or nothing when the owner's layout hides it. */
+  /** Fixed blocks keep their existing geometry; optional blocks retain their slot through a close. */
   const slot = (index: number) => {
     const block = drawn[index];
-    if (!block?.shown) return null;
+    if (!block) return null;
+    const row = held.get(block.id);
+    if (row) return <MovingBlock key={block.id} row={row} left={moving.left}>{blockContent[block.id]?.()}</MovingBlock>;
+    if (!block.shown) return null;
     return <div key={block.id} className={ls.block} data-block={block.id}>{blockContent[block.id]?.()}</div>;
   };
 
