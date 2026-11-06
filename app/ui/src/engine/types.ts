@@ -206,7 +206,16 @@ export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | '
   | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
   | 'chain.changed' | 'desk.changed' | 'idea.changed' | 'privacy.forgotten';
 /** seq: the event's place in the business's log, for replay after a reconnect (4G1); count: on notify.new only. */
-export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
+export interface VentureRunEvent {
+  type: VentureRunEventType | 'work.step'; businessId: string; runId?: string; at: string; seq?: number; count?: number;
+  /** One-shot C3 task 10: on a `work.step` frame alone (no seq, never in the log): which job, which step, how it stands. */
+  workId?: string; kind?: WorkKindLite; step?: string; state?: WorkStepStateLite; passed?: boolean;
+}
+/** Which long work (platform/runtime/venture/views/work-steps.ts). */
+export type WorkKindLite = 'about' | 'ai-tools' | 'rehearse' | 'improve' | 'brief' | 'goal-suggest' | 'drills' | 'restore' | 'move-in' | 'import';
+export type WorkStepStateLite = 'waiting' | 'current' | 'done' | 'failed';
+/** A live job (platform/runtime/work-progress.ts WorkJobView). */
+export interface WorkJobLite { workId: string; kind: WorkKindLite; startedAt: string; steps: { id: string; state: WorkStepStateLite; passed?: boolean }[] }
 // phase 2 views
 /**
  * `reason`: the engine's words for why a call was refused (no price, over the monthly limit, waiting for approval).
@@ -2023,6 +2032,7 @@ export interface EngineMethods {
   'workspace.custody.get': { params: Record<string, never>; result: CustodyViewLite };
   // One-shot C3: the app's own preferences on this computer (platform/runtime/app-preferences.ts), before any business.
   'app.preferences.get': { params: Record<string, never>; result: AppPreferencesLite };
+  'venture.work.list': { params: Record<string, never>; result: { work: WorkJobLite[] } };
   'app.preferences.set': { params: Partial<AppPreferencesLite>; result: AppPreferencesLite };
   'workspace.custody.recoveryCode': { params: { passphrase?: string }; result: { custody: CustodyViewLite; recoveryCode: string } };
   'workspace.custody.passphraseOn': { params: { passphrase: string }; result: { custody: CustodyViewLite; recoveryCode: string | null } };

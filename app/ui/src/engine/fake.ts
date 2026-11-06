@@ -6,6 +6,7 @@ import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
 import { FakePreferences, PREFERENCE_METHODS } from './fake-preferences';
+import { FakeWorkProgress } from './fake-work-progress';
 import {withSellerCards} from './fake-seller-cards';
 import {percentBps} from '../../../../platform/runtime/venture/money/rate-core';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
@@ -25,7 +26,7 @@ import { createStatusStore } from './client';
 import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
 import { FakeFirstRun, FIRST_RUN_METHODS, type AboutCallLite } from './fake-first-run';
-import type { ModelStatusLite, MotionPreferenceLite } from './types';
+import type { ModelStatusLite, MotionPreferenceLite, WorkKindLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
@@ -134,6 +135,8 @@ export interface FakeOptions {
    * client has getBackground and setBackground. `?installed` in the dev page's address (a computer not asked yet).
    */
   background?: FakeBackgroundStart;
+  /** One-shot C3 task 9: how long each step of long work takes here; the fake's latency if left out. */
+  workDelayMs?: number;
   /** One-shot C3: the app's animations preference on this computer at start (fake-preferences.ts); 'system' if left out. */
   motion?: MotionPreferenceLite;
 }
@@ -142,6 +145,11 @@ export interface FakeOptions {
 interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made'; passphrase?: string | undefined }
 interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number; launchStage?: string }
 /** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
+/** The long methods and the job each is (platform/runtime/work-progress.ts). */
+const FAKE_WORK: Readonly<Record<string, WorkKindLite>> = {
+  'venture.about.read': 'about', 'venture.ai.tools': 'ai-tools', 'venture.simulation.run': 'rehearse', 'venture.improve.run': 'improve', 'venture.build.brief': 'brief',
+  'venture.goals.suggest': 'goal-suggest', 'venture.drills.run': 'drills', 'workspace.backups.restore': 'restore', 'workspace.transfer.import': 'move-in', 'venture.network.import': 'import',
+};
 const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
   'venture.country.suggest',
@@ -198,6 +206,9 @@ export class FakeEngine {
     countries: COUNTRIES,
     classify,
   });
+  /** One-shot C3 task 9: the long methods' steps, and the ones running now (a job's own answer comes through request). */
+  private readonly workSteps: FakeWorkProgress;
+  private readonly inWork = new Set<string>();
   /** One-shot C3: the app's own preferences, before any business (app.preferences.*). */
   private preferences = new FakePreferences();
   private readonly packs = new FakePacks({ current: () => this.current, exists: () => this.ventures.has(this.current), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
@@ -297,6 +308,7 @@ export class FakeEngine {
     this.clients = clone(CLIENTS);
     this.evidence = clone(EVIDENCE);
     this.latencyMs = options.latencyMs ?? 0;
+    this.workSteps = new FakeWorkProgress((event) => this.emit(event), () => this.now(), () => (this.open ? this.current : ''), options.workDelayMs ?? this.latencyMs);
     // `?motion-off` in the dev page's address: the owner turned animations off (the walk's --motion=off).
     this.preferences = new FakePreferences(options.motion ?? (devAsks('motion-off') ? 'off' : 'system'));
     this.now = options.now ?? (() => new Date().toISOString());
@@ -527,10 +539,28 @@ export class FakeEngine {
     return clone(next);
   }
 
+  /** A long method as a job: its answer first (a refusal shows no steps), then its steps, as frames and on the list. */
+  private longWork(method: string, params: unknown, kind: WorkKindLite): Promise<unknown> {
+    const answer = () => {
+      this.inWork.add(method);
+      return this.request(method, params).finally(() => this.inWork.delete(method));
+    };
+    if (kind === 'rehearse') {
+      const scenarios = this.practice.handles('venture.simulation.scenarios') ? this.practice.request('venture.simulation.scenarios', {}) as { id: string; source: string }[] : [];
+      const ids = scenarios.filter((scenario) => scenario.source === 'template').map((scenario) => scenario.id);
+      return this.workSteps.run(kind, ids, answer, (run, step) => (run as { episodes?: { scenarioId: string; passed: boolean }[] }).episodes?.filter((episode) => episode.scenarioId === step).every((episode) => episode.passed) ?? true);
+    }
+    return this.workSteps.run(kind, kind === 'ai-tools' ? ['claude-code', 'codex'] : null, answer);
+  }
+
   async request(method: string, params: unknown = {}): Promise<unknown> {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
     if (PREFERENCE_METHODS.has(method)) return this.preferences.request(method, p);
+    // One-shot C3 task 9: which step long work is on, as the engine says it.
+    if (method === 'venture.work.list') return this.workSteps.list();
+    const job = FAKE_WORK[method];
+    if (job && !this.inWork.has(method)) return this.longWork(method, params, job);
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
