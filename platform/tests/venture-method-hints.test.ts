@@ -6,7 +6,7 @@ import { VENTURE_METHODS as REGISTRY_VENTURE_METHODS, PRE_VAULT_METHODS as REGIS
 // with the pinned counts, and that every read-level method is readOnly and every readOnly method is a read.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { RENDERER_METHOD_NAMES as UI_METHODS } from '../../app/ui/src/engine/methods.gen.ts';
 import { createRequire } from 'node:module';
 import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contract-values.ts';
 import { METHOD_HINTS, METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
@@ -16,9 +16,6 @@ import type { Context } from '../runtime/contracts.ts';
 import { seedBlueprint, setup } from './venture-views-env.ts';
 
 const { METHODS: IPC_METHODS } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs') as { METHODS: readonly string[] };
-const types = readFileSync(new URL('../../app/ui/src/engine/types.ts', import.meta.url), 'utf8');
-const block = types.slice(types.indexOf('export interface EngineMethods'), types.indexOf('export type MethodName'));
-const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(match => match[1]!);
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
@@ -115,3 +112,4 @@ test('the levels hold through the host: a viewer is never refused a read, and wh
   }
   assert.deepEqual(wrong, []);
 });
+
