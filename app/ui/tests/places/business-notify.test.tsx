@@ -70,7 +70,7 @@ describe('Business > Notifications on this computer', () => {
     const summary = await within(reach).findByText('Get alerts on your phone', { selector: 'summary' });
     const fold = summary.closest('details') as HTMLDetailsElement;
     await waitFor(() => expect(fold.open).toBe(true));
-    expect([...reach.querySelectorAll('summary')].map((item) => item.textContent)).toEqual(['Get alerts on your phone', 'Type the chat id yourself']);
+    expect([...reach.querySelectorAll('summary')].map((item) => item.textContent)).toEqual(['Advanced', 'Get alerts on your phone', 'Type the chat id yourself']);
     expect(reach.querySelectorAll('a')).toHaveLength(0);
     const headings = await within(fold).findAllByRole('heading');
     expect(headings.map((item) => item.textContent)).toEqual(['Telegram alerts', 'Phone access']);
@@ -96,7 +96,9 @@ describe('Business > Notifications on this computer', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
-    await screen.findByText('The tray shows how many things need you. Quiet hours: 10:00 pm to 7:00 am. Daily summary at 8:00 am.');
+    expect((await screen.findByLabelText('From') as HTMLInputElement).value).toBe('22:00');
+    expect((screen.getByLabelText('To') as HTMLInputElement).value).toBe('07:00');
+    expect((screen.getByLabelText('Daily summary') as HTMLSelectElement).value).toBe('8');
     const reach = await region('How alerts reach you');
     await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     expect(within(reach).queryByRole('button', { name: 'Turn on phone alerts' })).toBeNull();
@@ -109,7 +111,8 @@ describe('Business > Notifications on this computer', () => {
     const reach = await region('How alerts reach you');
     fireEvent.click(await within(reach).findByRole('checkbox', { name: 'Show the count in the tray' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ tray: false }));
-    await screen.findByText(/^The tray count is off\. The bell still lists everything\./);
+    await waitFor(() => expect((within(reach).getByRole('checkbox', { name: 'Show the count in the tray' }) as HTMLInputElement).checked).toBe(false));
+    await act(async () => { fireEvent.click(within(reach).getByText('Advanced', { selector: 'summary' })); });
     await within(reach).findByText('No relay is set. The tray on this computer shows the count.');
     fireEvent.change(within(reach).getByLabelText('Your relay address'), { target: { value: 'http://ntfy.sh/my-topic' } });
     fireEvent.click(within(reach).getByRole('button', { name: 'Save relay' }));
@@ -133,13 +136,17 @@ describe('Business > Notifications on this computer', () => {
     fireEvent.change(within(quiet).getByLabelText('Daily summary'), { target: { value: '9' } });
     fireEvent.click(within(quiet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ quietHours: { from: '21:30', to: '07:00' }, digest: { hour: 9 } }));
-    await screen.findByText(/Quiet hours: 9:30 pm to 7:00 am\. Daily summary at 9:00 am\.$/);
+    await within(quiet).findByText('Saved.');
+    expect((within(quiet).getByLabelText('From') as HTMLInputElement).value).toBe('21:30');
+    expect((within(quiet).getByLabelText('Daily summary') as HTMLSelectElement).value).toBe('9');
     fireEvent.click(within(quiet).getByRole('checkbox', { name: 'Quiet hours' }));
     expect(within(quiet).queryByLabelText('From')).toBeNull();
     fireEvent.change(within(quiet).getByLabelText('Daily summary'), { target: { value: 'off' } });
     fireEvent.click(within(quiet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ quietHours: null, digest: null }));
-    await screen.findByText(/No quiet hours\. No daily summary\.$/);
+    await within(quiet).findByText('Saved.');
+    expect((within(quiet).getByLabelText('Daily summary') as HTMLSelectElement).value).toBe('off');
+    expect((within(quiet).getByRole('checkbox', { name: 'Quiet hours' }) as HTMLInputElement).checked).toBe(false);
   });
 
   it('pauses until a date at most 30 days ahead, and resumes', async () => {
@@ -153,7 +160,7 @@ describe('Business > Notifications on this computer', () => {
     await waitFor(() => expect(said(calls, 'venture.notify.settings').some((p) => typeof (p as { pausedUntil?: unknown }).pausedUntil === 'string')).toBe(true));
     const sent = said(calls, 'venture.notify.settings').find((p) => typeof (p as { pausedUntil?: unknown }).pausedUntil === 'string') as { pausedUntil: string };
     expect(sent.pausedUntil.startsWith('2026-10-29T') || sent.pausedUntil.startsWith('2026-10-30T')).toBe(true);
-    await screen.findByText(/^Alerts outside the app are paused until 30 Oct 2026/);
+    await within(quiet).findByText('Alerts paused until 30 Oct 2026');
     fireEvent.click(await within(quiet).findByRole('button', { name: 'Resume alerts now' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ pausedUntil: null }));
     await within(quiet).findByLabelText('Pause alerts until');
@@ -222,7 +229,7 @@ describe('Business > Notifications on the hosted app', () => {
     expect(browser.subscribe).toHaveBeenCalledWith(expect.stringMatching(/^B/));
     expect(said(calls, 'venture.notify.push.subscribe')).toEqual([{ subscription: SUB }]);
     expect(said(calls, 'venture.notify.settings')).not.toContainEqual({ push: true });
-    await screen.findByText(/^Phone alerts are on, with a count only, and come while Chausar is awake for this business\./);
+    expect(within(reach).getByText('Phone alerts are on for this browser. They carry a count only, never names or figures.')).toBeTruthy();
     fireEvent.click(within(reach).getByRole('button', { name: 'Turn off phone alerts' }));
     await waitFor(() => expect(said(calls, 'venture.notify.push.unsubscribe')).toEqual([{ endpoint: SUB.endpoint }]));
     await within(reach).findByRole('button', { name: 'Turn on phone alerts' });
