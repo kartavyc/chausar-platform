@@ -362,8 +362,10 @@ describe('Work v2: orders by client', () => {
     expect(within(ep12).getByText('INV-0039')).toBeTruthy();
     expect(within(ep12).getByText(/^due 28 Oct/)).toBeTruthy();
     // Its price and its invoice total, each with its receipt (the sample bills the order at its price, R-0416).
-    const total = within(ep12).getByText('₹26,200').closest('[data-figure]') as HTMLElement;
-    expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
+    // C4 task 11: the price shows as its figure too, so the amount is there twice, each figure with its receipt.
+    const figures = within(ep12).getAllByText('₹26,200').map((amount) => amount.closest('[data-figure]') as HTMLElement);
+    expect(figures).toHaveLength(2);
+    for (const total of figures) expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     expect(within(ep12).getAllByRole('button', { name: receiptMark('R-0416') })).toHaveLength(2);
     expect(within(ep12).queryByRole('link', { name: 'Open on Today' })).toBeNull();
     // W4 4J19 flips wave 3's "no steps yet": each order draws the engine's stage steps (4J3).

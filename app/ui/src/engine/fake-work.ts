@@ -252,7 +252,8 @@ export class FakeWorkDesk {
       // 4J3: each order with its stage steps and what waits on the owner, as the engine reads them (fake-previews.ts).
       case 'venture.order.list': {
         const invoices = this.host.invoices?.() ?? [];
-        return clone((this.orders[biz] ?? []).map((order) => withFakeOrderSteps(order, invoices)));
+        // C4 task 11 (money/orders.ts orderPrice): each order's price is its receipt's Total figure, with the receipt id.
+        return clone((this.orders[biz] ?? []).map((order) => ({ ...withFakeOrderSteps(order, invoices), price: this.orderPrice(order) })));
       }
       case 'venture.order.create': return this.withNewClient(p, (p, fresh) => {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p,fresh);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p,fresh);});});
       case 'venture.order.deliver': return this.deliver(biz, p);
@@ -276,6 +277,12 @@ export class FakeWorkDesk {
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
+  }
+
+  private orderPrice(order: OrderLite): { display: string; receiptId: string } | null {
+    const receipt = this.host.receipt?.(order.priceReceiptId);
+    const total = receipt?.figures.find((figure) => figure.key === 'total');
+    return receipt && total ? { display: total.display, receiptId: receipt.id } : null;
   }
 
   private order(biz: string, id: unknown): OrderLite {

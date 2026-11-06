@@ -121,9 +121,13 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       <p className={s.orderMeta}>
         <span>{t('work.order.ordered', { date: day(order.at) })}</span>
         <span aria-hidden="true">·</span>
-        {/* The engine sends the order's price receipt, not its amount (W4 4J order steps): say where the price is. */}
-        <span>{t('work.order.priced')}</span>
-        <Receipt id={order.priceReceiptId} />
+        {/* C4 task 11: the order's price as its receipt says it; without one, where the price is. */}
+        {order.price && proofOf(order.price) ? <Figure value={order.price.display} receiptId={order.price.receiptId} /> : (
+          <>
+            <span>{t('work.order.priced')}</span>
+            <Receipt id={order.priceReceiptId} />
+          </>
+        )}
       </p>
       {invoice?.number && (
         <p className={s.orderMeta}>

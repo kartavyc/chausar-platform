@@ -44,6 +44,8 @@
   "work.form.clientName": "Client's name",
   "work.form.service": "Service",
   "work.form.noPrice": "{name}, no price yet",
+  "work.form.setPriceFirst": "Set a price for {name} first.",
+  "work.form.setPrice": "Set price",
   "work.form.request": "What they asked for",
   "work.form.files": "Files from the client",
   "work.form.filesHint": "CSV, Excel, PDF, or a transcript as SRT or VTT, each under 1.5 MB. The agent reads them when the work starts.",

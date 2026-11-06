@@ -312,7 +312,8 @@ describe('Work: new order', () => {
 
   it('adds an order for a client with their files; it lands as received', async () => {
     const { calls, sheet, clientField, service } = await openForm();
-    expect(within(service).getByRole('option', { name: 'Shorts from your long video, no price yet' }).hasAttribute('disabled')).toBe(true);
+    // C4 task 11: an unpriced service can be picked so the form says how to set its price; it never submits.
+    expect(within(service).getByRole('option', { name: 'Shorts from your long video, no price yet' })).toBeTruthy();
     expect((service as HTMLSelectElement).value).toBe('offer_sponsor');
     fireEvent.change(clientField, { target: { value: 'c-boat' } });
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });

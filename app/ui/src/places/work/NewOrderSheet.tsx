@@ -3,8 +3,11 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { Figure } from '../../parts/Figure';
 import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { goTo } from '../../shell/navigation';
+import { totalOf } from '../business/shared';
 import { EngineError } from '../../engine/types';
 import { FILE_ACCEPT, fileProblem, readBase64 } from './files';
 import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './intake';
@@ -12,7 +15,7 @@ import { IntakeFields } from './IntakeFields';
 import { KitIntakeFields } from './KitIntakeFields';
 import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from './kit-intake';
 import { messageOf } from './PreviousRuns';
-import { clearPrefill, peekPrefill } from './prefill';
+import { clearPrefill, peekPrefill, prefillOrder } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
 
@@ -34,11 +37,12 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const clients = useResource('venture.client.list', {}, { refreshOn: never });
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: never });
   const business = useResource('venture.get', {}, { refreshOn: never });
-  const [clientId, setClientId] = useState(id === 'new' ? '' : id);
-  const [name, setName] = useState('');
-  // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts).
+  // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts); C4 task 11: so
+  // does the owner's own form, kept while they set a price, with its client too.
   const [prefill] = useState(peekPrefill);
   useEffect(clearPrefill, []);
+  const [clientId, setClientId] = useState(id === 'new' ? prefill?.clientId ?? '' : id);
+  const [name, setName] = useState(prefill?.clientName ?? '');
   const [offerId, setOfferId] = useState(prefill?.offerId ?? '');
   const [request, setRequest] = useState(prefill?.request ?? '');
   const [intake, setIntake] = useState<IntakeDraft>(EMPTY_INTAKE);
@@ -52,10 +56,21 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const priced = offers.filter((o) => o.pricing.unitPriceMinor !== null);
   const who = clientId === NEW_CLIENT || (clients.data ?? []).some((c) => c.id === clientId) ? clientId : '';
   const what = offerId || (priced.length === 1 ? priced[0]!.id : '');
+  // C4 task 11: the picked service as the plan has it; an unpriced one can be picked so the form can say how to fix it.
+  const picked = offers.find((o) => o.id === what);
+  const unpriced = !!picked && picked.pricing.unitPriceMinor === null;
+  const pickedReceipt = picked && !unpriced ? plan.data?.offerReceipts[picked.id] ?? null : null;
+  const pickedTotal = totalOf(pickedReceipt);
   // What the engine says this service asks at intake; null for a service that asks nothing.
   const ask = (what && plan.data?.intake?.[what]) || null;
   const filesOk = files.every((f) => fileProblem(f) === null);
-  const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
+  const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && !unpriced && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
+
+  /** C4 task 11: keep what was typed, go to Prices for that service, and the next New order opens with it. */
+  function setPrice() {
+    prefillOrder({ offerId: what, request, ...(who ? { clientId: who } : {}), ...(who === NEW_CLIENT && name.trim() ? { clientName: name } : {}) });
+    goTo('business', 'prices', { offer: what });
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -122,10 +137,22 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
           <select id={`${ids}-service`} className={s.select} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {offers.map((offer) => {
-              const unpriced = offer.pricing.unitPriceMinor === null;
-              return <option key={offer.id} value={offer.id} disabled={unpriced}>{unpriced ? t('work.form.noPrice', { name: offer.name.value }) : offer.name.value}</option>;
+              const noPrice = offer.pricing.unitPriceMinor === null;
+              return <option key={offer.id} value={offer.id}>{noPrice ? t('work.form.noPrice', { name: offer.name.value }) : offer.name.value}</option>;
             })}
           </select>
+          {/* C4 task 11: the picked service's price as its receipt says it, or how to set one. */}
+          {pickedReceipt && pickedTotal && picked && (
+            <p className={s.hint} data-testid="picked-price">
+              <Figure value={pickedTotal} receiptId={pickedReceipt.id} /> {t(`business.unit.${picked.pricing.quantityUnit}`)}
+            </p>
+          )}
+          {unpriced && picked && (
+            <p className={s.hint} role="status">
+              {t('work.form.setPriceFirst', { name: picked.name.value })}{' '}
+              <Button size="sm" onClick={setPrice}>{t('work.form.setPrice')}</Button>
+            </p>
+          )}
         </div>
         <IntakeFields ask={ask} draft={intake} onChange={setIntake} />
         <KitIntakeFields currency={business.data?.venture.country?.currency} ask={ask} answers={kitAnswers} onChange={setKitAnswers} />
