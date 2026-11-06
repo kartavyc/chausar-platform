@@ -57,7 +57,8 @@ async function listInkFiles() {
   found.set('/', 'index.html');
   return found;
 }
-const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
+// D7 task 5: the packaged app runs the bundle, a development run the source (engine-paths.cjs).
+const engineFiles = require('./engine-paths.cjs').enginePaths({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, root });
 function reportJobLifecycle() {
   if (engine?.state !== 'ready') return Promise.resolve();
   return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && runsInBackground() });
@@ -133,7 +134,7 @@ function sendEngineStatus(status) {
 }
 const currentEngine = () => engine;
 function createHarness() {
-  const engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
+  const engine = new EngineHarness({ workerPath: engineFiles.worker, environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
   engine.on('status', status => { if (engine !== currentEngine()) return; if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
@@ -392,19 +393,19 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:pack:share', (event, input) => require('./pack-share.cjs').sharePack(event, input, shareDeps()));
   ipcMain.handle('chausar:share:show', (event, input) => invoiceShare.showShared(event, input, shareDeps()));
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
-  ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
+  ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: engineFiles.extractWorker, runtimeRoot: engineFiles.runtimeRoot }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
   ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
   // C5 task 35: the brief for Lovable or Replit as a file: the engine makes it, the owner picks where.
   ipcMain.handle('chausar:brief:saveFile', (event, input) => require('./brief-save.cjs').saveBriefFile(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
   ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
-  const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();
+  const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject({ projectFolder: engineFiles.projectFolder });
   const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:youtube:saveProject', (event, input) => youtubeProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:youtube:openProject', (event, input) => youtubeProjects.open(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:apptest:pickApk', (event, input) => require('./app-test-apk.cjs').pickClientApk(event, input, youtubeProjectDeps()));
-  const socialProjects = require('./social-project.cjs').createSocialProject();
+  const socialProjects = require('./social-project.cjs').createSocialProject({ projectFolder: engineFiles.projectFolder });
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.

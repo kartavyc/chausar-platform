@@ -77,12 +77,12 @@ function workerEnv(env) {
 /**
  * The worker's Node flags. Where this Node has the permission model (Node 22 and later; checked through
  * allowedNodeEnvironmentFlags, so an Electron whose Node lacks it still starts the worker), the worker may read only the
- * engine's own code (platform/runtime, which it loads) and the one file the owner picked, and may not start processes.
+ * engine's own code (its runtime folder: platform/runtime, or the bundle's in a package) and the one file the owner picked, and may not start processes.
  */
 function workerFlags(deps, path) {
   const flags = deps.nodeFlags ?? process.allowedNodeEnvironmentFlags;
   const permission = !!flags && typeof flags.has === 'function' && flags.has('--permission') && !path.includes(',');
-  return ['--experimental-strip-types', ...(permission ? ['--permission', `--allow-fs-read=${resolve(deps.workerPath, '..', '..', '..')}`, `--allow-fs-read=${path}`] : [])];
+  return ['--experimental-strip-types', ...(permission ? ['--permission', `--allow-fs-read=${deps.runtimeRoot ?? resolve(deps.workerPath, '..', '..', '..')}`, `--allow-fs-read=${path}`] : [])];
 }
 
 /** Forks the worker for one file and waits for its one reply; kills it after the timeout. */
@@ -143,4 +143,4 @@ async function pickNetworkFile(event, input, deps) {
   }
 }
 
-module.exports = Object.freeze({ KINDS, MAX_SOURCE_BYTES, MAX_SEND_BYTES, pickNetworkFile, sizeWords });
+module.exports = Object.freeze({ KINDS, MAX_SOURCE_BYTES, MAX_SEND_BYTES, pickNetworkFile, sizeWords, workerFlags });

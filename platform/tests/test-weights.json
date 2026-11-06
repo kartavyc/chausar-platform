@@ -16,6 +16,7 @@
   "platform/tests/desktop-diagnostics-c5.test.ts": 1,
   "platform/tests/desktop-diagnostics-export-c5.test.ts": 1,
   "platform/tests/desktop-engine-bundle-d7.test.ts": 2.5,
+  "platform/tests/desktop-engine-paths-d7.test.ts": 1,
   "platform/tests/desktop-export-save-c4.test.ts": 1,
   "platform/tests/desktop-keep-files-c5.test.ts": 1,
   "platform/tests/desktop-money-export-c4.test.ts": 1,

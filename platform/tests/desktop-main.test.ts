@@ -9,11 +9,11 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[] } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[]; packaged?: boolean } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
-  const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
+  const app = new EventEmitter() as any; app.isPackaged = options.packaged !== false; app.quits = 0;
   // A5: the computer's login items as Electron reads them back (Windows launch items, this program's only).
   const run = new Map<string, any>();
   app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: settings.args, enabled: true }); else run.delete(settings.name); };
@@ -114,6 +114,15 @@ test('background process exposes Open/Quit and drains once without startup persi
 
 test('unsigned packaged preview refuses explicit production mode before starting a worker', async () => {
   const d = await desktop(['--production']); assert.match(d.errors[0], /synthetic data only/); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
+});
+
+// D7 task 5: the packaged app runs the bundle; a development run stays on the source.
+test('packaged, the worker is the bundle under app.asar.unpacked; not packaged, the source', async () => {
+  const unix = (path: string) => path.split('\\').join('/');
+  const packaged = await desktop(['--production'], Promise.resolve(), true);
+  assert.equal(unix(packaged.engines[0].options.workerPath).endsWith('/owned/resources/app.asar.unpacked/app/engine/dist/runtime/worker.js'), true, packaged.engines[0].options.workerPath);
+  const source = await desktop(['--production'], Promise.resolve(), true, { packaged: false });
+  assert.equal(unix(source.engines[0].options.workerPath).endsWith('/owned/app/platform/runtime/worker.ts'), true, source.engines[0].options.workerPath);
 });
 
 test('the real desktop starts its file worker without starting a bundled database', async () => {
