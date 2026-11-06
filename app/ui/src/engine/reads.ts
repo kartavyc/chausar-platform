@@ -23,7 +23,7 @@ export const READS = [
   'venture.countries', 'venture.crm.client', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.list',
   'venture.crm.lists', 'venture.decisions.list', 'venture.delivery.changes', 'venture.delivery.list',
   'venture.desk.get', 'venture.desk.list', 'venture.drills.list', 'venture.events', 'venture.evidence.list',
-  'venture.feedback.get', 'venture.files.list', 'venture.get', 'venture.goNoGo.list', 'venture.goals.get',
+  'venture.feedback.get', 'venture.files.list', 'venture.find', 'venture.get', 'venture.goNoGo.list', 'venture.goals.get',
   'venture.ideas.list', 'venture.improve.status', 'venture.invoice.get', 'venture.invoice.list',
   'venture.invoice.recurringList', 'venture.journal.chain', 'venture.journal.list', 'venture.judge.auto.get',
   'venture.knowledge.list', 'venture.launch.status', 'venture.layout.get', 'venture.leads.list',
