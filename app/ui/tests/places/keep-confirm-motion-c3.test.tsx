@@ -1,0 +1,31 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { App } from '../../src/shell/App';
+import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+const real = window.getComputedStyle.bind(window);
+beforeEach(() => { vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+  const style = real(element, pseudo);
+  return !element.hasAttribute('data-swap-old') ? style : new Proxy(style, { get(target, key) { if (key === 'animationDuration') return '140ms'; const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value; } });
+}); });
+it('the restore ask fades its prior action inertly and still waits for the exact second press', async () => {
+  const engine = new FakeEngine({ latencyMs: 0 });
+  const calls = vi.spyOn(engine, 'request');
+  window.location.hash = '#/business/keep';
+  render(<App client={createFakeClient(engine)} language="en" />);
+  const restore = (await screen.findAllByRole('button', { name: 'Restore', exact: true }))[0]!;
+  const row = restore.closest('[data-backup]')!;
+  expect(row.querySelector('[data-swap-old]')).toBeNull();
+  await act(async () => { fireEvent.click(restore); });
+  const cancel = await within(row).findByRole('button', { name: 'Keep it as it is' });
+  const old = row.querySelector<HTMLElement>('[data-swap-old]')!;
+  expect(old).not.toBeNull();
+  expect(old.hasAttribute('inert')).toBe(true);
+  expect(old.getAttribute('aria-hidden')).toBe('true');
+  expect(document.activeElement).toBe(cancel);
+  fireEvent.click(old.querySelector('button')!);
+  expect(calls.mock.calls.filter(([method]) => method === 'workspace.backups.restore')).toHaveLength(0);
+  fireEvent.animationEnd(old);
+  await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Restore this copy' })); });
+  expect(calls.mock.calls.filter(([method]) => method === 'workspace.backups.restore')).toHaveLength(1);
+  expect(calls.mock.calls.find(([method]) => method === 'workspace.backups.restore')?.[1]).toMatchObject({ file: row.getAttribute('data-backup'), confirmed: true });
+});
