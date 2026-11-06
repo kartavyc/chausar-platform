@@ -92,7 +92,7 @@ describe('Work: Stop on each running tile (O1)', () => {
     expect(await within(stopped).findByText('Stopped at step 4 of 5')).toBeTruthy();
     expect(within(stopped).queryByText(/Failed/)).toBeNull();
     const resume = within(stopped).getByRole('button', { name: 'Resume' });
-    expect(resume.getAttribute('data-variant')).toBe('primary');
+    expect(resume.getAttribute('data-variant')).toBe('secondary');
     expect(within(stopped).getByRole('button', { name: 'Run again' })).toBeTruthy();
     assertInkRules();
     await click(resume);
@@ -140,7 +140,7 @@ describe('Work: the stopped tile (O1, O14)', () => {
     await click(fix);
     expect(fix.getAttribute('aria-expanded')).toBe('true');
     expect(within(tile).getByText('Install ffmpeg, then run the required finishing checks again.')).toBeTruthy();
-    expect(within(tile).getByRole('button', { name: 'Resume' }).getAttribute('data-variant')).toBe('primary');
+    expect(within(tile).getByRole('button', { name: 'Resume' }).getAttribute('data-variant')).toBe('secondary');
     assertInkRules();
     await click(within(tile).getByRole('button', { name: 'Run again' }));
     expect(of(calls, 'venture.queue.decide')).toEqual([{ id: 'runctl:25:stopped-1', digest: 'd-stopped', action: 'run-again', viewed: false }]);
@@ -222,7 +222,7 @@ describe('4F3 review', () => {
     const tile = await tileOf('Rendering the poster set');
     expect(within(tile).queryByRole('button', { name: 'Resume' })).toBeNull();
     const first = await within(tile).findByRole('button', { name: 'Unpause first' });
-    expect(first.getAttribute('data-variant')).toBe('primary');
+    expect(first.getAttribute('data-variant')).toBe('secondary');
     await click(first);
     expect(of(calls, 'venture.business.pause')).toEqual([{ paused: false }]);
   });

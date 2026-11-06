@@ -155,11 +155,15 @@ function WorkPage() {
   const current = views.filter((v) => v.state !== 'paid' && v.state !== 'cancelled');
   // Orders are the open business's: shown unless another business is chosen.
   const ordersHere = !business || (status.data?.workspace?.name !== undefined && names.get(business) === status.data.workspace.name);
+  const tileNames = offerBusinesses ? names : new Map<string, string>();
+  const primaryRun = filter === 'orders' || filter === 'done' || filter === 'active' ? undefined
+    : filter === 'failed' ? failed[0]?.runId : waiting[0]?.runId ?? stoppedRuns[0]?.runId ?? failedOpen[0]?.runId;
+  const primaryOrder = primaryRun ? '' : (filter === 'orders' ? views : current).find(view => view.action || view.state === 'draft-ready')?.order.id ?? '';
 
-  const orderList = (list: OrderView[]) => <OrderList views={list} clients={clients.data} runIds={runIds} onChanged={reload} />;
-  const running = (list: RunSummary[], meta?: string) => <RunTiles runs={list} names={names} meta={meta} queue={queue.data?.rows} onChanged={reload} />;
-  const failedTiles = (list: RunSummary[]) => <StoppedRuns runs={list} names={names} deliveries={deliveries.data} queue={queue.data?.rows} onChanged={reload} />;
-  const stoppedTiles = (list: RunSummary[]) => <StoppedRuns kind="stopped" runs={list} names={names} deliveries={deliveries.data} queue={queue.data?.rows} onChanged={reload} />;
+  const orderList = (list: OrderView[]) => <OrderList views={list} clients={clients.data} runIds={runIds} onChanged={reload} primaryId={primaryOrder} />;
+  const running = (list: RunSummary[], meta?: string) => <RunTiles runs={list} names={tileNames} meta={meta} queue={queue.data?.rows} onChanged={reload} primaryId={primaryRun} />;
+  const failedTiles = (list: RunSummary[]) => <StoppedRuns runs={list} names={tileNames} deliveries={deliveries.data} queue={queue.data?.rows} onChanged={reload} primaryId={primaryRun} />;
+  const stoppedTiles = (list: RunSummary[]) => <StoppedRuns kind="stopped" runs={list} names={tileNames} deliveries={deliveries.data} queue={queue.data?.rows} onChanged={reload} primaryId={primaryRun} />;
   const finished = (list: RunSummary[], atRest: boolean) => <Finished runs={list} moreHref={atRest ? formatHash(routeFor(route, 'done', business)) : undefined} onChanged={reload} />;
 
   const focus = route.query.order;
@@ -172,7 +176,7 @@ function WorkPage() {
       />
     );
   } else if (filter === 'active') {
-    content = runs.data && (going.length > 0 ? running(going) : <EmptyState title={t('work.none.active')} />);
+    content = runs.data && (going.some(run => run.state === 'active') ? running(going.filter(run => run.state === 'active')) : <EmptyState title={t('work.none.active')} />);
   } else if (filter === 'waiting') {
     const mine = ordersHere ? current.filter(waitsOnYou) : [];
     content = runs.data && ordersReady && (waiting.length > 0 || mine.length > 0 || stoppedRuns.length > 0 ? (
@@ -193,13 +197,13 @@ function WorkPage() {
     // W5 5A1: the business's own desk, where its orders are.
     if (ordersHere) content = <>{content}<PlaybookDesk /></>;
   } else if (runs.data && orders.data && all.length === 0 && orders.data.length === 0) {
-    content = <><EmptyState title={t('work.empty')} line={t('work.emptyLine')} /><PlaybookDesk /></>;
+    content = <><EmptyState title={t('work.empty')} line={t('work.emptyLine')} primary={{ label: t('work.firstOrder'), onSelect: (event) => openSheet('new-order', 'new', event.currentTarget) }} /><PlaybookDesk /></>;
   } else {
-    const ordersMeta = t('work.orders.meta', { count: current.length, clients: t('work.line.clients', { count: new Set(current.map((v) => v.order.clientId)).size }) });
     content = (
       <>
         {/* 4F3: the counts are the sub line's already, so Running now does not say them again. */}
-        {going.length > 0 && running(going)}
+        {waiting.length > 0 && running(waiting)}
+        {going.some(run => run.state === 'active') && running(going.filter(run => run.state === 'active'))}
         {(failedOpen.length > 0 || stoppedRuns.length > 0 || done.length > 0) && (
           <div className={s.pair}>
             {(failedOpen.length > 0 || stoppedRuns.length > 0) && (
@@ -211,7 +215,7 @@ function WorkPage() {
             {done.length > 0 && finished(done, true)}
           </div>
         )}
-        {ordersHere && current.length > 0 && <Orders views={current} meta={ordersMeta}>{orderList}</Orders>}
+        {ordersHere && current.length > 0 && <Orders views={current}>{orderList}</Orders>}
         {/* W5 5A1: the business's own desk (its records), where its orders are, once its package marks it ready. */}
         {ordersHere && <PlaybookDesk />}
       </>
@@ -250,7 +254,7 @@ function WorkPage() {
           {!(empty && filter === 'all' && focus === undefined) && (
             <FilterChips
               label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} drawCounts={false} className={s.chipGroup}
-              onChange={(id) => navigate(routeFor(route, id as WorkFilter, business))}
+              onChange={(id) => navigate(id === 'waiting' ? { place: 'today', query: {} } : routeFor(route, id as WorkFilter, business))}
             />
           )}
           {businessChips.length > 0 && (
