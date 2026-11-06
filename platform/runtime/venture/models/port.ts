@@ -691,10 +691,6 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       return structuredClone(models);
     },
 
-    /** A2: the native program of the Codex setup in use, so agent jobs run the program the owner chose; null without one. */
-    codexProgram() {
-      const codex = codexNow();
-      const evidence = codex?.capabilities.evidence;
     /** C7: Check now for the plan meter: the account's rate-limit read from the Codex setup in use; null on the hosted app or without one. */
     async codexPlan() {
       if (hosted || transport.replay === true) return null;
@@ -703,6 +699,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       return readCodexPlan(program);
     },
 
+    /** A2: the native program of the Codex setup in use, so agent jobs run the program the owner chose; null without one. */
+    codexProgram() {
+      const codex = codexNow();
+      const evidence = codex?.capabilities.evidence;
       return evidence?.kind === 'installed-help' ? evidence.executable : null;
     },
 

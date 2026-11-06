@@ -306,10 +306,10 @@ export type RecordBase<K extends VentureRecordKind> = {
 
 export type VentureRecord = RecordBase<'venture-record'> & {
   aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
-  /** Host-owned revocation generations; owner settings never accept these counters. */
-  aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   /** C7: the backup AI for routines (agents/routine-backup.ts): off by default; at is when the owner last set it. */
   routineBackup?: { on: boolean; order: ModelPresetId[]; at: IsoTime };
+  /** Host-owned revocation generations; owner settings never accept these counters. */
+  aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   idea: string;
   ideaDigest: string;
   workingName: string;
@@ -835,12 +835,12 @@ export interface ModelPort {
   toolSaid?(callId: string): string | null;
   /** A2: the models Codex offers this account (codex debug models), and the ones Chausar uses; the fixed ids when unread. */
   codexModels?(): Promise<import('./models/codex-models.ts').CodexModels>;
+  /** C7: Codex's own answer to the account's rate-limit read (a short app-server start, no thread, no turn); null when it could not be read. */
+  codexPlan?(): Promise<unknown>;
 }
 
 /**
  * 4H1. What one look at the owner's command-line AI found, from evidence only. path: where the search path has it.
-  /** C7: Codex's own answer to the account's rate-limit read (a short app-server start, no thread, no turn); null when it could not be read. */
-  codexPlan?(): Promise<unknown>;
  * answered: its --version answered in the real tool's own form ('x.y.z (Claude Code)', 'codex-cli x.y.z'; never while
  * the Claude Code terms are pending, when nothing of it is run). version: the version that line names. flags: whether
  * its help lists every flag the route sends (unknown when the help did not answer; a mismatch too once a real call was
@@ -3688,10 +3688,10 @@ export type AgentProposalRecord = RecordBase<'venture-agent-proposal'> & {
   decidedBy: string | null;
   /** 4J17 (A18), kind 'import': the owner patches an agent file adds, the persona it sets, and what was left out with why. */
   imported?: { patches: PlaybookPatch[]; persona: PersonaFields | null; skipped: string[] };
-};
-/**
   /** C7: an instruction the agent offered after the owner signed off a draft they edited (agents/way-of-working.ts). */
   offered?: { runId: string; digest: string };
+};
+/**
  * One chat consent per business covers agent chat, Chats and network search, which send client or contact data to the
  * owner's AI (4B1). It names the connected AI; a change of AI connection makes it stale.
  */
@@ -3701,14 +3701,14 @@ export type ChatConsentRecord = RecordBase<'venture-chat-consent'> & {
   connectionId: string | null;
   model: string | null;
   by: string;
+  /** C7: a backup AI's consent for routines, given when the owner turned the backup on; the main chat consent ignores it. */
+  backup?: true;
 };
 
 /** A note an agent keeps (4B2), from the owner's own words only. scope 'client:<id>' when the words name a client. */
 export type AgentNoteRecord = RecordBase<'venture-agent-note'> & {
   agent: string;
   scope: AgentNoteScope;
-  /** C7: a backup AI's consent for routines, given when the owner turned the backup on; the main chat consent ignores it. */
-  backup?: true;
   load: AgentNoteLoad;
   text: string;
   source: { kind: 'owner-words' | 'owner-edit'; quote: string | null; messageId: string | null };
@@ -4480,12 +4480,6 @@ export type RoutineRunRecord = RecordBase<'venture-routine-run'> & {
   missed: number;
   runId: string | null;
   threadId: string | null;
-};
-
-/** One run of the guardrail drills against the playbook hash (4J15). */
-export type DrillRunRecord = RecordBase<'venture-drill-run'> & {
-  playbookHash: string;
-  results: { drill: string; stopped: boolean; twinPassed: boolean; line: string }[];
   /** C7: a run parked as queued until the AI plan resets (resetsAt null: no reset known, looked at again every 30 minutes). */
   waitsFor?: { cli: DelegateCli; resetsAt: IsoTime | null };
   /** C7: when the run started waiting for the plan. */
@@ -4496,6 +4490,12 @@ export type DrillRunRecord = RecordBase<'venture-drill-run'> & {
   ranOn?: { presetId: ModelPresetId; label: string; why: string } | null;
   /** C7: the client whose data the run carries (an event trigger's run), if any. */
   clientId?: string | null;
+};
+
+/** One run of the guardrail drills against the playbook hash (4J15). */
+export type DrillRunRecord = RecordBase<'venture-drill-run'> & {
+  playbookHash: string;
+  results: { drill: string; stopped: boolean; twinPassed: boolean; line: string }[];
   passed: boolean;
 };
 
@@ -4688,10 +4688,10 @@ export type AgentProposalView = {
   quote: string; title: Display; appliesTo: Display | null; diff: DiffLine[];
   fromVersion: number | null; toVersion: number | null; note: { text: string; scope: AgentNoteScope } | null;
   digest: string; line: Display | null;
-};
-/**
   /** C7: an offer the agent made after an edited sign-off: "Offered by {agent} after you approved {run}". */
   offered?: Display;
+};
+/**
  * 4B1. One run the agent owned a step in, folded in its thread; recalled: the notes its turns carried (4B2), a note the
  * owner forgot since marked forgotten, with no words of it.
  */
