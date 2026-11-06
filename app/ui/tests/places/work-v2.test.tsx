@@ -108,8 +108,8 @@ describe('Work v2: the filter chips', () => {
     expect(window.location.hash).toBe('#/work?state=active');
     expect(pressed(screen.getByRole('group', { name: 'Show' }))).toEqual(['Running']);
     await click(within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name: 'Needs you' }));
-    expect(window.location.hash).toBe('#/work?state=waiting');
-    await click(within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name: 'All' }));
+    expect(window.location.hash).toBe('#/today');
+    await go('#/work');
     expect(window.location.hash).toBe('#/work');
     expect(pressed(screen.getByRole('group', { name: 'Show' }))).toEqual(['All']);
   });
@@ -154,17 +154,17 @@ describe('Work v2: running now', () => {
     const researcher = await tileOf('Checking titles against the last 30 videos', running);
     expect(within(researcher).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     expect(await within(researcher).findByText('Comparing the two new titles')).toBeTruthy();
-    expect(within(running).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(running).getAllByRole('listitem')).toHaveLength(2);
     assertInkRules();
   });
 
   it('a run that waits says which step waits, shows its question, and Answer (the one primary) opens the run', async () => {
     await start();
     const running = await screen.findByRole('region', { name: 'Running now' });
-    const producer = await tileOf('Pricing the sponsor slot', running);
+    const producer = await tileOf('Pricing the sponsor slot', await screen.findByRole('region', { name: 'Needs you' }));
     expect(within(producer).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     expect(producer.querySelector('[data-state="waiting"]')?.textContent).toBe('PR');
-    expect((await within(producer).findByText('2 of 3 done, waits on you')).className).toMatch(/wait/);
+    expect((await within(producer).findByText(/^Waiting/)).closest('p')!.className).toMatch(/wait/);
     expect(within(producer).getByText('The sponsor wants to see the video before it goes up. Share a private preview link with them?')).toBeTruthy();
     const answer = within(producer).getByRole('button', { name: 'Answer' });
     expect(answer.getAttribute('data-variant')).toBe('primary');
@@ -185,11 +185,11 @@ describe('Work v2: running now', () => {
       },
     });
     const running = await screen.findByRole('region', { name: 'Running now' });
-    const producer = await tileOf('Pricing the sponsor slot', running);
-    expect(await within(producer).findByText('2 of 3 done, waits on you')).toBeTruthy();
+    const producer = await tileOf('Pricing the sponsor slot', await screen.findByRole('region', { name: 'Needs you' }));
+    expect(await within(producer).findByText(/^Waiting/)).toBeTruthy();
     expect(within(producer).queryByRole('button', { name: 'Answer' })).toBeNull();
     const open = within(producer).getByRole('button', { name: 'Open' });
-    expect(open.getAttribute('data-variant')).not.toBe('primary');
+    expect(open.getAttribute('data-variant')).toBe('primary');
     await click(open);
     expect(window.location.hash).toBe('#/work?sheet=run%3A29');
   });
@@ -206,7 +206,8 @@ describe('Work v2: running now', () => {
     await start();
     const running = await screen.findByRole('region', { name: 'Running now' });
     await settle();
-    expect(within(running).getAllByRole('button', { name: /^Stop: / }).length).toBe(3);
+    expect(within(running).getAllByRole('button', { name: /^Stop: / }).length).toBe(2);
+    expect(within(screen.getByRole('region', { name: 'Needs you' })).getAllByRole('button', { name: /^Stop: / }).length).toBe(1);
     // Force stop sits behind Stop, and Resume only on a stopped run: nothing is stopped at rest.
     for (const name of [/^Force stop/, /^Resume/]) expect(screen.queryByRole('button', { name })).toBeNull();
   });
@@ -227,7 +228,7 @@ describe('Work v2: the failed run', () => {
     // W4 4F3: the engine's fix for a missing ffmpeg (fixOf), one step away.
     expect(within(stopped).getByRole('button', { name: 'How to fix it' }).getAttribute('data-variant')).not.toBe('primary');
     const again = within(stopped).getByRole('button', { name: 'Run again' });
-    expect(again.getAttribute('data-variant')).toBe('primary');
+    expect(again.getAttribute('data-variant')).toBe('secondary');
     assertInkRules();
     // The digest of the row as Work read it: a row that changed since is the engine's to refuse.
     const { rows } = await client.request('venture.queue.list', { scope: 'all' });
@@ -412,7 +413,7 @@ describe('Work v2: the header line and the other filters', () => {
 
   it('Needs you shows the run that waits and the orders that wait on you, nothing else', async () => {
     await start('#/work?state=waiting');
-    const running = await screen.findByRole('region', { name: 'Running now' });
+    const running = await screen.findByRole('region', { name: 'Needs you' });
     await tileOf('Pricing the sponsor slot', running);
     expect(within(running).getAllByRole('listitem')).toHaveLength(1);
     const orders = await screen.findByRole('region', { name: 'Orders' });

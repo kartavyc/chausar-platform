@@ -1,0 +1,38 @@
+name: B4 validation snapshot
+on:
+  push:
+    branches: ['b2c/os-b4-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck UI
+        run: npm run typecheck:ui
+      - name: Focused engine tests
+        if: '!cancelled()'
+        run: node --test platform/tests/venture-views-runs-waits-c4.test.ts platform/tests/venture-views-runs.test.ts
+      - name: Full UI tests
+        if: '!cancelled()'
+        run: npm run test:ui -- --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/b4-ui.json
+      - name: Build UI
+        if: '!cancelled()'
+        run: npm run build:ui
+      - name: Upload UI report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: b4-ui-report
+          path: ${{ runner.temp }}/b4-ui.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -53,4 +53,5 @@ test('runs list: a template draft the owner reviews 5 minutes later worked no ti
   assert.equal(done.elapsed, '');
   assert.equal(done.waited, '5 min');
   assert.equal(done.waitingSince, undefined);
+  assert.equal((done as RunSummary & { finishedAt?: string }).finishedAt, new Date(Date.parse(START) + 5 * 60_000).toISOString(), 'Finished counts the completion day, not the start day');
 });
