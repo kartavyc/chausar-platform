@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { ChausarError, check, internalCheck } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory, wrappersDigestOf } from './vault.ts';
 import type { DeviceKeyRecord } from './device-custody.ts';
-import { newerFormat, noteNewerOnce, readLocalJson } from './local-files.ts';
+import { newerFormat, newerVersion, noteNewerOnce, readLocalJson } from './local-files.ts';
 import { CURRENT_SCHEMA } from './migrations/ladder.ts';
 import {
   AUTO_BACKUP, BACKUP_LIST_MAX, BUSINESS_LIST_MAX, CUSTODY_WORDS, TRANSFER,
@@ -306,11 +306,21 @@ export class CustodyFiles {
 
   // -------------------------------------------------------------- C5 task 22: readable exports still on this computer
 
+  async #newerExports(): Promise<boolean> {
+    const raw = await readLocalJson(join(this.directory, 'custody', 'exports.json'));
+    if (!newerFormat(raw, 'chausar.exports.v1') && !newerVersion(raw, 1)) return false;
+    await noteNewerOnce(join(this.directory, 'custody'), 'exports.json', 'exports');
+    return true;
+  }
   async #readableNotes(): Promise<ReadableNote[]> {
+    if (await this.#newerExports()) return [];
     const value = await this.#readJson(join(this.directory, 'custody'), 'exports.json').catch(() => null);
     return Array.isArray(value?.readable) ? value.readable.filter((note: any) => typeof note?.file === 'string' && READABLE_NAME.test(note.file) && typeof note.at === 'string') : [];
   }
-  async #writeReadable(readable: ReadableNote[]) { await this.#write(join(this.directory, 'custody'), 'exports.json', { readable }); }
+  async #writeReadable(readable: ReadableNote[]) {
+    if (await this.#newerExports()) return;
+    await this.#write(join(this.directory, 'custody'), 'exports.json', { format: 'chausar.exports.v1', readable });
+  }
   async noteReadable(file: string, at: string, path?: string) {
     check(READABLE_NAME.test(file), 'EXPORT_NOT_FOUND', 'That copy is not in the exports folder any more.');
     await this.#writeReadable([...await this.#readableNotes(), { file, at, kept: false, ...(path ? { path } : {}) }]);

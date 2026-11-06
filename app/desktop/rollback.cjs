@@ -30,8 +30,16 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
   const folder = join(userData, 'updates'), vaults = join(userData, 'vaults'), recordPath = join(folder, 'rollbacks.json');
   const readJson = async path => { try { return JSON.parse(await fs.readFile(path, 'utf8')); } catch { return null; } };
 
+  const noted = new Set();
+  function unknownFormat(raw, format, step) {
+    if (!raw?.format || raw.format === format) return false;
+    if (!noted.has(step)) { noted.add(step); note({ op: 'local-file', step, code: 'LOCAL_FILE_NEWER' }); }
+    return true;
+  }
+
   async function readRecord() {
     const raw = await readJson(recordPath);
+    if (unknownFormat(raw, ROLLBACK_FORMAT, 'rollbacks')) return null;
     return raw?.format === ROLLBACK_FORMAT && Array.isArray(raw.swaps) && Array.isArray(raw.skip) ? raw : { format: ROLLBACK_FORMAT, swaps: [], skip: [] };
   }
   async function writeRecord(record) {
@@ -66,6 +74,7 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
   async function moveData() {
     const indexPath = join(vaults, 'custody', 'data-versions.json');
     const index = await readJson(indexPath);
+    if (unknownFormat(index, 'chausar.data-versions.v1', 'data-versions')) return false;
     if (!index?.live || typeof index.live !== 'object') return true;
     const moved = Object.entries(index.live).filter(([name, entry]) => FOLDER.test(name) && entry?.migratedBy === version);
     const plans = [];
@@ -116,6 +125,7 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
   async function run(from, reason) {
     const done = state => { note({ op: 'rollback', state, reason, from }); return { state }; };
     const record = await readRecord();
+    if (!record) return done('record-newer');
     if (record.swaps.some(swap => swap.from === from || swap.to === from)) return done('already-swapped');
     const release = await keptRelease();
     if (!release) return done(await fs.stat(join(folder, 'previous', 'manifest.json')).then(() => 'not-verified', () => 'no-previous'));
@@ -133,6 +143,7 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
     /** D12 task 10: what the unlock screen may offer: the kept release, checked now; null when there is none to go to. */
     async goBackOffer() {
       const record = await readRecord();
+      if (!record) return null;
       if (record.swaps.some(swap => swap.from === version || swap.to === version)) return null;
       const release = await keptRelease();
       return release ? { version: String(release.manifest.version) } : null;

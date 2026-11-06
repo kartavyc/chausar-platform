@@ -195,3 +195,20 @@ test('the update row says once that Chausar went back, then the line goes', asyn
   assert.equal((await service.view()).rolledBack, undefined, 'once');
   assert.equal(JSON.parse(await readFile(join(updates, 'rollbacks.json'), 'utf8')).swaps[0].told, true);
 });
+
+
+test('newer rollback records and data indexes stop rollback without rewriting any file', async t => {
+  for (const kind of ['rollbacks', 'data-versions']) {
+    const { rollback, updates, vaults, newer, seen } = await setup(t);
+    const path = kind === 'rollbacks' ? join(updates, 'rollbacks.json') : join(vaults, 'custody', 'data-versions.json');
+    const raw = kind === 'rollbacks' ? { format: 'chausar.rollbacks.v99', swaps: [], skip: [] } : JSON.parse(await readFile(path, 'utf8'));
+    raw.format = `chausar.${kind}.v99`;
+    const text = JSON.stringify(raw);
+    await writeFile(path, text);
+    assert.equal((await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' })).state, kind === 'rollbacks' ? 'record-newer' : 'data-not-moved');
+    assert.equal(await readFile(path, 'utf8'), text);
+    assert.equal(await liveOf(vaults), newer);
+    assert.equal(seen.relaunches, 0);
+    assert.ok(seen.lines.some(line => line.code === 'LOCAL_FILE_NEWER'));
+  }
+});
