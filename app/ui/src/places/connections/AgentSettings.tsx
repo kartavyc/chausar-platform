@@ -11,10 +11,12 @@ import { McpServers } from './McpServers';
 import { Packs } from './Packs';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
+import { useSettingsSave } from './useSettingsSave';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 export function AgentSettings({ providers = [] }: { providers?: readonly AiProvider[] }) {
   const t = useT(), engine = useEngine(), id = useId();
+  const saveSettings = useSettingsSave(engine);
   const [open, setOpen] = useState(false);
   const [advanced, setAdvanced] = useState<Partial<Record<AiProvider, boolean>>>({});
   const resource = useResource('venture.agentSettings.get', {}, { skip: !open, refreshOn: event => event.type === 'queue.changed' });
@@ -34,14 +36,17 @@ export function AgentSettings({ providers = [] }: { providers?: readonly AiProvi
     event.preventDefault(); if (!draft || busy) return;
     setBusy(true); setSaid(null);
     try {
+      const next = await saveSettings(async stillOpen => {
       // Gmail has its own standing-choice surface. Saving models must not revert a choice made there.
       const current = await engine.request('venture.agentSettings.get', {});
+      stillOpen();
       const settings = structuredClone(draft);
       for (const name of ['codex', 'claude'] as const) {
         if (current.settings[name].connectors === undefined) delete settings[name].connectors;
         else settings[name].connectors = current.settings[name].connectors;
       }
-      const next = await engine.request('venture.agentSettings.set', { settings, ...(mcpChanged && approveMcp ? { approveMcpConfiguration: true as const } : {}) }); dirty.current = false; setApproveMcp(false); setDraft(next.settings); resource.reload(); setSaid({ error: false, text: t('connections.settings.saved') }); }
+      return engine.request('venture.agentSettings.set', { settings, ...(mcpChanged && approveMcp ? { approveMcpConfiguration: true as const } : {}) });
+      }); dirty.current = false; setApproveMcp(false); setDraft(next.settings); resource.reload(); setSaid({ error: false, text: t('connections.settings.saved') }); }
     catch (error) { setSaid({ error: true, text: error instanceof Error ? error.message : String(error) }); }
     finally { setBusy(false); }
   }

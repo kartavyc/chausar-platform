@@ -7,11 +7,13 @@ import { Fold } from '../../parts/Fold';
 import { Tile } from '../../parts/Tile';
 import { messageOf } from '../../../../../platform/shared/errors';
 import s from './AgentSettings.module.css';
+import { useSettingsSave } from './useSettingsSave';
 import connections from './Connections.module.css';
 
 /** Gmail is the AI tool's existing connection. The owner approves this standing setting here; sends still ask. */
 export function GmailConnection({ providers }: { providers?: readonly AiProvider[] }) {
   const t = useT(), engine = useEngine();
+  const saveSettings = useSettingsSave(engine);
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false);
   const [changes, setChanges] = useState<Partial<Record<AiProvider, boolean>>>({});
   const [said, setSaid] = useState<{ error: boolean; text: string } | null>(null);
@@ -22,11 +24,14 @@ export function GmailConnection({ providers }: { providers?: readonly AiProvider
     if (busy || !Object.keys(changes).length) return;
     setBusy(true); setSaid(null);
     try {
+      await saveSettings(async stillOpen => {
       // Read the latest settings so another open settings surface is never overwritten by this one choice.
       const current = await engine.request('venture.agentSettings.get', {});
+      stillOpen();
       const settings = structuredClone(current.settings);
       for (const name of active) if (changes[name] !== undefined) settings[name].connectors = changes[name];
       await engine.request('venture.agentSettings.set', { settings });
+      });
       setChanges({}); resource.reload(); setSaid({ error: false, text: t('connections.gmail.saved') });
     } catch (error) { setSaid({ error: true, text: messageOf(error) }); }
     finally { setBusy(false); }
