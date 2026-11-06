@@ -126,7 +126,7 @@ describe('Prices: the plan\'s profession guide sits beside the offers and never 
     await act(async () => { fireEvent.click(within(guide).getAllByRole('button', { name: 'Where this range comes from' })[0]!); });
     expect(guide.textContent).toContain('Your price is yours to set.');
     const books = (await screen.findByText('Monthly books', { selector: '[data-offer-name]' })).closest('li')!;
-    expect((within(books).getByLabelText('New price for Monthly books, in INR') as HTMLInputElement).value).toBe('');
+    expect((within(books).getByLabelText('New price') as HTMLInputElement).value).toBe('');
     const after = (await engine.request('venture.blueprint.get', {})) as BlueprintViewLite;
     expect(after.blueprint.offers.map((offer) => offer.pricing)).toEqual(before.blueprint.offers.map((offer) => offer.pricing));
     await waitFor(() => expect(() => assertFiguresProved(screen.getByRole('main'))).not.toThrow());
