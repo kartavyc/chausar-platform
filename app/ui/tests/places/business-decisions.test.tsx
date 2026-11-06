@@ -86,4 +86,51 @@ describe('Business > Decisions', () => {
     });
     expect(rows.map((row) => row.querySelector('[data-who]')!.firstChild!.textContent)).toEqual(['You', 'The owner', 'Your accountant', 'Chausar']);
   });
+
+  // One-shot C4 task 26 (116.x1): a row with something to open is a link to it.
+  it('a decision that opens something is a link: an invoice to its sheet, a run to its draft, the plan and a price to their pages; one that opens nothing is words', async () => {
+    window.location.hash = '#/business/decisions';
+    const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
+    const real = client.request.bind(client);
+    const one = (id: string, line: string, opens: unknown) => ({
+      id, at: '2026-10-23T09:00:00.000Z', subject: `x:${id}`, action: 'accept', who: 'owner', rule: null, ruleId: null, reason: line, line, by: 'owner', agentId: null, mine: true, opens,
+    });
+    const listed = { decisions: [
+      one('d1', 'You approved it: the invoice.', { kind: 'invoice', id: 'inv-39' }),
+      one('d2', 'You decided: Draft accepted.', { kind: 'run', id: 'd-ep14' }),
+      one('d3', 'You decided: Plan accepted.', { kind: 'plan', id: 'lumen' }),
+      one('d4', 'You decided: Price of Editing.', { kind: 'price', id: 'lumen' }),
+      one('d5', 'You decided: Kept the order.', { kind: 'order', id: 'o-1' }),
+      one('d6', 'You decided: Kept the client.', { kind: 'client', id: 'c-1' }),
+      one('d7', 'You decided: Nothing to open.', null),
+    ] };
+    vi.spyOn(client, 'request').mockImplementation(((method: string, payload: unknown) => (method === 'venture.decisions.list' ? Promise.resolve(listed) : real(method as never, payload as never))) as typeof client.request);
+    render(<App client={client} language="en" />);
+    const href = async (name: string) => (await screen.findByRole('link', { name })).getAttribute('href');
+    expect(await href('You approved it: the invoice.')).toBe('#/money/invoices?sheet=invoice%3Ainv-39');
+    expect(await href('You decided: Draft accepted.')).toBe('#/work?sheet=draft%3Ad-ep14');
+    expect(await href('You decided: Plan accepted.')).toBe('#/business/plan');
+    expect(await href('You decided: Price of Editing.')).toBe('#/business/prices');
+    expect(await href('You decided: Kept the order.')).toBe('#/work?order=o-1');
+    expect(await href('You decided: Kept the client.')).toBe('#/clients?sheet=client%3Ac-1');
+    expect(screen.queryByRole('link', { name: 'You decided: Nothing to open.' })).toBeNull();
+    expect(screen.getByText('You decided: Nothing to open.')).toBeTruthy();
+    assertInkRules(document.body);
+    // The invoice's link lands on the invoice sheet.
+    await act(async () => { window.location.hash = '#/money/invoices?sheet=invoice%3Ainv-39'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    expect(await screen.findByRole('complementary')).toBeTruthy();
+  });
+
+  it('the sample engine says what its decisions open: a send back made on Today opens the draft of that run', async () => {
+    const { client } = start('#/business/decisions');
+    const rows = (await client.request('venture.queue.list', { scope: 'all' })).rows;
+    const draft = rows.find((row) => row.id === 'run:d-ep14:review-1')!;
+    await client.request('venture.queue.sendBack', { rowId: draft.id, digest: draft.digest, text: 'Revise this to cut the intro' });
+    const { decisions } = await client.request('venture.decisions.list', {});
+    const runs = (await client.request('venture.delivery.list', {})) as unknown as { id: string }[];
+    const sent = decisions.find((item) => item.subject.startsWith('run:'))!;
+    const id = sent.subject.slice('run:'.length);
+    expect(sent.opens).toEqual(runs.some((run) => run.id === id) ? { kind: 'run', id } : null);
+    expect(decisions.find((item) => item.subject === 'step:cut')?.opens).toBeNull();
+  });
 });

@@ -118,12 +118,30 @@ export class FakeApprovalsDesk {
         const receipt=this.host.workReceipt?.(p.id);if(receipt)return structuredClone(receipt);
         throw new EngineError('WORK_RECEIPT_NOT_FOUND', 'That work receipt was not found.');
       }
-      case 'venture.decisions.list': return { decisions: structuredClone(this.decisions).reverse() };
+      case 'venture.decisions.list': return { decisions: structuredClone(this.decisions).reverse().map((item) => ({ ...item, opens: this.opensOf(item) })) };
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
   private now(): string { return this.host.now(); }
+
+  /** C4 (T26): what a decision opens, as journal/decisions.ts opensOf works it out: by its subject, null once it has gone. */
+  private opensOf(item: DecisionView): DecisionView['opens'] {
+    const at = item.subject.indexOf(':');
+    if (at < 0) return null;
+    const kind = item.subject.slice(0, at), id = item.subject.slice(at + 1);
+    const among = (method: string) => {
+      try { return (this.host.ask(method, {}) as { id: string }[]).some((row) => row.id === id); } catch { return false; }
+    };
+    switch (kind) {
+      case 'run': return among('venture.delivery.list') ? { kind: 'run', id } : null;
+      case 'order': return among('venture.order.list') ? { kind: 'order', id } : null;
+      case 'client': return among('venture.client.list') ? { kind: 'client', id } : null;
+      case 'invoice': return { kind: 'invoice', id };
+      case 'plan': return { kind: /^(?:Price of |New prices? )/.test(item.reason) ? 'price' : 'plan', id };
+      default: return null;
+    }
+  }
 
   /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
   noteDecision(subject: string, action: string, reason: string): void { this.record(subject, action, reason, `You decided: ${reason}`); }

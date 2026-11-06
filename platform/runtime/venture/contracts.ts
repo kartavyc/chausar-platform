@@ -1021,6 +1021,8 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   taxId: string | null; // the client's GSTIN or VAT number, when they gave one
   stateCode: string | null; // India only: the client's GST state code, for place of supply
   note: string | null;
+  /** C4 task 18: Forget of the person behind this client: the timeline holds nothing from before this time. */
+  timelineClearedAt?: IsoTime;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
   sellerShopify?: import('./playbooks/online-seller/shopify-records.ts').SellerShopifyBody;
@@ -5102,7 +5104,10 @@ export type DecisionView = {
   mine: boolean;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;
+  /** C4 (T26): what the decision was about, for the screen to open; null when that thing is gone or cannot be opened. */
+  opens: DecisionOpens;
 };
+export type DecisionOpens = { kind: 'invoice' | 'run' | 'order' | 'plan' | 'price' | 'client'; id: string } | null;
 export interface DecisionsView { decisions: DecisionView[] }
 export interface AllowSessionView { stepId: string; line: Display }
 

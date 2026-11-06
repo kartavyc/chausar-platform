@@ -1499,7 +1499,10 @@ export interface DecisionView {
   mine: boolean;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;
+  /** C4 (T26): what the decision was about, for the screen to open; null when that thing is gone or cannot be opened. */
+  opens?: DecisionOpens;
 }
+export type DecisionOpens = { kind: 'invoice' | 'run' | 'order' | 'plan' | 'price' | 'client'; id: string } | null;
 export type TriageField = 'due' | 'client' | 'kind' | 'money' | 'business';
 export interface TriageRule { keys: { field: TriageField; order: 'asc' | 'desc' }[]; words: string }
 export interface TriagePreview { rule: TriageRule | null; choices: TriageRule[]; rows: QueueRow[]; digest: string; by: 'model' | 'choices' }

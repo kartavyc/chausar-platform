@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
+import { formatHash } from '../../shell/routes';
 import { momentOf, refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Row } from '../../parts/Row';
-import type { AgentView, DecisionView } from '../../engine/types';
+import type { AgentView, DecisionOpens, DecisionView } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import b from './Business.module.css';
 import s from './Decisions.module.css';
@@ -22,6 +23,22 @@ function autoStep(agents: readonly AgentView[], agentId: string | null, stepId: 
   if (!agentId) return null;
   const step = agents.find((agent) => agent.id === agentId)?.steps.find((item) => item.id === stepId);
   return step && step.gate === 'auto' && !step.floor ? { agentId, purpose: step.purpose } : null;
+}
+
+/**
+ * C4 (T26): where a decision's row goes: an invoice or a client to its sheet, a run to its draft (T13's sheet), an order to
+ * Work, the plan to How the work is done, a price to Prices. Null when it opens nothing.
+ */
+function hrefOf(opens: DecisionOpens | undefined): string | null {
+  if (!opens) return null;
+  switch (opens.kind) {
+    case 'invoice': return formatHash({ place: 'money', sub: 'invoices', sheet: { kind: 'invoice', id: opens.id }, query: {} });
+    case 'run': return formatHash({ place: 'work', sheet: { kind: 'draft', id: opens.id }, query: {} });
+    case 'client': return formatHash({ place: 'clients', sheet: { kind: 'client', id: opens.id }, query: {} });
+    case 'order': return formatHash({ place: 'work', query: { order: opens.id } });
+    case 'plan': return '#/business/plan';
+    case 'price': return '#/business/prices';
+  }
 }
 
 /**
@@ -67,6 +84,7 @@ export function DecisionsView() {
             {list.map((decision) => {
               const stepId = stepOf(decision);
               const auto = stepId ? autoStep(agents, decision.agentId, stepId) : null;
+              const href = hrefOf(decision.opens);
               return (
                 <Row
                   key={decision.id}
@@ -80,7 +98,7 @@ export function DecisionsView() {
                     </span>
                   )}
                   // The engine's own words; an amount it named in what was decided has no receipt here (NOTES item 30).
-                  title={<span data-engine-line="">{decision.line}</span>}
+                  title={href ? <a href={href} data-engine-line="">{decision.line}</a> : <span data-engine-line="">{decision.line}</span>}
                   line={decision.rule ? t('business.decisions.rule', { rule: decision.rule }) : decision.reason !== decision.line ? <span data-engine-line="">{decision.reason}</span> : undefined}
                   actions={auto && stepId ? (
                     <Button disabled={busy} onClick={() => void stopAllowing(decision, auto.agentId, stepId, auto.purpose)}>{t('business.decisions.stopAllowing')}</Button>
