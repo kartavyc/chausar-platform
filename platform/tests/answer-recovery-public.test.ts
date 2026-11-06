@@ -8,7 +8,7 @@ import { createLocalServer } from '../runtime/server.ts';
 import { ExperimentalFileSnapshotAdapter } from '../runtime/vault.ts';
 import { ChausarError, hash, type Context } from '../runtime/contracts.ts';
 import type { Binding, ImportInput } from '../runtime/ingest.ts';
-import { preloadBridge } from './fixtures/preload-bridge.ts';
+import { trustedHostBridge } from './fixtures/trusted-host-bridge.ts';
 
 // Actual isolated synthetic HTTP, encrypted Vault, calculator and strict desktop IPC.
 // Test-only legacy-record setup and completed-write faults grant no live/native/GUI qualification.
@@ -214,8 +214,8 @@ test('concurrent exact public retries preserve the configured verifier and commi
   assert.deepEqual(f.engine.vault!.read(), ready, 'Verifier refusal persists neither a partial receipt nor uncommitted lineage.');
 });
 
-test('the desktop preload and strict IPC carry a newly declared time scope and retain public fresh-result readback', async t => {
-  const f = await fixture(t), bridge = await preloadBridge({ dispatch: (method, payload) => f.rpc(method, payload) });
+test('the trusted desktop host and strict IPC carry a newly declared time scope and retain public fresh-result readback', async t => {
+  const f = await fixture(t), bridge = await trustedHostBridge({ dispatch: (method, payload) => f.rpc(method, payload) });
   // The owner's sequence: list unpinned saved answers, review one, declare a new time scope, execute, then read back.
   const unpinned = (await bridge.request('trials.savedQuestions')).filter((answer: any) => answer.request && !Object.hasOwn(answer.request, 'asOf'));
   assert.deepEqual(unpinned.map((answer: any) => answer.id), [f.originalAnswerId]);

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
@@ -24,7 +25,7 @@ test('a complete Codex driver session replays the native parser with fresh roots
       let result: any = {};
       if (request.method === 'initialize') result = { userAgent: 'chausar/0.166.0 (Windows 10; x86_64) sample' };
       if (request.method === 'mcpServerStatus/list') result = { data: [{ name: 'chausar', runtimeStatus: 'connected', tools: Object.fromEntries(AGENT_MCP_TOOL_NAMES.map(name => [name, {}])) }], nextCursor: null };
-      if (request.method === 'experimentalFeature/list') result = { data: Object.entries(codexConfig(input(join(tmpdir(), 'features')), 'sample', 'win32').features).map(([name, enabled]) => ({ name, enabled: typeof enabled === 'boolean' ? enabled : false })), nextCursor: null };
+      if (request.method === 'experimentalFeature/list') result = { data: Object.entries(codexConfig(input(join(tmpdir(), `features-${randomUUID()}`)), 'sample', 'win32').features).map(([name, enabled]) => ({ name, enabled: typeof enabled === 'boolean' ? enabled : false })), nextCursor: null };
       if (request.method === 'thread/start') result = { thread: { id: 'sample-thread', ephemeral: true }, model: request.params.model, cwd: request.params.cwd, runtimeWorkspaceRoots: request.params.runtimeWorkspaceRoots, activePermissionProfile: { id: request.params.permissions }, approvalsReviewer: request.params.approvalsReviewer, approvalPolicy: request.params.approvalPolicy, instructionSources: [] };
       if (request.method === 'turn/start') result = { turn: { id: 'sample-turn', status: 'inProgress', items: [] } };
       queueMicrotask(() => {
@@ -38,11 +39,11 @@ test('a complete Codex driver session replays the native parser with fresh roots
     } }); return child;
   } });
   const recorder = createRunRecorder({ startState: {}, capturedAt: '2026-11-06T10:00:00.000Z' }), recording = { recorder };
-  await inRun(recording, async () => { const session = await driver.open(input(join(tmpdir(), 'old-codex-root'))); assert.equal((await session.run('Write the sample draft.')).text, 'Sample answer.'); await session.close(); });
+  await inRun(recording, async () => { const session = await driver.open(input(join(tmpdir(), `old-codex-root-${randomUUID()}`))); assert.equal((await session.run('Write the sample draft.')).text, 'Sample answer.'); await session.close(); });
   finishRun(recording); const capture = recorder.finish([]);
   assert.ok(!JSON.stringify(capture).includes('sample-capability'));
   const replay = createRunReplay(capture), replaying = { replay };
   const offline = new CodexDriver({ executable: process.execPath, platform: 'win32', spawn: () => { throw new Error('Replay spawned Codex'); } });
-  await inRun(replaying, async () => { const session = await offline.open(input(join(tmpdir(), 'new-codex-root'))); assert.equal((await session.run('Write the sample draft.')).text, 'Sample answer.'); await session.close(); });
+  await inRun(replaying, async () => { const session = await offline.open(input(join(tmpdir(), `new-codex-root-${randomUUID()}`))); assert.equal((await session.run('Write the sample draft.')).text, 'Sample answer.'); await session.close(); });
   finishRun(replaying); replay.done(); assert.equal(spawned, 1);
 });

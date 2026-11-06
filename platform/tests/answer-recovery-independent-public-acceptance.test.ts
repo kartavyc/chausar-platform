@@ -110,7 +110,7 @@ test('aging recovery requires a new onDate and honestly chosen all-event-date sc
   assert.deepEqual(f.originals(await f.snapshot()), f.originals(baseline));
 });
 
-test('a September aging scope declared through the desktop preload excludes October invoices as its inclusive event period promises', async t => {
+test('a September aging scope declared through the trusted desktop host excludes October invoices as its inclusive event period promises', async t => {
   const f = await fixture(t), originalBytes = JSON.stringify(f.originals(await f.snapshot()));
   // The owner's sequence: list unpinned saved answers, review the aging one, declare a new time scope, then execute.
   const unpinned = (await f.request('trials.savedQuestions')).filter((answer: any) => answer.request && !Object.hasOwn(answer.request, 'asOf'));

@@ -117,7 +117,7 @@ test('missing or cross-preview approval and forged public synthesis fields refus
   assert.deepEqual((await f.request('conversation.get', { id: second.answer.id })).answer, second.answer);
 });
 
-test('a reviewed final-answer preview without its separate approval cannot approve or dispatch through the desktop preload', async t => {
+test('a reviewed final-answer preview without its separate approval cannot approve or dispatch through the trusted desktop host', async t => {
   const question = 'Synthetic explicitly unchecked final consent';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const turn = await tools(f, question), review = await synthesisReview(f, turn.answer.id);

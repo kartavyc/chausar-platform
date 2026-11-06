@@ -1192,5 +1192,7 @@
   "platform/tests/workspace-move-name-a4.test.ts": 0.1,
   "platform/tests/workspace-snapshots.test.ts": 6.2,
   "replay-operation-d11.test.ts": 1,
-  "replay-timers-d11.test.ts": 1
+  "replay-timers-d11.test.ts": 1,
+  "platform/tests/engine-legacy-lazy-d10.test.ts": 2,
+  "platform/tests/trusted-host-fixture-d8.test.ts": 1
 }

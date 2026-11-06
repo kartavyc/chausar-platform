@@ -6,9 +6,9 @@ import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { preloadBridge, type Dispatch, type PreloadBridge } from './fixtures/preload-bridge.ts';
+import { trustedHostBridge, type Dispatch, type TrustedHostBridge } from './fixtures/trusted-host-bridge.ts';
 
-// Independent acceptance: the desktop's request sequence -> actual preload -> strict IPC
+// Independent acceptance: the desktop's request sequence -> actual trusted host validation -> strict IPC
 // clone boundary -> EngineHarness -> production worker loop -> actual Engine.
 // Synthetic provider contracts are authored, not LLM semantic-quality evidence.
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
@@ -61,8 +61,8 @@ async function fixture(t: TestContext, scenarios: Record<string, Scenario>, kind
   await engine.request('trust.update', { send: 'shape' });
   const request = (method: string, payload: Record<string, unknown> = {}) => engine.request(method, payload);
   assert.ok(created.workspace);
-  // One desktop window's preload; after a restart a fresh one reaches the new worker, as a reopened window would.
-  const desktop = (dispatch: Dispatch = request) => preloadBridge({ dispatch });
+  // One trusted desktop host client; after a restart a fresh one reaches the new worker, as a reopened window would.
+  const desktop = (dispatch: Dispatch = request) => trustedHostBridge({ dispatch });
   const h = await desktop();
   async function calls(): Promise<any[]> {
     try { return (await readFile(join(directory, 'acceptance-provider-calls.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
@@ -77,7 +77,7 @@ async function fixture(t: TestContext, scenarios: Record<string, Scenario>, kind
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 /** The desktop's answer readback after a turn: a grounded turn with any answer is read again by its ID. */
-async function current(h: PreloadBridge, data: any) {
+async function current(h: TrustedHostBridge, data: any) {
   if (data?.kind === 'grounded-conversation') return data.results?.some((result: any) => result.answer) ? (await h.request('conversation.get', { id: data.id })).answer : data;
   if (data?.kind === 'business-context' && data.receipt?.id) return h.request('business.context.receipt', { id: data.receipt.id });
   if (data?.receipt?.id) return { ...data, receipt: await h.request('receipts.get', { id: data.receipt.id }) };
@@ -149,14 +149,14 @@ test('acceptance: mixed answers and exact child evidence survive preload lock, u
   assert.deepEqual(await f.request('receipts.get', { id: calculation.id }), calculation);
   assert.deepEqual((await openSaved(f.h, question)).saved.answer, answer);
   await f.h.request('workspace.lock');
-  await assert.rejects(f.h.exposed.request('conversation.get', { id: composite.id }), { code: 'VAULT_LOCKED' });
+  await assert.rejects(f.h.request('conversation.get', { id: composite.id }), { code: 'VAULT_LOCKED' });
   await f.h.request('workspace.open', { folder: 'acceptance', passphrase: PASSWORD }); await f.h.request('workspace.status');
   const unlocked = await openSaved(f.h, question);
   assert.deepEqual(unlocked.saved.answer, answer); assert.equal(unlocked.saved.answer.results[1].answer.totalMinor, '30000');
   await f.restart(); const fresh = await f.desktop();
   assert.deepEqual((await openSaved(fresh, question)).saved.answer, answer);
-  assert.deepEqual((await fresh.exposed.request('conversation.get', { id: composite.id })).answer, answer);
-  assert.deepEqual(await fresh.exposed.request('receipts.get', { id: calculation.id }), calculation);
+  assert.deepEqual((await fresh.request('conversation.get', { id: composite.id })).answer, answer);
+  assert.deepEqual(await fresh.request('receipts.get', { id: calculation.id }), calculation);
   assert.equal((await f.calls()).length, 1, 'Readback must not invoke a provider or recalculate.');
   const encrypted = await readFile(join(f.directory, 'acceptance/authority.encrypted.json'), 'utf8');
   assert.equal(encrypted.includes(question), false); assert.equal(encrypted.includes(SECRET), false);
@@ -208,8 +208,8 @@ test('acceptance: incomplete, malformed, failed and thrown provider turns preser
 
 test('acceptance: changed question, changed route and revoked privacy block reviewed dispatch before provider entry', async t => {
   const question = 'Explain our invoices.'; const f = await fixture(t, { [question]: { calls: ['billed'] } });
-  const first = await preview(f, question), approval = await f.h.exposed.request('models.approve', { id: first.preview.id });
-  await assert.rejects(f.h.exposed.request('conversation.ask', { question: question + ' changed', previewId: first.preview.id,
+  const first = await preview(f, question), approval = await f.h.request('models.approve', { id: first.preview.id });
+  await assert.rejects(f.h.request('conversation.ask', { question: question + ' changed', previewId: first.preview.id,
     approvalId: approval.id, routeId: f.route.id, purpose: 'conversation', questionDisclosure: 'verbatim' }), { code: 'PREVIEW_REQUEST_CHANGED' });
   const route = await preview(f, question);
   await f.request('models.configure', { config: { ...f.config, model: 'changed-synthetic-model' } });
@@ -223,7 +223,7 @@ test('acceptance: source authority revoked while provider is in flight withholds
   const question = 'Describe our business and invoices while awaiting a response.';
   const f = await fixture(t, { [question]: { calls: ['business.describe', 'billed'], gate: true } });
   const review = await preview(f, question), pending = review.approve();
-  await entered(f, 1); await f.h.exposed.request('trust.update', { allowedSources: ['other-synthetic-source'] });
+  await entered(f, 1); await f.h.request('trust.update', { allowedSources: ['other-synthetic-source'] });
   await writeFile(join(f.directory, 'acceptance-release'), 'released'); assert.equal(await pending, undefined);
   assert.equal(f.h.rejected.at(-1).error.code, 'PREVIEW_STALE');
   assert.deepEqual(await f.request('conversation.history'), { items: [] });
@@ -245,7 +245,7 @@ test('acceptance requirement: clarification and all-tool-error turns remain list
   const failed = await turn(f, failure); assert.equal(failed.answer.results[0].error.code, 'AGING_LINK_REQUIRED');
   await f.restart(); const fresh = await f.desktop();
   await fresh.request('conversation.history', { limit: 20 });
-  const history = await fresh.exposed.request('conversation.history');
+  const history = await fresh.request('conversation.history');
   assert.deepEqual(history.items.map((item: any) => item.question).sort(), [clarification, failure].sort(),
     'Clarification and all-tool-error turns vanished after reopen.');
 });
@@ -259,7 +259,7 @@ test('acceptance: partial tool failure retains ordered successful evidence and e
   assert.equal(answer.receipt.resultRefs.length, 1);
   assert.equal(typeof answer.results[1].error.message, 'string'); assert.ok(answer.results[1].error.message);
   await f.restart(); const fresh = await f.desktop(); const opened = await openSaved(fresh, question);
-  const saved = await fresh.exposed.request('conversation.get', { id: answer.id });
+  const saved = await fresh.request('conversation.get', { id: answer.id });
   assert.deepEqual(saved.answer, answer); assert.deepEqual(opened.saved.answer, answer);
   assert.equal((await f.calls()).length, 1);
 });
@@ -270,9 +270,9 @@ test('acceptance requirement: revoking source access through the preload removes
   const { answer } = await turn(f, question), compositeId = answer.id;
   assert.equal(answer.results[0].answer.totalMinor, '30000');
   await f.h.request('trust.update', { allowedSources: ['other-synthetic-source'] });
-  assert.deepEqual(await f.h.exposed.request('conversation.history'), { items: [] });
-  await assert.rejects(f.h.exposed.request('conversation.get', { id: compositeId }), { code: 'CONVERSATION_NOT_FOUND' });
-  await assert.rejects(f.h.exposed.request('receipts.get', { id: answer.results[0].answer.id }));
+  assert.deepEqual(await f.h.request('conversation.history'), { items: [] });
+  await assert.rejects(f.h.request('conversation.get', { id: compositeId }), { code: 'CONVERSATION_NOT_FOUND' });
+  await assert.rejects(f.h.request('receipts.get', { id: answer.results[0].answer.id }));
 });
 
 test('acceptance: rereading an answer after authority changes outside the desktop is refused without another provider call', async t => {

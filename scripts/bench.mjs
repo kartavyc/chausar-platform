@@ -10,7 +10,7 @@ import { nodeTimingRows, testReceipt } from './receipt.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2); let requestedOutput; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all'; let isolation = 'process';
-const usage = 'Usage: node scripts/bench.mjs [--output <file.json>] [--workers=N] [--tier=fast|heavy|all] [--isolation=none] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
+const usage = 'Usage: node scripts/bench.mjs [--output <file.json>] [--workers=N] [--tier=fast|heavy|legacy|all] [--isolation=none] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
 const seen = new Set(); let list = false;
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
@@ -30,7 +30,7 @@ for (let index = 0; index < args.length; index++) {
     if (!['none', 'process'].includes(value)) throw new Error('Isolation must be none or process.');
     isolation = value;
   } else if (option === '--tier') {
-    if (!['fast', 'heavy', 'all'].includes(value)) throw new Error('The tier must be fast, heavy or all.');
+    if (!['fast', 'heavy', 'legacy', 'all'].includes(value)) throw new Error('The tier must be fast, heavy, legacy or all.');
     tier = value;
   } else {
     if (!/^[1-8]\/[1-8]$/.test(value) || Number(value[0]) > Number(value[2])) throw new Error('Benchmark shard must be I/N with N from 1 to 8 and I from 1 to N, such as 2/3.');
@@ -61,14 +61,13 @@ const discoveryPattern = 'platform/tests/*.test.ts';
 const discoveredFiles = [];
 for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
 discoveredFiles.sort();
-// D2: platform/tests/tiers.json names the heavy files (over 20 s). --tier=fast runs every other file, --tier=heavy only
-// those, --tier=all (the default) every file. A name there that no longer exists fails the run, so the list stays true.
+// D2/D10: heavy and legacy files have explicit tiers. Fast excludes both, while all (the default) keeps every file. A name there that no longer exists fails the run, so the list stays true.
 let tiers = { heavy: [], isolated: [] };
 try { tiers = JSON.parse(await readFile(resolve(root, 'platform/tests/tiers.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-for (const file of [...(tiers.heavy ?? []), ...(tiers.isolated ?? [])]) {
+for (const file of [...(tiers.heavy ?? []), ...(tiers.isolated ?? []), ...(tiers.legacy ?? [])]) {
   if (!discoveredFiles.includes(file)) throw new Error(`platform/tests/tiers.json names a test file that does not exist: ${file}`);
 }
-const tierFiles = tier === 'all' ? discoveredFiles : discoveredFiles.filter(file => (tier === 'heavy') === (tiers.heavy ?? []).includes(file));
+const tierFiles = tier === 'all' ? discoveredFiles : discoveredFiles.filter(file => tier === 'legacy' ? (tiers.legacy ?? []).includes(file) : tier === 'heavy' ? (tiers.heavy ?? []).includes(file) : !(tiers.heavy ?? []).includes(file) && !(tiers.legacy ?? []).includes(file));
 if (tierFiles.length === 0) throw new Error(`The ${tier} tier has no test files.`);
 // D2: one time-balanced plan for any shard count from 1 to 8. Each file weighs its seconds in
 // platform/tests/test-weights.json (`--write-weights` refreshes it; a file missing there counts 1 s). Files are placed
