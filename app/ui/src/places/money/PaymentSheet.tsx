@@ -105,7 +105,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
 
   let body;
   if (!current) {
-    body = view.error ? <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p> : <p className={s.quietLine}>{t('money.loading')}</p>;
+    body = view.error ? <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p> : null;
   } else if (phase === 'done' && recorded) {
     body = (
       <>
@@ -187,6 +187,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
 
   return (
     <Sheet
+      loading={!current && !view.error}
       label={t('money.payment.label')}
       eyebrow={current ? invoiceTitle(t, current.invoice, current.client.name) : undefined}
       title={t(phase === 'done' ? 'money.payment.recorded' : 'money.payment.title')}

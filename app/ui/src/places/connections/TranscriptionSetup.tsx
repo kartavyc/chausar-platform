@@ -26,6 +26,7 @@ export function TranscriptionSetup() {
   const [command, setCommand] = useState('');
   const [model, setModel] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const shown = view ?? setup.data ?? null;
 
@@ -43,6 +44,7 @@ export function TranscriptionSetup() {
       setView(next);
       setCommand(next.command ?? '');
       setModel(next.model ?? '');
+      if ('clear' in params) setEditing(false);
     } catch (error) {
       setProblem(t('connections.transcribe.failed', { message: messageOf(error) }));
     } finally {
@@ -50,10 +52,23 @@ export function TranscriptionSetup() {
     }
   }
 
+  async function choose(kind: 'command' | 'model') {
+    if (!client.pickTranscriptionFile || busy) return;
+    setBusy(true); setProblem(null);
+    try { const path = await client.pickTranscriptionFile(kind); if (path !== null) (kind === 'command' ? setCommand : setModel)(path); }
+    catch (error) { setProblem(messageOf(error)); }
+    finally { setBusy(false); }
+  }
+
   function save(event: FormEvent) {
     event.preventDefault();
     void send({ command: command.trim(), model: model.trim() });
   }
+
+  if (!editing && !shown?.command) return <div>
+    <Button size="sm" variant="quiet" onClick={() => setEditing(true)}>{t('connections.transcribe.start')}</Button>
+    {setup.error && <p role="alert">{setup.error.message}</p>}
+  </div>;
 
   return (
     <Tile pad="compact">
@@ -64,7 +79,9 @@ export function TranscriptionSetup() {
           {setup.error && <p className={s.problem} role="alert">{t('connections.transcribe.loadFailed', { message: setup.error.message })}</p>}
           <p className={s.note}>{t('connections.transcribe.hint')}</p>
           <Field label={t('connections.transcribe.command')} hint={t('connections.transcribe.commandHint')} value={command} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setCommand(event.currentTarget.value)} />
+          {client.pickTranscriptionFile && <Button size="sm" locked={busy} onClick={() => void choose('command')}>{t('connections.transcribe.chooseCommand')}</Button>}
           <Field label={t('connections.transcribe.model')} hint={t('connections.transcribe.modelHint')} value={model} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setModel(event.currentTarget.value)} />
+          {client.pickTranscriptionFile && <Button size="sm" locked={busy} onClick={() => void choose('model')}>{t('connections.transcribe.chooseModel')}</Button>}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <div className={s.buttons}>
             {shown?.command && <Button size="sm" variant="quiet" disabled={busy} onClick={() => void send({ clear: true })}>{t('connections.transcribe.remove')}</Button>}

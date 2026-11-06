@@ -73,7 +73,7 @@ describe('6F1 and 6F2 in AI settings', () => {
     const engine = new FakeEngine({ latencyMs: 0 });
     const settings = await openSettings(engine);
     const packs = await openFold(await settings.findByText('Add-on packs', { selector: 'summary' }));
-    await packs.findByText('No packs added.');
+    expect(packs.queryByText('No packs added.')).toBeNull();
     const file = new File([JSON.stringify(PACK)], 'notes.json', { type: 'application/json' });
     await act(async () => { fireEvent.change(packs.getByLabelText('Choose a pack file'), { target: { files: [file] } }); });
     await packs.findByText('Plain guidance for client notes.');
@@ -115,4 +115,12 @@ describe('6F1 and 6F9 on the run card', () => {
     expect(cost.querySelector('[data-receipt]')).toBeTruthy();
     expect(within(cost).getByText('₹3.98')).toBeTruthy();
   });
+});
+
+
+it('empty external tool sections stay quiet with one small Add server action (B4)', async () => {
+  const settings = await openSettings(new FakeEngine({ latencyMs: 0 }));
+  expect(settings.queryByRole('group', { name: 'External tools (MCP)' })).toBeNull();
+  const add = settings.getByRole('button', { name: 'Add server' });
+  expect(add.getAttribute('data-size')).toBe('sm');
 });

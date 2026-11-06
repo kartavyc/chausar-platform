@@ -61,12 +61,12 @@ type SurfaceProps = SurfaceNaming & {
   children?: ReactNode;
 };
 
-export type BentoProps = SurfaceProps;
+export type BentoProps = SurfaceProps & { arrived?: boolean | undefined };
 
 /** D's `.bento`: the 12-column grid tiles sit in, with the grid gap. */
-export function Bento({ as: Tag = 'div', labelledBy, label, className, children }: BentoProps) {
+export function Bento({ as: Tag = 'div', labelledBy, label, className, children, arrived }: BentoProps) {
   return (
-    <Tag className={cx(s.bento, className)} aria-labelledby={labelledBy} aria-label={label}>
+    <Tag data-arrived={arrived ? '' : undefined} className={cx(s.bento, className)} aria-labelledby={labelledBy} aria-label={label}>
       {children}
     </Tag>
   );
