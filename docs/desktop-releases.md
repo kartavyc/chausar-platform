@@ -94,7 +94,7 @@ Every tagged release signs a new update feed with `node scripts/release-feed.mjs
 
 - `chausarUpdatePublicKey`: the public half from `node scripts/release-key.mjs`, as PEM text.
 - `chausarUpdateFeed`: the address of `feed.json`, with `feed.json.sig` beside it. `{channel}` in it becomes `beta` or `stable`. Redirects are followed only to GitHub's release hosts and the address's own host.
-- `chausarWindowsPublisher`: the certificate's CN. Empty, a Windows owner reads "Needs a signed installer" and gets Show installer; nothing runs by itself.
+- `chausarWindowsCertificateThumbprint`: the exact signing certificate's 40-character hexadecimal thumbprint. Empty, a Windows owner reads "Needs a signed installer" and gets Show installer; nothing runs by itself.
 
 GitHub's `releases/latest` link skips anything marked pre-release, so a beta feed needs a release not marked pre-release, or a fixed tag in the address.
 

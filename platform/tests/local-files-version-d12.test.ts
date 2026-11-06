@@ -119,7 +119,7 @@ test('newer update settings are ignored and survive an owner setting change', as
   const newer = JSON.stringify({ format: 'chausar.update-settings.v99', daily: false, channel: 'beta' });
   await writeFile(path, newer);
   const { UpdateService } = await import('../runtime/update-service.ts');
-  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: null, feedUrl: null, windowsPublisher: null, isBusy: () => false });
+  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: null, feedUrl: null, windowsCertificateThumbprint: null, isBusy: () => false });
   assert.equal((await service.view()).daily, true);
   await service.settings({ daily: false });
   assert.equal(await readFile(path, 'utf8'), newer);
@@ -136,7 +136,7 @@ test('the pending update of a newer local format is not removed or acted on', as
   const newer = JSON.stringify({ format: 'chausar.pending-release.v99', manifest: { version: '0.1.0' }, artifactPath });
   await writeFile(path, newer);
   const { UpdateService } = await import('../runtime/update-service.ts');
-  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: 'configured only, never used', feedUrl: 'https://example.com/feed', windowsPublisher: null, isBusy: () => false });
+  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: 'configured only, never used', feedUrl: 'https://example.com/feed', windowsCertificateThumbprint: null, isBusy: () => false });
   assert.equal((await service.view()).target, null);
   assert.equal(await readFile(path, 'utf8'), newer);
   assert.equal(await readFile(artifactPath, 'utf8'), 'future installer');
