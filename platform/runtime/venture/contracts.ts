@@ -3688,6 +3688,8 @@ export type AgentProposalRecord = RecordBase<'venture-agent-proposal'> & {
   imported?: { patches: PlaybookPatch[]; persona: PersonaFields | null; skipped: string[] };
 };
 /**
+  /** C7: an instruction the agent offered after the owner signed off a draft they edited (agents/way-of-working.ts). */
+  offered?: { runId: string; digest: string };
  * One chat consent per business covers agent chat, Chats and network search, which send client or contact data to the
  * owner's AI (4B1). It names the connected AI; a change of AI connection makes it stale.
  */
@@ -4686,6 +4688,8 @@ export type AgentProposalView = {
   digest: string; line: Display | null;
 };
 /**
+  /** C7: an offer the agent made after an edited sign-off: "Offered by {agent} after you approved {run}". */
+  offered?: Display;
  * 4B1. One run the agent owned a step in, folded in its thread; recalled: the notes its turns carried (4B2), a note the
  * owner forgot since marked forgotten, with no words of it.
  */

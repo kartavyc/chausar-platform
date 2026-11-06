@@ -277,5 +277,7 @@
   "team.shelf.back": "Bring back",
   "team.shelf.backNamed": "Bring back {name}",
   "team.shelf.failed": "Could not bring it back: {message}",
-  "team.shelf.chip": "Retired"
+  "team.shelf.chip": "Retired",
+  "team.chat.way.keep": "Keep",
+  "team.chat.way.no": "Not this"
 }

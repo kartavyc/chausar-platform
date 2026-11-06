@@ -1216,6 +1216,8 @@ export interface AgentProposalView {
   id: string; at: string; agent: string; kind: 'instruction' | 'note' | 'import'; status: 'drafted' | 'accepted' | 'rejected' | 'stale';
   quote: string; title: Display; appliesTo: Display | null; diff: DiffLine[]; fromVersion: number | null; toVersion: number | null;
   note: { text: string; scope: AgentNoteScope } | null; digest: string; line: Display | null;
+  /** C7: an offer the agent made after an edited sign-off, with who offered it and after which approval. */
+  offered?: Display;
 }
 export interface AgentRunItem { runId: string; at: string; purpose: Display; state: RunState; done: number; total: number; steps: RunStep[]; recalled: { id: string; text: string; forgotten?: boolean }[] }
 export type AgentThreadItem = { type: 'message'; message: AgentMessageView } | { type: 'run'; run: AgentRunItem } | { type: 'proposal'; proposal: AgentProposalView };
