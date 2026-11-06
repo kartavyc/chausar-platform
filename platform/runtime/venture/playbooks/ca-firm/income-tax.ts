@@ -18,7 +18,7 @@ export type Presumptive =
   | { scheme: '44ADA'; grossReceiptsMinor: string; cashReceiptsMinor: string };
 export type NotModelledIncome = 'capital-gains' | 'house-property' | 'foreign-income' | 'agricultural-income' | 'lottery-or-winnings' | 'virtual-digital-assets';
 export type IncomeTaxInput = {
-  assessmentYear: '2026-27';
+  assessmentYear: '2026-27' | '2027-28';
   regime: 'new' | 'old';
   residency: 'resident' | 'non-resident';
   ageBand: AgeBand;

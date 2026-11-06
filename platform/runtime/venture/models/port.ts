@@ -25,6 +25,7 @@ import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
 import { AVAILABILITY_REASONS, PRESETS, availabilityOf, claudeTermsOpen, presetSpec, type PresetSpec } from './presets.ts';
 import { assertSchemaSafe } from './schema.ts';
+import { redactPayload, redactSecrets } from '../core/secrets.ts';
 import {
   HTTP_TIMEOUT_MS, PREVIEW_TTL_MS, PROCESS_TIMEOUT_MS, STALE_DISPATCH_MESSAGE, STALE_DISPATCH_MS, VERSION_CHECK_TIMEOUT_MS, isPlainRecord,
   type CallRecord, type ConnectionRecord, type ConnectionView, type Parsed,
@@ -173,6 +174,7 @@ function checkTask(task: ModelTask<unknown>) {
   if (typeof task.validate !== 'function') throw malformed('validate must be a function');
   if (task.template !== undefined && typeof task.template !== 'function') throw malformed('template must be a function when given');
   if (typeof task.containsClientData !== 'boolean') throw malformed('containsClientData must be true or false');
+  if (task.capLeftMicros !== undefined && (typeof task.capLeftMicros !== 'string' || !/^\d{1,30}$/.test(task.capLeftMicros))) throw malformed('capLeftMicros must be whole micro units');
   let input: string | undefined;
   try { input = JSON.stringify(task.input); } catch { input = undefined; }
   if (typeof input !== 'string') throw malformed('input must be plain JSON');
@@ -226,7 +228,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted, claudeTerms }).availabilityReason };
   };
 
-  const prepare = (connection: ConnectionRecord, spec: PresetSpec, task: ModelTask<unknown>): Prepared => {
+  const prepare = (connection: ConnectionRecord, spec: PresetSpec, given: ModelTask<unknown>): Prepared => {
+    // The secret screen (W1 H17) before anything is built: the request, the preview and the call record all hold the
+    // screened text, so a key or token pasted into the instructions or the input never leaves and is never kept.
+    const task: ModelTask<unknown> = { ...given, instructions: redactSecrets(given.instructions), input: redactPayload(given.input) };
     const model = connection.model ?? spec.model ?? '';
     if (spec.kind === 'anthropic-messages') {
       const body = anthropicBody(model, task);
@@ -446,6 +451,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         sweep(tx);
         check(tx.state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
         const connection = requireCurrentConnection(tx, route.connection);
+        // The run's own cap (W1 H4): a call that may cost more than its run has left is refused before anything is kept.
+        if (task.capLeftMicros !== undefined && BigInt(estimate) > BigInt(task.capLeftMicros)) {
+          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatMicros(estimate)}, more than the ${formatMicros(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
+        }
         checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now));
         const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);
         // The charge record, in the same commit as the call record: written before anything is sent.

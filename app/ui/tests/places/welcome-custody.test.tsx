@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
@@ -60,6 +61,19 @@ describe('Welcome back: a business locked with a passphrase', () => {
     await appShown();
     expect(sent(calls, 'workspace.open')).toEqual([{ folder: 'sitara', passphrase: 'not the passphrase' }, { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE }]);
     expect(document.body.textContent).not.toContain(SAMPLE_PASSPHRASE);
+  });
+
+  it('under React StrictMode a wrong passphrase still shows the refusal and Open works again (U16)', async () => {
+    window.location.hash = '#/today';
+    render(<StrictMode><App client={createFakeClient(new FakeEngine({ closed: true }))} language="en" /></StrictMode>);
+    await welcome();
+    await press(screen.getByRole('button', { name: /Sitara Events/ }));
+    const field = screen.getByLabelText('Passphrase for Sitara Events') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: 'not the passphrase' } });
+    await press(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again."));
+    expect((screen.getByRole('button', { name: 'Open' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(field.value).toBe('');
   });
 
   it('a forgotten passphrase leads to the recovery code, with that business chosen', async () => {

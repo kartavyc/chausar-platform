@@ -9,17 +9,23 @@
 // The policy (venture/policy) checks each call before it runs. A call it holds ends the turn like a hand-off: the owner
 // gets a question, and an approval lets exactly that call run once in the next turn. Starting heavy work is an outside
 // effect on the owner's own signed-in tool, so it needs the owner's approval bound to the brief.
-import { check } from '../../../contracts.ts';
-import { assertNoNumbers, tidyWords } from '../../records.ts';
+// The run's spend cap is held before each model call: the call that would cross it is refused before it is sent, and
+// Today asks the owner for one more window. While calls wait for the owner, each turn is told they have not run.
+import { ChausarError, check } from '../../../contracts.ts';
+import { assertNoNumbers, formatMicros, tidyWords } from '../../records.ts';
 import { REQUIRED_SECTIONS } from '../../contracts.ts';
 import type {
-  AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
+  AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, IsoTime, Json, MicroString, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
   UploadFormat, VentureHostKind, WorkReceiptRecord,
 } from '../../contracts.ts';
 import { deliverySchema, templateOutline, templateTotal, validateDraft, type DraftRefs, type FigureRefEntry } from '../deliverable.ts';
 import { auditStep, notRunStep } from '../judge/auditor.ts';
 import { decideHold, gateEffect, holdQuestion } from '../../policy/holds.ts';
 import type { Approval } from '../../policy/ladder.ts';
+import { toolDeclaration } from '../../policy/effects.ts';
+import { latchTaint } from '../../policy/taint.ts';
+import { redactPayload, redactSecrets } from '../../core/secrets.ts';
+import { heldQuestion, heldWords, screenJson, screenNote, screenUntrusted, type ScreenSetting } from '../../policy/untrusted.ts';
 import { callTool, MAX_INPUT_CHARS, offeredTools, receiptAlias, ROW_LANGUAGE, toolManifest, type ToolEnv } from './tools.ts';
 
 export const DEFAULT_LIMITS: HarnessLimits = Object.freeze({
@@ -164,6 +170,35 @@ function agentSteps(playbook: Pick<PlaybookRecord, 'steps'>): Json {
   return playbook.steps.filter(step => AGENT_KINDS.has(step.kind)).map(step => ({ step: step.title, guidance: [...(step.guidance ?? [])] }));
 }
 
+/** Chausar's own words to the agent while calls wait for the owner, so it never reports one as done or sent. */
+export const AWAITING_APPROVAL = 'These calls are awaiting approval and have not executed.';
+
+/**
+ * The run's calls that wait for the owner and have not run: a call on hold, an outside action the agent recorded for
+ * the owner to approve (not a shadow one, which never runs), and a heavy-work brief. Decided ones leave the list.
+ */
+export function awaitingApproval(state: Pick<HarnessState, 'toolCalls' | 'holds' | 'delegations'>): { call: string; tool: string }[] {
+  const waiting = new Set<string>();
+  for (const hold of state.holds ?? []) if (hold.status === 'waiting') waiting.add(hold.toolCallId);
+  for (const brief of state.delegations ?? []) if (brief.status === 'waiting') waiting.add(brief.toolCallId);
+  for (const call of state.toolCalls) {
+    const shadow = call.envelope.ok && (call.envelope.result as { shadow?: unknown } | null)?.shadow === true;
+    if (call.tool === 'outbox.propose' && call.outcome === 'succeeded' && !shadow) waiting.add(call.id);
+  }
+  return state.toolCalls.filter(call => waiting.has(call.id)).map(call => ({ call: call.id, tool: call.tool }));
+}
+
+/**
+ * The model task's instructions, with the waiting calls said in Chausar's own trusted words and listed in the input.
+ * Nothing changes while nothing waits, so the text the owner approves stays the same.
+ */
+function withAwaiting(instructions: string, state: HarnessState, input: Record<string, Json>): string {
+  const calls = awaitingApproval(state);
+  if (!calls.length) return instructions;
+  input.awaitingApproval = { note: AWAITING_APPROVAL, calls };
+  return `${instructions} ${AWAITING_APPROVAL} ${calls.map(item => `${item.call} (${item.tool})`).join(', ')}. Never say they were sent or done.`;
+}
+
 /**
  * One act turn as a model task. Client data forces the owner's approval of its exact text on a real order. The tool
  * list, the turn schema and the row language follow the tools this host can run; a call to another is still refused.
@@ -185,7 +220,7 @@ export function actTask(ctx: LoopContext, state: HarnessState): ModelTask<AgentT
   if (offered.includes('sandbox.transform')) input.rowLanguage = ROW_LANGUAGE;
   const limits = state.limits;
   return {
-    purpose: 'agent-turn', instructions: AGENT_TURN_INSTRUCTIONS, input, schemaName: 'venture-agent-turn', schema: turnSchema(offered),
+    purpose: 'agent-turn', instructions: withAwaiting(AGENT_TURN_INSTRUCTIONS, state, input), input, schemaName: 'venture-agent-turn', schema: turnSchema(offered),
     validate: raw => validateTurn(raw, limits, ctx.allowed), containsClientData: ctx.containsClientData, maxOutputTokens: 4096,
   };
 }
@@ -201,28 +236,35 @@ const PROOF_WORK = new Set(['transformed', 'totals', 'reconciled', 'matched', 'b
 export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTurn, meta: { by: 'model' | 'template'; callId: string | null; costMicros: string }): Promise<HarnessState> {
   const next: HarnessState = structuredClone(state);
   const number = next.used.turns + 1;
-  next.turns.push({ turn: number, step: 'act', note: turn.note, calls: turn.calls, finished: turn.finished, forced: false, by: meta.by, callId: meta.callId, costMicros: meta.costMicros });
+  // The turn log and the round ledger are stored traces: they pass the secret screen (core/secrets.ts) as they are
+  // written, like each tool call's record (tools.ts).
+  next.turns.push({ turn: number, step: 'act', note: redactSecrets(turn.note), calls: redactPayload(turn.calls), finished: turn.finished, forced: false, by: meta.by, callId: meta.callId, costMicros: meta.costMicros });
   next.used.turns = number;
   next.used.costMicros = String(BigInt(next.used.costMicros) + BigInt(meta.costMicros));
-  const round: AuditRound = { round: number, plan: turn.note, steps: [], progress: 0 };
+  const round: AuditRound = { round: number, plan: redactSecrets(turn.note), steps: [], progress: 0 };
   next.rounds = [...(next.rounds ?? []), round];
+  // A real order is latched from its first turn: the client's request and file names are outside content (policy/taint.ts).
+  if (env.runRef.kind === 'delivery' && !next.taint) next.taint = { turn: number, source: 'client-request', toolCallId: null, tool: null };
   let handoff: { to: 'client' | 'owner'; question: string } | null = null;
   let delegated: NonNullable<HarnessState['delegations']>[number] | null = null;
   let held: PolicyHold | null = null;
+  let quarantined: string | null = null; // the owner's question when the screen held a result
   for (const [index, call] of turn.calls.entries()) {
     const cancelled = (code: string, message: string) => {
       const id = `t${number}.${index + 1}`;
+      const tool = redactSecrets(call.tool.slice(0, 60));
       next.toolCalls.push({
-        id, turn: number, tool: call.tool.slice(0, 60), input: null, inputDigest: '', envelope: { ok: false, error: { code, name: code === 'HARNESS_LIMIT' ? 'HarnessLimit' : 'ToolSkipped', message } },
+        id, turn: number, tool, input: null, inputDigest: '', envelope: { ok: false, error: { code, name: code === 'HARNESS_LIMIT' ? 'HarnessLimit' : 'ToolSkipped', message } },
         outcome: 'cancelled', effect: null, tier: null, receiptIds: [], tableIds: [],
       });
-      round.steps.push(notRunStep(id, call.tool.slice(0, 60), message));
+      round.steps.push(notRunStep(id, tool, message));
     };
     if (handoff) { cancelled('TOOL_SKIPPED', 'A hand-off ended this turn, so this call did not run.'); continue; }
     if (delegated) { cancelled('TOOL_SKIPPED', 'A heavy-work brief ended this turn, so this call did not run.'); continue; }
     if (held) { cancelled('TOOL_SKIPPED', 'A call on hold ended this turn, so this call did not run.'); continue; }
+    if (quarantined) { cancelled('TOOL_SKIPPED', 'Content held for the owner ended this turn, so this call did not run.'); continue; }
     if (next.used.toolCalls >= next.limits.maxToolCalls) { cancelled('HARNESS_LIMIT', 'The run used all its tool calls.'); continue; }
-    const outcome = await callTool(env, next.grant, number, index, call, next.holds ?? []);
+    const outcome = await callTool(env, next.grant, number, index, call, next.holds ?? [], next.taint ?? null);
     if (outcome.hold) {
       next.toolCalls.push(outcome.record);
       round.steps.push(notRunStep(outcome.record.id, outcome.record.tool, outcome.hold.reason));
@@ -235,7 +277,7 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     const used = outcome.verdict?.holdId ? next.holds?.find(hold => hold.id === outcome.verdict!.holdId) : undefined;
     if (used) used.status = 'used';
     const audit = auditStep(env, outcome);
-    round.steps.push({ toolCallId: outcome.record.id, tool: outcome.record.tool, ...audit });
+    round.steps.push(redactPayload({ toolCallId: outcome.record.id, tool: outcome.record.tool, ...audit }));
     if (audit.audited) round.progress += 1;
     next.used.toolCalls += 1;
     next.toolCalls.push(outcome.record);
@@ -245,6 +287,14 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     if (outcome.mock) next.mocks.push(outcome.mock);
     if (outcome.handoff) handoff = outcome.handoff;
     if (outcome.delegate) delegated = outcome.delegate;
+    // A result the untrusted screen held ends the turn as a question for the owner on Today (policy/untrusted.ts).
+    if (!outcome.record.envelope.ok && outcome.record.envelope.error.code === 'UNTRUSTED_HELD') quarantined = heldQuestion(outcome.record.screen ?? { findings: [] });
+    // The taint latch (policy/taint.ts): the first result that carried outside content marks the run for good, so the
+    // next call in this very turn is checked against it. A held result added nothing, so it marks nothing.
+    if (outcome.record.outcome !== 'cancelled') {
+      const mark = latchTaint(next.taint, { integrity: outcome.record.integrity, turn: number, source: toolDeclaration(outcome.record.tool)?.source ?? 'tool-output', toolCallId: outcome.record.id, tool: outcome.record.tool });
+      if (mark) next.taint = mark;
+    }
   }
   if (next.proofs.some(proof => PROOF_WORK.has(proof.kind))) next.sections = 'report';
   if (delegated) {
@@ -253,13 +303,18 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     return next;
   }
   if (handoff) {
-    next.handoffs.push({ to: handoff.to, question: tidyWords(handoff.question).slice(0, 300), turn: number, answer: null, answeredBy: null });
+    next.handoffs.push({ to: handoff.to, question: redactSecrets(tidyWords(handoff.question)).slice(0, 300), turn: number, answer: null, answeredBy: null });
     next.phase = 'needs-answer';
     return next;
   }
   if (held) {
     next.holds = [...(next.holds ?? []), held];
     next.handoffs.push({ to: 'owner', question: holdQuestion(held).slice(0, 300), turn: number, answer: null, answeredBy: null });
+    next.phase = 'needs-answer';
+    return next;
+  }
+  if (quarantined) {
+    next.handoffs.push({ to: 'owner', question: quarantined, turn: number, answer: null, answeredBy: null });
     next.phase = 'needs-answer';
     return next;
   }
@@ -271,19 +326,83 @@ function settle(state: HarnessState, finished: boolean): HarnessState {
   if (finished) { state.phase = 'write'; return state; }
   const reason = state.used.turns >= state.limits.maxTurns ? 'The agent used all its turns.'
     : state.used.toolCalls >= state.limits.maxToolCalls ? 'The agent used all its tool calls.'
-      : BigInt(state.used.costMicros) >= BigInt(state.limits.maxCostMicros) ? 'The run reached its spending limit.' : null;
+      : BigInt(state.used.costMicros) >= runCapMicros(state) ? 'The run reached its spending limit.' : null;
   state.phase = reason ? 'write' : 'act';
   state.stopReason = reason;
   return state;
 }
 
-/** Records the answer to the open hand-off and moves the loop on. When the question was a held call, the answer decides it. */
-export function answerHandoff(state: HarnessState, answer: string, by: 'owner' | 'practice-client'): HarnessState {
+// ---------------------------------------------------------------------------
+// The run's spend cap, held before each call
+// ---------------------------------------------------------------------------
+
+/** The run's spend cap now: the playbook's limit plus every window the owner allowed on Today. */
+export function runCapMicros(state: Pick<HarnessState, 'limits' | 'capWindows'>): bigint {
+  return (state.capWindows ?? []).reduce((total, window) => total + BigInt(window.micros), BigInt(state.limits.maxCostMicros));
+}
+
+/**
+ * How far one call that may cost up to estimateMicros would take the run past its cap, or null when it fits. A run has
+ * one call out at a time (the model port claims each approved preview once), so holding the most a call can cost
+ * against what is left, just before it is sent, is the reservation: the call that would cross the cap never goes.
+ */
+export function capShortfall(state: Pick<HarnessState, 'limits' | 'capWindows' | 'used'>, estimateMicros: MicroString): bigint | null {
+  const over = BigInt(state.used.costMicros) + BigInt(estimateMicros) - runCapMicros(state);
+  return over > 0n ? over : null;
+}
+
+/** Refuses, before it is sent, the call that would take the run past its cap. Today then asks for one more window. */
+export function reserveRunCall(state: Pick<HarnessState, 'limits' | 'capWindows' | 'used'>, estimateMicros: MicroString): void {
+  if (capShortfall(state, estimateMicros) === null) return;
+  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatMicros(estimateMicros)}, which would take this run past its spend cap of ${formatMicros(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this run on Today to go on.`);
+}
+
+/** One more window for the run: whole windows of its own cap, enough for the call that waits. Null when it fits. */
+export function capWindow(state: Pick<HarnessState, 'limits' | 'capWindows' | 'used'>, estimateMicros: MicroString): MicroString | null {
+  const over = capShortfall(state, estimateMicros);
+  if (over === null) return null;
+  const size = BigInt(state.limits.maxCostMicros);
+  return String(size > 0n ? ((over + size - 1n) / size) * size : over);
+}
+
+/** The owner allowed one more window on Today: the run's cap rises by it, once. Refused when the call fits already. */
+export function allowCapWindow(state: HarnessState, estimateMicros: MicroString, at: IsoTime, by: string): HarnessState {
+  const window = capWindow(state, estimateMicros);
+  check(window !== null, 'RUN_CAP_NOT_REACHED', 'This run is within its spend cap, so it needs no more room.');
+  return addCapWindow(state, window, at, by);
+}
+
+/**
+ * Raises the run's cap by exactly micros, as the owner approved it. Approving a heavy-work brief, whose cost the owner
+ * read on the brief, raises it by that brief's reserve, so the one approval covers it and nothing asks twice.
+ */
+export function addCapWindow(state: HarnessState, micros: MicroString, at: IsoTime, by: string): HarnessState {
+  const next: HarnessState = structuredClone(state);
+  next.capWindows = [...(next.capWindows ?? []), { micros, at, by }];
+  return next;
+}
+
+/**
+ * Records the answer to the open hand-off and moves the loop on. When the question was a held call, the answer decides
+ * it. screen: the business's untrusted screen, for a client's answer the owner relays; observe when not given.
+ */
+export function answerHandoff(state: HarnessState, answer: string, by: 'owner' | 'practice-client', screen: ScreenSetting = { mode: 'observe' }): HarnessState {
   const next: HarnessState = structuredClone(state);
   const open = next.handoffs.findLast(handoff => handoff.answer === null);
   check(open && next.phase === 'needs-answer', 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
   open.answer = answer;
   open.answeredBy = by;
+  // A client's answer the owner relays is outside content: it passes the untrusted screen before the agent reads it
+  // (held words in its place when the screen holds it) and it latches the run (policy/untrusted.ts, policy/taint.ts).
+  if (open.to === 'client' && by === 'owner') {
+    const screened = screenUntrusted({ source: 'client-answer', text: answer }, screen);
+    const note = screenNote(screened);
+    if (note) open.screen = note;
+    open.answer = screened.status === 'quarantined' ? heldWords(screened) : screened.text ?? answer;
+    const asked = next.toolCalls.findLast(item => item.turn === open.turn && item.tool === 'handoff.client');
+    const mark = latchTaint(next.taint, { integrity: 'untrusted', turn: open.turn, source: 'client-answer', toolCallId: asked?.id ?? null, tool: 'handoff.client' });
+    if (mark) next.taint = mark;
+  }
   decideHold(next, next.handoffs.indexOf(open), answer, by);
   return settle(next, false);
 }
@@ -311,17 +430,41 @@ export function startDelegation(state: HarnessState, startedAt: string, approval
 /**
  * Closes the open brief, declined or finished. The agent's call gets its real result in place of 'waiting', so the
  * next turn reads it in its history. Receipts the calculator made from the tool's figures join the run. The brief's
- * step in the round ledger is audited again: only a finished run counts as progress.
+ * step in the round ledger is audited again: only a finished run counts as progress. costMicros: what the run cost on
+ * the spend ledger (settled, or still held), which counts toward this run's spend cap like a model call.
  */
-export function settleDelegation(state: HarnessState, change: { status: 'declined' | 'finished'; envelope: ToolEnvelope; outcome: ExecutionOutcome; delegateRunId: string | null; receiptIds: string[]; proofs: ClaimProof[] }): HarnessState {
+export function settleDelegation(state: HarnessState, change: { status: 'declined' | 'finished'; envelope: ToolEnvelope; outcome: ExecutionOutcome; delegateRunId: string | null; receiptIds: string[]; proofs: ClaimProof[]; costMicros?: MicroString }, screen: ScreenSetting = { mode: 'observe' }): HarnessState {
   const next: HarnessState = structuredClone(state);
   const open = openDelegation(next);
   check(open, 'DELIVERY_NOT_BRIEFING', 'This draft reply is not waiting for a brief to be approved.');
+  next.used.costMicros = String(BigInt(next.used.costMicros) + BigInt(change.costMicros ?? '0'));
   open.status = change.status;
   open.delegateRunId = change.delegateRunId;
   const call = next.toolCalls.find(item => item.id === open.toolCallId);
-  if (call) { call.envelope = change.envelope; call.outcome = change.outcome; call.receiptIds = [...change.receiptIds]; }
-  const audited = change.status === 'finished' && change.envelope.ok;
+  // What the owner's tool made is outside content: it is labelled untrusted and passes the untrusted screen before the
+  // agent reads it (held words in its place when the screen holds it). Stored, it passes the secret screen too.
+  let heldBack = false;
+  if (call) {
+    let envelope = change.envelope;
+    if (change.status === 'finished') {
+      call.integrity = 'untrusted';
+      const screened = screenJson({ source: 'tool-output', value: envelope.ok ? envelope.result : envelope.error.message }, screen);
+      const note = screenNote(screened);
+      if (note) call.screen = note;
+      heldBack = screened.status === 'quarantined';
+      envelope = heldBack ? { ok: false, error: { code: 'UNTRUSTED_HELD', name: 'UntrustedHeld', message: heldWords(screened) } }
+        : envelope.ok ? { ok: true, result: screened.value as Json } : { ok: false, error: { ...envelope.error, message: String(screened.value) } };
+    }
+    call.envelope = redactPayload(envelope);
+    call.outcome = heldBack ? 'cancelled' : change.outcome;
+    call.receiptIds = [...change.receiptIds];
+  }
+  // What the owner's tool made is outside content: once it comes back the run is latched (policy/taint.ts).
+  if (change.status === 'finished') {
+    const mark = latchTaint(next.taint, { integrity: 'untrusted', turn: open.turn, source: 'tool-output', toolCallId: open.toolCallId, tool: 'agent.delegate' });
+    if (mark) next.taint = mark;
+  }
+  const audited = change.status === 'finished' && change.envelope.ok && !heldBack;
   for (const round of next.rounds ?? []) {
     for (const step of round.steps) {
       if (step.toolCallId !== open.toolCallId) continue;
@@ -329,8 +472,9 @@ export function settleDelegation(state: HarnessState, change: { status: 'decline
       step.audited = audited;
       step.evidence = [...change.receiptIds];
       step.reason = change.status === 'declined' ? 'The owner declined the brief, so nothing ran.'
+        : heldBack ? "What the owner's tool made is held for the owner to check, so it does not count yet."
         : audited ? "The owner's tool finished. Its words were not checked; only figures the calculator worked out again back a claim."
-          : `The owner's tool did not finish: ${change.envelope.ok ? change.outcome : change.envelope.error.message}`;
+          : `The owner's tool did not finish: ${change.envelope.ok ? change.outcome : redactSecrets(change.envelope.error.message)}`;
     }
   }
   if (audited || !next.rounds) next.proofs.push(...change.proofs);
@@ -411,7 +555,7 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
   // Counts and amounts from the client's files have work receipts, so here a model number is still refused.
   const context = { serviceType: ctx.serviceType, refs, allowed: ctx.allowed, sections, numbers: 'refuse' as const };
   return {
-    purpose: 'delivery', instructions, input, schemaName: 'venture-delivery', schema: deliverySchema(ctx.serviceType, sections),
+    purpose: 'delivery', instructions: withAwaiting(instructions, state, input), input, schemaName: 'venture-delivery', schema: deliverySchema(ctx.serviceType, sections),
     validate: raw => withAttachments(validateDraft(raw, context), attached),
     template: () => templateOutline(ctx.serviceType, templateTotal(ctx.priceRefs, ctx.templateTotalRef)),
     containsClientData: ctx.containsClientData, maxOutputTokens: 6144,

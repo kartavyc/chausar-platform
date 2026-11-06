@@ -3,9 +3,9 @@
 // session and business; simulation.ts is shadow mode; list.ts is venture.journal.list, registered with the views.
 export {
   AGENT_WINDOW_MS, CHECK_BEFORE_RETRYING, JOURNAL_ACTIONS, actionOf, applyAction, approveAction, digestOf, journalled, normalizeProposal, proposeAction,
-  rejectAction, resolveUnknown, stepTo, sweepJournal, withCheck,
+  rejectAction, resolveIn, resolveUnknown, resolvedLine, stepTo, sweepJournal, withCheck,
 } from './journal.ts';
 export type { ApplyDone, ApplyHandle, ApplyResult, ApproveInput, JournalActionSpec, Journalled, ProposeInput } from './journal.ts';
 export { DEFAULT_SIMULATORS, shadowAction, simulateJournal } from './simulation.ts';
 export type { ShadowView, SimulationResult, SimulationStep, Simulator, Unsimulated } from './simulation.ts';
-export { JOURNAL_LIST_DEFAULT, JOURNAL_LIST_MAX, journalEntries, journalListHandler } from './list.ts';
+export { JOURNAL_LIST_DEFAULT, JOURNAL_LIST_MAX, journalEntries, journalListHandler, journalResolveHandler } from './list.ts';

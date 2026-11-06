@@ -48,6 +48,15 @@ test('a lead needs the page it was seen on', () => {
   assert.equal(made.status, 'new');
 });
 
+test('a lead\'s source page is stored without user info or secret-looking query values (W1 H17)', () => {
+  const stored = lead({ sourceUrl: 'https://scout:hunter2@bluecafe.example/contact?ref=maps&token=abcdef123456&page=2' }).sourceUrl;
+  assert.ok(!stored.includes('scout') && !stored.includes('hunter2') && !stored.includes('abcdef123456'), stored);
+  assert.equal(stored, 'https://bluecafe.example/contact?ref=maps&token=%5Bredacted%20secret%5D&page=2');
+  assert.equal(lead().sourceUrl, 'https://bluecafe.example/contact', 'an ordinary page is kept as it is');
+  // The address still names the page, so the blocklist check and the draft work on it as before.
+  assert.equal(new URL(stored).hostname, 'bluecafe.example');
+});
+
 test('an email is verified only when the MX lookup finds a mail server; a failure, a null MX or a timeout never counts', async () => {
   const dns = resolver({
     'bluecafe.example': [{ exchange: 'mx1.bluecafe.example', priority: 10 }],
@@ -112,7 +121,7 @@ test('agents only draft: only the owner, inside the app, records a real send; an
   assert.equal(sent.status, 'contacted');
   assert.deepEqual(sent.sends.map(s => [s.draftId, s.recordedBy]), [[draft.id, 'owner']]);
 
-  const out = optOut(sent, blocklist);
+  const out = optOut(sent, blocklist, { by: 'owner', at });
   blocklist = out.blocklist;
   assert.equal(out.lead.status, 'blocked');
   assert.ok(isBlocked(blocklist, 'asha@bluecafe.example'));

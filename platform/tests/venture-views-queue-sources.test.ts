@@ -11,6 +11,7 @@ import { proposePost } from '../runtime/venture/build/posting.ts';
 import { recordEvidence } from '../runtime/venture/evidence/ledger.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';
 import { call, code, owner, seedBlueprint, setup, type Env } from './venture-views-env.ts';
+import { seedPostDraft } from './venture-post-drafts.ts';
 
 const agentCtx: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
 const list = (env: Env) => call<QueueList>(env, 'venture.queue.list', {});
@@ -87,8 +88,9 @@ function browser(results: BrowserPostResult[] = [{ outcome: 'posted', line: 'Lin
 test('queue: a post waiting to go out is a connector row; Approve posts it once and Do not post rejects it', async () => {
   const env = await setup();
   env.deps = { ...env.deps, connectors: { browser: browser(), appReviewed: [], postTimeoutMs: 200 } };
-  const first = await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', text: 'Our cafe books service is open for October.', agent: 'Marketing agent' });
-  const second = await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', text: 'A second post the owner turns down.' });
+  const draft = await seedPostDraft(env.deps, ['LinkedIn: Our cafe books service is open for October.', 'LinkedIn: A second post the owner turns down.']);
+  const first = await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, part: 1, agent: 'Marketing agent' });
+  const second = await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, part: 2 });
 
   const rows = await ofKind(env, 'connector');
   assert.equal(rows.length, 2);

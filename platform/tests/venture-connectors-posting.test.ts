@@ -16,6 +16,7 @@ import {
 } from '../runtime/venture/build/posting.ts';
 import { BROWSER_SCRIPTS, LAUNCH_OPTIONS, playwrightBrowserPort } from '../runtime/venture/build/browser.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { seedPostDraft } from './venture-post-drafts.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const agentCtx: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
@@ -156,21 +157,24 @@ test('handoff: the engine prepares the link or the text, but no screen opens it 
   assert.throws(() => postHandoff('stripe', 'x'), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('a post is proposed only on a posting connector, in a mode that works now, within the platform limit', async () => {
+test('a post is proposed only from a draft, on a posting connector, in a mode that works now, within the platform limit', async () => {
   const { deps } = setup({ browser: fakeBrowser(false).port });
   await seed(deps);
-  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'stripe', text: 'hi' }), code('INVALID_VENTURE_REQUEST'));
-  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'x', text: 'hi' }), code('NOT_BUILT_YET'));
+  const absent = await seedPostDraft(deps, ['X: hi']);
+  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'stripe', draftId: absent.id }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'x', draftId: absent.id }), code('NOT_BUILT_YET'));
 
   const ready = setup({ browser: fakeBrowser(true).port });
   await seed(ready.deps);
-  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', text: 'a'.repeat(281) }), code('INVALID_VENTURE_REQUEST'));
-  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'instagram', text: 'caption' }), code('NOT_BUILT_YET'));
-  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', text: 'hi', mode: 'api' }), code('NOT_BUILT_YET'));
-  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', text: 'hi', proxy: 'socks5://somewhere' }), code('INVALID_VENTURE_REQUEST'));
-  await assert.rejects(proposePost(ready.deps, { ...owner, role: 'viewer' }, { connectorId: 'x', text: 'hi' }), code('ACCESS_REVOKED'));
+  const draft = await seedPostDraft(ready.deps, ['X: Fresh pastries at 8.', `X: ${'a'.repeat(281)}`, 'Instagram: caption']);
+  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', text: 'Fresh pastries at 8.' }), code('INVALID_VENTURE_REQUEST'), 'never free text');
+  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 2 }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'instagram', draftId: draft.id }), code('NOT_BUILT_YET'));
+  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 1, mode: 'api' }), code('NOT_BUILT_YET'));
+  await assert.rejects(proposePost(ready.deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 1, proxy: 'socks5://somewhere' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(proposePost(ready.deps, { ...owner, role: 'viewer' }, { connectorId: 'x', draftId: draft.id, part: 1 }), code('ACCESS_REVOKED'));
 
-  const post = await proposePost(ready.deps, agentCtx, { connectorId: 'x', account: '@lumensocial', text: 'Fresh pastries at 8.', agent: 'Social writer' });
+  const post = await proposePost(ready.deps, agentCtx, { connectorId: 'x', account: '@lumensocial', draftId: draft.id, part: 1, agent: 'Social writer' });
   assert.equal(post.state, 'described');
   assert.equal(post.mode, 'owner-browser-session');
   assert.equal(post.risk, OWNER_SESSION_RISK);
@@ -182,8 +186,9 @@ test('each post is its own connector queue row; the owner denies one and approve
   const browser = fakeBrowser(true);
   const { deps, store } = setup({ browser: browser.port });
   await seed(deps);
-  const first = await proposePost(deps, agentCtx, { connectorId: 'x', text: 'Post one', agent: 'Social writer' });
-  const second = await proposePost(deps, agentCtx, { connectorId: 'linkedin', text: 'Post two' });
+  const draft = await seedPostDraft(deps, ['X: Post one', 'LinkedIn: Post two']);
+  const first = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, agent: 'Social writer' });
+  const second = await proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id });
 
   const rows = connectorQueueRows(store.read());
   assert.equal(rows.length, 2);
@@ -232,7 +237,7 @@ test('a timeout, a crash or an unclear browser result is outcome_unknown, and th
     const browser = fakeBrowser(true, [result as any]);
     const { deps } = setup({ browser: browser.port, timeout: 30 });
     await seed(deps);
-    const post = await proposePost(deps, agentCtx, { connectorId: 'x', text: 'Maybe posted' });
+    const post = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: (await seedPostDraft(deps, ['X: Maybe posted'])).id });
     const decision = await decidePost(deps, owner, { postId: post.id, digest: post.digest, action: 'approve' });
     assert.equal(decision.post.state, 'outcome_unknown', String(result));
     assert.match(decision.line, /Check X before posting again/);
@@ -243,7 +248,7 @@ test('a timeout, a crash or an unclear browser result is outcome_unknown, and th
     assert.equal(settled.state, result === 'throw' ? 'rejected' : 'applied');
     assert.equal(settled.outcome?.by, 'owner');
     assert.equal(browser.jobs.length, 1, 'recording what the owner found never resends');
-    await assert.rejects(resolveUnknownPost(deps, owner, { postId: post.id, found: 'posted' }), code('POST_ALREADY_DECIDED'));
+    await assert.rejects(resolveUnknownPost(deps, owner, { postId: post.id, found: 'posted' }), code('JOURNAL_NOT_UNKNOWN'), 'one rule and one code for settling (W1 H3)');
   }
 });
 
@@ -251,14 +256,15 @@ test('the platform never reached: rejected by the platform with the reason; a cr
   const browser = fakeBrowser(true, [{ outcome: 'not-sent', line: 'Sign in to X in the Chausar browser window first.' }]);
   const { deps, store } = setup({ browser: browser.port });
   await seed(deps);
-  const post = await proposePost(deps, agentCtx, { connectorId: 'x', text: 'Signed out' });
+  const draft = await seedPostDraft(deps, ['X: Signed out', 'LinkedIn: Crashed']);
+  const post = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id });
   const decision = await decidePost(deps, owner, { postId: post.id, digest: post.digest, action: 'approve' });
   assert.equal(decision.post.state, 'rejected');
   assert.equal(decision.post.outcome?.by, 'platform');
   assert.match(decision.line, /Sign in to X/);
 
   // A crash after the claim: the record says approved with a claim and nothing else.
-  const crashed = await proposePost(deps, agentCtx, { connectorId: 'linkedin', text: 'Crashed' });
+  const crashed = await proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id });
   await store.update(state => {
     const record = state.conversations.find(r => r.id === crashed.id) as ConnectorPostRecord;
     record.state = 'approved';
@@ -282,6 +288,8 @@ function fakePlaywright(options: { exePresent?: boolean; url?: string; failAt?: 
   let closed = 0;
   const locator = (selector: string) => ({
     first() { return this; },
+    // What the page says the element is (W1 H19 gate): an ordinary editable box and a plain button, outside any form.
+    async evaluate() { return { tag: 'div', type: null, role: null, autocomplete: null, inForm: false, href: null, download: false, formAction: null, contentEditable: true }; },
     async fill(text: string) { calls.push(`fill ${selector} ${text}`); if (options.failAt === 'fill') throw new Error('no textbox'); },
     async click() { calls.push(`click ${selector}`); },
     async waitFor() { calls.push(`wait ${selector}`); if (options.failAt === 'confirm') throw new Error('Timeout 30000ms exceeded'); },

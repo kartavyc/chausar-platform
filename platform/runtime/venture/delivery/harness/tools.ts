@@ -18,6 +18,11 @@ import { defaultPolicyContext, ladderPolicy, type HarnessPolicy } from '../../po
 import { shadowAction } from '../../journal/simulation.ts';
 import { AGENT_ID } from '../../views/shared.ts';
 import { evaluate, type Verdict } from '../../policy/verdict.ts';
+import type { ResultIntegrity, ScreenNote, TaintMark } from '../../contracts.ts';
+import { toolDeclaration } from '../../policy/effects.ts';
+import { resultIntegrity } from '../../policy/taint.ts';
+import { heldWords, screenJson, type ScreenSetting, type ScreenStatus } from '../../policy/untrusted.ts';
+import { redactPayload } from '../../core/secrets.ts';
 import { amountCandidates, dateCandidates } from './cells.ts';
 import { DELEGATE_LABELS, DELEGATE_MINUTES, prepareDelegation, REAL_ORDER_ONLY, type DelegateAvailability, type DelegationDraft } from './delegate.ts';
 import { browse, DICTIONARY_KINDS, resolve, type DictionaryEntry, type DictionaryKind } from './dictionary.ts';
@@ -25,6 +30,7 @@ import { HOSTED_NO_PDF, pdfPages, tableOfRecord, tablesOfFile, transcriptCues, t
 import { labelFinding, runPythonTransform, runRowProgram, tierRefusal } from './sandbox.ts';
 import { parseRowProgram, ROW_LANGUAGE_GUIDE } from './sandbox-lang.ts';
 import { reconcileMonth, sumRows, totalsBy, type WorkEnv, type WorkReceiptDraft } from './work.ts';
+import type { Denial } from './recheck.ts';
 
 export const MAX_INPUT_CHARS = 12000;
 /** Long enough for the slowest honest call: Docker checks and a 30 second container run, or a big table in chunks. */
@@ -59,10 +65,21 @@ export type ToolEnv = {
   allowed: readonly string[];
   /** The owner's command-line tools found and checked for this run. Empty in rehearsals and on the hosted server. */
   delegateOffer?: readonly DelegateAvailability[];
+  /**
+   * The untrusted screen (policy/untrusted.ts) every untrusted result passes before the agent reads it. observe, the
+   * default, notes what it found on the call; enforce cleans the result and holds a flagged one until the owner
+   * releases that exact content (released: their digests). keep: the ids the work needs, such as a PAN.
+   */
+  screen?: ScreenSetting;
   /** What each call is checked against before it runs. Without it a real order fails closed (policy/ladder.ts). */
   policy?: HarnessPolicy;
   /** Who approved this turn, on a real order: shadow entries are journalled as them. Absent in rehearsals. */
   ctx?: Context;
+  /**
+   * The gate again, just before a call an approval let through runs (recheck.ts): the order, the client, the stage and
+   * the run's cap, read from the vault then. A denial, or a check that throws, cancels the call. Real orders only.
+   */
+  recheck?: (action: { tool: ToolName; inputDigest: string }) => Denial | null | Promise<Denial | null>;
 };
 
 const OUTBOX_TARGETS: Readonly<Record<string, string>> = Object.freeze({ 'mail-app': 'Your mail app', 'payment-link': 'A payment link' });
@@ -483,7 +500,13 @@ export type HeldCall = { tool: ToolName; stepId: string | null; inputDigest: str
 export type ToolOutcome = {
   record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null;
   verdict?: Verdict | null; hold?: HeldCall | null;
+  /** The label on the result and the screen's note on it; both are kept on the record. */
+  integrity?: ResultIntegrity | null; screen?: ScreenNote | null;
 };
+
+/** Policy allows that rest on an owner's approval (policy/ladder.ts). Only these are checked again just before they run. */
+const APPROVED_VERDICTS: readonly string[] = Object.freeze(['owner_turn', 'hold_approved', 'owner_approved']);
+const RECHECK_FAILED = 'The check before this ran could not finish, so it was stopped.';
 
 /** The digest an approval of a held call binds to: the checked input, so spacing in the JSON text does not matter. */
 function inputDigestOf(input: Record<string, any>, inputText: string): string {
@@ -491,22 +514,40 @@ function inputDigestOf(input: Record<string, any>, inputText: string): string {
 }
 
 /**
+ * One untrusted result, or refusal, through the screen: what the agent may read, the words it reads instead when it is
+ * held, and the note its record keeps when the screen found or held anything.
+ */
+function screenResult(env: ToolEnv, tool: ToolName, value: Json): { status: ScreenStatus; value: Json | null; held: string; note: ScreenNote | null } {
+  const screened = screenJson({ source: toolDeclaration(tool)?.source ?? 'tool-output', value },
+    { mode: env.screen?.mode ?? 'observe', keep: env.screen?.keep ?? [], released: env.screen?.released ?? [] });
+  const noted = screened.findings.length > 0 || screened.status !== 'clean';
+  return {
+    status: screened.status, value: screened.value, held: heldWords(screened),
+    note: noted ? { mode: screened.mode, status: screened.status, digest: screened.digest, findings: screened.findings.map(finding => ({ ...finding })) } : null,
+  };
+}
+
+/**
  * One tool call: refused unless the tool exists and is granted, its input parses and fits its fields, and the policy
  * allows it; otherwise run with a time limit. Every result, refusal included, is an envelope the agent reads on its next
- * turn. holds: the run's held calls, so an approved one can run once.
+ * turn. holds: the run's held calls, so an approved one can run once. taint: the run's taint latch (policy/taint.ts).
+ * A result that carries outside content is labelled untrusted and passes the untrusted screen before the agent reads it.
  */
-export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: number, index: number, call: { tool: string; input: string }, holds: readonly PolicyHold[] = []): Promise<ToolOutcome> {
+export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: number, index: number, call: { tool: string; input: string }, holds: readonly PolicyHold[] = [], taint: TaintMark | null = null): Promise<ToolOutcome> {
   const id = `t${turn}.${index + 1}`;
   const spec = toolSpec(call.tool);
   const inputText = typeof call.input === 'string' ? call.input : '';
   // The step's times, for the runs view: when the call started and when its answer, or its refusal, was ready.
   const startedAt = env.now();
+  // The record is the stored trace of the call, so it passes the secret screen (core/secrets.ts) as it is made: the
+  // agent's next turn reads it with its keys and tokens already gone. Digests are of what came in.
   const outcome = (envelope: ToolEnvelope, state: ExecutionOutcome, input: Json | null, extra: Partial<ToolOutcome> = {}): ToolOutcome => ({
-    record: {
+    record: redactPayload<ToolCallRecord>({
       id, turn, tool: call.tool.slice(0, 60), input, inputDigest: digest(inputText), envelope, outcome: state,
       effect: spec?.effect ?? null, tier: spec?.tier ?? null, receiptIds: (extra.receipts ?? []).map(item => item.id), tableIds: (extra.tables ?? []).map(item => item.id),
       startedAt, finishedAt: env.now(),
-    },
+      ...(extra.integrity ? { integrity: extra.integrity } : {}), ...(extra.screen ? { screen: extra.screen } : {}),
+    }),
     proofs: extra.proofs ?? [], handoff: extra.handoff ?? null, mock: extra.mock ?? null, tables: extra.tables ?? [], receipts: extra.receipts ?? [], delegate: extra.delegate ?? null,
     verdict: extra.verdict ?? null, hold: extra.hold ?? null,
   });
@@ -525,12 +566,18 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
   // The policy, before anything starts. It fails closed: a check that throws or does not answer in time blocks the call.
   const policy = env.policy ?? { context: defaultPolicyContext(env.runRef) };
   const inputDigest = inputDigestOf(input, inputText);
-  const verdict = await evaluate([...(policy.policies ?? []), ladderPolicy], { phase: 'tool-call', name: spec.name, effect: spec.effect, inputDigest },
-    { ...policy.context, grant, turn, holds }, policy.timeoutMs === undefined ? {} : { timeoutMs: policy.timeoutMs });
+  const verdict = await evaluate([...(policy.policies ?? []), ladderPolicy], { phase: 'tool-call', name: spec.name, effect: spec.effect, inputDigest, input },
+    { ...policy.context, grant, turn, holds, taint }, policy.timeoutMs === undefined ? {} : { timeoutMs: policy.timeoutMs });
   if (verdict.verdict === 'deny') return outcome(failure('POLICY_DENIED', verdict.reason), 'failed', input as Json, { verdict });
   if (verdict.verdict === 'ask') {
     const hold: HeldCall = { tool: spec.name, stepId: verdict.step ?? null, inputDigest, code: verdict.code, reason: verdict.reason };
     return outcome(failure('POLICY_ASK', `${verdict.reason} The owner was asked; nothing ran.`), 'cancelled', input as Json, { verdict, hold });
+  }
+  // Just before a call an approval let through runs, the gate runs again on what the vault says now (recheck.ts).
+  if (env.recheck && APPROVED_VERDICTS.includes(verdict.code)) {
+    let denial: Denial | null;
+    try { denial = await env.recheck({ tool: spec.name, inputDigest }); } catch { denial = { code: 'RECHECK_FAILED', reason: RECHECK_FAILED }; }
+    if (denial) return outcome(failure(denial.code, `${denial.reason} Nothing ran.`), 'cancelled', input as Json, { verdict });
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -538,17 +585,27 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
       spec.run(env, input),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ChausarError('TOOL_TIMEOUT', `${spec.name} ran past its time limit.`)), TOOL_TIMEOUT_MS); }),
     ]);
+    // Outside content passes the untrusted screen before the agent reads it; a held result adds nothing to the run.
+    const integrity = resultIntegrity(spec.name, env);
+    const screened = integrity === 'untrusted' ? screenResult(env, spec.name, result.result as Json) : null;
+    if (screened?.status === 'quarantined') return outcome(failure('UNTRUSTED_HELD', screened.held), 'cancelled', input as Json, { verdict, integrity, screen: screened.note });
     const proofs: ClaimProof[] = (result.proofs ?? []).map(proof => ({ kind: proof.kind, toolCallId: id, receiptId: proof.receiptId ?? null, tableId: proof.tableId ?? null }));
     // Records join the run only here, after the call finished in time: a call that ran past its limit and finishes
     // later never adds a table or a receipt, so the short names stay stable.
     env.tables.push(...(result.tables ?? []));
     env.receipts.push(...(result.receipts ?? []));
     const delegate: DelegationRequest | null = result.delegate ? { ...result.delegate, toolCallId: id, turn } : null;
-    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate, verdict });
+    return outcome({ ok: true, result: (screened ? screened.value : result.result) as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate, verdict, integrity, screen: screened?.note ?? null });
   } catch (error) {
     const code = error instanceof ChausarError ? error.code : 'TOOL_FAILED';
     const message = error instanceof ChausarError ? error.message : 'The tool failed.';
-    return outcome(failure(code, message), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json, { verdict });
+    // A refusal can quote the files it read (a column name, a cell), so it keeps the tool's label and passes the screen
+    // the way a result does: noted, cleaned, or held for the owner.
+    const integrity = resultIntegrity(spec.name, env);
+    const screened = integrity === 'untrusted' ? screenResult(env, spec.name, message) : null;
+    if (screened?.status === 'quarantined') return outcome(failure('UNTRUSTED_HELD', screened.held), 'cancelled', input as Json, { verdict, integrity, screen: screened.note });
+    const words = typeof screened?.value === 'string' ? screened.value : message;
+    return outcome(failure(code, words), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json, { verdict, integrity, screen: screened?.note ?? null });
   } finally {
     clearTimeout(timer);
   }

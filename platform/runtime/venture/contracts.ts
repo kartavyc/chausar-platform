@@ -121,6 +121,10 @@ export const VENTURE_RECORD_KINDS = [
   'venture-bank-account', 'venture-bank-import', 'venture-lead', 'venture-lead-settings',
   // Ink final pass: a receipt for a sum code made from venture records (owed, received, spent), and a client share link.
   'venture-sum-receipt', 'venture-share-link',
+  // Posting safety (W1 H19): a security check or a platform block on one posting channel, until cleared or over.
+  'venture-channel-hold',
+  // The untrusted screen (W1 H9): the business's screen mode, and one record per held content the owner released.
+  'venture-screen-setting', 'venture-untrusted-release',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -499,6 +503,7 @@ export type ModelTask<T> = {
   template?: () => T; // used only when no model serves this tier
   containsClientData: boolean; // true forces preview and owner approval
   maxOutputTokens: number; // 256 to 8192
+  capLeftMicros?: MicroString; // what the run this call belongs to has left under its spend cap; a call that may cost more is refused
 };
 export type ModelOutcome<T> = {
   value: T;
@@ -916,7 +921,33 @@ export type ConnectorPostRecord = RecordBase<'venture-connector-post'> & {
   approval?: ApprovalSeal | null;
   /** An agent proposal waits fifteen minutes (P2-journal). Absent on posts made before the journal. */
   expiresAt?: IsoTime | null;
+  /** Whether describe and the view show everything this will send (W1 H21). Absent or false: the approver is told it is incomplete. */
+  descriptionComplete?: boolean;
+  /** The delivery draft the post comes from, and that draft's digest when proposed (W1 H6). A post is never free text. */
+  draftId?: string | null;
+  draftDigest?: string | null;
+  /** Which of the draft's posts for this channel, from 1, when it holds several. */
+  part?: number | null;
 };
+/**
+ * A security check or a platform block seen on one posting channel (W1 H19). 'challenge' (a check, verify or 403 page)
+ * stops every automatic action on that channel until the owner clears it; 'blocked' freezes the channel, reads too,
+ * until 'until' (72 hours) and is never cleared early. A session that ended is not a hold: the owner signs in again.
+ */
+export type ChannelHoldRecord = RecordBase<'venture-channel-hold'> & {
+  connectorId: string;
+  site: string; // the host the browser was on
+  cause: 'challenge' | 'blocked';
+  line: string;
+  until: IsoTime | null; // blocked: when the freeze ends; challenge: null, until the owner clears it
+  postId: string | null;
+  clearedAt: IsoTime | null;
+  clearedBy: string | null;
+};
+/** The business's untrusted screen (policy/untrusted.ts): observe until the owner turns on enforce; the newest record wins. */
+export type ScreenSettingRecord = RecordBase<'venture-screen-setting'> & { mode: 'observe' | 'enforce' };
+/** Held content the owner let through, bound to that exact content's digest; changed content is held again. */
+export type UntrustedReleaseRecord = RecordBase<'venture-untrusted-release'> & { digest: string };
 /**
  * The action journal (P2-journal, venture/journal/). Every outside effect is one entry: described, then approved inside
  * the app, then applied, rejected or outcome_unknown. A connector post is its own journalled record with the same fields.
@@ -947,16 +978,23 @@ export type JournalRecord = RecordBase<'venture-journal-entry'> & {
   journal: JournalStep[];
   approval: ApprovalSeal | null;
   expiresAt: IsoTime;
+  /** Whether describe shows everything this will send (W1 H21): false unless the proposer said true. Absent on older entries. */
+  descriptionComplete?: boolean;
 };
 export type BrowserProbe = { present: boolean; reason: string };
 export type BrowserPostJob = { postId: string; connectorId: string; text: string; timeoutMs: number };
+/** A security check or a platform block the browser saw on the site (W1 H19). The posting code keeps it as a channel hold. */
+export type BrowserSiteHold = { kind: 'challenge' | 'blocked'; site: string };
 /** 'not-sent': the platform was never reached, so nothing went out. 'unknown': it may have gone out; check before posting again. */
 export type BrowserPostResult =
   | { outcome: 'posted'; line: string; url: string | null }
-  | { outcome: 'not-sent'; line: string }
-  | { outcome: 'unknown'; line: string };
-/** Drives the owner's own browser on this computer. The real one needs Playwright with Chromium already installed. */
-export type BrowserPort = { probe(): Promise<BrowserProbe>; post(job: BrowserPostJob): Promise<BrowserPostResult> };
+  | { outcome: 'not-sent'; line: string; hold?: BrowserSiteHold }
+  | { outcome: 'unknown'; line: string; hold?: BrowserSiteHold };
+/**
+ * Drives the owner's own browser on this computer. The real one needs Playwright with Chromium already installed.
+ * clearHold: the owner cleared a platform's security check; the hold kept beside the profile folders ends (W1 H19).
+ */
+export type BrowserPort = { probe(): Promise<BrowserProbe>; post(job: BrowserPostJob): Promise<BrowserPostResult>; clearHold?(connectorId: string): Promise<void> };
 export type ApiPostPort = { post(job: BrowserPostJob): Promise<BrowserPostResult> };
 export type ConnectorPorts = {
   browser?: BrowserPort;
@@ -1015,9 +1053,12 @@ export type OutreachDraftView = {
   footer: { businessName: string; postalAddress: string; unsubscribe: string }; sourceUrl: string; by: 'agent' | 'owner'; at: IsoTime; digest: string;
 };
 export type LeadSendView = { draftId: string; sentAt: IsoTime; recordedBy: string; recordedAt: IsoTime; channel: 'own-mailbox' };
+/** A lead's stage moves forward only; won and lost are terminal; blocked (an opt-out) is never left. Each move keeps its evidence. */
+export type LeadStageView = 'new' | 'drafted' | 'contacted' | 'replied' | 'won' | 'lost' | 'blocked';
+export type LeadMoveView = { from: LeadStageView; to: LeadStageView; at: IsoTime; by: string; evidence: { kind: 'draft' | 'send' | 'reply' | 'outcome' | 'opt-out'; id: string } };
 export type LeadView = {
   id: string; name: string; company: string | null; email: string | null; emailDomain: string | null; sourceUrl: string; emailCheck: LeadEmailCheck;
-  status: 'new' | 'drafted' | 'contacted' | 'replied' | 'lost' | 'blocked'; drafts: OutreachDraftView[]; sends: LeadSendView[]; addedBy: string; addedAt: IsoTime;
+  status: LeadStageView; drafts: OutreachDraftView[]; sends: LeadSendView[]; moves: LeadMoveView[]; addedBy: string; addedAt: IsoTime;
 };
 export type LeadRecord = RecordBase<'venture-lead'> & Omit<LeadView, 'id'>;
 /** The business's outreach settings: the postal address every draft carries (set by the owner only) and the blocklist. */
@@ -1053,8 +1094,11 @@ export type ExecutionTier = 'code' | 'actor' | 'wasm-lite' | 'wasm' | 'container
  * claims-grounded: every figure, date, name and certification in the draft's own words is in the client's message,
  * the answers, the files, the tool results or the receipts (no model). rules-judge: the judge's yes/no votes on the
  * draft rules, each citing evidence from the run, counted by code against each rule's floor; it runs in rehearsal only.
+ * receipts: every number in the draft's words has a receipt or is labelled a model estimate (money, rates and tax fail
+ * where the playbook allows no estimate), every file and link it names is in the run's evidence, and no number is one
+ * the calculator refutes. prompt-leak: no words meant for the AI in a draft no flagship playbook checks (prompt-leak.ts).
  */
-export const CHECK_IDS = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims', 'claims-grounded', 'rules-judge'] as const;
+export const CHECK_IDS = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims', 'claims-grounded', 'receipts', 'rules-judge'] as const;
 export type CheckId = typeof CHECK_IDS[number];
 export type PlaybookStep = {
   id: string;
@@ -1276,6 +1320,29 @@ export type ToolCallRecord = {
   /** When the call started and finished, for the step times the runs view shows. Absent on calls that never ran and on runs made before step times. */
   startedAt?: IsoTime;
   finishedAt?: IsoTime;
+  /** The label on what the call returned (policy/taint.ts): untrusted when it carries outside content. Absent on calls that never ran. */
+  integrity?: ResultIntegrity;
+  /** What the untrusted screen found in the result (policy/untrusted.ts). Absent when it found nothing or did not run. */
+  screen?: ScreenNote;
+};
+/** Whether a result can be trusted: untrusted once it carries outside content (a client file, a tool's output). */
+export type ResultIntegrity = 'trusted' | 'untrusted';
+/** The screen's note on one result: its mode, what it decided, the digest a release binds to, and what it found where. */
+export type ScreenNote = {
+  mode: 'observe' | 'enforce';
+  status: 'clean' | 'flagged' | 'quarantined' | 'released';
+  digest: string;
+  findings: { kind: string; what: string; at?: string }[];
+};
+/**
+ * When outside content first entered a run (the taint latch). Once set it stays for the rest of the run. A real order
+ * is latched from its first turn: the client's request and file names are outside content (client-request).
+ */
+export type TaintMark = {
+  turn: number;
+  source: 'client-request' | 'client-file' | 'mail' | 'post' | 'web-page' | 'tool-output' | 'client-answer';
+  toolCallId: string | null;
+  tool: string | null;
 };
 export type AgentTurnRecord = {
   turn: number;
@@ -1288,7 +1355,8 @@ export type AgentTurnRecord = {
   callId: string | null;
   costMicros: MicroString;
 };
-export type HandoffRequest = { to: 'client' | 'owner'; question: string; turn: number; answer: string | null; answeredBy: 'owner' | 'practice-client' | null };
+/** screen: what the untrusted screen found in a client's answer the owner relayed (policy/untrusted.ts); absent when nothing. */
+export type HandoffRequest = { to: 'client' | 'owner'; question: string; turn: number; answer: string | null; answeredBy: 'owner' | 'practice-client' | null; screen?: ScreenNote };
 /** What a tool run proves. A draft may say work was done only when a proof of that kind exists. */
 /** 'delegated': the owner's own tool ran on the order's files. It backs no claim of finished work on its own. */
 export type ClaimProofKind = 'file-read' | 'transformed' | 'totals' | 'matched' | 'reconciled' | 'balanced' | 'delegated';
@@ -1320,7 +1388,11 @@ export type HarnessState = {
   delegations?: DelegationRequest[]; // heavy-work briefs, in order; absent on runs made before heavy work
   rounds?: AuditRound[]; // the round ledger, one entry per act turn; absent on runs made before the auditor
   holds?: PolicyHold[]; // tool calls the policy held for the owner (P2-posture); absent until one is held
+  taint?: TaintMark; // when outside content first entered the run; absent until then, never cleared (policy/taint.ts)
+  capWindows?: CapWindow[]; // room the owner allowed past the run's spend cap, one per approval on Today; absent until one
 };
+/** One more window of spend for a run, allowed by the owner on Today when its next call would have crossed its cap. */
+export type CapWindow = { micros: MicroString; at: IsoTime; by: string };
 /**
  * One tool call the policy held for the owner (venture/policy): it did not run. The owner's answer to its hand-off
  * decides it; an approval lets exactly that tool with that input run once, in the next act turn, and never again.
@@ -1331,7 +1403,7 @@ export type PolicyHold = {
   tool: string;
   stepId: string | null;
   inputDigest: string;
-  code: string; // the policy's reason code: step_on_hold, posture, floor
+  code: string; // the policy's reason code: step_on_hold, posture, floor, tainted
   reason: string; // plain words
   turn: number; // the act turn that asked
   handoff: number; // index of its hand-off in handoffs
@@ -1593,20 +1665,45 @@ export type SpendPolicyRecord = RecordBase<'venture-spend-policy'> & {
   capMicros: MicroString | null; // hard cap per calendar month (UTC) across every paid call; null: only each AI's own limit
   askAboveMicros: MicroString | null; // a call that may cost more than this waits for the owner to approve its quote
   rates: SpendRate[]; // the owner's rate card
+  rupeeRate?: RupeeRate | null; // the owner's own rupee rate, for showing spend in rupees beside dollars; absent: dollars only
 };
-/** reason: why a refused call was refused, in the engine's words (no price, the monthly limit, waiting for approval). */
-export interface SpendRow { id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string; reason?: Display }
-/** One rate card line as the owner types it (venture.spend.policy.set). Lines the owner sets are theirs and confirmed. */
+/**
+ * The owner's own rate for showing spend in rupees too: rupees per US dollar in ten-thousandths of a rupee (83.50 is
+ * 835000), and the day the owner set it. Spend is still counted and capped in US dollars; rupees are shown, never kept.
+ */
+export type RupeeRate = { perUsd: string; setOn: IsoDate };
+/**
+ * reason: why a refused call was refused, in the engine's words (no price, the monthly limit, waiting for approval).
+ * reservedRupees, settledRupees: the same figures in rupees at the owner's rate, with that rate; absent without one.
+ */
+export interface SpendRow {
+  id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string; reason?: Display;
+  reservedRupees?: Display; settledRupees?: Display;
+}
+/**
+ * One rate card line as the owner types it (venture.spend.policy.set). Lines the owner sets are theirs and confirmed.
+ * Each figure comes once: in US dollars as typed (up to six decimals; the engine converts) or in micro units.
+ */
 export type SpendRateInput = {
   item: string; unit: SpendRateUnit; inputMicrosPerMillion?: MicroString | null; outputMicrosPerMillion?: MicroString | null; microsPerCall?: MicroString | null;
+  inputUsdPerMillion?: string | null; outputUsdPerMillion?: string | null; usdPerCall?: string | null;
   source: string; checkedOn: IsoDate;
 };
-/** The owner's spend settings (venture.spend.policy.get/set). Every figure arrives formatted; the micro figures are what set takes back. */
+/** A rate's figures in US dollars as the owner types them ('3.00', '0.000075'), for the edit form. */
+export type SpendRateUsd = { inputUsdPerMillion: string | null; outputUsdPerMillion: string | null; usdPerCall: string | null };
+/**
+ * The owner's spend settings (venture.spend.policy.get/set). Every figure arrives formatted. The Usd fields are the
+ * same figures in US dollars as the owner types them ('20.00'), which is what the app sends back; the micro figures stay.
+ * inrPerUsd: the owner's rupee rate as typed back ('83.50'); rupeeRate: that rate in words with the day it was set;
+ * capRupees and askFirstRupees: the limits in rupees at that rate. All null or absent without a rate.
+ */
 export interface SpendPolicyView {
   capMicros: MicroString | null; askFirstMicros: MicroString | null;
+  capUsd: string | null; askFirstUsd: string | null;
   cap: Display; askFirst: Display;
-  rates: (SpendRate & { price: Display })[];
+  rates: (SpendRate & SpendRateUsd & { price: Display })[];
   setAt: IsoTime | null;
+  inrPerUsd: string | null; rupeeRate: Display | null; capRupees?: Display; askFirstRupees?: Display;
 }
 
 // ---------------------------------------------------------------------------
@@ -1642,6 +1739,8 @@ export interface QueueRow {
   title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
   actions: QueueAction[]; // one or two; exactly one primary
   viewRef?: { kind: 'draft' | 'file' | 'run' | 'plan'; id: string };
+  /** Only on rows that propose an outside action (W1 H21): false when part of what it will send is not shown. */
+  descriptionComplete?: boolean;
 }
 export interface QueueList { rows: QueueRow[]; summary: Display; needsYou: number; businesses: number }
 export interface QueueDecision { outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string }
@@ -1654,7 +1753,8 @@ export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
   progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
 }
-export interface RunDetail extends RunSummary { steps: RunStep[]; question?: { id: string; text: string; choices?: string[] }; error?: string }
+/** screen: one line saying what the untrusted screen noted in the run's outside content, never the words (W1 H9). */
+export interface RunDetail extends RunSummary { steps: RunStep[]; question?: { id: string; text: string; choices?: string[] }; error?: string; screen?: Display }
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
@@ -1739,8 +1839,11 @@ export interface QueueItemView {
   title: string; line?: Display;
   sections: { heading?: string; lines: Display[] }[];
 }
-/** venture.money.overview: three lines code adds up in BigInt, each with the receipt behind it. */
-export interface MoneyOverviewLine { id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean }
+/**
+ * venture.money.overview: three lines code adds up in BigInt, each with the receipt behind it. rupees: the AI spend line
+ * in rupees at the owner's own rate, with that rate; absent without one.
+ */
+export interface MoneyOverviewLine { id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display }
 export interface MoneyOverview { lines: MoneyOverviewLine[] }
 /** venture.tax.working: the tax working for a period, every figure from code with its receipt. */
 export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
@@ -1831,7 +1934,9 @@ export type AnyVentureRecord =
   | JournalRecord
   | CaFirmRecord
   | BankAccountRecord | BankImportRecord | LeadRecord | LeadSettingsRecord
-  | SumReceiptRecord | ShareLinkStoredRecord;
+  | SumReceiptRecord | ShareLinkStoredRecord
+  | ChannelHoldRecord
+  | ScreenSettingRecord | UntrustedReleaseRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -1842,7 +1947,7 @@ export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { 
  */
 export type CaFirmRecord = RecordBase<'venture-ca-firm'> & (
   | { entry: 'ca-of-record'; name: string; membershipNumber: string; firmName: string | null; firmRegistrationNumber: string | null }
-  | { entry: 'signoff-request'; subjectKind: 'gst-working' | 'tds-working' | 'itr-data-pack' | 'letter'; title: string; clientName: string | null; workingDigest: string; receiptIds: string[]; playbookHash: string | null; /** The delivery run whose draft the papers are; absent on requests made outside a run. */ deliveryId?: string | null }
+  | { entry: 'signoff-request'; subjectKind: 'gst-working' | 'tds-working' | 'itr-data-pack' | 'letter' | 'audit-papers'; title: string; clientName: string | null; workingDigest: string; receiptIds: string[]; playbookHash: string | null; /** The delivery run whose draft the papers are; absent on requests made outside a run. */ deliveryId?: string | null }
   | { entry: 'sent-to-ca'; itemKey: string; caName: string; membershipNumber: string; sentBy: string }
   | { entry: 'signoff'; requestId: string; decision: 'signed' | 'returned'; caName: string; membershipNumber: string; workingDigest: string; receiptIds: string[]; playbookHash: string | null; note: string | null; recordedBy: string }
   | { entry: 'rate-confirmation'; tableId: string; tableVersion: number; tableHash: string; caName: string; membershipNumber: string; recordedBy: string }
@@ -1884,8 +1989,10 @@ export const VENTURE_METHODS = [
   'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
   // Evidence ledger (P2-evidence): what backs each client and business field, and the owner applying a suggestion
   'venture.evidence.list', 'venture.evidence.apply',
-  // Action journal (P2-journal): every outside effect and where it stands
-  'venture.journal.list',
+  // Action journal (P2-journal): every outside effect and where it stands; the owner settles an unknown outcome (W1, H3)
+  'venture.journal.list', 'venture.journal.resolve',
+  // The untrusted screen (W1 H9): the business's screen mode, and the owner releasing one held content
+  'venture.untrusted.mode', 'venture.untrusted.release',
   // Connectors made real: bank statement import and consent, staged website edits, and leads the owner contacts himself
   'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
   'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend',
@@ -1932,7 +2039,8 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
   'venture.queue.list': 'views', 'venture.queue.decide': 'views', 'venture.runs.list': 'views', 'venture.runs.get': 'views', 'venture.team.list': 'views', 'venture.team.gate': 'views',
   'venture.evidence.list': 'core', 'venture.evidence.apply': 'core',
-  'venture.journal.list': 'views',
+  'venture.journal.list': 'views', 'venture.journal.resolve': 'views',
+  'venture.untrusted.mode': 'views', 'venture.untrusted.release': 'views',
   'venture.bank.import': 'build', 'venture.bank.consent': 'build', 'venture.site.stage': 'build', 'venture.site.apply': 'build', 'venture.site.revert': 'build',
   'venture.leads.add': 'build', 'venture.leads.list': 'build', 'venture.leads.draft': 'build', 'venture.leads.recordSend': 'build',
   'venture.queue.view': 'views', 'venture.team.posture': 'views', 'venture.evidence.dismiss': 'core', 'venture.money.overview': 'money', 'venture.tax.working': 'money',
@@ -1954,6 +2062,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.spend.policy.set',
   'venture.team.posture', 'venture.evidence.dismiss', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
   'venture.leads.block', 'venture.share.create', 'venture.share.revoke',
+  'venture.journal.resolve',
+  'venture.untrusted.mode', 'venture.untrusted.release',
 ] as const);
 /** Methods whose success changes what saved answers may cite (the retired app/renderer cleared its cached answers on them). */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -1999,7 +2109,7 @@ export type VenturePayloads = {
   'venture.books.summary': { period?: BooksPeriodKey; from?: IsoDate; to?: IsoDate };
   'venture.spend.list': Empty;
   'venture.spend.policy.get': Empty;
-  'venture.spend.policy.set': { cap?: MicroString | null; askFirst?: MicroString | null; rates?: SpendRateInput[] };
+  'venture.spend.policy.set': { capUsd?: string | null; askFirstUsd?: string | null; cap?: MicroString | null; askFirst?: MicroString | null; rates?: SpendRateInput[]; inrPerUsd?: string | null };
   'venture.build.brief': { useTemplate?: boolean };
   'venture.build.handoff': { builder: BuilderId };
   'venture.build.handoffOpened': { handoffId: string };
@@ -2038,6 +2148,9 @@ export type VenturePayloads = {
   'venture.evidence.list': { subject?: string };
   'venture.evidence.apply': { id: string };
   'venture.journal.list': { limit?: number };
+  'venture.journal.resolve': { entryId: string; outcome: 'sent' | 'not-sent'; note?: string };
+  'venture.untrusted.mode': { mode: 'observe' | 'enforce' };
+  'venture.untrusted.release': { digest: string };
   'venture.bank.import': { csv: string; account: string };
   'venture.bank.consent': { account: string; days?: number; revoke?: boolean };
   'venture.site.stage': { path: string; after: string; summary: string };
@@ -2104,7 +2217,7 @@ export type VentureResults = {
   'venture.invoice.list': InvoiceListRow[];
   'venture.payment.record': InvoiceView;
   'venture.books.summary': BooksSummary;
-  'venture.spend.list': { rows: SpendRow[]; total: Display };
+  'venture.spend.list': { rows: SpendRow[]; total: Display; totalRupees?: Display };
   'venture.spend.policy.get': SpendPolicyView;
   'venture.spend.policy.set': SpendPolicyView;
   'venture.build.brief': BriefRecord;
@@ -2145,6 +2258,9 @@ export type VentureResults = {
   'venture.evidence.list': { items: EvidenceItem[] };
   'venture.evidence.apply': { item: EvidenceItem };
   'venture.journal.list': { entries: JournalEntry[] };
+  'venture.journal.resolve': { entry: JournalEntry };
+  'venture.untrusted.mode': { mode: 'observe' | 'enforce' };
+  'venture.untrusted.release': { digest: string; released: true };
   'venture.bank.import': BankImportResult;
   'venture.bank.consent': BankConsentView;
   'venture.site.stage': SiteEditRecord;
@@ -2223,15 +2339,30 @@ export const VENTURE_ERRORS = [
   'RUN_NOT_FOUND', 'AGENT_NOT_FOUND', 'STEP_NOT_FOUND', 'GATE_FLOOR',
   // Leads as engine methods: a lead id that is not in this business
   'LEADS_NOT_FOUND',
+  // Lead stages (W1 H8): forward only, and won or lost stay as they are
+  'LEADS_STAGE_BACKWARD', 'LEADS_STAGE_CLOSED',
   // Action journal (P2-journal): decide-once, expiry, bound single-use tokens, the idempotency key, shadow, unknown outcomes
   'JOURNAL_NOT_FOUND', 'JOURNAL_ALREADY_DECIDED', 'JOURNAL_EXPIRED', 'JOURNAL_TOKEN_INVALID', 'JOURNAL_TOKEN_USED', 'JOURNAL_KEY_REUSED',
   'JOURNAL_SHADOW', 'JOURNAL_OUTCOME_UNKNOWN',
+  // Settling an unknown outcome (W1 H3), and a send to a model that broke part way, so it may have happened (W1 H15)
+  'JOURNAL_NOT_UNKNOWN', 'MODEL_OUTCOME_UNKNOWN',
   // Posture (P2-posture): a policy that waits for the owner or blocks, and a spot check that is not there
   'POLICY_ASK', 'POLICY_DENIED', 'SPOT_CHECK_NOT_FOUND',
+  // The untrusted screen (W1 H9): content held for the owner, a screen that could not check, a release of content not held
+  'UNTRUSTED_HELD', 'SCREEN_FAILED', 'UNTRUSTED_NOT_HELD',
   // AI-native CA firm (P3-ca-firm): the CA of record, rate tables the CA confirms, cases not modelled, and tax inputs
   'CA_OF_RECORD_REQUIRED', 'CA_MEMBERSHIP_MISMATCH', 'SIGNOFF_NOT_FOUND', 'RATE_TABLE_MISSING', 'RATE_UNCONFIRMED', 'NOT_MODELLED', 'TAX_INPUT_INVALID',
+  // CA gates (W1 H1, H7): regulated papers wait for the CA's sign-off; a date past every rate table's window is stale
+  'CA_SIGNOFF_REQUIRED', 'RATE_TABLE_STALE',
   // Ink final pass: a Today row that is gone, an agent posture looser than the business stage, and client share links
   'QUEUE_ITEM_NOT_FOUND', 'POSTURE_ABOVE_STAGE', 'SHARE_NOT_FOUND', 'SHARE_LINK_REFUSED', 'SHARE_LINK_EXPIRED',
+  // The network guard (W1 H16): a refused address or scheme, a failed lookup, redirects, size and time
+  'NET_URL_REFUSED', 'NET_ADDRESS_REFUSED', 'NET_LOOKUP_FAILED', 'NET_REDIRECT_REFUSED', 'NET_TOO_MANY_REDIRECTS', 'NET_RESPONSE_TOO_LARGE',
+  'NET_TIMEOUT', 'NET_FAILED',
+  // The run's spend cap held before each call (W1 H4), and the gate again just before an approved action (W1 H13)
+  'RUN_CAP_REACHED', 'RUN_CAP_NOT_REACHED', 'ORDER_NOT_ACTIVE', 'CLIENT_NOT_ACTIVE', 'RECHECK_FAILED',
+  // Posting safety (W1 H6, H19): a post only from a checked, approved, unchanged draft; a channel held by a check or a block
+  'POST_DRAFT_UNCHECKED', 'POST_CLIENT_NOT_APPROVED', 'POST_DRAFT_CHANGED', 'CHANNEL_CHALLENGED', 'CHANNEL_FROZEN',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 

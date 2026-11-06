@@ -38,7 +38,7 @@ test('tds working: each payment, the threshold that applies, the rate and the am
   // 194J professional: the 50,000 year threshold is crossed in August; 10% on 60,000.
   assert.equal(BigInt(row('j1').dueMinor) + BigInt(row('j2').dueMinor), 6_000_00n);
   assert.equal(row('j1').deductOn, '2025-08-01');
-  // 194I: rent above 50,000 for the month, and no PAN: twice the rate or 20%, whichever is higher.
+  // 194I: rent above 50,000 for the month, and no PAN: the rate in the Act, the rate in force or 20%, whichever is highest.
   assert.deepEqual([row('r1').rateBps, row('r1').tdsMinor], ['2000', R(12_000)]);
   assert.match(row('r1').note, /no PAN/i);
   assert.equal(row('h1').tdsMinor, R(500));

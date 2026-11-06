@@ -591,7 +591,10 @@ test('template words: every outline sentence and practice client is free of numb
       assert.deepEqual(scenario.mocks, { 'mail-app.send-deliverable': 'record-only' });
       assert.deepEqual(scenario.stoppingCriteria, ['deliverable-ready', 'client-asks-for-person', 'turn-limit']);
       assert.equal(scenario.checks.includes('questions-raised'), scenario.id.endsWith('-messy'));
-      assert.equal(scenario.checks.length, scenario.id.endsWith('-messy') ? 10 : 9);
+      // The base checks, prompt-leak and receipts included; a messy request also needs questions-raised.
+      assert.deepEqual(scenario.checks, scenario.id.endsWith('-messy')
+        ? ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims', 'claims-grounded', 'receipts']
+        : ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded', 'receipts'], scenario.id);
       assert.ok(scenario.checks.includes('claims-grounded') && !scenario.checks.includes('rules-judge'));
       for (const text of [scenario.title, scenario.persona, scenario.brief, scenario.expectedOutcome]) {
         assert.doesNotThrow(() => assertNoNumbers(text, 'scenario'), text);

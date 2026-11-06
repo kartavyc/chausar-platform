@@ -1,9 +1,9 @@
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { ApprovalRow } from '../../parts/ApprovalRow';
+import { ApprovalRow, readBack } from '../../parts/ApprovalRow';
 import { ModelEstimate } from '../../parts/ModelEstimate';
-import type { BlueprintViewLite, EngineClient, LabelledLite, QueueRow } from '../../engine/types';
+import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
 import s from './Business.module.css';
 
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -59,6 +59,12 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
   const [kept, setKept] = useState<QueueRow[]>([]);
   const live = (queue.data?.rows ?? []).filter((row) => row.viewRef?.kind === 'plan');
   const rows = [...live, ...kept.filter((k) => !live.some((r) => r.id === k.id))];
+  /** A decision, or what a read-back after a timeout found: a decided row stays as its line until the page closes. */
+  function after(r: QueueRow, decision: QueueDecision): QueueDecision {
+    if (decision.outcome === 'done' || decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') setKept((k) => [...k, r]);
+    if (decision.outcome === 'done') onDecided();
+    return decision;
+  }
   if (rows.length === 0) return null;
   return (
     <section className={s.section} aria-labelledby={headingId}>
@@ -70,12 +76,8 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
             row={row}
             viewed
             onView={() => document.getElementById('business-plan-name')?.focus()}
-            onDecide={async (r, action, extra) => {
-              const decision = await client.request('venture.queue.decide', { id: r.id, digest: r.digest, action: action.id, ...extra });
-              if (decision.outcome === 'done' || decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') setKept((k) => [...k, r]);
-              if (decision.outcome === 'done') onDecided();
-              return decision;
-            }}
+            onDecide={async (r, action, extra) => after(r, await client.request('venture.queue.decide', { id: r.id, digest: r.digest, action: action.id, ...extra }))}
+            onReread={async (r) => after(r, readBack(await client.request('venture.queue.list', { scope: 'current' }), r, t))}
           />
         ))}
       </ul>

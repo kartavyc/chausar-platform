@@ -25,7 +25,7 @@ import { rehearse, spendSummary, type RehearsalOutcome } from './simulate.ts';
 
 export const MAX_ROUNDS = 4;
 const DEFAULT_ROUNDS = 2;
-const CRITICAL: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'no-done-claims', 'no-outside-writes', 'claims-grounded'];
+const CRITICAL: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'no-done-claims', 'no-outside-writes', 'claims-grounded', 'receipts'];
 
 type Rule = { level: 'harness' | 'tools'; op: PlaybookPatchOp; stepId: string; value: string } | { level: 'dictionary' | 'calculator'; why: string };
 const CLAIMS_RULE: Rule = { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Say work is done only when the proven list shows it, and describe everything else as work ahead.' };
@@ -48,6 +48,8 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'too-short': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Give each section at least two full sentences.' },
   'claims-work-not-done': CLAIMS_RULE, 'no-done-claims': CLAIMS_RULE, 'no-unbacked-claims': CLAIMS_RULE,
   'claims-grounded': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: "Name only the people, firms, figures and dates that the client's message, answers or files show." },
+  receipts: { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Give money, rates and tax only as figure parts, and name only the files and links the client sent or the tools read.' },
+  'prompt-leak': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Write only the reply itself: no notes to the AI, no preamble or sign-off about the draft, and no placeholders.' },
   'turn-limit': { level: 'harness', op: 'guidance.add', stepId: 'clarify', value: 'Ask all your questions in one hand-off.' },
   'goal-met': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Answer what the client asked for in the Summary section.' },
   'policy-followed': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Keep the plan price and the scope, and promise no discount, free work or date.' },

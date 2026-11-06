@@ -121,6 +121,9 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
           ))}
         </p>
       )}
+
+      {/* What the untrusted screen noted in outside content, as the engine words it; never the words it found. */}
+      {run.screen && <p className={s.evidence} data-screen>{run.screen}</p>}
     </Sheet>
   );
 }

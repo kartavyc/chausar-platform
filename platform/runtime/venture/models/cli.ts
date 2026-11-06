@@ -10,6 +10,7 @@ import { buildCodexCliArguments, parseCodexCliOutput, type CodexCliCapabilityPro
 import type { Json, ModelProcessResponse, ModelTask } from '../contracts.ts';
 import { sanitizeSchema } from './schema.ts';
 import { RESPONSE_LIMIT_BYTES, isPlainRecord, readUsage, type Parsed } from './types.ts';
+import { TELEMETRY_OFF_ENV } from '../core/telemetry.ts';
 
 /** Stands in for the real schema file path until dispatch, so a preview can be built before any file exists. */
 export const SCHEMA_PLACEHOLDER = join(tmpdir(), 'chausar-venture-schema-placeholder', 'schema.json');
@@ -34,6 +35,8 @@ export function cliEnv(kind: 'claude-cli' | 'codex-cli', maxOutputTokens?: numbe
     });
     if (maxOutputTokens !== undefined) result.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(maxOutputTokens);
   }
+  // Telemetry off for whichever tool runs (W1 H18).
+  Object.assign(result, TELEMETRY_OFF_ENV[kind === 'codex-cli' ? 'codex' : 'claude-code']);
   return result;
 }
 

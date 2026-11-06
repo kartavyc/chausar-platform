@@ -10,7 +10,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet } from '../../shell/navigation';
 import { refusalWords } from '../../parts/custody';
 import { LeftContext } from '../onboarding/started';
-import { ApprovalRow, type DecideExtra } from '../../parts/ApprovalRow';
+import { ApprovalRow, readBack, type DecideExtra } from '../../parts/ApprovalRow';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
 import { Receipt } from '../../parts/Receipt';
@@ -131,18 +131,32 @@ export function Place() {
     if (action.id === 'open') return openBusiness(row);
     session.begin(row.id);
     try {
-      const decision = await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action: action.id, ...extra });
-      if (decision.outcome === 'done') settle(row, decision.line, decision.receiptId, hadFocus);
-      else if (decision.outcome === 'stale') {
-        session.unview(row.id);
-        const latest = decision.latest;
-        if (latest) setNewer((map) => new Map(map).set(row.id, { from: row.digest, latest }));
-      } else if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') settle(row, t('approval.elsewhere'), undefined, hadFocus);
-      else if (decision.reason === 'VIEW_FIRST') session.unview(row.id);
-      return decision;
+      return after(row, await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action: action.id, ...extra }), hadFocus);
     } finally {
       session.end(row.id);
     }
+  }
+
+  /** A decision that timed out: read the list again and keep what the engine holds. It never decides a second time. */
+  async function reread(row: QueueRow): Promise<QueueDecision> {
+    const hadFocus = focusedRowId() === row.id;
+    session.begin(row.id);
+    try {
+      return after(row, readBack(await client.request('venture.queue.list', { scope: 'all' }), row, t), hadFocus);
+    } finally {
+      session.end(row.id);
+    }
+  }
+
+  function after(row: QueueRow, decision: QueueDecision, hadFocus: boolean): QueueDecision {
+    if (decision.outcome === 'done') settle(row, decision.line, decision.receiptId, hadFocus);
+    else if (decision.outcome === 'stale') {
+      session.unview(row.id);
+      const latest = decision.latest;
+      if (latest) setNewer((map) => new Map(map).set(row.id, { from: row.digest, latest }));
+    } else if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') settle(row, t('approval.elsewhere'), undefined, hadFocus);
+    else if (decision.reason === 'VIEW_FIRST') session.unview(row.id);
+    return decision;
   }
 
   function navigate(_row: QueueRow, action: QueueAction): boolean {
@@ -175,6 +189,7 @@ export function Place() {
                 row={row}
                 viewed={session.isViewed(seenKey(row))}
                 onDecide={decide}
+                onReread={reread}
                 onAction={navigate}
                 showBusiness={new Set(live.map((r) => r.businessId)).size > 1}
                 onView={(r) => look(r)}

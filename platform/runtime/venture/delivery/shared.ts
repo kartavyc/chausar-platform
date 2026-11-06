@@ -78,3 +78,15 @@ export function quote(text: string, max = 80): string {
   const single = text.replace(/\s+/g, ' ').trim();
   return single.length <= max ? single : `${single.slice(0, max - 3).trimEnd()}...`;
 }
+
+/** The most lines a Today view shows of one text (views/queue-view.ts); a longer text is cut there. */
+export const VIEW_MAX_LINES = 400;
+
+/**
+ * Whether the run's view shows the whole text that goes to the AI (W1 H21, descriptionComplete): every line fits the
+ * view, and nothing travels beside it. A command-line send (endpoint cli://) also passes a schema file the text only names.
+ */
+export function previewShownWhole(preview: { payloadText: string; endpoint: string }): boolean {
+  const lines = preview.payloadText.split(/\r?\n/).filter(line => line.trim().length > 0).length;
+  return lines <= VIEW_MAX_LINES && !preview.endpoint.startsWith('cli://');
+}

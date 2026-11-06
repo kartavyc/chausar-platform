@@ -14,17 +14,19 @@ import { openSpendQuotes } from '../money/spend.ts';
 import { postingName } from '../build/posting.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
+import { VIEW_MAX_LINES } from '../delivery/shared.ts';
 import { holdOfHandoff } from '../policy/holds.ts';
 import type { RateTable } from '../playbooks/ca-firm/rates.ts';
 import { caOfRecord, rateKey, sentTo, signoffFor, signoffRequests, unconfirmedRateTables } from '../playbooks/ca-firm/signoff.ts';
 import { queueRowsWithSubjects } from './queue.ts';
 import { agentName, businessOf, clientNameFor } from './shared.ts';
+import { agentWordsLabeller } from './agent-words.ts';
 
 type Section = QueueItemView['sections'][number];
 type Head = { businessName: string; agent?: string };
 
-/** Longest text a view returns, in lines: a view is for reading on a screen, not a dump. */
-const MAX_LINES = 400;
+/** Longest text a view returns, in lines: a view is for reading on a screen, not a dump. Rows say when a send is longer (W1 H21). */
+const MAX_LINES = VIEW_MAX_LINES;
 const MODEL_ESTIMATE = ' (model estimate)';
 const DONE_BY: Readonly<Record<string, string>> = { agent: 'an agent', you: 'you', 'agent-then-you': 'an agent, then you check it' };
 /** Who does a flagship playbook's step, in a few words: "the Packager, an agent", "Chausar, in code with no AI", "you". */
@@ -35,6 +37,7 @@ function stepDoer(step: PlanFlagshipStep): string {
 }
 const SUBJECT_WORDS: Readonly<Record<string, string>> = {
   'gst-working': 'A GST working', 'tds-working': 'A TDS working', 'itr-data-pack': 'An income tax data pack', letter: 'A letter on the firm\'s letterhead',
+  'audit-papers': 'Papers for a tax audit',
 };
 
 const gone = () => new ChausarError('QUEUE_ITEM_NOT_FOUND', 'This was resolved elsewhere, or it is not in this business.');
@@ -116,7 +119,8 @@ function runItem(state: State, venture: VentureRecord, head: Head, run: Delivery
   const files = filesSection(state, venture, run);
   const text = run.editedText ?? run.renderedText;
   if (text && (prefer === 'draft' || run.status !== 'waiting-for-you')) {
-    const title = run.deliverable?.title ? `${run.deliverable.title}` : `Draft reply for ${client}`;
+    // The agent's own words show a number with no receipt as a model estimate (agent-words.ts).
+    const title = run.deliverable?.title ? agentWordsLabeller(state, venture, run)(run.deliverable.title) : `Draft reply for ${client}`;
     const notes = [checksLine(run), run.deliverable?.estimate ? 'Numbers the agent wrote in its own words are model estimates; figures from receipts are not.' : undefined]
       .filter((line): line is string => !!line);
     return {
@@ -145,12 +149,13 @@ function runItem(state: State, venture: VentureRecord, head: Head, run: Delivery
     const openIndex = run.harness.handoffs.map(item => item.answer).lastIndexOf(null);
     const question = openIndex >= 0 ? run.harness.handoffs[openIndex] : null;
     const hold = question ? holdOfHandoff(run.harness, openIndex) : null;
+    const words = agentWordsLabeller(state, venture, run);
     return {
       kind: 'draft', id: run.id, ...head, title: hold ? `A step on hold for ${client}` : `A question about ${client}'s order`,
-      ...(question ? { line: question.question } : {}),
+      ...(question ? { line: words(question.question) } : {}),
       sections: [
         ...(hold ? [{ heading: 'What it wants to run', lines: [`${hold.tool}: ${hold.reason}`] }] : []),
-        ...run.harness.turns.filter(turn => turn.note).slice(-5).map(turn => ({ heading: `Step ${turn.turn}`, lines: linesOf(turn.note) })),
+        ...run.harness.turns.filter(turn => turn.note).slice(-5).map(turn => ({ heading: `Step ${turn.turn}`, lines: linesOf(words(turn.note)) })),
         ...files,
       ],
     };

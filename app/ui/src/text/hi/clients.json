@@ -74,6 +74,7 @@
   "clients.leads.status.drafted": "ड्राफ़्ट बना",
   "clients.leads.status.contacted": "आपने लिखा",
   "clients.leads.status.replied": "जवाब आया",
+  "clients.leads.status.won": "क्लाइंट बने",
   "clients.leads.status.lost": "अभी नहीं",
   "clients.leads.status.blocked": "ब्लॉक",
   "clients.leads.sheet": "लीड",

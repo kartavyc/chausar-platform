@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { ApprovalRow } from '../../src/parts/ApprovalRow';
-import type { QueueDecision, QueueRow } from '../../src/engine/types';
+import { ApprovalRow, readBack } from '../../src/parts/ApprovalRow';
+import { EngineError, type QueueDecision, type QueueList, type QueueRow } from '../../src/engine/types';
 
 const price: QueueRow = {
   id: 'q1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'price', createdAt: '2026-10-21T08:00:00Z', digest: 'd1',
@@ -106,6 +106,64 @@ describe('ApprovalRow', () => {
     expect(container.textContent).toContain('Open it first, then approve.');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to CA' })); });
     expect(container.textContent).toBe('GST working for September · Resolved elsewhere');
+  });
+
+  describe('a decision that timed out (REQUEST_TIMEOUT)', () => {
+    const timedOut = () => Promise.reject(new EngineError('REQUEST_TIMEOUT', 'The engine did not answer in time.'));
+    const send = () => act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to CA' })); });
+
+    it('reads back what the engine stored and shows that, not "Couldn\'t send"', async () => {
+      const onReread = vi.fn(async () => done('Sent to your CA'));
+      const onDecide = vi.fn(timedOut);
+      const { container } = list(<ApprovalRow row={signoff} onDecide={onDecide} onReread={onReread} />);
+      await send();
+      expect(onDecide).toHaveBeenCalledTimes(1);
+      expect(onReread).toHaveBeenCalledTimes(1);
+      expect(onReread).toHaveBeenCalledWith(signoff);
+      expect(container.textContent).toBe('GST working for September · Sent to your CA');
+    });
+
+    it('a read-back that finds a newer version shows it, as any stale decision does', async () => {
+      const latest: QueueRow = { ...signoff, digest: 'd3b', line: 'The client sent two more invoices. Ready again.' };
+      const onDecide = vi.fn(timedOut);
+      const { container } = list(<ApprovalRow row={signoff} onDecide={onDecide} onReread={async () => ({ outcome: 'stale', line: 'This changed since you opened it.', latest })} />);
+      await send();
+      expect(onDecide).toHaveBeenCalledTimes(1);
+      expect(container.textContent).toContain('This changed since you opened it.');
+      expect(container.textContent).toContain('The client sent two more invoices. Ready again.');
+      expect(container.textContent).not.toContain("Couldn't send");
+    });
+
+    it('says "Couldn\'t send" only when the read-back fails too, or there is no way to read back', async () => {
+      const onReread = vi.fn(async (): Promise<QueueDecision> => { throw new EngineError('ENGINE_STOPPED', 'The engine stopped.'); });
+      const onDecide = vi.fn(timedOut);
+      const first = list(<ApprovalRow row={signoff} onDecide={onDecide} onReread={onReread} />);
+      await send();
+      expect(onDecide).toHaveBeenCalledTimes(1);
+      expect(onReread).toHaveBeenCalledTimes(1);
+      expect(first.container.textContent).toContain("Couldn't send: The engine did not answer in time.");
+      first.unmount();
+
+      const second = list(<ApprovalRow row={signoff} onDecide={vi.fn(timedOut)} />);
+      await send();
+      expect(second.container.textContent).toContain("Couldn't send: The engine did not answer in time.");
+      second.unmount();
+
+      const other = vi.fn(async (): Promise<QueueDecision> => done('Sent'));
+      const third = list(<ApprovalRow row={signoff} onDecide={vi.fn(() => Promise.reject(new EngineError('ENGINE_STOPPED', 'The engine stopped.')))} onReread={other} />);
+      await send();
+      expect(other).not.toHaveBeenCalled();
+      expect(third.container.textContent).toContain("Couldn't send: The engine stopped.");
+    });
+
+    it('readBack never decides again: it reads the list and says what the engine holds', () => {
+      const t = (key: string) => key;
+      const listOf = (rows: QueueRow[]): QueueList => ({ rows, summary: '', needsYou: rows.length, businesses: 1 });
+      expect(readBack(listOf([price]), signoff, t)).toEqual({ outcome: 'done', line: 'approval.afterWait' });
+      expect(readBack(listOf([signoff]), signoff, t)).toEqual({ outcome: 'refused', reason: 'NOT_RECORDED', line: 'approval.notYet' });
+      const newer = { ...signoff, digest: 'd3b' };
+      expect(readBack(listOf([newer]), signoff, t)).toEqual({ outcome: 'stale', line: 'approval.stale', latest: newer });
+    });
   });
 
   it('an answer row asks for words inside the row', async () => {

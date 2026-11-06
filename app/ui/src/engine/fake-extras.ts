@@ -10,7 +10,7 @@
 
 import { CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {
-  EngineError, type BankConsentView, type BankImportResult, type CaView, type LeadView, type MoneyOverview, type OutreachDraftView,
+  EngineError, type BankConsentView, type BankImportResult, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
   type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type VentureRunEvent,
 } from './types';
 
@@ -44,17 +44,60 @@ function usd(micros: string): string {
   const tenThousandths = padded.slice(0, -2);
   return `USD ${tenThousandths.slice(0, -4).replace(/^0+(?=\d)/, '')}.${tenThousandths.slice(-4)}`;
 }
-const MICROS = /^\d{1,15}$/;
+/** US dollars as typed ('20', '12.50', '0.000075') to whole micro-dollars, as the engine's usdToMicros. Null clears. */
+function dollars(value: unknown, field: string, decimals: 2 | 6): string | null {
+  if (value === null) return null;
+  const match = typeof value === 'string' ? (decimals === 2 ? /^(\d{1,7})(?:\.(\d{1,2}))?$/ : /^(\d{1,7})(?:\.(\d{1,6}))?$/).exec(value.trim()) : null;
+  if (!match) {
+    throw new EngineError('INVALID_AMOUNT', decimals === 2
+      ? `${field} must be an amount in US dollars with at most two decimals, like 20 or 12.50.`
+      : `${field} must be an amount in US dollars with at most six decimals, like 3, 0.25 or 0.000075.`);
+  }
+  return `${match[1]}${(match[2] ?? '').padEnd(6, '0')}`.replace(/^0+(?=\d)/, '');
+}
+/** Whole micro-dollars as the dollars the owner types back ('20.00', '0.000075'), as the engine's microsAsUsd. */
+function asUsd(micros: string | null): string | null {
+  if (micros === null) return null;
+  const padded = micros.padStart(7, '0');
+  return `${padded.slice(0, -6).replace(/^0+(?=\d)/, '')}.${padded.slice(-6).replace(/0+$/, '').padEnd(2, '0')}`;
+}
+/** The owner's rupee rate in the sample, as the engine keeps it: ten-thousandths of a rupee per dollar, and its day. */
+interface SampleRupeeRate { perUsd: bigint; setOn: string }
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Rupees per US dollar as typed, up to four places, as the engine's rupeeRateOf. Above zero. */
+function rupeeRate(value: unknown): bigint {
+  const match = typeof value === 'string' ? /^(\d{1,4})(?:\.(\d{1,4}))?$/.exec(value.trim()) : null;
+  const perUsd = match ? BigInt(match[1] ?? '0') * 10_000n + BigInt((match[2] ?? '').padEnd(4, '0')) : 0n;
+  if (perUsd <= 0n) throw new EngineError('INVALID_AMOUNT', 'Rupees per US dollar must be a number with at most four decimals, like 83.50.');
+  return perUsd;
+}
+/** The rate as typed back ('83.50') and in words ('₹83.50 per $1 (your rate, set 21 Oct 2026)'), as the engine writes them. */
+function rateTyped(rate: SampleRupeeRate): string {
+  return `${rate.perUsd / 10_000n}.${String(rate.perUsd % 10_000n).padStart(4, '0').replace(/0+$/, '').padEnd(2, '0')}`;
+}
+function rateWords(rate: SampleRupeeRate): string {
+  const [year, month, day] = rate.setOn.split('-');
+  const decimals = rateTyped(rate).split('.')[1] ?? '00';
+  return `₹${(rate.perUsd / 10_000n).toLocaleString('en-IN')}.${decimals} per $1 (your rate, set ${day} ${MONTH_NAMES[Number(month) - 1]} ${year})`;
+}
+/** Micro-dollars in rupees beside the dollars, as the engine's rupeesBeside: to the nearest paisa, a half paisa up. */
+function rupeesBeside(micros: string, rate: SampleRupeeRate): string {
+  const paise = (BigInt(micros) * rate.perUsd + 50_000_000n) / 100_000_000n;
+  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')} at ${rateWords(rate)}`;
+}
 const DAY = 86_400_000;
 const UNSUBSCRIBE = 'If you would rather not hear from us, reply "unsubscribe" and we will not write again.';
 /** Domains the sample treats as having a mail server. The real engine asks DNS for MX records. */
 const MAIL_DOMAINS = new Set(['pocketaudio.in', 'boataudio.in', 'mehtatraders.in', 'gmail.com', 'example.in']);
+/** The engine's lead stage ranks: open stages move up only; won and lost close a lead; blocked comes from anywhere. */
+const STAGE_RANK: Partial<Record<LeadView['status'], number>> = { new: 0, drafted: 1, contacted: 2, replied: 3, won: 4, lost: 4 };
 
 interface HeldShare extends ShareLink { businessId: string; deliveryId: string }
 
 export class FakeExtrasDesk {
   private readonly host: ExtrasHost;
   private policies: Record<string, SpendPolicyView>;
+  private rupees: Record<string, SampleRupeeRate | null> = {};
   private ca: Record<string, CaView>;
   private leads: Record<string, LeadView[]>;
   private postal: Record<string, string | null>;
@@ -135,25 +178,25 @@ export class FakeExtrasDesk {
   }
 
   private policyOf(biz: string): SpendPolicyView {
-    this.policies[biz] ??= { capMicros: null, askFirstMicros: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null };
+    this.policies[biz] ??= {
+      capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
+    };
     return this.policies[biz];
   }
 
   private setPolicy(biz: string, p: Record<string, unknown>): SpendPolicyView {
-    const extra = Object.keys(p).find((key) => !['cap', 'askFirst', 'rates'].includes(key));
+    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd'].includes(key));
     if (extra) throw invalid(`${extra} is not a spend setting.`);
-    const figure = (value: unknown, field: string): string | null => {
-      if (value === null) return null;
-      if (typeof value !== 'string' || !MICROS.test(value)) throw new EngineError('INVALID_AMOUNT', `${field} must be whole micro-dollars, like 5000000 for five US dollars.`);
-      return value.replace(/^0+(?=\d)/, '');
-    };
+    const figure = (value: unknown, field: string): string | null => dollars(value, field, 6);
     const policy = clone(this.policyOf(biz));
-    if (p.cap !== undefined) {
-      policy.capMicros = figure(p.cap, 'The monthly limit');
+    if (p.capUsd !== undefined) {
+      policy.capMicros = dollars(p.capUsd, 'The monthly limit', 2);
+      policy.capUsd = asUsd(policy.capMicros);
       policy.cap = policy.capMicros === null ? 'No monthly limit' : `${usd(policy.capMicros)} a month`;
     }
-    if (p.askFirst !== undefined) {
-      policy.askFirstMicros = figure(p.askFirst, 'The ask-first figure');
+    if (p.askFirstUsd !== undefined) {
+      policy.askFirstMicros = dollars(p.askFirstUsd, 'The ask-first figure', 2);
+      policy.askFirstUsd = asUsd(policy.askFirstMicros);
       policy.askFirst = policy.askFirstMicros === null ? 'Never asks first' : `Asks you first above ${usd(policy.askFirstMicros)}`;
     }
     if (p.rates !== undefined) {
@@ -161,18 +204,33 @@ export class FakeExtrasDesk {
       policy.rates = (p.rates as SpendRateInput[]).map((line) => {
         if (!line || !/^(model|delegate|connector):[a-z0-9._-]{1,80}$/.test(String(line.item))) throw invalid('A rate card line names a model, a heavy-work tool or a connector.');
         if (!['per-million-tokens', 'per-call', 'per-run-cap'].includes(line.unit)) throw invalid('A rate is per million tokens, per call, or a run cap.');
-        const input = line.inputMicrosPerMillion == null ? null : figure(line.inputMicrosPerMillion, 'A rate');
-        const output = line.outputMicrosPerMillion == null ? null : figure(line.outputMicrosPerMillion, 'A rate');
-        const perCall = line.microsPerCall == null ? null : figure(line.microsPerCall, 'A rate');
+        const input = line.inputUsdPerMillion == null ? null : figure(line.inputUsdPerMillion, 'A rate');
+        const output = line.outputUsdPerMillion == null ? null : figure(line.outputUsdPerMillion, 'A rate');
+        const perCall = line.usdPerCall == null ? null : figure(line.usdPerCall, 'A rate');
         if (line.unit === 'per-million-tokens' ? input === null || output === null : perCall === null) throw invalid('A rate per million tokens needs both its input and output figures; a rate per call or a run cap needs its figure.');
         if (!text(line.source)) throw invalid('Say where the rate comes from.');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(line.checkedOn))) throw invalid('The date checked must be a date like 2026-10-21.');
         const price = line.unit === 'per-million-tokens' ? `${usd(input!)} in and ${usd(output!)} out, per million tokens` : line.unit === 'per-call' ? `${usd(perCall!)} per call` : `Up to ${usd(perCall!)} a run`;
-        return { item: line.item, unit: line.unit, inputMicrosPerMillion: input, outputMicrosPerMillion: output, microsPerCall: perCall, source: text(line.source), checkedOn: line.checkedOn, confirmed: true, by: 'owner' as const, price };
+        return {
+          item: line.item, unit: line.unit, inputMicrosPerMillion: input, outputMicrosPerMillion: output, microsPerCall: perCall,
+          inputUsdPerMillion: asUsd(input), outputUsdPerMillion: asUsd(output), usdPerCall: asUsd(perCall),
+          source: text(line.source), checkedOn: line.checkedOn, confirmed: true, by: 'owner' as const, price,
+        };
       });
       if (new Set(policy.rates.map((r) => r.item)).size !== policy.rates.length) throw invalid('Each item has one line on the rate card.');
     }
+    // The owner's rupee rate: dated the day it is set; the same rate again keeps its day. The limits show in rupees too.
+    const held = this.rupees[biz] ?? null;
+    const perUsd = p.inrPerUsd === undefined ? undefined : p.inrPerUsd === null ? null : rupeeRate(p.inrPerUsd);
+    const rate = perUsd === undefined ? held : perUsd === null ? null : { perUsd, setOn: held && held.perUsd === perUsd ? held.setOn : this.host.now().slice(0, 10) };
+    policy.inrPerUsd = rate ? rateTyped(rate) : null;
+    policy.rupeeRate = rate ? rateWords(rate) : null;
+    delete policy.capRupees;
+    delete policy.askFirstRupees;
+    if (rate && policy.capMicros !== null) policy.capRupees = rupeesBeside(policy.capMicros, rate);
+    if (rate && policy.askFirstMicros !== null) policy.askFirstRupees = rupeesBeside(policy.askFirstMicros, rate);
     policy.setAt = this.host.now();
+    this.rupees[biz] = rate;
     this.policies[biz] = policy;
     return clone(policy);
   }
@@ -244,7 +302,7 @@ export class FakeExtrasDesk {
 
   private lead(biz: string, id: unknown): LeadView {
     const lead = (this.leads[biz] ?? []).find((l) => l.id === id);
-    if (!lead) throw new EngineError('LEAD_NOT_FOUND', 'That lead is not in this business.');
+    if (!lead) throw new EngineError('LEADS_NOT_FOUND', 'That lead is not in this business.');
     return lead;
   }
 
@@ -255,16 +313,27 @@ export class FakeExtrasDesk {
     return list.includes(email) || list.includes(domain);
   }
 
+  /**
+   * The engine's stage rule: forward only, won and lost stay, blocked (an opt-out) from any stage and never left.
+   * A move that is not forward leaves the stage as it is and records nothing; a move keeps its evidence.
+   */
+  private advance(lead: LeadView, to: LeadView['status'], evidence: LeadMoveView['evidence']): void {
+    const from = lead.status;
+    if (from === 'blocked' || (to !== 'blocked' && (from === 'won' || from === 'lost' || STAGE_RANK[to]! <= STAGE_RANK[from]!))) return;
+    lead.moves.push({ from, to, at: this.host.now(), by: 'owner', evidence });
+    lead.status = to;
+  }
+
   private addLead(biz: string, p: Record<string, unknown>): LeadView {
     const name = text(p.name);
     if (name.length < 2 || name.length > 120) throw invalid('A name must be between 2 and 120 characters.');
     const sourceUrl = text(p.sourceUrl);
     let url: URL | null = null;
     try { url = new URL(sourceUrl); } catch { url = null; }
-    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) throw new EngineError('SOURCE_REQUIRED', 'A lead needs the web page you found them on, like https://example.in/team.');
+    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) throw new EngineError('LEADS_SOURCE_REQUIRED', 'A lead needs the web page you found them on, like https://example.in/team.');
     const email = text(p.email).toLowerCase() || null;
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw invalid('Use an email address like name@example.com.');
-    if (this.isBlocked(biz, email)) throw new EngineError('LEAD_BLOCKED', 'This address is on your blocklist, so Chausar will not add it.');
+    if (this.isBlocked(biz, email)) throw new EngineError('LEADS_BLOCKED', 'This address is on your blocklist, so Chausar will not add it.');
     const domain = email ? email.split('@')[1]! : null;
     const at = this.host.now();
     const checked = domain !== null && MAIL_DOMAINS.has(domain);
@@ -273,7 +342,7 @@ export class FakeExtrasDesk {
       emailCheck: !email ? { status: 'unverified', at: null, line: 'No email yet.' }
         : checked ? { status: 'verified', at, line: `A mail server answers for ${domain}.` }
           : { status: 'failed', at, line: `No mail server answers for ${domain}, so Chausar will not draft to it.` },
-      status: 'new', drafts: [], sends: [], addedBy: 'owner', addedAt: at,
+      status: 'new', drafts: [], sends: [], moves: [], addedBy: 'owner', addedAt: at,
     };
     (this.leads[biz] ??= []).unshift(lead);
     return clone(lead);
@@ -281,17 +350,17 @@ export class FakeExtrasDesk {
 
   private draft(biz: string, p: Record<string, unknown>) {
     const lead = this.lead(biz, p.leadId);
-    if (lead.status === 'blocked' || this.isBlocked(biz, lead.email)) throw new EngineError('LEAD_BLOCKED', 'This lead is on your blocklist. Chausar does not draft to it.');
-    if (!lead.email) throw new EngineError('EMAIL_REQUIRED', 'Add an email address for this lead first.');
-    if (lead.emailCheck.status !== 'verified') throw new EngineError('EMAIL_NOT_VERIFIED', `Chausar drafts only to an address whose mail server answers. ${lead.emailCheck.line}`);
+    // The engine's order and codes: blocklist, a verified email, the postal address, then the text. A refusal keeps nothing.
+    if (lead.status === 'blocked' || this.isBlocked(biz, lead.email)) throw new EngineError('LEADS_BLOCKED', 'This lead is on your blocklist. Chausar does not draft to it.');
+    if (!lead.email) throw new EngineError('LEADS_EMAIL_UNVERIFIED', 'Add an email address for this lead first.');
+    if (lead.emailCheck.status !== 'verified') throw new EngineError('LEADS_EMAIL_UNVERIFIED', `Chausar drafts only to an address whose mail server answers. ${lead.emailCheck.line}`);
+    const postalAddress = text(p.postalAddress) || this.postal[biz] || null;
+    if (!postalAddress) throw new EngineError('LEADS_ADDRESS_MISSING', 'Add your postal address. Every outreach email carries it.');
     const subject = text(p.subject);
     const body = text(p.body);
     if (subject.length < 2 || subject.length > 150) throw invalid('A subject must be between 2 and 150 characters.');
     if (body.length < 10 || body.length > 5000) throw invalid('The message must be between 10 and 5000 characters.');
-    const typedAddress = text(p.postalAddress);
-    if (typedAddress) this.postal[biz] = typedAddress;
-    const postalAddress = this.postal[biz] ?? null;
-    if (!postalAddress) throw new EngineError('POSTAL_ADDRESS_REQUIRED', 'Add your postal address. Every outreach email carries it.');
+    this.postal[biz] = postalAddress;
     const at = this.host.now();
     const draft: OutreachDraftView = {
       id: `draft-lead-${++this.seq}`, leadId: lead.id, to: lead.email, subject, text: body,
@@ -299,18 +368,19 @@ export class FakeExtrasDesk {
       digest: `d${this.seq.toString(16).padStart(7, '0')}`,
     };
     lead.drafts.unshift(draft);
-    if (lead.status === 'new') lead.status = 'drafted';
+    this.advance(lead, 'drafted', { kind: 'draft', id: draft.id });
     return { lead: clone(lead), draft: clone(draft) };
   }
 
   private recordSend(biz: string, p: Record<string, unknown>): LeadView {
     const lead = this.lead(biz, p.leadId);
+    if (lead.status === 'blocked') throw new EngineError('LEADS_BLOCKED', 'This person asked not to be contacted.');
     const draft = lead.drafts.find((d) => d.id === p.draftId);
-    if (!draft) throw new EngineError('DRAFT_NOT_FOUND', 'That draft is not on this lead.');
+    if (!draft) throw invalid('Choose one of the drafts for this lead.');
     if (typeof p.sentAt !== 'string' || Number.isNaN(Date.parse(p.sentAt))) throw invalid('Say when you sent it.');
-    if (lead.sends.some((s) => s.draftId === draft.id)) throw new EngineError('ALREADY_RECORDED', 'You recorded this send already.');
     lead.sends.unshift({ draftId: draft.id, sentAt: new Date(p.sentAt).toISOString(), recordedBy: 'owner', recordedAt: this.host.now(), channel: 'own-mailbox' });
-    lead.status = 'contacted';
+    // Stages move forward only: a lead that replied, won or lost keeps its stage.
+    this.advance(lead, 'contacted', { kind: 'send', id: draft.id });
     return clone(lead);
   }
 
@@ -319,7 +389,7 @@ export class FakeExtrasDesk {
     if (!/^([^\s@]+@)?[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value)) throw invalid('Block an email address or a domain, like name@example.in or example.in.');
     const list = (this.blocked[biz] ??= []);
     if (!list.includes(value)) list.push(value);
-    for (const lead of this.leads[biz] ?? []) if (this.isBlocked(biz, lead.email)) lead.status = 'blocked';
+    for (const lead of this.leads[biz] ?? []) if (this.isBlocked(biz, lead.email)) this.advance(lead, 'blocked', { kind: 'opt-out', id: value });
     return { blocked: [...list] };
   }
 

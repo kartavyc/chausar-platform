@@ -16,15 +16,16 @@
 // A tool call the policy held (venture/policy) is a question with Let it run once and Keep on hold; a run a spot check
 // picked at auto with spot checks waits as a draft row until the owner says it looks right or needs work. A paid call
 // above the ask-first figure is a 'quote' row (money/spend.ts), a proposed post a 'connector' row decided through
-// build/posting.ts, and the evidence ledger's suggestions and asks are 'question' rows (evidence/ledger.ts).
+// build/posting.ts, and the evidence ledger's suggestions and asks are 'question' rows (evidence/ledger.ts). A run
+// whose next call would cross its spend cap is a 'quote' row asking for one more window (delivery/harness/loop.ts).
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
-  currentVenture, digest, exactPayload, formatVentureDate, listRecords, plainText, requireAppChannel, ventureAction,
+  currentVenture, digest, exactPayload, formatMicros, formatVentureDate, listRecords, plainText, requireAppChannel, ventureAction,
 } from '../records.ts';
 import { DELIVERY_REASONS, QUEUE_ACTION_IDS } from '../contracts.ts';
 import type {
-  DeliveryReason, DeliveryRunRecord, Display, EvidenceRecord, HarnessState, InvoiceRecord, Offer, QueueAction, QueueActionId,
+  DeliveryReason, DeliveryRunRecord, Display, EvidenceRecord, HarnessState, InvoiceRecord, MicroString, Offer, QueueAction, QueueActionId,
   QueueDecision, QueueDecisionRecord, QueueKind, QueueList, QueueRow, VentureBusinessRef, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { blueprintAccept } from '../core/blueprint.ts';
@@ -34,15 +35,17 @@ import {
   deliveryAnswerHandler, deliveryApproveHandler, deliveryDelegateHandler, deliveryReviewHandler, deliveryRunHandler, runView,
 } from '../delivery/runs.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
-import { openDelegation } from '../delivery/harness/loop.ts';
-import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { allowCapWindow, capWindow, openDelegation } from '../delivery/harness/loop.ts';
+import { acceptedBlueprintOrNull, previewShownWhole } from '../delivery/shared.ts';
 import { HOLD_APPROVE_ANSWER, HOLD_DECLINE_ANSWER, holdOfHandoff } from '../policy/holds.ts';
 import { pendingSpotChecks, reviewSpotCheck } from '../policy/spot-check.ts';
 import { caFirmQueueItems } from '../playbooks/ca-firm/signoff.ts';
-import { approveSpendQuote, openSpendQuotes, quoteLive, spendAgentOf } from '../money/spend.ts';
+import { sendRunToCa, waitsToGoToCa } from '../playbooks/ca-firm/delivery-signoff.ts';
+import { approveSpendQuote, openSpendQuotes, quoteLive, rupeeFigure, rupeesBeside, rupeesOf, spendAgentOf, type Rupees } from '../money/spend.ts';
 import { connectorQueueRows, decideConnectorRow } from '../build/posting.ts';
 import { evidenceApply, evidenceQuestions, recordEvidence } from '../evidence/ledger.ts';
 import { AGENT_ID, agentName, businessOf, clientNameFor, lastEventAt, plain, short } from './shared.ts';
+import { agentWordsLabeller } from './agent-words.ts';
 
 export const STALE_LINE = 'This changed since you opened it.';
 export const GONE_LINE = 'This was resolved elsewhere.';
@@ -229,6 +232,7 @@ const reviewReason = (answer: string | null): DeliveryReason =>
 function runRows(deps: VentureDeps, state: State, venture: VentureRecord, business: Business): Pending[] {
   const nowMs = deps.clock().getTime();
   const agent = agentName(state, venture);
+  const rupees = rupeesOf(state, venture);
   const times = lastEventAt(state, venture.id);
   const runs = listRecords(state, 'venture-delivery-run', venture.id);
   const orders = new Map(listRecords(state, 'venture-order', venture.id).map(order => [order.id, order]));
@@ -236,7 +240,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
   for (const run of runs) { const known = newestPerOrder.get(run.orderId); if (!known || run.at >= known.at) newestPerOrder.set(run.orderId, run); }
   const rows: Pending[] = [];
   for (const record of runs) {
-    const run = runView(record, venture, nowMs);
+    const run = runView(record, venture, nowMs, state);
     const client = clientNameFor(state, venture.id, run.orderId);
     const subject = `run:${part(run.id)}`;
     const at = times.get(run.id) ?? run.at;
@@ -250,7 +254,18 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
           // The most it can cost is worked out by code from the price table, so it is not a model estimate; the display
           // itself says 'estimate, price unconfirmed' when the table is unconfirmed.
           line: 'Read the exact text first. Nothing goes to the client.', change: { label: 'Most it can cost', after: preview.estimatedMaxCostDisplay },
-          viewRef: viewRun, actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] },
+          viewRef: viewRun, actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })],
+          // A send to the owner's AI (W1 H21): complete only when the run's view shows the whole text.
+          descriptionComplete: previewShownWhole(preview) },
+      });
+    } else if (run.status === 'waiting-for-you' && run.awaitingYou && run.harness && run.preview && run.callId && capWindow(run.harness, run.preview.estimatedMaxCostMicros)) {
+      // The next call would cross the run's spend cap, so it was held back: more room, on the second ask.
+      const callId = run.callId;
+      rows.push({
+        subject, perform: { approve: async (d, ctx) => { await allowRunWindow(d, ctx, run.id, callId); return { line: 'Allowed. Approve the next step when you are ready.' }; } },
+        row: { ...base(business, 'quote', subject, `cap-${callId}`, at), agent, title: `${agent} reached its spend cap for this run`,
+          ...roomWords(run.harness, capWindow(run.harness, run.preview.estimatedMaxCostMicros)!, rupees),
+          viewRef: viewRun, actions: [action('later', 'Not now', false), action('approve', 'Allow', true, { secondAsk: true })] },
       });
     } else if (run.status === 'waiting-for-you' && newest && run.preview && Date.parse(run.preview.expiresAt) <= nowMs) {
       rows.push({
@@ -266,15 +281,18 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
         rows.push({
           subject, perform: { approve: reply(HOLD_APPROVE_ANSWER, 'It runs once, in the next step.'), deny: reply(HOLD_DECLINE_ANSWER, 'Kept on hold. The agent goes on without it.') },
           row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
-            title: `${agent} wants to run a step on hold for ${client}`, line: short(open!.question, 300),
-            viewRef: viewRun, actions: [action('deny', 'Keep on hold', false), action('approve', 'Let it run once', true)] },
+            title: `${agent} wants to run a step on hold for ${client}`, line: short(agentWordsLabeller(state, venture, run)(open!.question), 300),
+            viewRef: viewRun, actions: [action('deny', 'Keep on hold', false), action('approve', 'Let it run once', true)],
+            // The view names the held tool and why, not its exact input (W1 H21).
+            descriptionComplete: false },
         });
         continue;
       }
       rows.push({
         subject, perform: { answer: async (d, ctx, input) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer: input.answer }); return { line: 'Answered.' }; } },
         row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
-          title: `${agent} has a question about ${client}'s order`, line: short(open?.question ?? 'The agent needs your answer to carry on.', 300),
+          // The agent's own words show a number with no receipt as a model estimate (agent-words.ts).
+          title: `${agent} has a question about ${client}'s order`, line: short(open ? agentWordsLabeller(state, venture, run)(open.question) : 'The agent needs your answer to carry on.', 300),
           viewRef: viewRun, actions: [action('answer', 'Answer', true)] },
       });
     } else if (run.status === 'brief-waiting' && run.awaitingYou && run.harness) {
@@ -296,13 +314,19 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
         return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : 'Draft rejected. The agent learns from it.' };
       };
       const viewDraft = { kind: 'draft' as const, id: run.id };
+      // AI-native CA firm: papers held only for the CA's sign-off, not yet with the CA, go to the CA from this row.
+      const toCa = !run.canAccept && waitsToGoToCa(state, venture, record, nowMs);
+      const sendToCaPerform: Perform = async (d, ctx) => sendRunToCa(d, ctx, run.id);
+      const blocked = toCa ? { deny: review('rejected'), 'send-to-ca': sendToCaPerform } : { deny: review('rejected') };
       rows.push({
-        subject, perform: run.canAccept ? { approve: review('accepted'), deny: review('rejected') } : { deny: review('rejected') },
+        subject, perform: run.canAccept ? { approve: review('accepted'), deny: review('rejected') } : blocked,
         row: run.canAccept
           ? { ...base(business, 'draft', subject, 'review', at), agent, title: `Draft reply for ${client}`, line: 'Read it, then approve it. You send it yourself.', viewRef: viewDraft,
             actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] }
-          : { ...base(business, 'draft', subject, 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
-            actions: [action('deny', 'Reject', false), action('read', 'Read', true)] },
+          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
+            actions: toCa
+              ? [action('deny', 'Reject', false), action('read', 'Read', false), action('send-to-ca', 'Send to CA', true, { requiresView: true })]
+              : [action('deny', 'Reject', false), action('read', 'Read', true)] },
       });
     } else if (run.status === 'failed' && newest) {
       rows.push({
@@ -313,6 +337,32 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     }
   }
   return rows;
+}
+
+/**
+ * The owner allowed one more window for a run whose next call would cross its spend cap: the cap rises once, by the
+ * figure the row showed, worked out again here. The run must still wait on that same call; otherwise it is stale.
+ */
+async function allowRunWindow(deps: VentureDeps, ctx: Context, runId: string, callId: string): Promise<void> {
+  await ventureAction(deps, ctx, 'approve', 'delivery.cap', tx => {
+    const current = tx.find('venture-delivery-run', runId);
+    check(current && current.status === 'waiting-for-you' && current.callId === callId && current.harness && current.preview, 'APPROVAL_STALE', STALE_LINE);
+    tx.replace({ ...current, harness: allowCapWindow(current.harness, current.preview.estimatedMaxCostMicros, tx.now, ctx.memberId) });
+    tx.emit('run.step', { runId });
+  });
+}
+
+/**
+ * Today's words for more room on a run: one window of its own cap, or more spend for the run when it takes several.
+ * With the owner's rupee rate, the room is said in rupees too, beside the dollars, with that rate.
+ */
+function roomWords(harness: HarnessState, window: MicroString, rupees: Rupees | null): Pick<QueueRow, 'line' | 'change'> {
+  const figure = formatMicros(window);
+  const said = rupees ? `${figure}, ${rupeesBeside(window, rupees)}` : figure;
+  const after = rupees ? `${figure} · ${rupeeFigure(window, rupees)}` : figure;
+  return BigInt(window) <= BigInt(harness.limits.maxCostMicros)
+    ? { line: `Allow one more window of ${said}?`, change: { label: 'One more window', after } }
+    : { line: `Allow more spend for this run: ${said}`, change: { label: 'More spend for this run', after } };
 }
 
 /** Runs a spot check picked at auto with spot checks: each waits until the owner says it looks right or needs work. */
@@ -418,6 +468,8 @@ function postRows(state: State, business: Business): Pending[] {
           action('deny', deny?.label ?? 'Do not post', false),
           action('approve', approve?.label ?? 'Approve and post', true, { secondAsk: approve?.secondAsk ?? true, requiresView: approve?.requiresView ?? true }),
         ],
+        // A post is an outside action: Today says when part of what it sends is not shown (W1 H21).
+        descriptionComplete: post.descriptionComplete === true,
       },
     };
   });

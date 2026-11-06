@@ -56,12 +56,13 @@ test('gates: start on hold; a floor step stays on hold whatever was stored', () 
 const effect = (name: string, touches?: PolicyAction['touches']) => floorOf({ phase: 'outside-effect', name, ...(touches ? { touches } : {}) });
 
 test('floor: money out, sending, deleting, changing prices, government portals and credentials; code decides', () => {
-  assert.deepEqual([...FLOOR_KINDS], ['money-out', 'send', 'delete', 'price-change', 'government-portal', 'credential']);
+  // Ink v2 wave 1 added four kinds; venture-effects.test.ts covers them.
+  assert.deepEqual([...FLOOR_KINDS], ['money-out', 'send', 'delete', 'price-change', 'government-portal', 'credential', 'recurring-job', 'rule-change', 'payment-details', 'issue']);
   for (const kind of FLOOR_KINDS) assert.match(FLOOR_WORDS[kind], /always asks you first\.$/);
   assert.deepEqual(effect('payment.send'), ['money-out']);
   assert.deepEqual(effect('payment.refund'), ['money-out']);
   assert.deepEqual(effect('connector.post'), ['send']);
-  assert.deepEqual(effect('invoice.issue'), ['send']);
+  assert.deepEqual(effect('invoice.issue'), ['send', 'issue']);
   assert.deepEqual(effect('site.edit.apply'), ['send']);
   assert.deepEqual(effect('record.delete'), ['delete']);
   assert.deepEqual(effect('price.change'), ['price-change']);

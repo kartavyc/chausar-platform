@@ -112,6 +112,15 @@ describe('RunSheet', () => {
     expect(screen.queryByRole('button', { name: /^Receipt/ })).toBeNull();
   });
 
+  it('says in one line what the screen noted in outside content, and nothing when it noted nothing', () => {
+    const line = 'Screen noted 2 things in outside content: words aimed at the agent, an id number.';
+    const { container, unmount } = render(<RunSheetView run={{ ...run('29'), screen: line }} onClose={() => {}} />);
+    expect(container.querySelector('[data-screen]')!.textContent).toBe(line);
+    unmount();
+    const quiet = render(<RunSheetView run={run('29')} onClose={() => {}} />);
+    expect(quiet.container.querySelector('[data-screen]')).toBeNull();
+  });
+
   it('a failed run shows the real error and Run again', () => {
     const onRunAgain = vi.fn();
     const { container } = render(<RunSheetView run={run('28')} onClose={() => {}} onRunAgain={onRunAgain} />);

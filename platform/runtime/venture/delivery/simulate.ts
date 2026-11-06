@@ -10,12 +10,12 @@ import type {
   ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, VentureDeps, VentureRecord, WorkReceiptRecord,
   WorkTableRecord,
 } from '../contracts.ts';
-import { firstFailedCheck, judgeDraftRules, knownNames, runChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
+import { correctDraft, firstFailedCheck, judgeDraftRules, knownNames, runChecks, withDraftChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, rehearsalRefs, renderDeliverable, renderForJudge, type DraftRefs } from './deliverable.ts';
 import { buildToolEnv, fileList, namer } from './harness/env.ts';
 import { manifest } from './harness/dictionary.ts';
 import {
-  actTask, answerHandoff, applyTurn, finishWrite, harnessRefs, newHarnessState, playbookGrant, provenSentences, REPORT_SECTIONS, writeGuidance, writeTask,
+  actTask, answerHandoff, applyTurn, finishWrite, harnessRefs, newHarnessState, playbookGrant, provenSentences, REPORT_SECTIONS, runCapMicros, skipActs, writeGuidance, writeTask,
 } from './harness/loop.ts';
 import { practiceFiles } from './harness/practice.ts';
 import { judgedAnswers, judgeTask, notJudged } from './judge.ts';
@@ -34,8 +34,11 @@ export const CLIENT_SIM_INSTRUCTIONS = 'You play a made-up client of a small ser
 export const TEMPLATE_CLIENT_ANSWER = 'That is all I can share for now. Please go ahead with what you have.';
 export const PERSON_FAILURE = 'The practice client asked for a person.';
 const ESTIMATE_WORDS = ' (estimate, price unconfirmed)';
-/** Model errors that describe how the model behaved; a rehearsal records them as a failed episode instead of stopping. */
-const BEHAVIOUR_CODES = new Set(['MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE']);
+/**
+ * Model errors that describe how the model behaved, and the run's spend cap stopping a call before it was sent; a
+ * rehearsal records them as a failed episode instead of stopping.
+ */
+const BEHAVIOUR_CODES = new Set(['MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE', 'RUN_CAP_REACHED']);
 const MAX_SCENARIOS_PER_RUN = 12;
 
 const CLIENT_SIM_SCHEMA = {
@@ -96,15 +99,20 @@ type RehearsalEnv = {
 
 type EpisodeResult = { episode: Episode; spend: Spend[]; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[] };
 
-async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[]): Promise<ModelOutcome<T>> {
+/** What an agent run has left under its spend cap, and where a call made outside its loop adds what it cost. */
+type RunMeter = { left(): string; charge(costMicros: string): void };
+
+/** One call. With a meter the call carries what the run has left, so the model port refuses one that may cost more. */
+async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[], meter?: RunMeter): Promise<ModelOutcome<T>> {
   let outcome: ModelOutcome<T>;
   if (env.useTemplate) {
     check(task.template, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
     outcome = { value: task.template(), by: 'template', callId: null, presetId: 'built-in-templates', model: null, costMicros: '0', priceConfirmed: true };
   } else {
-    outcome = await env.deps.models.generate(env.ctx, task);
+    outcome = await env.deps.models.generate(env.ctx, meter ? { ...task, capLeftMicros: meter.left() } : task);
   }
   spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
+  meter?.charge(outcome.costMicros);
   return outcome;
 }
 
@@ -187,16 +195,26 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
       askedQuestions = askedQuestions || deliverable.questionsForClient.length > 0;
     }
 
+    // The calculator's figure in place of each number it refutes (correctDraft), before the record-only send and the checks.
+    const grounding = { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
+    // A case stored before the receipts and prompt-leak checks never lists them; every practice draft runs them anyway.
+    const caseChecks = withDraftChecks(scenario.checks);
+    const allowed = draftAllowedTokens(request, env.venture.idea);
+    const corrected = correctDraft({ checks: caseChecks, deliverable, receipts: env.receipts, ventureId: env.venture.id, allowed, grounding });
+    if (corrected.corrections.length) {
+      deliverable = corrected.deliverable;
+      renderedText = renderDeliverable(deliverable, env.receipts, env.country);
+    }
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     step = 'judge';
     // A model draft follows the flagship drafting step's headings; a template outline keeps the service type's.
     const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request);
     const checks = await practiceChecks(env, scenario, {
-      checks: scenario.checks, deliverable, renderedText, serviceType: env.serviceType,
-      allowed: draftAllowedTokens(request, env.venture.idea), receipts: env.receipts, ventureId: env.venture.id,
+      checks: caseChecks, deliverable, renderedText, serviceType: env.serviceType, flagship: env.playbook.flagship ?? null, corrections: corrected.corrections,
+      allowed, receipts: env.receipts, ventureId: env.venture.id,
       mocks, mockModes: scenario.mocks, agentTurns, turnLimit: scenario.turnLimit, askedQuestions,
       ...(env.draft && draft.by === 'model' ? { sections: env.draft.sections } : {}),
-      grounding: { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder },
+      grounding,
     }, { draft: renderForJudge(deliverable, env.receipts), clientRequest: request }, spend, playbookChecks);
 
     let judge: JudgeAnswer[];
@@ -240,6 +258,11 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     allowed: copiedTokens(request, env.venture.idea),
   });
   let state: HarnessState = newHarnessState(playbookGrant(env.playbook), playbookLimits(env.playbook), files.map(file => file.id));
+  // The run's cap held before each paid call (W1 H4): every call carries what the run has left. The turns and the
+  // reply add their cost through the loop; the practice client's and the judge's calls are added here.
+  const left = () => { const room = runCapMicros(state) - BigInt(state.used.costMicros); return String(room > 0n ? room : 0n); };
+  const inLoop: RunMeter = { left, charge: () => undefined };
+  const outside: RunMeter = { left, charge: cost => { state = { ...state, used: { ...state.used, costMicros: String(BigInt(state.used.costMicros) + BigInt(cost)) } }; } };
   const loop = {
     serviceType: env.serviceType, offer: env.offer, clientRequest: request, playbook: env.playbook,
     dictionaryManifest: manifest(toolEnv.dictionary), files: fileList(files), containsClientData: false, allowed: toolEnv.allowed, host: env.deps.host,
@@ -261,7 +284,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
         let answer = TEMPLATE_CLIENT_ANSWER;
         if (clientTurns < scenario.turnLimit) {
           step = 'practice client';
-          const reply = await ask(env, clientSimTask(scenario, env.serviceType, [{ from: 'client', text: request }, { from: 'agent', questions: [open.question] }]), spend);
+          const reply = await ask(env, clientSimTask(scenario, env.serviceType, [{ from: 'client', text: request }, { from: 'agent', questions: [open.question] }]), spend, outside);
           turns.push({ turn: turns.length + 1, by: 'client', text: reply.value.message, author: reply.by, callId: reply.callId });
           clientTurns += 1;
           if (reply.value.asksForPerson) return result({ checks: [], judge: notJudged('The episode stopped before the last draft.'), passed: false, firstFailure: PERSON_FAILURE });
@@ -275,17 +298,26 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
         continue;
       }
       step = 'agent turn';
-      const turn = await ask(env, actTask(loop, state), spend);
+      const turn = await ask(env, actTask(loop, state), spend, inLoop).catch(error => {
+        if (errorCode(error) !== 'RUN_CAP_REACHED') throw error;
+        return null;
+      });
+      // A turn that would cross the run's cap was not sent: the loop goes to its forced last step, as at the cap.
+      if (!turn) { state = skipActs(state, 'The run reached its spending limit.'); continue; }
       state = await applyTurn(toolEnv, state, turn.value, { by: turn.by, callId: turn.callId, costMicros: turn.costMicros });
     }
 
     step = 'draft';
     const allowed = copiedTokens(request, env.venture.idea, ...answers);
     const proven = provenSentences(state, toolEnv.receipts, namer(toolEnv));
-    const draft = await ask(env, writeTask({ ...loop, idea: env.venture.idea, allowed, priceRefs: env.refs, templateTotalRef: 'offer_1.total', proven }, state, toolEnv.receipts), spend);
+    const draft = await ask(env, writeTask({ ...loop, idea: env.venture.idea, allowed, priceRefs: env.refs, templateTotalRef: 'offer_1.total', proven }, state, toolEnv.receipts), spend, inLoop);
     state = finishWrite(state, { by: draft.by, callId: draft.callId, costMicros: draft.costMicros });
-    deliverable = draft.value;
     const receipts = [...env.receipts, ...toolEnv.receipts];
+    // The calculator's figure in place of each number it refutes (correctDraft), before the draft is rendered and checked.
+    const grounding = { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
+    const caseChecks = withDraftChecks(scenario.checks);
+    const corrected = correctDraft({ checks: caseChecks, deliverable: draft.value, receipts, ventureId: env.venture.id, allowed, grounding });
+    deliverable = corrected.deliverable;
     renderedText = renderDeliverable(deliverable, receipts, env.country);
     turns.push({ turn: turns.length + 1, by: 'agent', text: renderedText, author: draft.by, callId: draft.callId });
 
@@ -294,11 +326,12 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     step = 'judge';
     const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request, { files, receipts: toolEnv.receipts });
     const checks = await practiceChecks(env, scenario, {
-      checks: scenario.checks, deliverable, renderedText: renderDeliverable(deliverable, receipts, env.country, { attachments: false }), serviceType: env.serviceType,
+      checks: caseChecks, deliverable, renderedText: renderDeliverable(deliverable, receipts, env.country, { attachments: false }), serviceType: env.serviceType,
+      flagship: env.playbook.flagship ?? null, corrections: corrected.corrections,
       allowed, receipts, ventureId: env.venture.id, mocks: [...mocks, ...state.mocks], mockModes: scenario.mocks,
       agentTurns: 1 + handoffs, turnLimit: scenario.turnLimit, askedQuestions: deliverable.questionsForClient.length > 0 || handoffs > 0,
       sections: (env.draft && draft.by === 'model' ? env.draft.sections : null) ?? (state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[env.serviceType]), proofs: state.proofs,
-      grounding: { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder },
+      grounding,
     }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend, playbookChecks);
 
     let judge: JudgeAnswer[];
@@ -308,7 +341,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
       const verdict = await ask(env, judgeTask({
         expectedOutcome: scenario.expectedOutcome, persona: scenario.persona, draft: renderForJudge(deliverable, receipts),
         figureLabels: refs.figures.map(figure => figure.label), proven,
-      }), spend);
+      }), spend, outside);
       judge = judgedAnswers(verdict.value, verdict.callId);
     } else {
       judge = notJudged();

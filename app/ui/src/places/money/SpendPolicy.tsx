@@ -3,9 +3,13 @@
  * above which a call waits for the owner, and the owner's own rate card. At rest it is the engine's words for each and
  * one quiet Change. Changing them asks a second time inside the section; keyboard A never confirms it.
  *
- * The engine takes whole micro-dollars (5000000 is 5 US dollars). What the owner types goes to the engine exactly as
- * typed, and an empty field clears that figure (null); the engine checks each figure, says in words what is wrong, and
- * answers with the settings written in its own words. Rate lines that were already on the card go back as they came.
+ * Every figure is typed in US dollars, which is what the AI providers bill, like 20 or 12.50 (rates take up to six
+ * decimals). What the owner types goes to the engine exactly as typed, and an empty field clears that figure (null);
+ * the engine converts it, checks it, says in words what is wrong, and answers with the settings written in its own
+ * words. Rate lines that were already on the card go back as the engine gave them, in dollars.
+ *
+ * The owner may also set their own rate of rupees per US dollar. Spend is still counted in dollars; with a rate, the
+ * engine gives the limits (and every spend figure) in rupees too, with that rate and the day it was set, beside them.
  */
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
@@ -14,7 +18,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { SpendPolicyView, SpendRateInput, SpendRateLine, SpendRateUnit } from '../../engine/types';
-import { Failed, Figure, Section } from './parts';
+import { Failed, Figure, Rupees, Section } from './parts';
 import { localToday, messageOf, useDay } from './words';
 import s from './Money.module.css';
 
@@ -24,16 +28,16 @@ const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-
 interface RateDraft { key: string; item: string; unit: SpendRateUnit; input: string; output: string; perCall: string; source: string; checkedOn: string }
 
 const draftOf = (line: SpendRateLine): RateDraft => ({
-  key: `held:${line.item}`, item: line.item, unit: line.unit, input: line.inputMicrosPerMillion ?? '', output: line.outputMicrosPerMillion ?? '',
-  perCall: line.microsPerCall ?? '', source: line.source, checkedOn: line.checkedOn,
+  key: `held:${line.item}`, item: line.item, unit: line.unit, input: line.inputUsdPerMillion ?? '', output: line.outputUsdPerMillion ?? '',
+  perCall: line.usdPerCall ?? '', source: line.source, checkedOn: line.checkedOn,
 });
 
-/** The line as the engine takes it: the figures the unit needs, each as typed. */
+/** The line as the engine takes it: the figures the unit needs, each in US dollars as typed. */
 function inputOf(draft: RateDraft): SpendRateInput {
   const shared = { item: draft.item.trim(), unit: draft.unit, source: draft.source.trim(), checkedOn: draft.checkedOn.trim() };
   return draft.unit === 'per-million-tokens'
-    ? { ...shared, inputMicrosPerMillion: draft.input.trim(), outputMicrosPerMillion: draft.output.trim() }
-    : { ...shared, microsPerCall: draft.perCall.trim() };
+    ? { ...shared, inputUsdPerMillion: draft.input.trim(), outputUsdPerMillion: draft.output.trim() }
+    : { ...shared, usdPerCall: draft.perCall.trim() };
 }
 
 /** A typed figure, or null when the field was left empty (no limit, never ask first). */
@@ -53,14 +57,16 @@ export function SpendPolicy() {
   const [done, setDone] = useState(false);
   const [cap, setCap] = useState('');
   const [askFirst, setAskFirst] = useState('');
+  const [inrPerUsd, setInrPerUsd] = useState('');
   const [rates, setRates] = useState<RateDraft[]>([]);
   useEffect(() => { setSaved(null); }, [policy.data]);
 
   const view = saved ?? policy.data;
 
   function edit(current: SpendPolicyView) {
-    setCap(current.capMicros ?? '');
-    setAskFirst(current.askFirstMicros ?? '');
+    setCap(current.capUsd ?? '');
+    setAskFirst(current.askFirstUsd ?? '');
+    setInrPerUsd(current.inrPerUsd ?? '');
     setRates(current.rates.map(draftOf));
     setProblem(null);
     setDone(false);
@@ -77,7 +83,9 @@ export function SpendPolicy() {
     setSending(true);
     setProblem(null);
     try {
-      const reply = await engine.request('venture.spend.policy.set', { cap: figureOrNull(cap), askFirst: figureOrNull(askFirst), rates: rates.map(inputOf) });
+      const reply = await engine.request('venture.spend.policy.set', {
+        capUsd: figureOrNull(cap), askFirstUsd: figureOrNull(askFirst), inrPerUsd: figureOrNull(inrPerUsd), rates: rates.map(inputOf),
+      });
       setSaved(reply);
       setEditing(false);
       setDone(true);
@@ -100,10 +108,13 @@ export function SpendPolicy() {
       {view && !editing && (
         <>
           <p className={s.figures}>
-            <Figure>{view.cap}</Figure>
+            <Figure>{view.cap}</Figure><Rupees text={view.capRupees} />
             <span className={s.dot} aria-hidden="true">·</span>
-            <Figure>{view.askFirst}</Figure>
+            <Figure>{view.askFirst}</Figure><Rupees text={view.askFirstRupees} />
           </p>
+          {view.rupeeRate && (
+            <p className={s.quiet}><span>{t('money.policy.inrPerUsd')}</span>{' '}<span>{view.rupeeRate}</span></p>
+          )}
           {view.rates.length > 0 && (
             <ul className={s.lines}>
               {view.rates.map((rate) => (
@@ -126,12 +137,16 @@ export function SpendPolicy() {
       {view && editing && (
         <form className={s.form} noValidate aria-label={t('money.policy.title')} onSubmit={submit}>
           <Field
-            label={t('money.policy.cap')} hint={t('money.policy.capHint')} value={cap} inputMode="numeric" autoComplete="off" disabled={sending}
+            label={t('money.policy.cap')} hint={t('money.policy.capHint')} value={cap} inputMode="decimal" autoComplete="off" disabled={sending}
             onChange={(event) => { setCap(event.currentTarget.value); setAsking(false); }}
           />
           <Field
-            label={t('money.policy.askFirst')} hint={t('money.policy.askFirstHint')} value={askFirst} inputMode="numeric" autoComplete="off" disabled={sending}
+            label={t('money.policy.askFirst')} hint={t('money.policy.askFirstHint')} value={askFirst} inputMode="decimal" autoComplete="off" disabled={sending}
             onChange={(event) => { setAskFirst(event.currentTarget.value); setAsking(false); }}
+          />
+          <Field
+            label={t('money.policy.inrPerUsd')} hint={t('money.policy.inrPerUsdHint')} value={inrPerUsd} inputMode="decimal" autoComplete="off" disabled={sending}
+            onChange={(event) => { setInrPerUsd(event.currentTarget.value); setAsking(false); }}
           />
           <div className={s.rateCard} role="group" aria-label={t('money.policy.rates')}>
             <p className={s.fieldLabel}>{t('money.policy.rates')}</p>
@@ -188,13 +203,13 @@ function RateEditor({ rate, disabled, onChange, onRemove }: { rate: RateDraft; d
       </div>
       {rate.unit === 'per-million-tokens' ? (
         <>
-          <Field label={t('money.policy.input')} hint={t('money.policy.microsHint')} value={rate.input} inputMode="numeric" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ input: event.currentTarget.value })} />
-          <Field label={t('money.policy.output')} value={rate.output} inputMode="numeric" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ output: event.currentTarget.value })} />
+          <Field label={t('money.policy.input')} hint={t('money.policy.usdHint')} value={rate.input} inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ input: event.currentTarget.value })} />
+          <Field label={t('money.policy.output')} value={rate.output} inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ output: event.currentTarget.value })} />
         </>
       ) : (
         <Field
-          label={rate.unit === 'per-call' ? t('money.policy.perCall') : t('money.policy.runCap')} hint={t('money.policy.microsHint')} value={rate.perCall}
-          inputMode="numeric" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ perCall: event.currentTarget.value })}
+          label={rate.unit === 'per-call' ? t('money.policy.perCall') : t('money.policy.runCap')} hint={t('money.policy.usdHint')} value={rate.perCall}
+          inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ perCall: event.currentTarget.value })}
         />
       )}
       <Field label={t('money.policy.source')} value={rate.source} autoComplete="off" disabled={disabled} onChange={(event) => onChange({ source: event.currentTarget.value })} />

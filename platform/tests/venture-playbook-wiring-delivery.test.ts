@@ -15,7 +15,7 @@ import { PURPOSE_TIER } from '../runtime/venture/contracts.ts';
 import type {
   Deliverable, DeliveryRunView, ModelOutcome, ModelPort, ModelPreview, ModelStatusView, ModelTask, PlaybookRecord, SecretShelf, VentureDeps, VentureMethod,
 } from '../runtime/venture/contracts.ts';
-import { digest, ventureAction } from '../runtime/venture/records.ts';
+import { digest, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as coreHandlers } from '../runtime/venture/core/index.ts';
 import { handlers as moneyHandlers } from '../runtime/venture/money/index.ts';
 import { handlers as deliveryHandlers } from '../runtime/venture/delivery/index.ts';
@@ -30,6 +30,7 @@ import { PACKAGE_SECTIONS, YOUTUBE_STEPS } from '../runtime/venture/playbooks/yo
 import { YOUTUBE_DRAFT_RULES } from '../runtime/venture/playbooks/youtube/judge.ts';
 import { CA_DRAFT_SECTIONS, CA_STEPS } from '../runtime/venture/playbooks/ca-firm/playbook.ts';
 import { CA_JUDGE_RULES } from '../runtime/venture/playbooks/ca-firm/claims.ts';
+import { regulatedPapersOf } from '../runtime/venture/playbooks/ca-firm/signoff-gate.ts';
 import { SOCIAL_STEPS } from '../runtime/venture/playbooks/social/playbook.ts';
 import { SOCIAL_JUDGE_RULES } from '../runtime/venture/playbooks/social/judge.ts';
 import { VentureTestStore } from './venture-test-store.ts';
@@ -209,7 +210,8 @@ test('a YouTube draft is a package checked by the playbook: a failed check block
   assert.deepEqual((task.input as any).requiredSections, [...PACKAGE_SECTIONS], 'the package step\'s headings, not the studio reply\'s');
   assert.ok(((task.input as any).guidance as string[]).some(line => /Hook/.test(line)));
   const results = Object.fromEntries((good.playbookChecks ?? []).map(item => [item.check, item]));
-  assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'retention-risk', 'rights-recorded', 'source-credit', 'title-thumbnail']);
+  assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'prompt-leak', 'retention-risk', 'rights-recorded', 'source-credit', 'title-thumbnail']);
+  assert.equal(results['prompt-leak'].outcome, 'pass', results['prompt-leak'].detail);
   assert.ok(good.playbookChecks!.every(item => item.playbook === 'youtube'));
   for (const id of ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'ai-disclosure', 'rights-recorded']) assert.equal(results[id].outcome, 'pass', `${id}: ${results[id].detail}`);
   assert.equal(results.finishing.outcome, 'not-run');
@@ -276,7 +278,10 @@ test('a CA firm draft runs the claim checks backed by receipts and waits for the
   assert.equal(cleanIds['signoff-recorded'].outcome, 'not-run');
   assert.match(cleanIds['signoff-recorded'].detail, /CA of record/);
   assert.deepEqual(((env.models.previewed.at(-1)!.input as any).requiredSections), [...CA_DRAFT_SECTIONS]);
-  assert.equal(clean.canAccept, true, clean.acceptBlocked ?? '');
+  // W1 H2: a GST working that gives no GST figure from a calculator receipt no longer passes.
+  assert.equal(cleanIds['tax-figure-receipted'].outcome, 'fail');
+  assert.match(cleanIds['tax-figure-receipted'].detail, /no GST figure/);
+  assert.equal(clean.canAccept, false);
 });
 
 test('a regulated CA firm offer goes to the CA of record by its playbook offer, even after the owner renames it', async () => {
@@ -290,9 +295,38 @@ test('a regulated CA firm offer goes to the CA of record by its playbook offer, 
     'Open items for you': ['Please confirm the invoices marked as missing.'],
     'What your CA does next': ['Your CA checks the papers, signs them off, and files the return on the GST portal.'],
   }));
-  assert.equal(run.canAccept, true, run.acceptBlocked ?? '');
-  const requests = (env.store.read().conversations as any[]).filter(record => record.kind === 'venture-ca-firm' && record.entry === 'signoff-request');
-  assert.deepEqual(requests.map(request => [request.subjectKind, request.deliveryId]), [['gst-working', run.id]], 'the renamed GST offer still asks the CA to sign off');
+  // The renamed offer is still the GST working: its draft needs a GST figure from the calculator (W1 H2), and its
+  // papers are a GST working for the CA to sign off. With no calculator receipt yet, nothing goes to the CA.
+  const byId = Object.fromEntries((run.playbookChecks ?? []).map(item => [item.check, item]));
+  assert.match(byId['tax-figure-receipted'].detail, /GST/);
+  assert.equal(run.canAccept, false);
+  const state = env.store.read();
+  assert.equal(regulatedPapersOf(state, listRecords(state, 'venture-record')[0], order.id)?.subjectKind, 'gst-working', 'the renamed GST offer is still signed off as a GST working');
+  const requests = (state.conversations as any[]).filter(record => record.kind === 'venture-ca-firm' && record.entry === 'signoff-request');
+  assert.deepEqual(requests, [], 'papers that fail a check are not sent to the CA');
+});
+
+test('a CA firm offer with no playbook id (an older plan) is read from its own words, so a GST working still needs its GST figure', async () => {
+  const env = await business(CA_IDEA);
+  await ventureAction(env.deps, owner, 'admin', 'seed.legacy-offer', tx => {
+    const plan = tx.list('venture-blueprint').find(item => item.status === 'accepted')!;
+    tx.replace({ ...plan, offers: plan.offers.map(offer => {
+      if (offer.id !== 'offer_2') return offer;
+      const { playbookOffer: _dropped, ...rest } = offer;
+      return { ...rest, name: { ...offer.name, value: 'GST working papers' } };
+    }) });
+  });
+  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_2', request: 'GST working for October.' });
+  const run = await deliver(env, order.id, draft('GST working for October', {
+    Summary: ['The working papers for October follow.'],
+    'Working papers': ['The output tax is worked by the calculator by rate and by head.'],
+    'Open items for you': ['Please confirm the invoices marked as missing.'],
+    'What your CA does next': ['Your CA checks the papers, signs them off, and files the return on the GST portal.'],
+  }));
+  const byId = Object.fromEntries((run.playbookChecks ?? []).map(item => [item.check, item]));
+  assert.equal(byId['tax-figure-receipted']?.outcome, 'fail', JSON.stringify(byId['tax-figure-receipted']));
+  assert.match(byId['tax-figure-receipted'].detail, /no GST figure/);
+  assert.equal(byId['signoff-recorded'].outcome, 'not-run', 'and it is regulated papers waiting for the CA');
 });
 
 test('a social agency draft is checked against channel limits, disclosure and the client\'s own words', async () => {

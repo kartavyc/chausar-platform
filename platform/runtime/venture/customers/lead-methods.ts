@@ -9,11 +9,12 @@ import type { LeadRecord, LeadSettingsRecord, LeadView, OutreachDraftView, Ventu
 import {
   exactPayload, identifier, isAppChannel, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx,
 } from '../records.ts';
-import { addToBlocklist, createLead, draftOutreach, recordSend, verifyLeadEmail, type Blocklist, type Lead } from './leads.ts';
+import { addToBlocklist, createLead, draftOutreach, moveLead, onBlocklist, recordSend, verifyLeadEmail, type Blocklist, type Lead } from './leads.ts';
 
+/** A stored lead as the screens and the rules read it. A lead stored before stages kept their moves reads with none. */
 function leadOf(record: LeadRecord): LeadView {
   const { kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, ...rest } = record;
-  return { ...rest, id: record.id };
+  return { ...rest, moves: (rest as Partial<LeadView>).moves ?? [], id: record.id };
 }
 
 function recordOf(tx: VentureTx, lead: Lead, existing?: LeadRecord): LeadRecord {
@@ -101,7 +102,8 @@ const DOMAIN_ENTRY = /^[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/;
 
 /**
  * venture.leads.block { value } (approve, inside the app): puts an email or a whole domain on the blocklist for good.
- * Drafting checks it first, so no agent drafts to anyone on it again. Answers with every blocked entry, emails first.
+ * Drafting checks it first, so no agent drafts to anyone on it again. Every lead it covers moves to blocked, with the
+ * entry as the move's evidence. Answers with every blocked entry, emails first.
  */
 export async function leadsBlock(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ blocked: string[] }> {
   requireAppChannel(ctx, 'venture.leads.block');
@@ -115,6 +117,11 @@ export async function leadsBlock(deps: VentureDeps, ctx: Context, payload: unkno
     const blockedEmails = [...next.emails].sort(), blockedDomains = [...next.domains].sort();
     if (settings) tx.replace<LeadSettingsRecord>({ ...settings, blockedEmails, blockedDomains });
     else tx.put<LeadSettingsRecord>({ ...tx.base('venture-lead-settings'), postalAddress: null, blockedEmails, blockedDomains });
+    for (const stored of tx.list('venture-lead')) {
+      const lead = leadOf(stored);
+      if (lead.status === 'blocked' || !onBlocklist(lead, next)) continue;
+      tx.replace(recordOf(tx, moveLead(lead, 'blocked', { evidence: { kind: 'opt-out', id: entry }, by: ctx.memberId, at: tx.now }), stored));
+    }
     return { blocked: [...blockedEmails, ...blockedDomains] };
   });
 }

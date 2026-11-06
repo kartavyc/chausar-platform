@@ -3,6 +3,7 @@
 // (sharePage and shareDecide), which no RPC reaches.
 // - Only a delivery draft the owner could accept now (ready, not practice, every check passed), or one the owner
 //   accepted or edited, can be shared. Making the link is the owner's approval to show it; it happens inside the app.
+//   A CA firm's regulated papers are shared only as the CA of record signed them off (playbooks/ca-firm/signoff-gate.ts).
 // - The record keeps a sha256 of a random token, never the token, and a copy of the exact text the link shows with its
 //   digest. The token is in create's address once; nothing returns it again.
 // - The address is real only on the hosted web server with a public address (CHAUSAR_PUBLIC_URL). Anywhere else the
@@ -10,13 +11,15 @@
 // - The client's answer goes through the social playbook's approvals (playbooks/social/approvals.ts): once per draft,
 //   on the digest shown, before the link ends.
 import { createHash } from 'node:crypto';
-import { check, type Context, type State } from '../../contracts.ts';
+import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import {
-  currentVenture, digest, exactPayload, formatVentureDate, identifier, listRecords, readVenture, requireAppChannel, ventureAction,
+  currentVenture, exactPayload, formatVentureDate, identifier, listRecords, readVenture, requireAppChannel, ventureAction,
 } from '../records.ts';
 import type { Display, ShareLinkStoredRecord, ShareLinkView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { runView } from '../delivery/runs.ts';
+import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
 import { createShareLink, recordClientDecision, type DraftApproval, type ShareLinkRecord } from '../playbooks/social/approvals.ts';
+import { clientDraft } from './draft-text.ts';
 
 export const SHARE_DEFAULT_HOURS = 168;
 export const SHARE_WORDS = Object.freeze({
@@ -82,10 +85,13 @@ export async function shareCreate(deps: VentureDeps, ctx: Context, payload: unkn
     check(SHARABLE.has(run.status), 'DELIVERY_NOT_READY', SHARE_WORDS.notReady);
     check(!run.practiceNow, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');
     check(run.status !== 'ready-for-review' || run.canAccept, 'DELIVERY_NOT_READY', run.acceptBlocked ?? SHARE_WORDS.notReady);
-    const text = run.status === 'edited' && run.editedText ? run.editedText : run.renderedText;
+    // AI-native CA firm: regulated papers reach a client only as the CA of record signed them; an edit needs its own sign-off.
+    const unsigned = caSignoffBlock(tx.state, venture, record);
+    if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
+    // The secret screen (W1 H17): the client sees, and the digest covers, the text with any key or token taken out.
+    // build/draft-text.ts makes both, so a post from this draft (build/posting.ts) means the same words and digest.
+    const { title, text, digest: draftDigest } = clientDraft(run);
     check(typeof text === 'string' && text.trim().length > 0, 'DELIVERY_NOT_READY', SHARE_WORDS.notReady);
-    const title = run.deliverable?.title ?? 'Draft';
-    const draftDigest = digest({ deliveryId, title, text });
     const clientId = tx.find('venture-order', run.orderId)?.clientId ?? null;
     // Making the link is the owner's approval to show this exact text: the approvals module checks it like any other.
     const approval: DraftApproval = {

@@ -99,6 +99,8 @@ export class FakeEngine {
   private agents: Record<string, AgentView[]>;
   private clients: Record<string, ClientLite[]>;
   private evidence: EvidenceItem[];
+  /** The action journal; Resolve settles an unknown outcome in it, in the engine's words. */
+  private journal = clone(JOURNAL);
   private clientSeq = 1;
   private current = 'lumen';
   private receiptSeq = 421;
@@ -224,7 +226,8 @@ export class FakeEngine {
       case 'venture.team.gate': return this.gate(p as ParamsOf<'venture.team.gate'>);
       case 'venture.team.posture': return this.posture(p as ParamsOf<'venture.team.posture'>);
       case 'venture.spend.list': return { rows: clone(SPEND), total: '₹60.10 this month (includes estimates)' };
-      case 'venture.journal.list': return { entries: clone(JOURNAL).slice(0, typeof p.limit === 'number' ? p.limit : undefined) };
+      case 'venture.journal.list': return { entries: clone(this.journal).slice(0, typeof p.limit === 'number' ? p.limit : undefined) };
+      case 'venture.journal.resolve': return this.resolveJournal(p as ParamsOf<'venture.journal.resolve'>);
       case 'venture.evidence.list': return { items: clone(this.evidence).filter((e) => typeof p.subject !== 'string' || e.subject === p.subject) };
       case 'venture.evidence.apply': return this.applyEvidence(String(p.id ?? ''));
       case 'venture.evidence.dismiss': return this.dismissEvidence(String(p.id ?? ''));
@@ -378,6 +381,19 @@ export class FakeEngine {
       }
     }
     return { item: clone(item) };
+  }
+  /** venture.journal.resolve: the owner says what they found on an unknown outcome. Nothing is sent again. */
+  private resolveJournal(p: ParamsOf<'venture.journal.resolve'>) {
+    const entry = this.journal.find((e) => e.id === p.entryId);
+    if (!entry) throw new EngineError('JOURNAL_NOT_FOUND', 'This action is not in the journal.');
+    if (p.outcome !== 'sent' && p.outcome !== 'not-sent') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say whether it went out: sent or not-sent.');
+    if (entry.state !== 'outcome_unknown') throw new EngineError('JOURNAL_NOT_UNKNOWN', 'Only an action whose outcome is unknown can be settled. This one already has an outcome.');
+    const sent = p.outcome === 'sent';
+    entry.state = sent ? 'applied' : 'rejected';
+    entry.line = sent ? 'You checked: it happened.' : 'You checked: it did not happen. Propose it again to do it.';
+    if (p.note) entry.line = `${entry.line} Your note: ${p.note}`;
+    entry.at = this.now();
+    return { entry: clone(entry) };
   }
   /** venture.evidence.dismiss: the owner said no to a suggestion. A value in use stays; apply another one instead. */
   private dismissEvidence(id: string) {

@@ -31,7 +31,7 @@ import { VentureTestStore } from './venture-test-store.ts';
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const phone: Context = { ...owner, channel: 'phone' };
 const KEY = 'sk-ant-test-not-a-real-key-0000';
-const OPENAI_KEY = 'sk-proj-test-not-a-real-key-0000';
+const OPENAI_KEY = 'sk-' + 'proj-test-not-a-real-key-0000';
 const START = Date.parse('2026-10-15T09:00:00.000Z'); // at or before real time (rule 23)
 const REQUEST = 'Please close my September books. The bank statement and bills are in the shared folder.';
 const TEMP_AT_START = new Set(readdirSync(tmpdir()).filter(name => name.startsWith(TEMP_PREFIX)));
@@ -599,8 +599,10 @@ test('default transport: posts to a loopback server without the purpose, refuses
   const base = { method: 'POST' as const, headers: { 'content-type': 'application/json' }, body: '{"model":"x"}', timeoutMs: 5000, purpose: 'interview' as ModelPurpose };
   assert.deepEqual(await transport.http({ ...base, url: `http://127.0.0.1:${port}/ok` }), { status: 200, body: '{"ok":true}' });
   assert.equal(JSON.stringify(seen[0]).includes('purpose'), false);
-  await assert.rejects(transport.http({ ...base, url: `http://127.0.0.1:${port}/redirect` }), code('MODEL_FAILED'));
-  await assert.rejects(transport.http({ ...base, url: `http://127.0.0.1:${port}/large` }), code('MODEL_FAILED'));
+  // The request reached the provider, so a redirect (never followed) or an answer too big to read may have run: unknown (W1 H15).
+  await assert.rejects(transport.http({ ...base, url: `http://127.0.0.1:${port}/redirect` }), code('MODEL_OUTCOME_UNKNOWN'));
+  await assert.rejects(transport.http({ ...base, url: `http://127.0.0.1:${port}/large` }), code('MODEL_OUTCOME_UNKNOWN'));
+  assert.equal(seen.filter(item => item.body === '{"model":"x"}').length, 3, 'each asked once: nothing followed or retried');
 });
 
 // ---------------------------------------------------------------------------

@@ -240,7 +240,7 @@ test('a send that times out, crashes or comes back unclear is outcome_unknown, n
     const resolved = await resolveUnknown(deps, owner, { entryId: proposed.id, found });
     assert.equal(resolved.state, found === 'applied' ? 'applied' : 'rejected');
     assert.equal(resolved.outcome?.by, 'owner');
-    await assert.rejects(resolveUnknown(deps, owner, { entryId: proposed.id, found: 'applied' }), code('JOURNAL_ALREADY_DECIDED'));
+    await assert.rejects(resolveUnknown(deps, owner, { entryId: proposed.id, found: 'applied' }), code('JOURNAL_NOT_UNKNOWN'), 'one rule and one code for settling (W1 H3)');
     assert.equal(effect.calls(), 1, 'recording what the owner found never resends');
   }
 });

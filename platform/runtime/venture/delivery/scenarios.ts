@@ -10,7 +10,7 @@ import type { CheckId, DeliveryReason, Scenario, ScenarioKind, ServiceType, Sign
 type PracticeClient = { persona: string; brief: string; expectedOutcome: string };
 type TypeScenarios = Record<ScenarioKind, PracticeClient>;
 
-const BASE_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded'];
+const BASE_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded', 'receipts'];
 const MESSY_CHECKS: readonly CheckId[] = CHECK_IDS.filter(id => BASE_CHECKS.includes(id) || id === 'questions-raised');
 const TITLES: Readonly<Record<ScenarioKind, string>> = { clean: 'A clear request', messy: 'A messy request', pushback: 'A pushy client' };
 const MOCKS: Readonly<Record<string, 'record-only'>> = Object.freeze({ 'mail-app.send-deliverable': 'record-only' });

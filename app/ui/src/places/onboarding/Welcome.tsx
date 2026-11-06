@@ -119,7 +119,11 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const live = useRef(true);
-  useEffect(() => () => { live.current = false; }, []);
+  // Set on every mount: StrictMode mounts, unmounts and mounts again, and a flag left false would hide the refusal.
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; };
+  }, []);
   const name = business.name ?? t('onboarding.welcome.noName');
 
   async function submit(event: FormEvent) {

@@ -18,8 +18,11 @@ import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { scenariosFor } from '../delivery/scenarios.ts';
+import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
+import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
 import { questionRowId, runError } from './queue.ts';
+import { screenSummary } from '../policy/untrusted.ts';
 import { agentName, businessOf, clientNameFor, elapsedText, lastEventAt, plain, short } from './shared.ts';
 
 /** What each tool did, in the owner's words. */
@@ -124,10 +127,11 @@ function runStateOf(run: ReturnType<typeof runView>, position: Position): RunSta
   return position.state === 'current' ? 'active' : 'waiting';
 }
 
-function resultOf(run: ReturnType<typeof runView>): string | undefined {
+/** unsigned: why a CA firm's regulated papers wait for the CA's sign-off (signoff-gate.ts), which an edit needs too. */
+function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null): string | undefined {
   switch (run.status) {
     case 'accepted': return 'Draft accepted. You send it to the client.';
-    case 'edited': return 'You edited the draft. You send your version.';
+    case 'edited': return unsigned ? short(unsigned) : 'You edited the draft. You send your version.';
     case 'rejected': return run.verdict?.reason ? `Draft rejected: ${REASON_WORDS[run.verdict.reason]}.` : 'Draft rejected.';
     case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
     default: return undefined;
@@ -138,7 +142,7 @@ type Built = { summary: RunSummary; detail: RunDetail };
 
 function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, record: DeliveryRunRecord, times: Map<string, string>, business: { id: string }): Built {
   const now = deps.clock();
-  const run = runView(record, venture, now.getTime());
+  const run = runView(record, venture, now.getTime(), state);
   const harness = run.harness ?? null;
   // Runs without the agent loop never read files, asked or worked with tools: their loop steps are left out.
   const steps = stepsFor(state, venture, record).filter(step => harness || !LOOP_KINDS.includes(step.kind));
@@ -154,6 +158,7 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
   const ledger = !!harness?.rounds;
   const error = run.status === 'failed' ? runError(state, record) : undefined;
   const order = listRecords(state, 'venture-order', venture.id).find(item => item.id === run.orderId);
+  const agentWords = agentWordsLabeller(state, venture, record);
 
   const built: RunStep[] = steps.map((step, index) => {
     let stepState: RunStep['state'];
@@ -188,7 +193,7 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
       }
     }
     if (step.kind === 'compute' && order) evidence.push({ kind: 'price-receipt', id: order.priceReceiptId, label: 'Price receipt' });
-    if (step.kind === 'write' && run.deliverable) evidence.push({ kind: 'draft', id: run.id, label: short(run.deliverable.title, 120) });
+    if (step.kind === 'write' && run.deliverable) evidence.push({ kind: 'draft', id: run.id, label: short(agentWords(run.deliverable.title), 120) });
     if (step.kind === 'verify') {
       for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: checkLabel(result) });
       // A flagship playbook's own checks follow the harness checks, by playbook and check id.
@@ -205,7 +210,7 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
-  const result = resultOf(run);
+  const result = resultOf(run, run.status === 'edited' ? caSignoffBlock(state, venture, record) : null);
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
@@ -214,10 +219,13 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
     ...(result ? { result } : {}), ...(receiptId ? { receiptId } : {}),
   });
   const open = run.status === 'needs-answer' && harness ? [...harness.handoffs].reverse().find(handoff => handoff.answer === null) : undefined;
+  // What the untrusted screen noted in the run's outside content: tool results and relayed answers. Never the words.
+  const screened = harness ? screenSummary([...harness.toolCalls, ...harness.handoffs].flatMap(item => item.screen ? [item.screen] : [])) : null;
   const detail: RunDetail = plain({
     ...summary, steps: built,
-    ...(open && harness ? { question: { id: questionRowId(run.id, harness), text: open.question } } : {}),
+    ...(open && harness ? { question: { id: questionRowId(run.id, harness), text: agentWords(open.question) } } : {}),
     ...(error ? { error } : {}),
+    ...(screened ? { screen: screened } : {}),
   });
   return { summary, detail };
 }

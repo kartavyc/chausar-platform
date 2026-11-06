@@ -10,6 +10,7 @@ import { check, type Context } from '../../contracts.ts';
 import type { DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
 import { formatVentureDate, isAppChannel } from '../records.ts';
 import { validDate } from '../../memory.ts';
+import { checkUrl } from '../core/net-guard.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const BANK_POLLS_PER_DAY = 4; // the PSD2 limit for reads the owner did not start; kept everywhere
@@ -328,6 +329,8 @@ export function setAlertWebhook(settings: BankSettings, url: string, ctx: Contex
   let parsed: URL | null = null;
   try { parsed = new URL(url); } catch { parsed = null; }
   check(parsed && parsed.protocol === 'https:' && !parsed.username && !parsed.password, 'INVALID_VENTURE_REQUEST', 'Alerts go only to an https address.');
+  // The network guard (W1 H16): never an address inside this computer or its network, in any spelling.
+  checkUrl(parsed.href);
   return { ...settings, alertWebhook: { url: parsed.href, setBy: ctx.memberId, setAt: at } };
 }
 

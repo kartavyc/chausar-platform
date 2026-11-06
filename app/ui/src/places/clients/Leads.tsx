@@ -100,7 +100,7 @@ function NewLeadSheet({ onClose, returnFocus }: SheetComponentProps) {
       clientsChanged(engine);
       openSheet('lead', lead.id, document.querySelector<HTMLElement>('[data-add-lead]'));
     } catch (error) {
-      setProblem(codeOf(error) === 'SOURCE_REQUIRED' ? { field: 'sourceUrl', message: messageOf(error) } : { message: messageOf(error) });
+      setProblem(codeOf(error) === 'LEADS_SOURCE_REQUIRED' ? { field: 'sourceUrl', message: messageOf(error) } : { message: messageOf(error) });
       setBusy(false);
     }
   }
@@ -270,7 +270,7 @@ function DraftForm({ lead }: { lead: LeadView }) {
       setBusy(false);
       clientsChanged(engine);
     } catch (error) {
-      if (codeOf(error) === 'POSTAL_ADDRESS_REQUIRED') setAsksAddress(true);
+      if (codeOf(error) === 'LEADS_ADDRESS_MISSING') setAsksAddress(true);
       setProblem(messageOf(error));
       setBusy(false);
     }

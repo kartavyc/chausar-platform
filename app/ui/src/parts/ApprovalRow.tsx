@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { useT } from '../text';
+import { useT, type T } from '../text';
 import { Button } from './Button';
 import { Change } from './Change';
 import { Field } from './Field';
 import { Receipt } from './Receipt';
 import { Row } from './Row';
-import type { QueueAction, QueueDecision, QueueRow } from '../engine/types';
+import type { QueueAction, QueueDecision, QueueList, QueueRow } from '../engine/types';
 import s from './ApprovalRow.module.css';
 
 /** Actions that open the thing to look at instead of deciding. Opening one counts as having viewed it. */
@@ -29,18 +29,36 @@ export interface ApprovalRowProps {
   onAction?: ((row: QueueRow, action: QueueAction) => boolean) | undefined;
   /** Name the business above the title. Today turns it off when only one business is listed. */
   showBusiness?: boolean | undefined;
+  /** When a decision times out (REQUEST_TIMEOUT), read back what the engine holds for the row (see readBack) instead
+   *  of saying "Couldn't send". Left out, or if the read-back fails too, the row says "Couldn't send". */
+  onReread?: ((row: QueueRow) => Promise<QueueDecision>) | undefined;
 }
 
 type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
 type Notice = { kind: 'stale' | 'refused' | 'failed'; text: string } | null;
 
+const isTimeout = (error: unknown) => (error as { code?: unknown } | null)?.code === 'REQUEST_TIMEOUT';
+
+/**
+ * What the engine holds for a row whose decision timed out, read from a fresh queue list. Gone from the list: the
+ * engine took a decision for it (this one, after the wait, or one made elsewhere). A new digest: it changed, so it is
+ * shown again as stale. The same row: nothing was recorded yet. It never sends the decision a second time.
+ */
+export function readBack(list: QueueList, row: QueueRow, t: T): QueueDecision {
+  const now = list.rows.find((r) => r.id === row.id);
+  if (!now) return { outcome: 'done', line: t('approval.afterWait') };
+  if (now.digest !== row.digest) return { outcome: 'stale', line: t('approval.stale'), latest: now };
+  return { outcome: 'refused', reason: 'NOT_RECORDED', line: t('approval.notYet') };
+}
+
 /**
  * One thing that needs the owner: business · agent, title, one line, an optional change, and two actions with the
  * primary filled and on the right. Money and other irreversible primaries ask a second time inside the row, and
  * keyboard A never runs them. An approval that needs a look first stays locked until the owner opens it. A stale
- * digest shows the new version; a decided row shrinks to one receipt line.
+ * digest shows the new version; a decided row shrinks to one receipt line. A decision that timed out is read back
+ * (onReread) before the row says it couldn't send.
  */
-export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true }: ApprovalRowProps) {
+export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true, onReread }: ApprovalRowProps) {
   const t = useT();
   const [current, setCurrent] = useState(row);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -73,7 +91,15 @@ export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, 
     setNotice(null);
     try {
       const extra: DecideExtra = text === undefined ? { viewed: isViewed } : { viewed: isViewed, answer: text };
-      const decision = await onDecide(current, action, extra);
+      let decision: QueueDecision;
+      try {
+        decision = await onDecide(current, action, extra);
+      } catch (error) {
+        // The window stopped waiting, but the engine may have decided it since: read back what it holds.
+        const read = isTimeout(error) && onReread ? await onReread(current).catch(() => null) : null;
+        if (!read) throw error;
+        decision = read;
+      }
       if (decision.outcome === 'done') {
         setDecided({ line: decision.line, receiptId: decision.receiptId });
         setPhase('decided');
@@ -154,6 +180,8 @@ export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, 
           <Change {...current.change} onReceipt={onReceipt} />
         </div>
       )}
+      {/* An outside action whose description does not show all it will send says so (W1 H21). */}
+      {current.descriptionComplete === false && <p className={s.notice}>{t('approval.incomplete')}</p>}
       {notice && (
         <p className={notice.kind === 'stale' ? s.notice : s.refusal} role="status">
           {notice.text}

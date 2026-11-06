@@ -5,7 +5,8 @@ import type { VentureHandlerTable } from '../contracts.ts';
 import { queueDecideHandler, queueListHandler } from './queue.ts';
 import { runsGetHandler, runsListHandler } from './runs.ts';
 import { teamGateHandler, teamListHandler, teamPostureHandler } from './team.ts';
-import { journalListHandler } from '../journal/list.ts';
+import { journalListHandler, journalResolveHandler } from '../journal/list.ts';
+import { untrustedModeHandler, untrustedReleaseHandler } from '../policy/untrusted-methods.ts';
 import { queueViewHandler } from './queue-view.ts';
 import { caConfirmRates, caGet, caRecordSignoff, caSetOfRecord } from '../playbooks/ca-firm/methods.ts';
 
@@ -18,6 +19,11 @@ export const handlers: VentureHandlerTable = {
   'venture.team.gate': teamGateHandler,
   // The action journal (P2-journal) is a view over the journalled records: entries, posts and website edits.
   'venture.journal.list': journalListHandler,
+  // Resolve on an unknown outcome: the owner records what they found; nothing is sent again (W1 H3).
+  'venture.journal.resolve': journalResolveHandler,
+  // The untrusted screen's rollout (W1 H9): the business's screen mode, and the owner releasing one held content.
+  'venture.untrusted.mode': untrustedModeHandler,
+  'venture.untrusted.release': untrustedReleaseHandler,
   // Ink final pass: what a Today row is about, and an agent's own posture.
   'venture.queue.view': queueViewHandler,
   'venture.team.posture': teamPostureHandler,
