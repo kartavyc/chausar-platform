@@ -216,7 +216,7 @@
         "3. Use the desktop app: under Connections, type the server (imap.zoho.com, or imap.zoho.in for an account in India), port 993, your address and that password.",
         "4. Chausar keeps it only while the app is open, so type it again after Chausar restarts."
       ],
-      "skipped": "Make an app-specific password: with two-factor sign-in on, your Zoho password itself does not work over IMAP.",
+      "skipped": "Make an app-specific password. With two-factor sign-in on, your Zoho password itself does not work over IMAP.",
       "charges": {
         "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
         "checkedOn": null

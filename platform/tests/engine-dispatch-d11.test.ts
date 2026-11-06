@@ -38,8 +38,11 @@ test('dispatch preserves pre-vault reads, unknown-request admission and prototyp
   t.after(async () => { await engine.close(); await rm(directory, { recursive: true, force: true }); });
   assert.equal((await engine.request('workspace.status')).open, false);
   assert.ok(await engine.request('venture.countries'));
+  const compliance = await engine.request('venture.compliance.get', { profession: 'home-chef-tiffin' });
+  assert.ok(compliance.size);
   await assert.rejects(engine.request('unknown.d11'), { code: 'VAULT_LOCKED' });
   await engine.request('workspace.create', { name: 'Synthetic dispatch', passphrase: 'synthetic dispatch passphrase' });
+  assert.deepEqual(await engine.request('venture.compliance.get', { profession: 'home-chef-tiffin' }), compliance);
   for (const method of ['unknown.d11', 'constructor', 'toString', '__proto__']) await assert.rejects(engine.request(method), { name: 'Error', message: 'Unknown request: ' + method });
   assert.equal((await engine.request('workspace.status')).open, true);
   await engine.request('workspace.lock');

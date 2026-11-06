@@ -1,0 +1,507 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "apps",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<id-1>": {
+      "kind": "id",
+      "prefix": "miniapp_"
+    },
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    },
+    "<digest-1>": {
+      "kind": "digest"
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.apps.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": {
+        "apps": [],
+        "ideas": [
+          {
+            "label": "Who owes me, by client",
+            "preview": "A table of unpaid invoices grouped by client, with what each owes."
+          },
+          {
+            "label": "Weekly work planner",
+            "preview": "This week's open orders as a list by day, with notes you keep."
+          },
+          {
+            "label": "Price calculator for clients",
+            "preview": "Pick an offer and a quantity; the calculator works out the price with a receipt."
+          }
+        ],
+        "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.apps.make",
+      "payload": {
+        "ask": "Make a small list of my client names."
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 2,
+      "result": {
+        "app": {
+          "id": "<id-1>",
+          "name": "Client names",
+          "version": 1,
+          "summary": "A list of the clients in this business.",
+          "reads": [
+            "Reads: Clients"
+          ],
+          "pinned": false,
+          "madeAt": "<time-1>",
+          "allowed": false,
+          "empty": false,
+          "uri": "ui://chausar/apps/<id-1>/v1",
+          "document": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Client names</title><style>:root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}}:root[data-theme=light]{color-scheme:light;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}:root[data-theme=dark]{color-scheme:dark;--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,\"Segoe UI\",sans-serif}a{color:var(--link)}body{padding:12px 14px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}</style><script>(function(){\"use strict\";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});function send(m){parent.postMessage(m,\"*\");}function ask(method,params){var id=++seq;send({jsonrpc:\"2.0\",id:id,method:method,params:params||{}});return new Promise(function(res,rej){pending[id]={res:res,rej:rej};});}function theme(c){if(!c)return;var root=document.documentElement;if(c.theme===\"light\"||c.theme===\"dark\")root.setAttribute(\"data-theme\",c.theme);var v=c.styles&&c.styles.variables;if(!v||typeof v!==\"object\")return;for(var k in v){if(Object.prototype.hasOwnProperty.call(v,k)&&/^--(?:bg|fg|mute|line|link)$/.test(k)&&typeof v[k]===\"string\"&&/^#[0-9a-fA-F]{3,8}$/.test(v[k]))root.style.setProperty(k,v[k]);}}window.addEventListener(\"message\",function(e){if(e.source!==parent)return;var m=e.data;if(!m||m.jsonrpc!==\"2.0\")return;if(m.id!=null&&!m.method&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(new Error(String(m.error.message||\"Chausar refused this.\")));else p.res(m.result);return;}if(m.method===\"ui/resource-teardown\"&&m.id!=null){send({jsonrpc:\"2.0\",id:m.id,result:{}});return;}if(m.method===\"ui/notifications/host-context-changed\")theme(m.params);});ask(\"ui/initialize\",{protocolVersion:\"2026-01-26\",appCapabilities:{},clientInfo:{name:\"chausar-mini-app\",version:\"1\"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:\"2.0\",method:\"ui/notifications/initialized\",params:{}});done(r);});(function(){\n  var last=-1,resize,mutations;\n  var viewport=/[0-9.](?:dvh|svh|lvh|vh|vmin|vmax|vb)\\b/i;\n  function size(){\n    var changed=[],body=document.body,height;\n    function relax(style){var value=style.getPropertyValue(\"min-height\");if(viewport.test(value)){var priority=style.getPropertyPriority(\"min-height\");changed.push([style,value,priority]);style.setProperty(\"min-height\",\"0px\",priority);}}\n    function rules(list){for(var rule of list){if(rule.style)relax(rule.style);if(rule.cssRules)rules(rule.cssRules);}}\n    try{\n      for(var sheet of document.styleSheets)rules(sheet.cssRules);\n      relax(body.style);for(var element of body.querySelectorAll(\"*\"))relax(element.style);\n      var css=getComputedStyle(body),margin=Math.max(0,parseFloat(css.marginBottom)||0),padding=(parseFloat(css.paddingBottom)||0)+(parseFloat(css.borderBottomWidth)||0);\n      var bottom=body.getBoundingClientRect().bottom+margin;\n      for(var element of body.querySelectorAll(\"*\")){var rect=element.getBoundingClientRect(),style=getComputedStyle(element);bottom=Math.max(bottom,rect.bottom+Math.max(0,parseFloat(style.marginBottom)||0)+padding+margin);}\n      height=Math.max(1,Math.ceil(bottom+scrollY));\n    }finally{\n      for(var change of changed)change[0].setProperty(\"min-height\",change[1],change[2]);\n      if(mutations)mutations.takeRecords();\n    }\n    if(height!==last){last=height;parent.postMessage({jsonrpc:\"2.0\",method:\"ui/notifications/size-changed\",params:{width:document.documentElement.scrollWidth,height:height}},\"*\");}\n  }\n  function watch(){if(resize){resize.disconnect();resize.observe(document.body);for(var element of document.body.querySelectorAll(\"*\"))resize.observe(element);}size();}\n  window.addEventListener(\"load\",function(){if(window.ResizeObserver)resize=new ResizeObserver(size);if(window.MutationObserver){mutations=new MutationObserver(watch);mutations.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});}watch();});\n})();window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask(\"tools/call\",{name:String(name),arguments:args||{}});}).then(function(r){if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||\"Chausar refused this.\"));return r?r.structuredContent:null;});}});})();</script></head><body><h1>Client names</h1><ul id=\"clients\"></ul><script>chausar.call(\"clients_list\",{}).then(function(r){document.getElementById(\"clients\").textContent=r.clients.map(function(c){return c.name;}).join(\", \");});</script></body></html>",
+          "versions": [
+            {
+              "version": 1,
+              "at": "<time-1>",
+              "summary": "A list of the clients in this business.",
+              "current": true
+            }
+          ],
+          "permissions": [
+            {
+              "id": "clients",
+              "verb": "Read",
+              "line": "Clients: their names"
+            }
+          ],
+          "grant": null,
+          "ask": {
+            "digest": "<digest-1>",
+            "added": [
+              "clients"
+            ],
+            "first": true
+          },
+          "tools": [],
+          "messages": [
+            {
+              "at": "<time-1>",
+              "from": "owner",
+              "text": "Make a small list of my client names.",
+              "version": null
+            },
+            {
+              "at": "<time-1>",
+              "from": "chausar",
+              "text": "Here's a first version. It reads your Clients. It can't send anything by itself.",
+              "version": 1
+            }
+          ],
+          "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+        },
+        "line": "Here's a first version. It reads your Clients. It can't send anything by itself."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.apps.call",
+      "payload": {
+        "app": "<id-1>",
+        "tool": "clients_list",
+        "arguments": {}
+      }
+    },
+    {
+      "kind": "error",
+      "id": 3,
+      "error": {
+        "code": "APP_NOT_ALLOWED",
+        "message": "Allow this app first."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.apps.grant",
+      "payload": {
+        "app": "<id-1>",
+        "digest": "<digest-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "app": {
+          "id": "<id-1>",
+          "name": "Client names",
+          "version": 1,
+          "summary": "A list of the clients in this business.",
+          "reads": [
+            "Reads: Clients"
+          ],
+          "pinned": false,
+          "madeAt": "<time-1>",
+          "allowed": true,
+          "empty": true,
+          "uri": "ui://chausar/apps/<id-1>/v1",
+          "document": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Client names</title><style>:root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}}:root[data-theme=light]{color-scheme:light;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}:root[data-theme=dark]{color-scheme:dark;--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,\"Segoe UI\",sans-serif}a{color:var(--link)}body{padding:12px 14px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}</style><script>(function(){\"use strict\";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});function send(m){parent.postMessage(m,\"*\");}function ask(method,params){var id=++seq;send({jsonrpc:\"2.0\",id:id,method:method,params:params||{}});return new Promise(function(res,rej){pending[id]={res:res,rej:rej};});}function theme(c){if(!c)return;var root=document.documentElement;if(c.theme===\"light\"||c.theme===\"dark\")root.setAttribute(\"data-theme\",c.theme);var v=c.styles&&c.styles.variables;if(!v||typeof v!==\"object\")return;for(var k in v){if(Object.prototype.hasOwnProperty.call(v,k)&&/^--(?:bg|fg|mute|line|link)$/.test(k)&&typeof v[k]===\"string\"&&/^#[0-9a-fA-F]{3,8}$/.test(v[k]))root.style.setProperty(k,v[k]);}}window.addEventListener(\"message\",function(e){if(e.source!==parent)return;var m=e.data;if(!m||m.jsonrpc!==\"2.0\")return;if(m.id!=null&&!m.method&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(new Error(String(m.error.message||\"Chausar refused this.\")));else p.res(m.result);return;}if(m.method===\"ui/resource-teardown\"&&m.id!=null){send({jsonrpc:\"2.0\",id:m.id,result:{}});return;}if(m.method===\"ui/notifications/host-context-changed\")theme(m.params);});ask(\"ui/initialize\",{protocolVersion:\"2026-01-26\",appCapabilities:{},clientInfo:{name:\"chausar-mini-app\",version:\"1\"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:\"2.0\",method:\"ui/notifications/initialized\",params:{}});done(r);});(function(){\n  var last=-1,resize,mutations;\n  var viewport=/[0-9.](?:dvh|svh|lvh|vh|vmin|vmax|vb)\\b/i;\n  function size(){\n    var changed=[],body=document.body,height;\n    function relax(style){var value=style.getPropertyValue(\"min-height\");if(viewport.test(value)){var priority=style.getPropertyPriority(\"min-height\");changed.push([style,value,priority]);style.setProperty(\"min-height\",\"0px\",priority);}}\n    function rules(list){for(var rule of list){if(rule.style)relax(rule.style);if(rule.cssRules)rules(rule.cssRules);}}\n    try{\n      for(var sheet of document.styleSheets)rules(sheet.cssRules);\n      relax(body.style);for(var element of body.querySelectorAll(\"*\"))relax(element.style);\n      var css=getComputedStyle(body),margin=Math.max(0,parseFloat(css.marginBottom)||0),padding=(parseFloat(css.paddingBottom)||0)+(parseFloat(css.borderBottomWidth)||0);\n      var bottom=body.getBoundingClientRect().bottom+margin;\n      for(var element of body.querySelectorAll(\"*\")){var rect=element.getBoundingClientRect(),style=getComputedStyle(element);bottom=Math.max(bottom,rect.bottom+Math.max(0,parseFloat(style.marginBottom)||0)+padding+margin);}\n      height=Math.max(1,Math.ceil(bottom+scrollY));\n    }finally{\n      for(var change of changed)change[0].setProperty(\"min-height\",change[1],change[2]);\n      if(mutations)mutations.takeRecords();\n    }\n    if(height!==last){last=height;parent.postMessage({jsonrpc:\"2.0\",method:\"ui/notifications/size-changed\",params:{width:document.documentElement.scrollWidth,height:height}},\"*\");}\n  }\n  function watch(){if(resize){resize.disconnect();resize.observe(document.body);for(var element of document.body.querySelectorAll(\"*\"))resize.observe(element);}size();}\n  window.addEventListener(\"load\",function(){if(window.ResizeObserver)resize=new ResizeObserver(size);if(window.MutationObserver){mutations=new MutationObserver(watch);mutations.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});}watch();});\n})();window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask(\"tools/call\",{name:String(name),arguments:args||{}});}).then(function(r){if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||\"Chausar refused this.\"));return r?r.structuredContent:null;});}});})();</script></head><body><h1>Client names</h1><ul id=\"clients\"></ul><script>chausar.call(\"clients_list\",{}).then(function(r){document.getElementById(\"clients\").textContent=r.clients.map(function(c){return c.name;}).join(\", \");});</script></body></html>",
+          "versions": [
+            {
+              "version": 1,
+              "at": "<time-1>",
+              "summary": "A list of the clients in this business.",
+              "current": true
+            }
+          ],
+          "permissions": [
+            {
+              "id": "clients",
+              "verb": "Read",
+              "line": "Clients: their names"
+            }
+          ],
+          "grant": {
+            "permissions": [
+              "clients"
+            ],
+            "at": "<time-1>"
+          },
+          "ask": null,
+          "tools": [
+            "clients_list"
+          ],
+          "messages": [
+            {
+              "at": "<time-1>",
+              "from": "owner",
+              "text": "Make a small list of my client names.",
+              "version": null
+            },
+            {
+              "at": "<time-1>",
+              "from": "chausar",
+              "text": "Here's a first version. It reads your Clients. It can't send anything by itself.",
+              "version": 1
+            }
+          ],
+          "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+        },
+        "line": "Client names can run now, with only what you allowed."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 5,
+      "method": "venture.apps.call",
+      "payload": {
+        "app": "<id-1>",
+        "tool": "clients_list",
+        "arguments": {}
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"clients\":[]}"
+          }
+        ],
+        "structuredContent": {
+          "clients": []
+        },
+        "isError": false
+      }
+    },
+    {
+      "kind": "request",
+      "id": 6,
+      "method": "venture.apps.pin",
+      "payload": {
+        "app": "<id-1>",
+        "pinned": true
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 6,
+      "result": {
+        "app": {
+          "id": "<id-1>",
+          "name": "Client names",
+          "version": 1,
+          "summary": "A list of the clients in this business.",
+          "reads": [
+            "Reads: Clients"
+          ],
+          "pinned": true,
+          "madeAt": "<time-1>",
+          "allowed": true,
+          "empty": true,
+          "uri": "ui://chausar/apps/<id-1>/v1",
+          "document": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Client names</title><style>:root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}}:root[data-theme=light]{color-scheme:light;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}:root[data-theme=dark]{color-scheme:dark;--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,\"Segoe UI\",sans-serif}a{color:var(--link)}body{padding:12px 14px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}</style><script>(function(){\"use strict\";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});function send(m){parent.postMessage(m,\"*\");}function ask(method,params){var id=++seq;send({jsonrpc:\"2.0\",id:id,method:method,params:params||{}});return new Promise(function(res,rej){pending[id]={res:res,rej:rej};});}function theme(c){if(!c)return;var root=document.documentElement;if(c.theme===\"light\"||c.theme===\"dark\")root.setAttribute(\"data-theme\",c.theme);var v=c.styles&&c.styles.variables;if(!v||typeof v!==\"object\")return;for(var k in v){if(Object.prototype.hasOwnProperty.call(v,k)&&/^--(?:bg|fg|mute|line|link)$/.test(k)&&typeof v[k]===\"string\"&&/^#[0-9a-fA-F]{3,8}$/.test(v[k]))root.style.setProperty(k,v[k]);}}window.addEventListener(\"message\",function(e){if(e.source!==parent)return;var m=e.data;if(!m||m.jsonrpc!==\"2.0\")return;if(m.id!=null&&!m.method&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(new Error(String(m.error.message||\"Chausar refused this.\")));else p.res(m.result);return;}if(m.method===\"ui/resource-teardown\"&&m.id!=null){send({jsonrpc:\"2.0\",id:m.id,result:{}});return;}if(m.method===\"ui/notifications/host-context-changed\")theme(m.params);});ask(\"ui/initialize\",{protocolVersion:\"2026-01-26\",appCapabilities:{},clientInfo:{name:\"chausar-mini-app\",version:\"1\"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:\"2.0\",method:\"ui/notifications/initialized\",params:{}});done(r);});(function(){\n  var last=-1,resize,mutations;\n  var viewport=/[0-9.](?:dvh|svh|lvh|vh|vmin|vmax|vb)\\b/i;\n  function size(){\n    var changed=[],body=document.body,height;\n    function relax(style){var value=style.getPropertyValue(\"min-height\");if(viewport.test(value)){var priority=style.getPropertyPriority(\"min-height\");changed.push([style,value,priority]);style.setProperty(\"min-height\",\"0px\",priority);}}\n    function rules(list){for(var rule of list){if(rule.style)relax(rule.style);if(rule.cssRules)rules(rule.cssRules);}}\n    try{\n      for(var sheet of document.styleSheets)rules(sheet.cssRules);\n      relax(body.style);for(var element of body.querySelectorAll(\"*\"))relax(element.style);\n      var css=getComputedStyle(body),margin=Math.max(0,parseFloat(css.marginBottom)||0),padding=(parseFloat(css.paddingBottom)||0)+(parseFloat(css.borderBottomWidth)||0);\n      var bottom=body.getBoundingClientRect().bottom+margin;\n      for(var element of body.querySelectorAll(\"*\")){var rect=element.getBoundingClientRect(),style=getComputedStyle(element);bottom=Math.max(bottom,rect.bottom+Math.max(0,parseFloat(style.marginBottom)||0)+padding+margin);}\n      height=Math.max(1,Math.ceil(bottom+scrollY));\n    }finally{\n      for(var change of changed)change[0].setProperty(\"min-height\",change[1],change[2]);\n      if(mutations)mutations.takeRecords();\n    }\n    if(height!==last){last=height;parent.postMessage({jsonrpc:\"2.0\",method:\"ui/notifications/size-changed\",params:{width:document.documentElement.scrollWidth,height:height}},\"*\");}\n  }\n  function watch(){if(resize){resize.disconnect();resize.observe(document.body);for(var element of document.body.querySelectorAll(\"*\"))resize.observe(element);}size();}\n  window.addEventListener(\"load\",function(){if(window.ResizeObserver)resize=new ResizeObserver(size);if(window.MutationObserver){mutations=new MutationObserver(watch);mutations.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});}watch();});\n})();window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask(\"tools/call\",{name:String(name),arguments:args||{}});}).then(function(r){if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||\"Chausar refused this.\"));return r?r.structuredContent:null;});}});})();</script></head><body><h1>Client names</h1><ul id=\"clients\"></ul><script>chausar.call(\"clients_list\",{}).then(function(r){document.getElementById(\"clients\").textContent=r.clients.map(function(c){return c.name;}).join(\", \");});</script></body></html>",
+          "versions": [
+            {
+              "version": 1,
+              "at": "<time-1>",
+              "summary": "A list of the clients in this business.",
+              "current": true
+            }
+          ],
+          "permissions": [
+            {
+              "id": "clients",
+              "verb": "Read",
+              "line": "Clients: their names"
+            }
+          ],
+          "grant": {
+            "permissions": [
+              "clients"
+            ],
+            "at": "<time-1>"
+          },
+          "ask": null,
+          "tools": [
+            "clients_list"
+          ],
+          "messages": [
+            {
+              "at": "<time-1>",
+              "from": "owner",
+              "text": "Make a small list of my client names.",
+              "version": null
+            },
+            {
+              "at": "<time-1>",
+              "from": "chausar",
+              "text": "Here's a first version. It reads your Clients. It can't send anything by itself.",
+              "version": 1
+            }
+          ],
+          "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+        },
+        "undo": {
+          "pinned": false
+        },
+        "line": "Pinned to Today."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 7,
+      "method": "venture.apps.get",
+      "payload": {
+        "app": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 7,
+      "result": {
+        "app": {
+          "id": "<id-1>",
+          "name": "Client names",
+          "version": 1,
+          "summary": "A list of the clients in this business.",
+          "reads": [
+            "Reads: Clients"
+          ],
+          "pinned": true,
+          "madeAt": "<time-1>",
+          "allowed": true,
+          "empty": true,
+          "uri": "ui://chausar/apps/<id-1>/v1",
+          "document": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Client names</title><style>:root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}}:root[data-theme=light]{color-scheme:light;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}:root[data-theme=dark]{color-scheme:dark;--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,\"Segoe UI\",sans-serif}a{color:var(--link)}body{padding:12px 14px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}</style><script>(function(){\"use strict\";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});function send(m){parent.postMessage(m,\"*\");}function ask(method,params){var id=++seq;send({jsonrpc:\"2.0\",id:id,method:method,params:params||{}});return new Promise(function(res,rej){pending[id]={res:res,rej:rej};});}function theme(c){if(!c)return;var root=document.documentElement;if(c.theme===\"light\"||c.theme===\"dark\")root.setAttribute(\"data-theme\",c.theme);var v=c.styles&&c.styles.variables;if(!v||typeof v!==\"object\")return;for(var k in v){if(Object.prototype.hasOwnProperty.call(v,k)&&/^--(?:bg|fg|mute|line|link)$/.test(k)&&typeof v[k]===\"string\"&&/^#[0-9a-fA-F]{3,8}$/.test(v[k]))root.style.setProperty(k,v[k]);}}window.addEventListener(\"message\",function(e){if(e.source!==parent)return;var m=e.data;if(!m||m.jsonrpc!==\"2.0\")return;if(m.id!=null&&!m.method&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(new Error(String(m.error.message||\"Chausar refused this.\")));else p.res(m.result);return;}if(m.method===\"ui/resource-teardown\"&&m.id!=null){send({jsonrpc:\"2.0\",id:m.id,result:{}});return;}if(m.method===\"ui/notifications/host-context-changed\")theme(m.params);});ask(\"ui/initialize\",{protocolVersion:\"2026-01-26\",appCapabilities:{},clientInfo:{name:\"chausar-mini-app\",version:\"1\"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:\"2.0\",method:\"ui/notifications/initialized\",params:{}});done(r);});(function(){\n  var last=-1,resize,mutations;\n  var viewport=/[0-9.](?:dvh|svh|lvh|vh|vmin|vmax|vb)\\b/i;\n  function size(){\n    var changed=[],body=document.body,height;\n    function relax(style){var value=style.getPropertyValue(\"min-height\");if(viewport.test(value)){var priority=style.getPropertyPriority(\"min-height\");changed.push([style,value,priority]);style.setProperty(\"min-height\",\"0px\",priority);}}\n    function rules(list){for(var rule of list){if(rule.style)relax(rule.style);if(rule.cssRules)rules(rule.cssRules);}}\n    try{\n      for(var sheet of document.styleSheets)rules(sheet.cssRules);\n      relax(body.style);for(var element of body.querySelectorAll(\"*\"))relax(element.style);\n      var css=getComputedStyle(body),margin=Math.max(0,parseFloat(css.marginBottom)||0),padding=(parseFloat(css.paddingBottom)||0)+(parseFloat(css.borderBottomWidth)||0);\n      var bottom=body.getBoundingClientRect().bottom+margin;\n      for(var element of body.querySelectorAll(\"*\")){var rect=element.getBoundingClientRect(),style=getComputedStyle(element);bottom=Math.max(bottom,rect.bottom+Math.max(0,parseFloat(style.marginBottom)||0)+padding+margin);}\n      height=Math.max(1,Math.ceil(bottom+scrollY));\n    }finally{\n      for(var change of changed)change[0].setProperty(\"min-height\",change[1],change[2]);\n      if(mutations)mutations.takeRecords();\n    }\n    if(height!==last){last=height;parent.postMessage({jsonrpc:\"2.0\",method:\"ui/notifications/size-changed\",params:{width:document.documentElement.scrollWidth,height:height}},\"*\");}\n  }\n  function watch(){if(resize){resize.disconnect();resize.observe(document.body);for(var element of document.body.querySelectorAll(\"*\"))resize.observe(element);}size();}\n  window.addEventListener(\"load\",function(){if(window.ResizeObserver)resize=new ResizeObserver(size);if(window.MutationObserver){mutations=new MutationObserver(watch);mutations.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});}watch();});\n})();window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask(\"tools/call\",{name:String(name),arguments:args||{}});}).then(function(r){if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||\"Chausar refused this.\"));return r?r.structuredContent:null;});}});})();</script></head><body><h1>Client names</h1><ul id=\"clients\"></ul><script>chausar.call(\"clients_list\",{}).then(function(r){document.getElementById(\"clients\").textContent=r.clients.map(function(c){return c.name;}).join(\", \");});</script></body></html>",
+          "versions": [
+            {
+              "version": 1,
+              "at": "<time-1>",
+              "summary": "A list of the clients in this business.",
+              "current": true
+            }
+          ],
+          "permissions": [
+            {
+              "id": "clients",
+              "verb": "Read",
+              "line": "Clients: their names"
+            }
+          ],
+          "grant": {
+            "permissions": [
+              "clients"
+            ],
+            "at": "<time-1>"
+          },
+          "ask": null,
+          "tools": [
+            "clients_list"
+          ],
+          "messages": [
+            {
+              "at": "<time-1>",
+              "from": "owner",
+              "text": "Make a small list of my client names.",
+              "version": null
+            },
+            {
+              "at": "<time-1>",
+              "from": "chausar",
+              "text": "Here's a first version. It reads your Clients. It can't send anything by itself.",
+              "version": 1
+            }
+          ],
+          "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 8,
+      "method": "venture.apps.revoke",
+      "payload": {
+        "app": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 8,
+      "result": {
+        "app": {
+          "id": "<id-1>",
+          "name": "Client names",
+          "version": 1,
+          "summary": "A list of the clients in this business.",
+          "reads": [
+            "Reads: Clients"
+          ],
+          "pinned": true,
+          "madeAt": "<time-1>",
+          "allowed": false,
+          "empty": false,
+          "uri": "ui://chausar/apps/<id-1>/v1",
+          "document": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Client names</title><style>:root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}}:root[data-theme=light]{color-scheme:light;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8;--link:#2f5bd3}:root[data-theme=dark]{color-scheme:dark;--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33;--link:#8fb4ff}html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,\"Segoe UI\",sans-serif}a{color:var(--link)}body{padding:12px 14px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}</style><script>(function(){\"use strict\";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});function send(m){parent.postMessage(m,\"*\");}function ask(method,params){var id=++seq;send({jsonrpc:\"2.0\",id:id,method:method,params:params||{}});return new Promise(function(res,rej){pending[id]={res:res,rej:rej};});}function theme(c){if(!c)return;var root=document.documentElement;if(c.theme===\"light\"||c.theme===\"dark\")root.setAttribute(\"data-theme\",c.theme);var v=c.styles&&c.styles.variables;if(!v||typeof v!==\"object\")return;for(var k in v){if(Object.prototype.hasOwnProperty.call(v,k)&&/^--(?:bg|fg|mute|line|link)$/.test(k)&&typeof v[k]===\"string\"&&/^#[0-9a-fA-F]{3,8}$/.test(v[k]))root.style.setProperty(k,v[k]);}}window.addEventListener(\"message\",function(e){if(e.source!==parent)return;var m=e.data;if(!m||m.jsonrpc!==\"2.0\")return;if(m.id!=null&&!m.method&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(new Error(String(m.error.message||\"Chausar refused this.\")));else p.res(m.result);return;}if(m.method===\"ui/resource-teardown\"&&m.id!=null){send({jsonrpc:\"2.0\",id:m.id,result:{}});return;}if(m.method===\"ui/notifications/host-context-changed\")theme(m.params);});ask(\"ui/initialize\",{protocolVersion:\"2026-01-26\",appCapabilities:{},clientInfo:{name:\"chausar-mini-app\",version:\"1\"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:\"2.0\",method:\"ui/notifications/initialized\",params:{}});done(r);});(function(){\n  var last=-1,resize,mutations;\n  var viewport=/[0-9.](?:dvh|svh|lvh|vh|vmin|vmax|vb)\\b/i;\n  function size(){\n    var changed=[],body=document.body,height;\n    function relax(style){var value=style.getPropertyValue(\"min-height\");if(viewport.test(value)){var priority=style.getPropertyPriority(\"min-height\");changed.push([style,value,priority]);style.setProperty(\"min-height\",\"0px\",priority);}}\n    function rules(list){for(var rule of list){if(rule.style)relax(rule.style);if(rule.cssRules)rules(rule.cssRules);}}\n    try{\n      for(var sheet of document.styleSheets)rules(sheet.cssRules);\n      relax(body.style);for(var element of body.querySelectorAll(\"*\"))relax(element.style);\n      var css=getComputedStyle(body),margin=Math.max(0,parseFloat(css.marginBottom)||0),padding=(parseFloat(css.paddingBottom)||0)+(parseFloat(css.borderBottomWidth)||0);\n      var bottom=body.getBoundingClientRect().bottom+margin;\n      for(var element of body.querySelectorAll(\"*\")){var rect=element.getBoundingClientRect(),style=getComputedStyle(element);bottom=Math.max(bottom,rect.bottom+Math.max(0,parseFloat(style.marginBottom)||0)+padding+margin);}\n      height=Math.max(1,Math.ceil(bottom+scrollY));\n    }finally{\n      for(var change of changed)change[0].setProperty(\"min-height\",change[1],change[2]);\n      if(mutations)mutations.takeRecords();\n    }\n    if(height!==last){last=height;parent.postMessage({jsonrpc:\"2.0\",method:\"ui/notifications/size-changed\",params:{width:document.documentElement.scrollWidth,height:height}},\"*\");}\n  }\n  function watch(){if(resize){resize.disconnect();resize.observe(document.body);for(var element of document.body.querySelectorAll(\"*\"))resize.observe(element);}size();}\n  window.addEventListener(\"load\",function(){if(window.ResizeObserver)resize=new ResizeObserver(size);if(window.MutationObserver){mutations=new MutationObserver(watch);mutations.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});}watch();});\n})();window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask(\"tools/call\",{name:String(name),arguments:args||{}});}).then(function(r){if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||\"Chausar refused this.\"));return r?r.structuredContent:null;});}});})();</script></head><body><h1>Client names</h1><ul id=\"clients\"></ul><script>chausar.call(\"clients_list\",{}).then(function(r){document.getElementById(\"clients\").textContent=r.clients.map(function(c){return c.name;}).join(\", \");});</script></body></html>",
+          "versions": [
+            {
+              "version": 1,
+              "at": "<time-1>",
+              "summary": "A list of the clients in this business.",
+              "current": true
+            }
+          ],
+          "permissions": [
+            {
+              "id": "clients",
+              "verb": "Read",
+              "line": "Clients: their names"
+            }
+          ],
+          "grant": null,
+          "ask": {
+            "digest": "<digest-1>",
+            "added": [
+              "clients"
+            ],
+            "first": true
+          },
+          "tools": [],
+          "messages": [
+            {
+              "at": "<time-1>",
+              "from": "owner",
+              "text": "Make a small list of my client names.",
+              "version": null
+            },
+            {
+              "at": "<time-1>",
+              "from": "chausar",
+              "text": "Here's a first version. It reads your Clients. It can't send anything by itself.",
+              "version": 1
+            }
+          ],
+          "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+        },
+        "line": "Client names is turned off. It asks again before it runs."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 9,
+      "method": "venture.apps.call",
+      "payload": {
+        "app": "<id-1>",
+        "tool": "clients_list",
+        "arguments": {}
+      }
+    },
+    {
+      "kind": "error",
+      "id": 9,
+      "error": {
+        "code": "APP_NOT_ALLOWED",
+        "message": "Allow this app first."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 10,
+      "method": "venture.apps.remove",
+      "payload": {
+        "app": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 10,
+      "result": {
+        "removed": true,
+        "line": "Client names and its notes are deleted."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 11,
+      "method": "venture.apps.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 11,
+      "result": {
+        "apps": [],
+        "ideas": [
+          {
+            "label": "Who owes me, by client",
+            "preview": "A table of unpaid invoices grouped by client, with what each owes."
+          },
+          {
+            "label": "Weekly work planner",
+            "preview": "This week's open orders as a list by day, with notes you keep."
+          },
+          {
+            "label": "Price calculator for clients",
+            "preview": "Pick an offer and a quantity; the calculator works out the price with a receipt."
+          }
+        ],
+        "never": "Use the internet, send or pay by itself, see other apps, or open files on your computer."
+      }
+    }
+  ]
+}

@@ -1,0 +1,424 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "business",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<digest-1>": {
+      "kind": "digest"
+    },
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.compliance.get",
+      "payload": {
+        "profession": "home-chef-tiffin"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": {
+        "profession": {
+          "id": "home-chef-tiffin",
+          "label": "Home chef or tiffin",
+          "family": "local-services"
+        },
+        "question": "Does your employment contract allow side work? This is your responsibility.",
+        "responsibility": "Chausar does not read your contract. You decide, and you are responsible for it.",
+        "noDayJob": "You don't have a day job, so no contract limits this business.",
+        "rules": [
+          {
+            "id": "fssai",
+            "title": "FSSAI licence or registration",
+            "line": "Selling food needs an FSSAI licence. A small home food business needs an FSSAI registration instead.",
+            "checked": true,
+            "source": {
+              "url": "https://fssai.gov.in/docs/food-law/act-2006/Food_Safety_and_Standards_Act_2006.pdf",
+              "publisher": "FSSAI",
+              "title": "Food Safety and Standards Act, 2006"
+            },
+            "checkedOn": "2026-11-02",
+            "checkedDay": "2 Nov 2026",
+            "size": "Size counts yearly turnover. Above ₹1.5 crore: an FSSAI state licence. Up to it: an FSSAI registration.",
+            "verdict": "Add your yearly turnover to see which applies."
+          }
+        ],
+        "switchedOff": [],
+        "hardStops": [
+          {
+            "id": "fake-reviews",
+            "line": "No fake reviews."
+          }
+        ],
+        "digest": "compliance-1c44405b",
+        "size": {
+          "measures": [
+            "turnover"
+          ],
+          "line": "Some rules change with your size. Chausar uses this only to show which ones apply.",
+          "questions": [
+            {
+              "measure": "turnover",
+              "question": "What's your yearly turnover?",
+              "choices": [
+                {
+                  "id": "up-to-1500000000",
+                  "label": "Up to ₹1.5 crore a year"
+                },
+                {
+                  "id": "above-1500000000",
+                  "label": "More than ₹1.5 crore a year"
+                },
+                {
+                  "id": "not-say",
+                  "label": "I'd rather not say"
+                }
+              ],
+              "answer": null
+            }
+          ]
+        },
+        "recorded": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.compliance.set",
+      "payload": {
+        "profession": "home-chef-tiffin",
+        "sideWork": "allowed",
+        "digest": "<digest-1>"
+      }
+    },
+    {
+      "kind": "error",
+      "id": 2,
+      "error": {
+        "code": "APPROVAL_STALE",
+        "message": "The rules for this profession changed. Read them again."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.compliance.set",
+      "payload": {
+        "profession": "home-chef-tiffin",
+        "sideWork": "allowed",
+        "digest": "compliance-1c44405b",
+        "size": {
+          "turnover": "up-to-1500000000"
+        }
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 19
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 3,
+      "result": {
+        "profession": {
+          "id": "home-chef-tiffin",
+          "label": "Home chef or tiffin",
+          "family": "local-services"
+        },
+        "question": "Does your employment contract allow side work? This is your responsibility.",
+        "responsibility": "Chausar does not read your contract. You decide, and you are responsible for it.",
+        "noDayJob": "You don't have a day job, so no contract limits this business.",
+        "rules": [
+          {
+            "id": "fssai",
+            "title": "FSSAI licence or registration",
+            "line": "Selling food needs an FSSAI licence. A small home food business needs an FSSAI registration instead.",
+            "checked": true,
+            "source": {
+              "url": "https://fssai.gov.in/docs/food-law/act-2006/Food_Safety_and_Standards_Act_2006.pdf",
+              "publisher": "FSSAI",
+              "title": "Food Safety and Standards Act, 2006"
+            },
+            "checkedOn": "2026-11-02",
+            "checkedDay": "2 Nov 2026",
+            "size": "Size counts yearly turnover. Above ₹1.5 crore: an FSSAI state licence. Up to it: an FSSAI registration.",
+            "verdict": "At your size: an FSSAI registration."
+          }
+        ],
+        "switchedOff": [],
+        "hardStops": [
+          {
+            "id": "fake-reviews",
+            "line": "No fake reviews."
+          }
+        ],
+        "digest": "compliance-1c44405b",
+        "size": {
+          "measures": [
+            "turnover"
+          ],
+          "line": "Some rules change with your size. Chausar uses this only to show which ones apply.",
+          "questions": [
+            {
+              "measure": "turnover",
+              "question": "What's your yearly turnover?",
+              "choices": [
+                {
+                  "id": "up-to-1500000000",
+                  "label": "Up to ₹1.5 crore a year"
+                },
+                {
+                  "id": "above-1500000000",
+                  "label": "More than ₹1.5 crore a year"
+                },
+                {
+                  "id": "not-say",
+                  "label": "I'd rather not say"
+                }
+              ],
+              "answer": "up-to-1500000000"
+            }
+          ]
+        },
+        "recorded": {
+          "professionId": "home-chef-tiffin",
+          "sideWork": "allowed",
+          "acknowledgedOn": "2026-11-06"
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.compliance.set",
+      "payload": {
+        "size": {
+          "turnover": "not-say"
+        }
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 21
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "profession": {
+          "id": "home-chef-tiffin",
+          "label": "Home chef or tiffin",
+          "family": "local-services"
+        },
+        "question": "Does your employment contract allow side work? This is your responsibility.",
+        "responsibility": "Chausar does not read your contract. You decide, and you are responsible for it.",
+        "noDayJob": "You don't have a day job, so no contract limits this business.",
+        "rules": [
+          {
+            "id": "fssai",
+            "title": "FSSAI licence or registration",
+            "line": "Selling food needs an FSSAI licence. A small home food business needs an FSSAI registration instead.",
+            "checked": true,
+            "source": {
+              "url": "https://fssai.gov.in/docs/food-law/act-2006/Food_Safety_and_Standards_Act_2006.pdf",
+              "publisher": "FSSAI",
+              "title": "Food Safety and Standards Act, 2006"
+            },
+            "checkedOn": "2026-11-02",
+            "checkedDay": "2 Nov 2026",
+            "size": "Size counts yearly turnover. Above ₹1.5 crore: an FSSAI state licence. Up to it: an FSSAI registration.",
+            "verdict": "Add your yearly turnover to see which applies."
+          }
+        ],
+        "switchedOff": [],
+        "hardStops": [
+          {
+            "id": "fake-reviews",
+            "line": "No fake reviews."
+          }
+        ],
+        "digest": "compliance-1c44405b",
+        "size": {
+          "measures": [
+            "turnover"
+          ],
+          "line": "Some rules change with your size. Chausar uses this only to show which ones apply.",
+          "questions": [
+            {
+              "measure": "turnover",
+              "question": "What's your yearly turnover?",
+              "choices": [
+                {
+                  "id": "up-to-1500000000",
+                  "label": "Up to ₹1.5 crore a year"
+                },
+                {
+                  "id": "above-1500000000",
+                  "label": "More than ₹1.5 crore a year"
+                },
+                {
+                  "id": "not-say",
+                  "label": "I'd rather not say"
+                }
+              ],
+              "answer": "not-say"
+            }
+          ]
+        },
+        "recorded": {
+          "professionId": "home-chef-tiffin",
+          "sideWork": "allowed",
+          "acknowledgedOn": "2026-11-06"
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 5,
+      "method": "venture.compliance.get",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 5,
+      "result": {
+        "profession": {
+          "id": "home-chef-tiffin",
+          "label": "Home chef or tiffin",
+          "family": "local-services"
+        },
+        "question": "Does your employment contract allow side work? This is your responsibility.",
+        "responsibility": "Chausar does not read your contract. You decide, and you are responsible for it.",
+        "noDayJob": "You don't have a day job, so no contract limits this business.",
+        "rules": [
+          {
+            "id": "fssai",
+            "title": "FSSAI licence or registration",
+            "line": "Selling food needs an FSSAI licence. A small home food business needs an FSSAI registration instead.",
+            "checked": true,
+            "source": {
+              "url": "https://fssai.gov.in/docs/food-law/act-2006/Food_Safety_and_Standards_Act_2006.pdf",
+              "publisher": "FSSAI",
+              "title": "Food Safety and Standards Act, 2006"
+            },
+            "checkedOn": "2026-11-02",
+            "checkedDay": "2 Nov 2026",
+            "size": "Size counts yearly turnover. Above ₹1.5 crore: an FSSAI state licence. Up to it: an FSSAI registration.",
+            "verdict": "Add your yearly turnover to see which applies."
+          }
+        ],
+        "switchedOff": [],
+        "hardStops": [
+          {
+            "id": "fake-reviews",
+            "line": "No fake reviews."
+          }
+        ],
+        "digest": "compliance-1c44405b",
+        "size": {
+          "measures": [
+            "turnover"
+          ],
+          "line": "Some rules change with your size. Chausar uses this only to show which ones apply.",
+          "questions": [
+            {
+              "measure": "turnover",
+              "question": "What's your yearly turnover?",
+              "choices": [
+                {
+                  "id": "up-to-1500000000",
+                  "label": "Up to ₹1.5 crore a year"
+                },
+                {
+                  "id": "above-1500000000",
+                  "label": "More than ₹1.5 crore a year"
+                },
+                {
+                  "id": "not-say",
+                  "label": "I'd rather not say"
+                }
+              ],
+              "answer": "not-say"
+            }
+          ]
+        },
+        "recorded": {
+          "professionId": "home-chef-tiffin",
+          "sideWork": "allowed",
+          "acknowledgedOn": "2026-11-06"
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 6,
+      "method": "venture.rules.locks",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 6,
+      "result": {
+        "playbook": null,
+        "rules": [],
+        "words": "I am responsible for this in my business.",
+        "line": "No rule waits for you.",
+        "hardStops": [
+          {
+            "id": "securities-advice",
+            "line": "No stock tips, target prices or promised returns without a SEBI registration."
+          },
+          {
+            "id": "advocate-solicit",
+            "line": "Advocates may not advertise or ask people for work."
+          },
+          {
+            "id": "medical-diagnosis",
+            "line": "No AI diagnosis or prescription."
+          },
+          {
+            "id": "child-data",
+            "line": "No children's data without a parent's checked consent."
+          },
+          {
+            "id": "captcha",
+            "line": "No getting past a CAPTCHA. Chausar stops there."
+          },
+          {
+            "id": "detection-evasion",
+            "line": "No hiding automation from a website."
+          },
+          {
+            "id": "linkedin-automation",
+            "line": "No automated LinkedIn reading or messages. Copy and open only."
+          },
+          {
+            "id": "fake-reviews",
+            "line": "No fake reviews."
+          },
+          {
+            "id": "undisclosed-ai",
+            "line": "AI voices and presenters are always disclosed."
+          }
+        ]
+      }
+    }
+  ]
+}
