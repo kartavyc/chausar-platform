@@ -81,7 +81,7 @@ test('6E1: the UI and its fake engine know the same service types, labels, keywo
   const read = (path: string) => readFile(new URL(`../../app/ui/src/${path}`, import.meta.url), 'utf8');
   const types = await read('engine/types.ts');
   const list = SERVICE_TYPES.map(type => `'${type}'`).join(', ');
-  assert.ok(types.includes(`export type ServiceType = ${SERVICE_TYPES.map(type => `'${type}'`).join(' | ')};`), 'types.ts ServiceType');
+  assert.match(types, /export type \{[^}]*\bServiceType\b[^}]*\} from '\.\/contract\.gen';/, 'ServiceType is re-exported from the canonical generated contract');
   assert.ok(types.includes(`export const SERVICE_TYPES: readonly ServiceType[] = [${list}];`), 'types.ts SERVICE_TYPES');
   const common = JSON.parse(await read('text/en/common.json'));
   for (const type of SERVICE_TYPES) assert.equal(common[`business.kind.${type}`], SERVICE_TYPE_LABELS[type], type);
