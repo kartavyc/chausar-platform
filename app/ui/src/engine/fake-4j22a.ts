@@ -100,6 +100,8 @@ const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso)
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
 function whenWords(schedule: RoutineSchedule): string {
+  // C7: as the engine's routines.ts eventWhen.
+  if (schedule.kind === 'event') return schedule.event === 'payment' ? 'When a payment comes in' : schedule.event === 'booking' ? 'When a booking is made' : 'When a booking is cancelled';
   if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, ZONE)}, ${ZONE}`;
   if (schedule.kind === 'interval') {
     const every = schedule.everyMinutes % 1440 === 0 ? `${schedule.everyMinutes / 1440} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
@@ -110,6 +112,12 @@ function whenWords(schedule: RoutineSchedule): string {
 }
 
 function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
+  // C7: a trigger, as the engine's routines.ts checks it; the engine also asks for the relay and its source.
+  if ((raw as { kind?: unknown } | null)?.kind === 'event') {
+    const body = raw as { source?: unknown; event?: unknown };
+    if (!['razorpay:payment', 'cal-com:booking', 'cal-com:booking-cancelled'].includes(`${body.source}:${body.event}`)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a payment from Razorpay, or a booking made or cancelled on Cal.com.');
+    return { kind: 'event', source: body.source as 'razorpay' | 'cal-com', event: body.event as 'payment' | 'booking' | 'booking-cancelled' };
+  }
   const cron = 'Set when it runs as once, every so many minutes, or on weekdays at a time with a time zone. Cron text is not taken.';
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw invalid(cron);
   const s = raw as Record<string, unknown>;

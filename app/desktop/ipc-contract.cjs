@@ -68,6 +68,9 @@ const METHODS = Object.freeze([
   'venture.needs.list',
   // A2: the owner's yes to the Codex found on this computer (engine.ts answers it, with or without a vault).
   'venture.ai.setup.trust',
+  'venture.events.calKey.set',
+  'venture.events.relay.set',
+  'venture.events.get',
   'venture.agents.hire.cancel',
   'venture.agents.hire.confirm',
   'venture.agents.hire.answer',

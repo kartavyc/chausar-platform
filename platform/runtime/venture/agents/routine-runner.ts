@@ -44,6 +44,8 @@ import { agentSettingsOf } from '../agent-runtime/settings.ts';
 import { formatTime, ownerZone } from '../../owner-format.ts';
 import type { DelegateCli, IsoTime } from '../contracts.ts';
 import { ChausarError } from '../../contracts.ts';
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
+import { EVENT_WORDS, fillBlanks, type EventFacts } from '../build/event-triggers.ts';
 import { RUN_ELSEWHERE, BACKUP_WORDS, clientAllowsBackup, routineRoutes, usableBackup } from './routine-backup.ts';
 import type { ChatRoute } from './consent.ts';
 
@@ -218,6 +220,8 @@ export async function routineTick(deps: VentureDeps, ctx: Context, claimLimitMs?
     // H30: a judge that waited while the owner worked is asked again once background model work may go.
     await import('../delivery/judge-run.ts').then(module => module.retryWaitingJudges(deps, ctx)).catch(() => 0);
     await runRoutines(deps, ctx).catch(() => 0);
+    // C7: events the owner's relay brought in, while Chausar is open: confirmed, then drafted by their triggers.
+    await import('../build/event-triggers.ts').then(module => module.eventTick(deps, ctx, (routine, facts, dueAt) => runEventTrigger(deps, ctx, routine, facts, dueAt))).catch(() => 0);
   } finally {
     SWEEPING.delete(store);
   }
@@ -263,7 +267,7 @@ function routineThread(tx: VentureTx, routine: RoutineRecord): ChiefThreadRecord
 }
 
 /** Codes that leave a run waiting: nothing was sent, and the owner can fix the cause and run it again. */
-const STAYS_WAITING = new Set(['CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE', 'APP_APPROVAL_REQUIRED', 'BUSINESS_PAUSED', 'CHAT_KEY_REFUSED', 'ROUTINE_NEEDS_CHECK']);
+const STAYS_WAITING = new Set(['CLIENT_AI_CONSENT_REQUIRED', 'CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE', 'APP_APPROVAL_REQUIRED', 'BUSINESS_PAUSED', 'CHAT_KEY_REFUSED', 'ROUTINE_NEEDS_CHECK']);
 
 /**
  * A decision on a routine card (views/queue-w4.ts): Not now skips the run; Run it checks the AI connection again
@@ -295,6 +299,8 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
   }
   // C7: a plan the tool reported used up, or at or over the owner's pause point, holds the run before anything is sent,
   // unless a usable backup AI (agents/routine-backup.ts) can take it.
+  // C7: a trigger's run carries a client's facts only with that client's AI permission; it stays waiting without it.
+  if (venture && pending?.clientId) requireClientAiConsent(before, venture.id, pending.clientId);
   const planCli = routine && !routine.recordReport ? planCliOf(route?.presetId) : null;
   const backups = venture && routine && !routine.recordReport && pending ? usableBackups(deps, ctx, before, venture, pending) : { routes: [], refusal: null };
   const held = venture && planCli ? planHold(deps, venture, planCli) : null;
@@ -315,7 +321,7 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
       check(routine && routine.removedAt === null && routine.setBy === 'owner', 'APPROVAL_STALE', 'This routine was removed.');
       const threadId = routine.agent === null ? routineThread(tx, routine).id : null;
       tx.replace<RoutineRunRecord>({ ...run, state: 'running', line: ROUTINE_WORDS.running, threadId });
-      return { routine, threadId, where: whereWords(tx.state, tx.venture!, routine) };
+      return { routine, threadId, where: whereWords(tx.state, tx.venture!, routine), text: run.filled ?? routine.prompt, draftOnly: routine.schedule.kind === 'event' };
     });
     const end = (state: RoutineRunState, line: string) => ventureAction(deps, ctx, 'approve', 'routines.ran', tx => {
       const run = tx.find('venture-routine-run', runId);
@@ -336,15 +342,15 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
       } else {
         for (let index = 0; ; index++) {
           const backup = tries[index] ?? null;
-          const scope = { routineId: claimed.routine.id, runId, ...(backup ? { presetId: backup.presetId } : {}) };
+          const scope = { routineId: claimed.routine.id, runId, ...(backup ? { presetId: backup.presetId } : {}), ...(claimed.draftOnly ? { draftOnly: true as const } : {}) };
           try {
             if (claimed.threadId) {
               const { threadSendHandler } = await import('../chief/threads.ts');
               const threadId = claimed.threadId;
-              await withRoutineScope(scope, () => threadSendHandler(deps, ctx, { threadId, text: claimed.routine.prompt }, { routine: true }));
+              await withRoutineScope(scope, () => threadSendHandler(deps, ctx, { threadId, text: claimed.text }, { routine: true }));
             } else {
               const { threadSendHandler } = await import('./threads.ts');
-              await withRoutineScope(scope, () => threadSendHandler(deps, ctx, { agent: claimed.routine.agent, text: claimed.routine.prompt }, { routine: true }));
+              await withRoutineScope(scope, () => threadSendHandler(deps, ctx, { agent: claimed.routine.agent, text: claimed.text }, { routine: true }));
             }
             if (backup) await noteRanOn(deps, ctx, runId, backup, route ? shortName(route) : 'Your AI', why ?? 'AI_UNAVAILABLE');
             break;
@@ -438,4 +444,52 @@ function noteRanOn(deps: VentureDeps, ctx: Context, runId: string, backup: ChatR
 function shortName(route: ChatRoute): string {
   const cli = planCliOf(route.presetId);
   return cli ? CLI_LABELS[cli] : route.label;
+}
+
+// ---------------------------------------------------------------------------
+// C7: a trigger's run
+// ---------------------------------------------------------------------------
+
+/**
+ * One run of a trigger for one confirmed event. Setting the trigger up was the owner's approval of exactly which facts each
+ * event sends, so it goes to the AI with no second Run it, with its blanks filled by code, and only drafts. Without the
+ * client's AI permission it waits on Today instead. A used-up plan waits for the reset; anything else is one failed run.
+ */
+export async function runEventTrigger(deps: VentureDeps, ctx: Context, routine: RoutineRecord, facts: EventFacts, dueAt: IsoTime): Promise<void> {
+  const filled = fillBlanks(routine.prompt, facts);
+  const state = deps.store.read(), venture = currentVenture(state);
+  let allowed = !facts.clientId;
+  if (venture && facts.clientId) { try { requireClientAiConsent(state, venture.id, facts.clientId); allowed = true; } catch { allowed = false; } }
+  const claimed = await ventureAction(deps, ctx, 'prepare', 'routines.event', tx => {
+    const threadId = routine.agent === null ? routineThread(tx, routine).id : null;
+    const run = tx.put<RoutineRunRecord>({ ...tx.base('venture-routine-run'), routineId: routine.id, dueAt, state: allowed ? 'running' : 'needs-input', line: allowed ? ROUTINE_WORDS.running : EVENT_WORDS.needsClient(facts.client), missed: 0, runId: null, threadId, clientId: facts.clientId, filled });
+    if (allowed) MAKING.add(run.id); else tx.emit('queue.changed', {});
+    return { id: run.id, threadId, where: whereWords(tx.state, tx.venture!, routine) };
+  });
+  if (!allowed) return;
+  const end = (next: RoutineRunState, line: string) => ventureAction(deps, ctx, 'prepare', 'routines.eventRan', tx => {
+    const run = tx.find('venture-routine-run', claimed.id);
+    if (run?.state === 'running') tx.replace<RoutineRunRecord>({ ...run, state: next, line });
+    tx.emit('queue.changed', {});
+  });
+  const scope = { routineId: routine.id, runId: claimed.id, draftOnly: true as const };
+  try {
+    if (claimed.threadId) {
+      const { threadSendHandler } = await import('../chief/threads.ts');
+      const threadId = claimed.threadId;
+      await withRoutineScope(scope, () => threadSendHandler(deps, ctx, { threadId, text: filled }, { routine: true }));
+    } else {
+      const { threadSendHandler } = await import('./threads.ts');
+      await withRoutineScope(scope, () => threadSendHandler(deps, ctx, { agent: routine.agent, text: filled }, { routine: true }));
+    }
+    await end('completed', ROUTINE_WORDS.delivered(claimed.where));
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    const planCli = planCliOf(chatRoute(deps.models.status(ctx))?.presetId);
+    if (code === 'AI_USAGE_LIMIT' && planCli) {
+      planBookOf(deps.store).failed(planCli, 'usage-limit', deps.clock().toISOString());
+      await parkForPlan(deps, ctx, claimed.id, 'running', planCli, null).catch(() => undefined);
+    } else if (STAYS_WAITING.has(typeof code === 'string' ? code : '')) await end('needs-input', ROUTINE_WORDS.waiting).catch(() => undefined);
+    else await end('failed', ROUTINE_WORDS.failed(error instanceof Error ? error.message : 'Chausar could not send it.')).catch(() => undefined);
+  } finally { MAKING.delete(claimed.id); }
 }

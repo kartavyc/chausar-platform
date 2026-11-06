@@ -293,6 +293,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-tracker', 'venture-tracker-row',
   // C7: one more agent the owner hired, and the interview on the way (agents/hire-store.ts).
   'venture-agent-hire',
+  // C7: one event a relay brought in, ids and its confirmed facts only (build/event-triggers.ts).
+  'venture-relay-event',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -310,6 +312,8 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
   /** C7: the backup AI for routines (agents/routine-backup.ts): off by default; at is when the owner last set it. */
   routineBackup?: { on: boolean; order: ModelPresetId[]; at: IsoTime };
+  /** C7: the event relay's host and when it was last read (build/event-triggers.ts). The address itself is in protected storage. */
+  eventRelay?: { host: string | null; calKey: boolean; since: IsoTime; lastRead?: IsoTime };
   /** Host-owned revocation generations; owner settings never accept these counters. */
   aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   idea: string;
@@ -4462,10 +4466,14 @@ export type AgentRelayRecord = RecordBase<'venture-agent-relay'> & {
 export type RoutineSchedule =
   | { kind: 'once'; at: IsoTime }
   | { kind: 'interval'; everyMinutes: number; from: IsoTime }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  /** C7: a trigger: it starts on a confirmed event and only drafts (build/event-triggers.ts). */
+  | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
 /** A routine (4J13): a standalone prompt on a schedule, for an agent or the chief. It never approves anything. */
 export type RoutineRecord = RecordBase<'venture-routine'> & {
   recordReport?: 'va-morning'|'va-weekly';
+  /** C7: a trigger's facts: the blanks its prompt uses, shown when it is saved and sent with each event. */
+  facts?: string[];
   name: string;
   agent: string | null;
   setBy: 'owner' | 'agent' | 'chief';
@@ -4494,6 +4502,8 @@ export type RoutineRunRecord = RecordBase<'venture-routine-run'> & {
   ranOn?: { presetId: ModelPresetId; label: string; why: string } | null;
   /** C7: the client whose data the run carries (an event trigger's run), if any. */
   clientId?: string | null;
+  /** C7: a trigger's prompt with its blanks filled by code; sent instead of the routine's own words. */
+  filled?: string;
 };
 
 /** One run of the guardrail drills against the playbook hash (4J15). */
@@ -5349,7 +5359,7 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
 
 /** 4J13. when: the schedule in words with its time zone. prompt (4J22a): sent back to turn it off, on or change it; only
  * for a role that may change routines (owner, cofounder). */
-export type RoutineView = { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
+export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
 /** receipt (W6 6G5): the model receipt of a run that asked an AI; absent before it ran. */
 /** ranOn (C7): the backup AI the run went to and why, in owner words. */
@@ -5661,7 +5671,8 @@ export type AnyVentureRecord =
   | MiniAppRecord
   | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord
   | import('./trackers/trackers.ts').TrackerRecord | import('./trackers/trackers.ts').TrackerRowRecord
-  | import('./agents/hire-store.ts').HireRecord;
+  | import('./agents/hire-store.ts').HireRecord
+  | import('./build/event-triggers.ts').RelayEventRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5910,6 +5921,9 @@ export const VENTURE_METHODS = [
   'venture.agents.hire.answer',
   'venture.agents.hire.confirm',
   'venture.agents.hire.cancel',
+  'venture.events.get',
+  'venture.events.relay.set',
+  'venture.events.calKey.set',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -6080,6 +6094,9 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.agents.hire.answer': 'agents',
   'venture.agents.hire.confirm': 'agents',
   'venture.agents.hire.cancel': 'agents',
+  'venture.events.get': 'build',
+  'venture.events.relay.set': 'build',
+  'venture.events.calKey.set': 'build',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6170,6 +6187,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.agents.hire.answer',
   'venture.agents.hire.confirm',
   'venture.agents.hire.cancel',
+  'venture.events.relay.set',
+  'venture.events.calKey.set',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6708,6 +6727,9 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.events.calKey.set': { key: string | null };
+  'venture.events.relay.set': { address: string | null };
+  'venture.events.get': Record<string, never>;
   'venture.agents.hire.cancel': { hireId: string };
   'venture.agents.hire.confirm': { hireId: string; digest: string };
   'venture.agents.hire.answer': { hireId: string; phase: string; edits?: Record<string, unknown> };
@@ -7117,6 +7139,9 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.events.calKey.set': import('./build/event-triggers.ts').EventsView;
+  'venture.events.relay.set': import('./build/event-triggers.ts').EventsView;
+  'venture.events.get': import('./build/event-triggers.ts').EventsView;
   'venture.agents.hire.cancel': { cancelled: true };
   'venture.agents.hire.confirm': import('./agents/hire.ts').HireView;
   'venture.agents.hire.answer': import('./agents/hire.ts').HireView;
@@ -7156,6 +7181,8 @@ export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
   // C7: a tracker's refusals (trackers/cells.ts, trackers/trackers.ts).
   'TRACKER_MONEY', 'TRACKER_NOT_FOUND', 'TRACKER_LIMIT', 'TRACKER_WORDS_HELD',
+  // C7: event triggers (build/event-relay.ts, build/event-confirm.ts).
+  'EVENT_RELAY_REFUSED', 'EVENT_NOT_CONFIRMED', 'EVENT_ANSWER_TOO_BIG', 'NETWORK_NOT_GIVEN',
   // C7: hiring one more agent (agents/hire-check.ts, agents/hire.ts).
   'HIRE_HARD_STOP', 'HIRE_FLOOR', 'HIRE_NOT_FOUND', 'HIRE_LIMIT', 'HIRE_POSTURE_FIXED',
   'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
@@ -7452,6 +7479,8 @@ export interface PhoneAccessPort {
 }
 export type VentureDeps = {
   /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
+  /** C7: stand-ins for the event relay and the source checks in tests; the host passes none, so the real guard is used. */
+  eventPorts?: import('./build/event-triggers.ts').EventPorts;
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
   phoneAccess?: PhoneAccessPort;

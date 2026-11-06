@@ -1452,6 +1452,9 @@ export interface CliStatusView {
   /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
   provider?: ProviderTroubleLite;
 }
+/** C7: event triggers (venture.events.*): the relay's host, the recent events and each event's blanks. */
+export interface RelayEventLite { id: string; source: 'razorpay' | 'cal-com'; kind: 'payment' | 'booking' | 'booking-cancelled'; receivedAt: string; state: 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed'; line: Display }
+export interface EventsViewLite { relay: string | null; calKey: boolean; line: Display; label: Display; missed: number; events: RelayEventLite[]; blanks: Readonly<Record<string, readonly string[]>> }
 /** C7: hiring one more agent, one phase at a time (venture.agents.hire.*). */
 export interface HireReadLite { read: string; why: string }
 export interface HireVoiceLite { tone: string | null; replyLength: 'short' | 'medium' | 'long' | null; greeting: string | null; handOffLine: string | null; blockedTopics: string[]; signOff: string | null }
@@ -1725,11 +1728,13 @@ export interface OrderContractView {
 export type RoutineSchedule =
   | { kind: 'once'; at: string }
   | { kind: 'interval'; everyMinutes: number; from: string }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  /** C7: a trigger: it starts on a confirmed event and only drafts. */
+  | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
-export interface RoutineView { recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+export interface RoutineView { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
 export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
@@ -2434,6 +2439,9 @@ export interface EngineMethods {
   'venture.agents.hire.answer': { params: { hireId: string; phase: string; edits?: Record<string, unknown> }; result: HireViewLite };
   'venture.agents.hire.confirm': { params: { hireId: string; digest: string }; result: HireViewLite };
   'venture.agents.hire.cancel': { params: { hireId: string }; result: { cancelled: true } };
+  'venture.events.get': { params: Record<string, never>; result: EventsViewLite };
+  'venture.events.relay.set': { params: { address: string | null }; result: EventsViewLite };
+  'venture.events.calKey.set': { params: { key: string | null }; result: EventsViewLite };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };

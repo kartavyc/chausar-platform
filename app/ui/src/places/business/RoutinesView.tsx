@@ -10,6 +10,7 @@ import type { AgentView, RoutineSchedule, RoutineView } from '../../engine/types
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
 import { ModelReceipt } from '../../parts/ModelReceipt';
+import { EventTriggers } from './EventTriggers';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 
@@ -96,6 +97,7 @@ export function RoutinesView() {
         </div>
       )}
       <AddRoutine agents={agents} zone={firstZone} onAdded={() => changed()} />
+      <EventTriggers agents={agents} onSaved={() => changed()} />
       <PlanPause />
       <BackupAi />
     </div>

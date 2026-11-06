@@ -1,7 +1,7 @@
 import { useId, useMemo } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import { setQuery, useRoute } from '../../shell/navigation';
+import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { useNarrow } from '../../shell/useNarrow';
 import { EmptyState } from '../../parts/EmptyState';
 import { FilterChips } from '../../parts/FilterChips';

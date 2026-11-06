@@ -48,6 +48,7 @@ export const READS = [
   'whatsNew.get',
   'venture.trackers.list',
   'venture.trackers.get',
+  'venture.events.get',
   'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
 ] as const satisfies readonly MethodName[];
 

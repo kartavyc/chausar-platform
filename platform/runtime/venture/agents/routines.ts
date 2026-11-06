@@ -7,6 +7,7 @@
 // agent or the chief set can never change or remove the owner's (ROUTINE_NOT_YOURS). A routine is switched on only for
 // an AI connection that Check connections has looked at (ROUTINE_NEEDS_CHECK, 4J7). History says "delivered", never
 // "done". Code only; the rules follow Open Duet's routines and cloudflare-os's schedule types, rewritten.
+import { FACT_WORDS, checkTrigger, eventWhen, triggerFacts } from '../build/event-triggers.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, formatVentureDate, identifier, listRecords, plainText, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import type {
@@ -66,6 +67,12 @@ const CRON_WORDS = 'Use once, every so many minutes, or days of the week at a ti
 export function checkSchedule(raw: unknown, nowMs: number = Number.NEGATIVE_INFINITY): RoutineSchedule {
   check(raw !== null && typeof raw === 'object' && !Array.isArray(raw), 'INVALID_VENTURE_REQUEST', CRON_WORDS);
   const body = raw as Record<string, unknown>;
+  if (body.kind === 'event') {
+    const clean = exactPayload(body, ['kind', 'source', 'event'], ['kind', 'source', 'event']);
+    const pair = `${clean.source}:${clean.event}`;
+    check(['razorpay:payment', 'cal-com:booking', 'cal-com:booking-cancelled'].includes(pair), 'INVALID_VENTURE_REQUEST', 'Choose a payment from Razorpay, or a booking made or cancelled on Cal.com.');
+    return { kind: 'event', source: clean.source as 'razorpay' | 'cal-com', event: clean.event as 'payment' | 'booking' | 'booking-cancelled' };
+  }
   if (body.kind === 'once') {
     const clean = exactPayload(body, ['kind', 'at'], ['kind', 'at']);
     check(isInstant(clean.at), 'INVALID_VENTURE_REQUEST', 'Give the time as an ISO time in UTC, like 2026-10-27T03:30:00.000Z.');
@@ -102,6 +109,7 @@ const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join(
 
 /** The schedule in words with its time zone: "Every Monday 9:00 am, Asia/Kolkata". once and interval read in the business's zone. */
 export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord, 'country'>): string {
+  if (schedule.kind === 'event') return eventWhen(schedule);
   const order = venture.country?.dateOrder ?? 'year-month-day';
   const zone = ventureTimeZone(venture.country ?? { code: 'XX' });
   if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, zone, order)}, ${zone}`;
@@ -173,6 +181,8 @@ function checkInput(state: State, venture: VentureRecord, raw: unknown, nowMs: n
   const schedule = checkSchedule(body.schedule);
   const kept = id ? listRecords(state, 'venture-routine', venture.id).find(routine => routine.id === id)?.schedule : undefined;
   if (!kept || JSON.stringify(kept) !== JSON.stringify(schedule)) checkSchedule(body.schedule, nowMs);
+  // C7: a trigger needs the relay and its source, and its prompt uses only its event's blanks.
+  if (schedule.kind === 'event') { checkTrigger(venture, schedule); triggerFacts(prompt, schedule); }
   return { ...(id ? { id } : {}), name, agent, prompt, schedule, on: body.on,...(report?{recordReport:report as RoutineInput['recordReport']}:{}) };
 }
 
@@ -184,13 +194,13 @@ const NOT_YOURS = "You set this routine yourself, so only you can change or remo
  */
 export function saveRoutine(tx: VentureTx, input: RoutineInput, setBy: RoutineRecord['setBy']): RoutineRecord {
   if (!input.id) {
-    return tx.put<RoutineRecord>({ ...tx.base('venture-routine'), name: input.name, agent: input.agent ?? null, setBy, prompt: input.prompt, schedule: input.schedule, on: input.on, removedAt: null,...(input.recordReport?{recordReport:input.recordReport}:{}) });
+    return tx.put<RoutineRecord>({ ...tx.base('venture-routine'), ...(input.schedule.kind === 'event' ? { facts: triggerFacts(input.prompt, input.schedule) } : {}), name: input.name, agent: input.agent ?? null, setBy, prompt: input.prompt, schedule: input.schedule, on: input.on, removedAt: null,...(input.recordReport?{recordReport:input.recordReport}:{}) });
   }
   const existing = tx.find('venture-routine', input.id);
   check(existing && existing.removedAt === null, 'INVALID_VENTURE_REQUEST', 'That routine was not found.');
   check(existing.setBy !== 'owner' || setBy === 'owner', 'ROUTINE_NOT_YOURS', NOT_YOURS);
   const {recordReport:_report,...prior}=existing;
-  return tx.replace<RoutineRecord>({ ...prior, name: input.name, agent: input.agent ?? null, prompt: input.prompt, schedule: input.schedule, on: input.on, at: tx.now, setBy: existing.setBy === 'owner' ? 'owner' : setBy,...(input.recordReport?{recordReport:input.recordReport}:{}) });
+  return tx.replace<RoutineRecord>({ ...prior, ...(input.schedule.kind === 'event' ? { facts: triggerFacts(input.prompt, input.schedule) } : {}), name: input.name, agent: input.agent ?? null, prompt: input.prompt, schedule: input.schedule, on: input.on, at: tx.now, setBy: existing.setBy === 'owner' ? 'owner' : setBy,...(input.recordReport?{recordReport:input.recordReport}:{}) });
 }
 
 /** Removes a routine inside the caller's transaction; one the owner set only by the owner (ROUTINE_NOT_YOURS). */
@@ -212,11 +222,13 @@ export function routineView(state: State, venture: VentureRecord, routine: Routi
   const next = routine.on ? nextOccurrence(routine.schedule, nowMs) : null;
   const who = askedName(state, venture, routine.agent);
   const line = !routine.on ? 'Off. Nothing runs.'
+    // C7: a trigger starts on its event, while Chausar is open, and only drafts.
+    : routine.schedule.kind === 'event' ? `${eventWhen(routine.schedule)}, while Chausar is open. It makes a draft or a proposal for Today, nothing more.`
     : next ? routine.recordReport?`Next ${momentIn(next,zone,order)}. A private report from saved records waits for your approval on Today. No model call.`:`Next ${momentIn(next, zone, order)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.`
       : 'No more times to run.';
   // 4J22a: the prompt too, so the owner turns a routine off, on or changes it by sending the same words back; a role
   // that may not change routines (an accountant, a viewer) reads the schedule without the words.
-  return { id: routine.id, name: routine.name, agent: routine.agent, ...(withPrompt ? { prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}) } : {}), schedule: structuredClone(routine.schedule), when: whenWords(routine.schedule, venture), on: routine.on, next, line };
+  return { id: routine.id, name: routine.name, agent: routine.agent, ...(routine.facts ? { facts: routine.facts.map(fact => FACT_WORDS[fact] ?? fact) } : {}), ...(withPrompt ? { prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}) } : {}), schedule: structuredClone(routine.schedule), when: whenWords(routine.schedule, venture), on: routine.on, next, line };
 }
 
 /** One run in the history. A finished run says delivered, never done. */

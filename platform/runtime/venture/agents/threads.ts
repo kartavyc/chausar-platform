@@ -23,6 +23,7 @@ import { appendAgentMessage,type AgentMessageInput } from './store.ts';
 import { RETIRED_LINE,retirementOf,SHELF_THREAD_LINE } from './retired.ts';
 import { agentTrackerTurn,keptTrackerNamed } from '../trackers/agent-rows.ts';
 import { HIRE_DUTIES_LINE } from './hired-facts.ts';
+import { currentRoutineScope } from './routine-scope.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
@@ -195,7 +196,8 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
 
   const agent = chatAgent(state, venture, agentId);
   // C7: words that name a tracker this agent keeps: its rows land at once, marked with its name, with Undo.
-  const kept = keptTrackerNamed(state, venture, agent.id, words);
+  // A trigger's run only drafts, so it adds no rows.
+  const kept = currentRoutineScope()?.draftOnly ? null : keptTrackerNamed(state, venture, agent.id, words);
   if (kept) {
     const turn = await agentTrackerTurn(deps, ctx, route, { state, venture, agent, tracker: kept, words });
     return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
@@ -205,9 +207,12 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
     });
   }
   const waiting = waitingOn(deps, state, venture, agent);
-  const intent = intentOf(words, agent.team);
+  // C7: a trigger's run that asks for a draft is words for the owner to check, whatever nouns it names (a payment, an invoice).
+  const asksDraft = currentRoutineScope()?.draftOnly === true && /^\s*(?:please\s+)?(?:draft|write|prepare|summari[sz]e|list|suggest|note|check)\b/i.test(words);
+  const intent: ReturnType<typeof intentOf> = asksDraft ? { kind: 'question' } : intentOf(words, agent.team);
   if (intent.kind === 'floor') return floorRequest(deps, ctx, agent.id, words, intent);
-  if (intent.kind === 'work') {
+  // C7: a trigger's run asks the agent for words: a draft in its chat, never a New order suggestion.
+  if (intent.kind === 'work' && !currentRoutineScope()?.draftOnly) {
     const offerId = offerFor(state, venture, words);
     return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
       const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });

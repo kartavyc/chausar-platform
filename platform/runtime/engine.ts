@@ -2132,6 +2132,9 @@ export class Engine {
       case 'venture.agents.hire.answer':
       case 'venture.agents.hire.confirm':
       case 'venture.agents.hire.cancel':
+      case 'venture.events.get':
+      case 'venture.events.relay.set':
+      case 'venture.events.calKey.set':
       case 'venture.desk.act':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);

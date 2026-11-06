@@ -17,6 +17,7 @@ import { FAKE_4J8_METHODS, fakePlanSuggest } from './fake-plan-suggest';
 import { FAKE_4H2_METHODS, fakeCliStatus, fakePlan, fakeRoles } from './fake-cli';
 import { FAKE_TRACKER_METHODS, FakeTrackers } from './fake-trackers';
 import { FAKE_HIRE_METHODS, FakeHire } from './fake-hire';
+import { FAKE_EVENT_METHODS, FakeEvents } from './fake-events';
 // 4J6: money and runs across the businesses on this computer (fake-across.ts).
 import { FAKE_4J6_METHODS, FakeAcross } from './fake-across';
 // 4A2: departments, Keeper and health on Team (fake-team.ts).
@@ -120,13 +121,14 @@ export interface W4DeskHost {
   receipt?(id: string): ReceiptLite | undefined;
 }
 
-const W4_METHODS = new Set<string>([...FAKE_HIRE_METHODS, ...FAKE_TRACKER_METHODS, ...FAKE_4J3_METHODS, ...FAKE_4J8_METHODS, ...FAKE_4J6_METHODS, ...FAKE_4A2_METHODS, ...FAKE_4I2_METHODS, ...FAKE_4H2_METHODS, ...FAKE_4F3_METHODS, ...FAKE_4J2_METHODS, ...FAKE_4J19_METHODS, ...FAKE_4J21_METHODS, ...FAKE_4J22B_METHODS, ...FAKE_4J22A_METHODS]);
+const W4_METHODS = new Set<string>([...FAKE_EVENT_METHODS, ...FAKE_HIRE_METHODS, ...FAKE_TRACKER_METHODS, ...FAKE_4J3_METHODS, ...FAKE_4J8_METHODS, ...FAKE_4J6_METHODS, ...FAKE_4A2_METHODS, ...FAKE_4I2_METHODS, ...FAKE_4H2_METHODS, ...FAKE_4F3_METHODS, ...FAKE_4J2_METHODS, ...FAKE_4J19_METHODS, ...FAKE_4J21_METHODS, ...FAKE_4J22B_METHODS, ...FAKE_4J22A_METHODS]);
 
 export class FakeW4Desk {
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   private readonly trackers: FakeTrackers;
   private readonly hire: FakeHire;
+  private readonly events: FakeEvents;
   private readonly across: FakeAcross;
   private readonly team: FakeTeamDesk;
   private readonly goals: FakeGoals;
@@ -153,6 +155,7 @@ export class FakeW4Desk {
     this.setup = new FakeSetupDesk(host, { trial: () => host.trial?.() ?? false });
     this.trackers = new FakeTrackers(host);
     this.hire = new FakeHire(host);
+    this.events = new FakeEvents(host);
     this.extras = new FakeAgentExtras(host, { fresh: this.fresh, hooks: options.extras ?? {} });
     this.quality = new FakeQualityDesk(host, { fresh: this.fresh });
     // 4J3: the engine adds previews after each row's digest; the fake adds its own rows' the same way.
@@ -207,6 +210,7 @@ export class FakeW4Desk {
   request(method: string, p: Record<string, unknown>): unknown {
     if (FAKE_TRACKER_METHODS.includes(method)) return this.trackers.request(method, p);
     if (FAKE_HIRE_METHODS.includes(method)) return this.hire.request(method, p);
+    if (FAKE_EVENT_METHODS.includes(method)) return this.events.request(method, p);
     if (method === 'venture.files.poster') return fakePoster(this.host, p);
     if (method === 'venture.blueprint.suggest') return fakePlanSuggest(this.host, p);
     if (method === 'venture.models.cli.status') return fakeCliStatus(this.host, p);
