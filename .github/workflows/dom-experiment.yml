@@ -1,0 +1,39 @@
+name: D2 paired DOM experiment
+on:
+  push:
+    branches: ['b2c/os-dom-probe-*']
+permissions:
+  contents: read
+jobs:
+  paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Record the machine
+        run: lscpu > "$RUNNER_TEMP/dom-machine.txt"
+      - name: Full single-worker jsdom baseline
+        timeout-minutes: 60
+        run: npx vitest run --config app/ui/vitest.config.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/jsdom.json" > "$RUNNER_TEMP/jsdom.log" 2>&1
+      - name: Switch only the DOM environment for the experiment
+        if: '!cancelled()'
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const p='app/ui/vitest.config.ts'; const s=fs.readFileSync(p,'utf8'); const before=\"environment: 'jsdom'\"; if(s.split(before).length!==2)throw Error('Expected one DOM project'); fs.writeFileSync(p,s.replace(before,\"environment: 'happy-dom'\"));"
+      - name: Full single-worker happy-dom candidate
+        if: '!cancelled()'
+        timeout-minutes: 60
+        run: npx vitest run --config app/ui/vitest.config.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/happy-dom.json" > "$RUNNER_TEMP/happy-dom.log" 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paired-dom
+          path: |
+            ${{ runner.temp }}/jsdom.*
+            ${{ runner.temp }}/happy-dom.*
+            ${{ runner.temp }}/dom-machine.txt
