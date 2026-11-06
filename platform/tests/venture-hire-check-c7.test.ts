@@ -150,3 +150,16 @@ test('replies, uploads, bookings, filings, orders and signatures are outward unl
   ];
   for (const duty of inside) assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
 });
+
+// C7 (main lane, the integrator's note in LANE2-C-review-3): the floor is an allow-list for duties. A duty passes only
+// when every clause is internal (keeps, tracks, lists, checks, flags, summarises, drafts, suggests, prepares and the
+// like) or directed at the owner; any other act refuses HIRE_FLOOR with the rewrite hint. The engine's approval gates
+// stay the real guard for every outward act.
+test('the duty floor is an allow-list: an act it does not know refuses, internal and owner-directed duties pass', () => {
+  for (const duty of ['Renews subscriptions automatically', 'Applies discounts to repeat customers', 'Approves leave requests', 'Hires freelancers for big orders', 'Negotiates rates with vendors', 'Transfers leads to the sales team', 'Onboards new clients']) {
+    assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR', 'drafts for your approval'), duty);
+  }
+  for (const duty of ['Lists the week\'s open orders', 'Flags invoices that are late', 'Checks the calendar for clashes every morning', 'Summarizes client feedback', 'Monitors the stock levels', 'Records each refund request in the tracker', 'Compares supplier quotes for me', 'Writes caption ideas for my approval', 'Updates the content calendar', 'Every Friday, summarises the week']) {
+    assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
+  }
+});

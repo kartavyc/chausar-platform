@@ -56,13 +56,45 @@ const OWNER_FIRST = /\b(?:draft\w*|suggest\w*|propos\w*|prepares?|preparing|asks
 const CLAUSES = /\s*(?:[.,;&/\n]|\s-\s|\band\b|\bthen\b|\bbut\b|\bplus\b|\balso\b|\bwhile\b)\s*/;
 /** Reminding, notifying or messaging anyone but the owner is an outward message (review round 3). */
 const OUTWARD_VERBS = new Set(['remind', 'reminds', 'notify', 'notifies', 'alert', 'alerts', 'warn', 'warns', 'ping', 'pings', 'tell', 'tells', 'text', 'texts', 'call', 'calls', 'contact', 'contacts', 'invite', 'invites', 'greet', 'greets', 'thank', 'thanks', 'follow', 'follows', 'chase', 'chases', 'nudge', 'nudges', 'whatsapp', 'whatsapps', 'dm', 'dms']);
-/** True when the words have the agent send, pay, post, delete or change a price without the owner. */
-function actsWithoutOwner(words: string): boolean {
+/**
+ * C7 (main lane): the duty floor is an allow-list. A duty's clause passes only when its act is one of these, kept inside
+ * the business (keeping, tracking, listing, checking, drafting, suggesting and the like), or when it is directed at the
+ * owner (OWNER_FIRST). Scheduling and filing count as inside unless they name others (WITH_OTHERS). Any other act refuses.
+ */
+const INTERNAL_VERBS = new Set(['keep', 'keeps', 'track', 'tracks', 'list', 'lists', 'check', 'checks', 'flag', 'flags', 'summarise', 'summarises', 'summarize', 'summarizes',
+  'draft', 'drafts', 'suggest', 'suggests', 'prepare', 'prepares', 'propose', 'proposes', 'read', 'reads', 'note', 'notes', 'log', 'logs', 'record', 'records',
+  'watch', 'watches', 'monitor', 'monitors', 'sort', 'sorts', 'organise', 'organises', 'organize', 'organizes', 'research', 'researches', 'find', 'finds',
+  'compare', 'compares', 'plan', 'plans', 'write', 'writes', 'calculate', 'calculates', 'count', 'counts', 'review', 'reviews', 'update', 'updates',
+  'tag', 'tags', 'label', 'labels', 'collect', 'collects', 'gather', 'gathers', 'study', 'studies', 'measure', 'measures', 'outline', 'outlines', 'brainstorm', 'brainstorms',
+  'schedule', 'schedules', 'file', 'files']);
+/** Words that open a clause without being its act: when, how often, for whom. Skipped to find the act. */
+const LEAD_WORDS = new Set(['automatically', 'also', 'always', 'regularly', 'carefully', 'quickly', 'then', 'every', 'each', 'daily', 'weekly', 'monthly',
+  'on', 'in', 'at', 'by', 'for', 'with', 'when', 'if', 'before', 'after', 'once', 'until', 'the', 'a', 'an', 'my', 'all', 'any', 'morning', 'evening', 'night',
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'week', 'month', 'day', 'first', 'last', 'next']);
+/** The clause's act: its first word that is not a lead word, or null when it has none (a fragment such as "on Fridays"). */
+function actOf(words: readonly string[]): string | null {
+  return words.find(word => !LEAD_WORDS.has(word) && !/^\d+$/.test(word)) ?? null;
+}
+/** Whether a duty's clause is an act kept inside the business (WITH_OTHERS decides scheduling and filing). */
+function insideAct(words: readonly string[]): boolean {
+  const act = actOf(words);
+  if (act === null) return true;
+  if (!INTERNAL_VERBS.has(act)) return false;
+  const shared = WITH_OTHERS_OF[act];
+  return !shared || !WITH_OTHERS[shared].test(words.slice(words.indexOf(act) + 1).join(' '));
+}
+
+/**
+ * True when the words have the agent send, pay, post, delete or change a price without the owner. allowList (duties):
+ * also true when a clause's act is not one kept inside the business and the clause is not directed at the owner.
+ */
+function actsWithoutOwner(words: string, allowList = false): boolean {
   const flat = words.toLowerCase(), tokens = flat.split(/[^a-z0-9]+/).filter(Boolean);
   if (UNATTENDED.test(flat) && tokens.some(word => FLOOR_ACTS.has(word))) return true;
   return flat.split(CLAUSES).filter(Boolean).some(clause => {
     if (OWNER_FIRST.test(clause)) return false;
     const words = clause.split(/[^a-z0-9]+/).filter(Boolean);
+    if (allowList && !insideAct(words)) return true;
     return words.some((word, index) => {
       if (index > 0 && !VERB_PLACE.has(words[index - 1])) return false;
       if (FLOOR_VERBS.has(word)) return true;
@@ -89,8 +121,8 @@ export function checkHire(role: HireRole, context: { agentNames: readonly string
     if (stop) throw new ChausarError('HIRE_HARD_STOP', `${stop.line} ${HARD_STOP_WORDS}`);
   }
   // The raw words, so a new line still separates two acts (the stored fields have their spaces collapsed).
-  for (const words of [role.job, ...role.duties]) {
-    if (actsWithoutOwner(words)) throw new ChausarError('HIRE_FLOOR', 'A hired agent asks you before anything is sent, paid, posted, deleted or priced. Write that duty so it drafts for your approval.');
+  for (const [index, words] of [role.job, ...role.duties].entries()) {
+    if (actsWithoutOwner(words, index > 0)) throw new ChausarError('HIRE_FLOOR', 'A hired agent asks you before anything is sent, paid, posted, deleted or priced. Write that duty so it drafts for your approval.');
   }
   return { name, job, duties, reads: [...role.reads], department: role.department };
 }
