@@ -390,6 +390,8 @@ function deliveryRun(
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
     state: runState, startedAt: run.at, elapsed: spent.worked,
+    ...(runState === 'done' && record.verdict ? { finishedAt: record.verdict.at } : {}),
+    ...(record.practice ? { practice: true as const } : {}),
     ...(spent.waited !== undefined ? { waited: spent.waited } : {}),
     ...(runState === 'waiting' && spent.waitingSince ? { waitingSince: spent.waitingSince } : {}),
     ...(clientRecord ? { client: { id: clientRecord.id, name: clientRecord.name } } : {}),
@@ -651,7 +653,7 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
   const { scenarios: total, passed } = record.summary;
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Rehearse with practice clients', state: 'done',
-    startedAt: record.startedAt, elapsed: elapsedText(record.startedAt, record.finishedAt),
+    startedAt: record.startedAt, finishedAt: record.finishedAt, practice: true, elapsed: elapsedText(record.startedAt, record.finishedAt),
     result: `${passed} of ${total} practice ${total === 1 ? 'client' : 'clients'} passed.`,
   };
   const steps: RunStep[] = record.episodes.map((episode, index) => {
@@ -685,7 +687,7 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
   const startedAt = record.startedAt ?? record.at;
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
-    startedAt, elapsed: elapsedText(startedAt, record.at),
+    startedAt, finishedAt: record.at, practice: true, elapsed: elapsedText(startedAt, record.at),
     // One-shot A4 (rows 38, 128): a kept version Practice no longer offers (adopted, rolled back, or the plan changed)
     // says why, in Practice's own words, never that it is ready to adopt.
     result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300)
@@ -733,7 +735,7 @@ function allRuns(deps: VentureDeps, ctx: Context, whole: boolean): { state: Stat
 /** venture.runs.list { state? } (read): runs newest first. 'active' keeps the working and waiting ones, 'done' the rest. */
 export async function runsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ runs: RunSummary[] }> {
   const body = exactPayload(payload, ['state']);
-  check(body.state === undefined || body.state === 'active' || body.state === 'done' || body.state === 'all', 'INVALID_VENTURE_REQUEST', 'Choose active, done or all runs.');
+  check(body.state === undefined || body.state === 'active' || body.state === 'done' || body.state === 'all', 'INVALID_VENTURE_REQUEST', 'Choose active, done or all jobs.');
   const want = (body.state as 'active' | 'done' | 'all' | undefined) ?? 'all';
   const { runs } = allRuns(deps, ctx, false);
   const summaries = [...runs.values()].map(build => build().summary)

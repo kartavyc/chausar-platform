@@ -20,11 +20,12 @@ function job(name: string): string {
 /** The run lines of a job, in order. */
 const runs = (text: string) => [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1].trim());
 
-test('CI runs on every push (a branch push gets the fast lane), on pull requests (docs-only ones skipped) and by hand', () => {
+test('CI runs on every push (a branch push gets the fast lane), on pull requests (including docs-only changes) and by hand', () => {
   const on = workflow.slice(workflow.search(/^on:$/m), workflow.search(/^permissions:$/m));
   assert.match(on, /^ {2}push:$/m);
   assert.doesNotMatch(on, /branches:/, 'D2: every branch push runs, the heavy jobs only on main');
-  assert.match(on, /^ {2}pull_request:\n {4}paths-ignore:\n {6}- 'docs\/\*\*'\n {6}- '\*\*\/\*\.md'$/m);
+  assert.match(on, /^ {2}pull_request:$/m);
+  assert.doesNotMatch(on, /paths-ignore:/, 'docs drive tests too');
   assert.match(on, /^ {2}workflow_dispatch:$/m);
   assert.match(workflow, /^concurrency:\n {2}group: open-verification-\$\{\{ github\.ref \}\}\n {2}cancel-in-progress: true$/m, 'an older run on the same ref is cancelled');
 });
@@ -181,4 +182,11 @@ test('D3: no workflow writes or uploads results/; each ci.yml test job sets the 
   }
   assert.match(job('verify'), /path: \$\{\{ runner\.temp \}\}\/chausar\/engine-tests\/factory-bench\.json$/m);
   assert.match(job('ui'), /path: \$\{\{ runner\.temp \}\}\/chausar\/ui-tests\/ui-tests\.json$/m);
+});
+
+
+test('cleanup: compile caches refresh per commit with a reusable lockfile prefix', () => {
+  const verify = job('verify');
+  assert.match(verify, /key: node-cc-.*github\.sha/);
+  assert.match(verify, /restore-keys:.*node-cc-/);
 });

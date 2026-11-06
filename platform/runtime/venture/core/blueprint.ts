@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, core (P1): the blueprint (the one-page plan).
 // Code makes the structure (offers and their pricing, steps, approval count, back office, starter connectors)
 // from the interview; a model or the templates only write words into named slots. The structure is hashed before
@@ -8,7 +9,7 @@ import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
   tidyWords, ventureAction, type VentureTx,
 } from '../records.ts';
-import { APPROVAL_COUNT, INTERVIEW_IDS, OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, STARTER_CONNECTORS, STEP_IDS, STEP_PLAN } from '../contracts.ts';
+import { APPROVAL_COUNT, INTERVIEW_IDS, OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, STARTER_CONNECTORS, STEP_IDS, STEP_PLAN } from '../contract-values.ts';
 import type {
   BackOffice, BlueprintModelOutput, BlueprintRecord, BlueprintStep, BlueprintView, CountryProfile, InterviewRecord, Json,
   Labelled, ModelTask, Offer, PlanFlagshipStep, PricingModel, ServiceType, TermRecord, VentureDeps, VentureRecord, VentureStatus,
@@ -694,7 +695,7 @@ export function ensureTerms(tx: VentureTx, blueprint: BlueprintRecord): void {
 // ---------------------------------------------------------------------------
 
 const PATCH_KEYS = ['countryCode', 'name', 'oneLiner', 'customer', 'taxRegistered', 'taxRate', 'taxId', 'taxState', 'sacCode', 'lutConfirmed', 'offers', 'addOffer', 'removeOffer'] as const;
-const DIGEST_TEXT = /^[a-f0-9]{64}$/;
+const DIGEST_TEXT = DIGEST_PATTERN;
 const STALE_SUGGESTION = 'Your plan changed since this was suggested. Ask again, then apply it.';
 
 /** The plan version a patch was made from (a suggestion's basedOn): its id and digest. */
@@ -1050,7 +1051,7 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
 export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
   requireAppChannel(ctx, 'venture.blueprint.accept');
   const body = exactPayload(payload, ['digest'], ['digest']);
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you read.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you read.');
   return ventureAction(deps, ctx, 'approve', 'blueprint.accept', tx => {
     const venture = tx.venture as VentureRecord;
     const latest = latestBlueprint(tx.state, venture.id);

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The Pipeline tab (#/clients/pipeline; the old #/clients/leads opens it too): the pipeline as the engine keeps it
  * (spec 5.5; the direction D board D-Clients; the engine's 4E1 venture.pipeline.list). On top the four tiles, then the
@@ -21,6 +22,7 @@ import { Figure } from '../../parts/Figure';
 import { useT, type T } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
+import { Button } from '../../parts/Button';
 import { Board, BoardCard, type BoardColumn } from '../../parts/Board';
 import { EmptyState } from '../../parts/EmptyState';
 import { FilterChips, type FilterOption } from '../../parts/FilterChips';
@@ -31,7 +33,7 @@ import { PathLine } from '../../parts/PathLine';
 import { StrengthDots } from '../../parts/StrengthDots';
 import type { LeadEmailCheck, LeadView, PipelineCardView, PipelineStage, PipelineView } from '../../engine/types';
 import { clientsChanged } from './signals';
-import { codeOf, dotsOf, messageOf, networkRefresh } from './network';
+import { codeOf, dotsOf, networkRefresh } from './network';
 import { pathPeople, pathStrength, STAGE_ORDER, useCardWords } from './pipeline';
 import { PipelineTiles } from './PipelineTiles';
 import { DueList } from './DueList';
@@ -45,7 +47,7 @@ type Show = 'all' | 'due' | 'drafts';
 const CLOSING: ReadonlySet<string> = new Set(['won', 'lost', 'not-now']);
 const FILTER: Readonly<Record<Exclude<Show, 'all'>, 'due' | 'draft'>> = { due: 'due', drafts: 'draft' };
 
-export function PipelineTab({ board, leads }: { board: Resource<PipelineView>; leads: LeadView[] }) {
+export function PipelineTab({ board, leads, hasNetwork = false }: { board: Resource<PipelineView>; leads: LeadView[]; hasNetwork?: boolean }) {
   const t = useT();
   const route = useRoute();
   const engine = useEngine();
@@ -82,10 +84,8 @@ export function PipelineTab({ board, leads }: { board: Resource<PipelineView>; l
       <EmptyState
         title={t('clients.pipeline.empty')}
         line={t('clients.pipeline.empty.line')}
-        actions={[
-          { label: t('clients.pipeline.toNetwork'), href: '#/clients/network' },
-          { label: t('clients.leads.add'), onSelect: () => openSheet('lead', 'new') },
-        ]}
+        action={<Button variant={route.sheet ? 'secondary' : 'primary'} onClick={event => openSheet('lead', 'new', event.currentTarget)}>{t('clients.leads.add')}</Button>}
+        actions={[hasNetwork ? { label: t('clients.pipeline.toNetwork'), href: '#/clients/network' } : { label: t('clients.pipeline.import'), onSelect: () => openSheet('network-import', 'new') }]}
       />
     );
   }

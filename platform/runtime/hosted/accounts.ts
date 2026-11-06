@@ -1,9 +1,10 @@
+import { sha256Hex } from '../hash.ts';
 // Chausar hosted tier: accounts, sign-in and sessions. No passwords exist anywhere.
 // - Email links: a random token, stored only as its SHA-256, single use, fifteen minutes, and bound to the browser
 //   that asked for it (a random value in an HttpOnly cookie), so a link forwarded to someone else signs nobody in.
 // - Passkeys: added from a fresh session, then used for sign-in without typing an email.
 // - Sessions: a random token in an HttpOnly cookie, stored only as its SHA-256, with idle and absolute expiry.
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { check, newId } from '../contracts.ts';
 import { newTenantId, type HostedCustody } from './custody.ts';
 import type { DirectoryState, HostedDirectory, HostedPasskey, HostedSessionRecord, HostedUser } from './directory.ts';
@@ -21,7 +22,7 @@ export const FRESH_SESSION_MS = 15 * MINUTE;
 const TOUCH_EVERY_MS = 5 * MINUTE;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
-const sha256 = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
+const sha256 = (value: string) => sha256Hex(value);
 const token = () => randomBytes(32).toString('base64url');
 const sameHex = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 

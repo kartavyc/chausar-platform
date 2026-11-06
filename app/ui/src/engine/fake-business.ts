@@ -684,7 +684,7 @@ export class FakeBusinessDesk {
       seed = {
         ...base, kind: 'price', title: changes.length === 1 ? `New price for ${first.name.value}` : 'New prices in your plan',
         line: rest.length ? `Also changes ${rest.map((o) => o.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
-        change: { label: first.name.value, before: this.priceText(accepted.offers.find((a) => a.id === first.id), `accepted:${biz}:${first.id}`), after: this.priceText(first, `${biz}:${first.id}`) },
+        change: { label: first.name.value, before: this.priceText(accepted.offers.find((a) => a.id === first.id), `accepted:${biz}:${first.id}`), after: this.priceText(first, `${biz}:${first.id}`), ownerEntered: true },
         // B4 task 7: one price and nothing else is one press on the price the row shows.
         actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, ...(this.priceOnly(accepted!, latest) ? {} : { secondAsk: true }) }],
       };
@@ -720,7 +720,7 @@ export class FakeBusinessDesk {
     const receipt: ReceiptLite = {
       id: this.host.receiptId(), at: this.host.now(), stale: false, totalMinor: String(total), figures,
       explanation: sample ? (quantity === 1n ? sample.explanation : `${quantityText} units of ${offer.name.value} at ${display}, with the sample GST: ${showMinor(total)}.`) : taxed
-        ? `${offer.name.value} at ${display}. The sample engine does not work out GST; the real one does, with each step on this receipt.`
+        ? `${offer.name.value} at ${display}. GST is not included in this sample.`
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);

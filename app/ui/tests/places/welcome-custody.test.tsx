@@ -35,9 +35,11 @@ const sent = (calls: Calls, method: string) => calls.filter(([m]) => m === metho
 async function press(button: HTMLElement) { await act(async () => { fireEvent.click(button); }); }
 const welcome = () => screen.findByRole('heading', { level: 1, name: 'Welcome back' });
 const appShown = () => screen.findByRole('navigation', { name: 'Places' });
+/** B4 task 12: the other ways in: links at rest when there are two, in one chooser when there are more. */
 async function moreOption(name: string) {
-  fireEvent.click(await screen.findByText('More options', { selector: 'summary' }));
-  await press(screen.getByRole('button', { name }));
+  const chooser = screen.queryByText('Bring a business here');
+  if (chooser) fireEvent.click(chooser);
+  await press(await screen.findByRole('button', { name }));
 }
 
 describe('Welcome back: a business locked with a passphrase', () => {
@@ -216,7 +218,7 @@ describe('Welcome back: move a business here', () => {
     fireEvent.change(input, { target: { files: [new File([text], name, { type: 'application/json' })] } });
   };
 
-  it("Chausar's button opens the file chooser; the code sits outside any form; the file and code go once, the code is cleared", async () => {
+  it("Chausar's button opens the file chooser; the code sits outside any form; the file and code go once, a wrong code stays to fix", async () => {
     const move = await moveFile();
     const { calls } = start({ fresh: true });
     await press(await screen.findByRole('button', { name: 'Open a business you already have' }));
@@ -246,7 +248,8 @@ describe('Welcome back: move a business here', () => {
     expect(go().disabled).toBe(false);
     await press(screen.getByRole('button', { name: 'Move it here' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG));
-    expect(code.value).toBe('');
+    // B4 task 12: what was typed stays, so a typo can be fixed.
+    expect(code.value).toBe('CHT-WRONG');
     // B4: the wrong code marks its field and its words describe it.
     expect(code.getAttribute('aria-invalid')).toBe('true');
     expect(code.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id);
@@ -320,7 +323,6 @@ describe('Welcome back: open by folder name', () => {
   it('is not offered while the list shows every business here', async () => {
     start({ closed: true });
     await welcome();
-    fireEvent.click(screen.getByText('More options', { selector: 'summary' }));
     expect(screen.queryByRole('button', { name: 'Find it on this computer' })).toBeNull();
   });
 
@@ -356,6 +358,8 @@ describe('Welcome back on hosted', () => {
     const { calls } = start({ closed: true, hosted: true }, { transport: 'hosted' });
     await welcome();
     expect(screen.queryByText('More options')).toBeNull();
+    expect(screen.queryByText('Bring a business here')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Restore a backup' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Move from another computer' })).toBeNull();
     expect(calls.some(([m]) => m.startsWith('workspace.custody.') || ['workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.recover', 'workspace.restore'].includes(m))).toBe(false);
   });

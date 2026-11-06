@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TRIM } from './package-trim.mjs';
 
-const CODEX_VERSION = '0.166.0';
+import { CODEX_BUNDLE } from './codex-bundle.mjs';
+export const CODEX_VERSION = CODEX_BUNDLE.version;
 const INK_ENTRY = 'app/ui/dist/index.html';
 const MAX_HEADER_BYTES = 64 * 1024 * 1024;
 
@@ -88,7 +89,7 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
   let bundleWorker = false;
   try { bundleWorker = (await lstat(join(bundle, 'runtime', 'worker.js'))).isFile(); } catch { bundleWorker = false; }
   if (!bundleWorker) problems.push("the engine bundle's worker (app/engine/dist/runtime/worker.js) is not unpacked");
-  const maps = [];
+  const maps = archive.filter(path => path.startsWith('app/engine/') && path.endsWith('.map'));
   try {
     for (const entry of await readdir(bundle, { withFileTypes: true, recursive: true })) {
       if (entry.isFile() && entry.name.endsWith('.map')) maps.push(join(entry.parentPath ?? entry.path, entry.name).slice(unpacked.length + 1).replace(/\\/g, '/'));

@@ -26,7 +26,7 @@ const REVIEWED: readonly DeliveryRunRecord['status'][] = ['ready-for-review', 'a
 
 /** Whether an agent id is on this business's team (Keeper is code): the delivery agent, or a flagship role with steps. */
 function requireAgent(state: State, venture: VentureRecord | null, agentId: string): VentureRecord {
-  check(agentId !== 'keeper', 'AGENT_IS_CODE', 'Keeper is code, not AI. It makes no drafts to count.');
+  check(agentId !== 'keeper', 'AGENT_IS_CODE', 'Keeper uses fixed rules, not AI. It makes no drafts to count.');
   check(venture, 'AGENT_NOT_FOUND', 'That agent was not found.');
   const plan = acceptedBlueprintOrNull(state, venture);
   let steps = currentPlaybook(state, venture)?.steps ?? null;

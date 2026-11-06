@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Bills (W4 4J5, M10; D-Money's bills): what the business owes others. The list is the engine's (venture.bills.list),
  * nearest due first, each with its vendor, dates, state in words and whether it repeats, and what is left to pay on it
@@ -26,7 +27,7 @@ import { Figure } from '../../parts/Figure';
 import { Row } from '../../parts/Row';
 import { PAYMENT_METHODS, type BillView, type PaymentMethod } from '../../engine/types';
 import { Failed, Section } from './parts';
-import { messageOf, onMoney, typedWords, useDay, useLocalToday } from './words';
+import { onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Select } from '../../parts/Select';

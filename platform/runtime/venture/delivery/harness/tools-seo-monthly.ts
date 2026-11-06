@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../hash.ts';
 // SEO monthly tools. loamwright (Apache-2.0), seo-agent/beyondseo (MIT) ideas; no copied source.
 import type {Spec,ToolEnv} from './tools.ts';
 import type {ToolName} from '../../contracts.ts';
@@ -5,7 +6,7 @@ import {ChausarError} from '../../../contracts.ts';
 type Monthly=Extract<ToolName,'seo.corroborate'|'seo.lint'|'seo.meta'|'seo.impact'|'seo.refresh'|'seo.local'>;
 const input={file:{type:'text' as const,required:true,max:20,about:'The order file alias: CSV for refresh, or a UTF-8 JSON evidence manifest for other checks.'}};
 async function source(env:ToolEnv,alias:unknown,json=true){const {fileOf}=await import('./tools.ts');const file=fileOf(env,alias);if(file.bytes>1000000)throw new ChausarError('SEO_INPUT_INVALID','Use an evidence file below one megabyte.');const text=Buffer.from(file.contentBase64,'base64').toString('utf8');let data:any=text;if(json){const {readSeoManifest}=await import('../../playbooks/seo-visibility/manifest-core.ts');data=readSeoManifest(text);}const {digest}=await import('../../records.ts');return {file,data,source:{id:file.id,name:file.name,digest:digest(file.contentBase64)}};}
-async function artifact(text:string){const {createHash}=await import('node:crypto');return createHash('sha256').update(text).digest('hex');}
+async function artifact(text:string){const {createHash}=await import('node:crypto');return sha256Hex(text);}
 async function receipt(env:ToolEnv,data:unknown,counts:Record<string,number>,source:{id:string;name:string;digest:string}){const {seoCountReceipt}=await import('./tools-seo-receipts.ts');return seoCountReceipt(env,data,counts,[source]);}
 /** Each tool reads its evidence file from this run; the model cannot supply a receipt or a fetched page body. */
 export const SEO_MONTHLY_TOOLS:Record<Monthly,Spec>={

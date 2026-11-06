@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -8,7 +9,7 @@ import { saveTextFile } from '../../parts/custody';
 import { EngineError, type BuildStatusView, type BuilderId, type FileBuilderId } from '../../engine/types';
 import { ExternalLink, openProblem } from '../connections/external';
 import { BUILDER_NAMES, handOff } from './handoff';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import { SiteEdits } from './SiteEdits';
 import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
@@ -83,8 +84,10 @@ export function BuildView() {
           <Builders status={build.data} ready={brief.lint.ok} onOpened={build.reload} />
         </div>
       ) : briefTile}
-      <GitHub status={build.data} onChanged={build.reload} />
-      <SiteEdits />
+      {brief && <>
+        <Fold summary={t('business.forDeveloper')}><GitHub status={build.data} onChanged={build.reload} /></Fold>
+        <SiteEdits />
+      </>}
     </div>
   );
 }

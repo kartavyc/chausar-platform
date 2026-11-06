@@ -79,7 +79,6 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
   return (
     <article className={cx(s.tile, className)} aria-labelledby={titleId} data-card="" data-featured={featured ? '' : undefined}>
       <div className={s.head}>
-        <span className={s.icon} data-dept={way.dept ?? 'none'}><Icon name={way.icon} size={20} /></span>
         {featured ? (
           <span className={s.fit} data-fit="">
             <span className={s.chip} data-chip="" data-tone="fit"><Icon name="sparkles" size={14} />{t('gallery.featured')}</span>
@@ -87,8 +86,6 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
           </span>
         ) : way.running ? (
           <span className={s.chip} data-chip=""><span className={s.square} aria-hidden="true">{initialsOf(way.running)}</span>{t('gallery.youRunThis')}</span>
-        ) : way.category ? (
-          <span className={s.chip} data-chip="">{way.category}</span>
         ) : null}
       </div>
       <h3 id={titleId} className={s.name}>{way.name}</h3>

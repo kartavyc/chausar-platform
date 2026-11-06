@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -8,7 +9,7 @@ import { codeOf, refusalWords } from '../../parts/custody';
 import { Way, useNewPassphrase } from './WelcomeWays';
 import s from './Onboarding.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * C5 task 21: open an exported copy. The desktop shows the file dialog and hands back a token and the file's name; the window

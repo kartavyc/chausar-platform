@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useTime } from '../../parts/when';
@@ -8,7 +9,7 @@ import type { FileRequestView } from '../../engine/types';
 import s from './Work.module.css';
 import f from './FileRequest.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * "A file from your client" on a Work order (W4 4J21, from 4J7's venture.share.request, catalogue K9): one press makes

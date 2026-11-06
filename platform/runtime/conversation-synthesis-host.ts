@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 import { ConversationHistoryService, conversationRecordIntegrity } from './conversation-history.ts';
 import type { CalculationReceipt } from './calculator.ts';
@@ -22,7 +23,7 @@ const STALE = 'SYNTHESIS_STALE', INVALID = 'INVALID_SYNTHESIS';
 const plain = (value: unknown): value is Record<string, any> => !!value && typeof value === 'object'
   && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 const reference = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(value);
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const clean = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const equal = (left: unknown, right: unknown): boolean => hash(clean(left)) === hash(clean(right));
 function exact(value: unknown, keys: string[]) {

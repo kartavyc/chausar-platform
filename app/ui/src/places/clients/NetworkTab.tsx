@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The Network tab (#/clients/network; spec 5.5, the direction D board D-Network, modelled on Happenstance): the owner's
  * own network from their own files, searched in plain words. It opens on the search (starters that fill the box and
@@ -17,7 +18,7 @@
 import { memo, useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
-import { openSheet } from '../../shell/navigation';
+import { openSheet, useRoute } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
 import { ConsentWords } from '../../parts/ConsentWords';
 import { Button } from '../../parts/Button';
@@ -36,7 +37,7 @@ import { ExternalLink } from '../connections/external';
 import { clientsChanged, useClientsChanged } from './signals';
 import { NetworkSources } from './NetworkSources';
 import { NetworkDrafts } from './NetworkDrafts';
-import { codeOf, dotsOf, LinkedInButton, messageOf, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
+import { codeOf, dotsOf, LinkedInButton, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
 import s from './Network.module.css';
 import { Fold } from '../../parts/Fold';
 
@@ -60,6 +61,7 @@ type Search =
 
 /** `count`: the people view with limit 0, read for the tab's count; it says how many there are and nothing else. */
 export function NetworkTab({ count }: { count: Resource<PeopleView> }) {
+  const route = useRoute();
   const t = useT();
   const engine = useEngine();
   const sources = useResource('venture.network.sources', {}, { refreshOn: networkRefresh });
@@ -77,7 +79,7 @@ export function NetworkTab({ count }: { count: Resource<PeopleView> }) {
       <EmptyState
         title={t('clients.network.empty')}
         line={t('clients.network.empty.line')}
-        action={<Button variant="primary" onClick={(event) => openSheet('network-import', 'new', event.currentTarget)}><Icon name="upload" size={16} />{t('clients.network.import')}</Button>}
+        action={<Button variant={route.sheet ? "secondary" : "primary"} onClick={(event) => openSheet('network-import', 'new', event.currentTarget)}><Icon name="upload" size={16} />{t('clients.network.import')}</Button>}
       />
     );
   }

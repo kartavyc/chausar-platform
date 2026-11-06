@@ -3,7 +3,7 @@
 // official link and a pasted link may start building at once, so Chausar copies the brief instead.
 // The engine opens nothing: the renderer opens the URL from the owner's click, then reports back.
 import { authorize, check, type Context } from '../../contracts.ts';
-import { BUILDER_IDS } from '../contracts.ts';
+import { BUILDER_IDS } from '../contract-values.ts';
 import type { BriefFilePlan, BuilderId, HandoffPlan, HandoffRecord, VentureDeps } from '../contracts.ts';
 import { digest, exactPayload, identifier, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { acceptedBlueprint, briefMarkerLines, latestBrief } from './brief.ts';

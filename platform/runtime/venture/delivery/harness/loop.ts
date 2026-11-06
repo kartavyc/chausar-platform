@@ -15,7 +15,7 @@ import { caNamedTokens } from '../../playbooks/ca-firm/draft-references.ts';
 // Today asks the owner for one more window. While calls wait for the owner, each turn is told they have not run.
 import { ChausarError, check } from '../../../contracts.ts';
 import { assertNoNumbers, tidyWords } from '../../records.ts';
-import { REQUIRED_SECTIONS } from '../../contracts.ts';
+import { REQUIRED_SECTIONS } from '../../contract-values.ts';
 import type {
   AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, IsoTime, Json, MicroString, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
   UploadFormat, VentureHostKind, WorkReceiptRecord,

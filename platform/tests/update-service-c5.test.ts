@@ -35,7 +35,7 @@ async function setup(t: TestContext, extra: Partial<UpdateServiceOptions> = {}) 
   const reads: string[] = [], downloads: string[] = [];
   let answer: () => Promise<{ text: string; signature: string }> = async () => feedOf();
   const service = new UpdateService({
-    publicKey, feedUrl: 'https://downloads.example.com/{channel}/feed.json', directory, version: '0.1.0', channel: 'beta', windowsPublisher: null, platform: 'linux', appImage: '/owned/Chausar.AppImage',
+    publicKey, feedUrl: 'https://downloads.example.com/{channel}/feed.json', directory, version: '0.1.0', channel: 'beta', windowsCertificateThumbprint: null, platform: 'linux', appImage: '/owned/Chausar.AppImage',
     clock: () => now, isBusy: () => busy,
     readFeed: async url => { reads.push(url); return answer(); },
     download: async request => { downloads.push(request.url); return { status: 200, url: request.url, headers: {}, body: (async function* () { yield FILE; })() }; },
@@ -110,7 +110,7 @@ test('while a run is busy the tick waits; turning Check daily off stops it; the 
   await service.settled();
   assert.deepEqual(reads, []);
   assert.equal((await service.settings({ channel: 'stable' })).channel, 'stable');
-  const again = new UpdateService({ publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory, version: '0.1.0', channel: 'beta', windowsPublisher: null, clock: () => 0, isBusy: () => false, platform: 'linux' });
+  const again = new UpdateService({ publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory, version: '0.1.0', channel: 'beta', windowsCertificateThumbprint: null, clock: () => 0, isBusy: () => false, platform: 'linux' });
   const kept = await again.view();
   assert.deepEqual([kept.daily, kept.channel], [false, 'stable']);
   for (const bad of [{}, { daily: 'no' }, { channel: 'nightly' }, { daily: true, path: 'C:/x' }, null]) await assert.rejects(service.settings(bad), (error: any) => error.code === 'INVALID_UPDATE_SETTINGS', JSON.stringify(bad));
@@ -198,19 +198,19 @@ test('what a staged release reads depends on this computer: needs signing, ready
     await made.service.settled();
     return made;
   };
-  assert.equal((await (await stageIt({ platform: 'win32', windowsPublisher: null })).service.view()).state, 'needs-signing');
-  assert.equal((await (await stageIt({ platform: 'win32', windowsPublisher: 'Chausar' })).service.view()).state, 'ready');
+  assert.equal((await (await stageIt({ platform: 'win32', windowsCertificateThumbprint: null })).service.view()).state, 'needs-signing');
+  assert.equal((await (await stageIt({ platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40) })).service.view()).state, 'ready');
   assert.equal((await (await stageIt({ platform: 'darwin' })).service.view()).state, 'manual');
   assert.equal((await (await stageIt({ platform: 'linux', appImage: null })).service.view()).state, 'manual');
   // What main found at the last quit counts for that same version.
-  const found = await stageIt({ platform: 'win32', windowsPublisher: 'Chausar' });
+  const found = await stageIt({ platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40) });
   await writeFile(join(found.directory, 'last-install.json'), JSON.stringify({ version: '0.2.0', state: 'needs-signing' }));
   assert.equal((await found.service.view()).state, 'needs-signing');
   await writeFile(join(found.directory, 'last-install.json'), JSON.stringify({ version: '0.2.0', state: 'data-newer' }));
   assert.equal((await found.service.view()).state, 'data-newer');
   // The next start runs the new version: the staged copy has done its work and goes.
   const done = await stageIt({ platform: 'linux' });
-  const after = new UpdateService({ publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory: done.directory, version: '0.2.0', channel: 'beta', windowsPublisher: null, clock: () => 0, isBusy: () => false, platform: 'linux', appImage: '/owned/Chausar.AppImage' });
+  const after = new UpdateService({ publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory: done.directory, version: '0.2.0', channel: 'beta', windowsCertificateThumbprint: null, clock: () => 0, isBusy: () => false, platform: 'linux', appImage: '/owned/Chausar.AppImage' });
   assert.equal((await after.view()).state, 'idle');
   assert.deepEqual((await readdir(join(done.directory, 'stage'))).filter(name => name.includes('release')), []);
 });
@@ -246,9 +246,9 @@ test('the feed and the release may redirect only to the release hosts, and the f
 
 test('the worker reads its update settings from what main hands it', () => {
   assert.equal(updatesOptionsFrom({}), undefined, 'no folder, no service: older hosts stay as they were');
-  const options = updatesOptionsFrom({ CHAUSAR_UPDATES_DIRECTORY: '/owned/updates', CHAUSAR_UPDATE_PUBLIC_KEY: 'key', CHAUSAR_UPDATE_FEED: 'https://github.com/x', CHAUSAR_UPDATE_CHANNEL: 'beta', CHAUSAR_WINDOWS_PUBLISHER: 'Chausar', APPIMAGE: '/owned/a.AppImage' });
-  assert.deepEqual(options, { directory: '/owned/updates', publicKey: 'key', feedUrl: 'https://github.com/x', channel: 'beta', windowsPublisher: 'Chausar', appImage: '/owned/a.AppImage' });
-  assert.deepEqual(updatesOptionsFrom({ CHAUSAR_UPDATES_DIRECTORY: '/owned/updates', CHAUSAR_UPDATE_PUBLIC_KEY: '', CHAUSAR_UPDATE_CHANNEL: 'other' }), { directory: '/owned/updates', publicKey: null, feedUrl: null, channel: 'stable', windowsPublisher: null, appImage: null });
+  const options = updatesOptionsFrom({ CHAUSAR_UPDATES_DIRECTORY: '/owned/updates', CHAUSAR_UPDATE_PUBLIC_KEY: 'key', CHAUSAR_UPDATE_FEED: 'https://github.com/x', CHAUSAR_UPDATE_CHANNEL: 'beta', CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT: 'A'.repeat(40), APPIMAGE: '/owned/a.AppImage' });
+  assert.deepEqual(options, { directory: '/owned/updates', publicKey: 'key', feedUrl: 'https://github.com/x', channel: 'beta', windowsCertificateThumbprint: 'A'.repeat(40), appImage: '/owned/a.AppImage' });
+  assert.deepEqual(updatesOptionsFrom({ CHAUSAR_UPDATES_DIRECTORY: '/owned/updates', CHAUSAR_UPDATE_PUBLIC_KEY: '', CHAUSAR_UPDATE_CHANNEL: 'other' }), { directory: '/owned/updates', publicKey: null, feedUrl: null, channel: 'stable', windowsCertificateThumbprint: null, appImage: null });
 });
 
 // The engine answers these three before the vault check, beside workspace.custody.get.
@@ -257,7 +257,7 @@ test('the engine answers updates.status, updates.settings and updates.check with
   t.after(() => rm(directory, { recursive: true, force: true }));
   let now = 1_000_000;
   const reads: string[] = [];
-  const engine = new Engine({ version: '0.1.0', directory, demo: true, storage: 'experimental-file', updates: { publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory: join(directory, 'updates'), channel: 'beta', windowsPublisher: null, platform: 'linux', appImage: '/owned/a.AppImage', clock: () => now, readFeed: async url => { reads.push(url); return feedOf('0.1.0'); } } });
+  const engine = new Engine({ version: '0.1.0', directory, demo: true, storage: 'experimental-file', updates: { publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory: join(directory, 'updates'), channel: 'beta', windowsCertificateThumbprint: null, platform: 'linux', appImage: '/owned/a.AppImage', clock: () => now, readFeed: async url => { reads.push(url); return feedOf('0.1.0'); } } });
   t.after(() => engine.shutdown());
   const status = await engine.request('updates.status', {});
   assert.deepEqual([status.state, status.version, status.channel, status.daily, status.configured], ['idle', '0.1.0', 'beta', true, true]);
@@ -300,4 +300,12 @@ test('on the local server, only the owner on this computer changes how it update
   assert.ok(BOOTSTRAP_ONLY_METHODS.includes('updates.settings'));
   assert.ok(BOOTSTRAP_ONLY_METHODS.includes('updates.check'));
   assert.ok(!BOOTSTRAP_ONLY_METHODS.includes('updates.status'));
+});
+
+test('overlapping ticks admit only one update check after loading settings', async t => {
+  const { service, reads, advance } = await setup(t);
+  advance(10 * MINUTE);
+  await Promise.all([service.tick(), service.tick(), service.tick()]);
+  await service.settled();
+  assert.equal(reads.length, 1);
 });

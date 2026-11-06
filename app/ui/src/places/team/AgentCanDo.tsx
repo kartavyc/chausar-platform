@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
@@ -8,7 +9,7 @@ import { capabilityPageWords, capabilityWords } from './CapabilityWords';
 import s from './AgentExtras.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** Each state's chip: works is done, a hand-off waits on the owner, planned and off are plain labels. Words say it too. */
 const TONE: Readonly<Record<CapabilityItemView['state'], ChipTone>> = { works: 'done', reads: 'neutral', records: 'neutral', 'hands-off': 'wait', planned: 'line', off: 'idle' };

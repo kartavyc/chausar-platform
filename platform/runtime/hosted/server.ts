@@ -17,7 +17,7 @@ import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
 import { HostedApp, SHARE_TOKEN_PATTERN, type FileRequestPageView, type SharePageView } from './app.ts';
 import { hostedConfig, type HostedConfig } from './config.ts';
-import { refuseInsideRepo } from '../data-home.ts';
+import { refuseInsideRepo, previousDataNotice } from '../data-home.ts';
 import { HostedCustody } from './custody.ts';
 import { hostedPushPort } from './notify.ts';
 import { NOT_A_TRIAL_LINE, TRIAL_OFF_LINE } from './trial.ts';
@@ -739,6 +739,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try { started = await startHosted(config); }
   catch (error) { if ((error as ChausarError).code !== 'UI_NOT_BUILT') throw error; console.error((error as Error).message); process.exit(1); }
   const { http } = started;
+  const previous = previousDataNotice(resolve('data/hosted'), config.dataDirectory);
+  if (previous) console.log(previous);
   await http.listen(config.listen.host, config.listen.port);
   console.log(`Chausar hosted web (experimental) at ${config.origin}, listening on ${config.listen.host}:${config.listen.port}.`);
   console.log(config.storage === 'postgres'

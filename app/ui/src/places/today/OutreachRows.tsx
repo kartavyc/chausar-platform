@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Today's follow-up and reply cards and the "Add notes" notice after a call (Ink v2 wave 4, 4E4; the engine's
  * network/followup-rows.ts and inbound-rows.ts). The engine sends each row's parts (who, the due day and days late, the
@@ -18,7 +19,7 @@ import { navigate, openSheet } from '../../shell/navigation';
 import type { EngineClient, OutreachChannel, QueueAction, QueueRow } from '../../engine/types';
 import { reserveTab } from '../connections/external';
 import { handoffText, opensPage, performHandoff } from '../clients/handoff';
-import { codeOf, messageOf } from '../clients/network';
+import { codeOf } from '../clients/network';
 import { NeverContactLost } from '../clients/NeverContactLost';
 import s from './OutreachRows.module.css';
 

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
 import type { InvoiceRecord, PaymentRecord, VentureDeps, VentureMethod } from '../runtime/venture/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type { PinnedTarget } from '../runtime/venture/core/net-guard.ts';
 import { handlers } from '../runtime/venture/core/index.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';

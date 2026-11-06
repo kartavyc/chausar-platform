@@ -85,22 +85,12 @@ describe('Start: the header', () => {
 });
 
 describe('Start: how starting works', () => {
-  it('three numbered steps in icons and words, with no figure, count or digit to hear', async () => {
+  it('one line, with no figure, count or digit to hear (B4 task 12)', async () => {
     start();
-    const how = await screen.findByRole('region', { name: 'How starting works' });
-    const steps = within(how).getByRole('list');
-    expect(steps.tagName).toBe('OL');
-    const items = within(steps).getAllByRole('listitem');
-    expect(items).toHaveLength(3);
-    expect(within(how).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Describe it', 'Read your plan', 'Approve real work']);
-    for (const item of items) {
-      expect(item.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
-      expect(item.querySelector('p')?.textContent).toBeTruthy();
-    }
+    await screen.findByRole('heading', { level: 1 });
+    const how = document.querySelector('[data-how-line]')!;
+    expect(how.textContent).toBe('Describe it in one sentence, read your plan, then approve real work on Today.');
     expect(how.querySelector('[data-ui-number], [data-figure], [data-count], [data-estimate]')).toBeNull();
-    expect(heard(how)).not.toMatch(/\d/);
-    // No miniature cards: no button, no chip that looks like one.
-    expect(within(how).queryAllByRole('button')).toEqual([]);
   });
 });
 
@@ -295,7 +285,7 @@ describe('Start: the first run stays simple', () => {
     expect(within(main).getByText('Chausar')).toBeTruthy();
     expect(within(main).getByRole('list', { name: 'Setup steps' })).toBeTruthy();
     expect(within(main).queryByRole('group', { name: 'Examples' })).toBeNull();
-    expect(within(main).queryByRole('region', { name: 'How starting works' })).toBeNull();
+    expect(document.querySelector('[data-how-line]')).toBeNull();
     expect(within(main).queryByRole('link', { name: 'Resume setup' })).toBeNull();
     expect([...main.querySelectorAll('[data-variant="primary"]')].map((b) => b.textContent)).toEqual(['Sign in with Codex']);
     assertInkRules();
@@ -352,7 +342,7 @@ describe('Start: the gallery slot (filled by W4 4J21)', () => {
     expect(primaries[0]!.getAttribute('aria-label')).toBe('Start Online tuition');
     fireEvent.click(within(section).getByRole('button', { name: 'Start Menu cards for cafes' }));
     expect(onStart).toHaveBeenCalledWith('menu-cards');
-    expect(within(screen.getByRole('region', { name: 'How starting works' })).getAllByRole('heading', { level: 3 })[0]!.textContent).toBe('Describe or pick');
+    expect(document.querySelector('[data-how-line]')!.textContent).toMatch(/^Pick a way to earn or describe your own/);
     expect(await screen.findByRole('textbox', { name: 'Or describe it in one sentence' })).toBeTruthy();
     // The gallery comes before the one-sentence tile, as on the board.
     expect(follows(section, screen.getByRole('textbox', { name: 'Or describe it in one sentence' }))).toBe(true);

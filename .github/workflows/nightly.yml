@@ -37,6 +37,9 @@ jobs:
       - name: Point the run root at the runner's temp folder, outside the checkout
         shell: bash
         run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
+      - name: Report dead-code findings for review
+        if: matrix.os == 'ubuntu-latest' && matrix.shard == 1
+        run: npm run knip -- --no-exit-code
       - name: Run every engine test tier in this shard
         run: node scripts/bench.mjs --tier=all --shard=${{ matrix.shard }}/3 --workers=3
       - name: Upload the engine receipt
@@ -118,6 +121,8 @@ jobs:
         run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run the whole Ink frontend suite
         run: node scripts/ui-bench.mjs
+      - name: Shuffle shared logic tests to detect state leaks
+        run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts --project=logic --sequence.shuffle
       - name: Upload the UI receipt
         if: always()
         uses: actions/upload-artifact@v4

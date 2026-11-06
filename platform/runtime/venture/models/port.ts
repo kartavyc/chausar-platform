@@ -13,7 +13,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
-import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
+import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contract-values.ts';
 import type {
   CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
   ModelStatusView, ModelTask, ModelTier, SpendRate, VentureDeps,
@@ -27,7 +27,7 @@ import {modelBudgetUsed} from './budget.ts';
 import { exactModelRate } from './exact-rate.ts';
 import { currentRoutineScope } from '../agents/routine-scope.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
-import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
+import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, cacheSystem, parseAnthropic } from './anthropic.ts';
 import {
   SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, cliRouteFlags, codexCommand, codexHost, codexPlan, parseClaudeCli, parseCodexCli, unknownRouteFlags,
   type CliPlan, type CodexHost,
@@ -85,7 +85,7 @@ type Prepared =
   | { transport: 'http'; routeKind: 'anthropic-messages' | 'openai-responses'; url: string; body: string; payloadText: string }
   | { transport: 'process'; plan: CliPlan; payloadText: string };
 
-type Pending = { prepared: Prepared };
+type Pending = { prepared: Prepared; cacheSystem: boolean };
 
 // ---------------------------------------------------------------------------
 // Record access
@@ -508,13 +508,13 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
     return { usable: true, reason: availabilityOf(spec.id, liveOf(state)).availabilityReason };
   };
 
-  const prepare = (connection: ConnectionRecord, spec: PresetSpec, given: ModelTask<unknown>): Prepared => {
+  const prepare = (connection: ConnectionRecord, spec: PresetSpec, given: ModelTask<unknown>, table?: ModelPriceTable | null): Prepared => {
     // The secret screen (W1 H17) before anything is built: the request, the preview and the call record all hold the
     // screened text, so a key or token pasted into the instructions or the input never leaves and is never kept.
     const task: ModelTask<unknown> = { ...given, instructions: redactSecrets(given.instructions), input: redactPayload(given.input) };
     const model = connection.model ?? spec.model ?? '';
     if (spec.kind === 'anthropic-messages') {
-      const body = anthropicBody(model, task);
+      const body = anthropicBody(model, task, table);
       return { transport: 'http', routeKind: spec.kind, url: ANTHROPIC_URL, body, payloadText: body };
     }
     if (spec.kind === 'openai-responses') {
@@ -825,9 +825,10 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
       }
       check(state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
       if (route.problem) throw new ChausarError(route.problem.code, route.problem.message);
-      const prepared = prepare(route.connection, route.spec, task);
-      check(clientDataFindings(prepared.payloadText, state).length === 0, 'CLIENT_DATA_NEEDS_APPROVAL', MESSAGES.clientDataFound);
-      const { rate, table } = await priceOf(ctx, state, route, task, prepared);
+      const plain = prepare(route.connection, route.spec, task);
+      check(clientDataFindings(plain.payloadText, state).length === 0, 'CLIENT_DATA_NEEDS_APPROVAL', MESSAGES.clientDataFound);
+      const { rate, table } = await priceOf(ctx, state, route, task, plain);
+      const prepared = prepare(route.connection, route.spec, task, table);
       const estimate = estimateMaxCostMicros(prepared.payloadText.length, task.maxOutputTokens, table);
       const call = await ventureAction(actionDeps, ctx, 'prepare', 'models.call', tx => {
         sweep(tx);
@@ -851,16 +852,17 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
       if (route.kind === 'template') return null;
       check(state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
       if (route.problem) throw new ChausarError(route.problem.code, route.problem.message);
-      const prepared = prepare(route.connection, route.spec, task);
+      const plain = prepare(route.connection, route.spec, task);
       // Priced now so the preview shows the figure; nothing is held until the owner approves and it is sent.
-      const { table } = await priceOf(ctx, state, route, task, prepared);
+      const { table } = await priceOf(ctx, state, route, task, plain);
+      const prepared = prepare(route.connection, route.spec, task, table);
       const estimate = estimateMaxCostMicros(prepared.payloadText.length, task.maxOutputTokens, table);
       const call = await ventureAction(actionDeps, ctx, 'prepare', 'models.preview', tx => {
         sweep(tx);
         requireCurrentConnection(tx, route.connection);
         return putRecord(tx, newCall(tx, route, tier, task, prepared, estimate, 'approved-preview', table));
       });
-      pending.set(call.id, { prepared });
+      pending.set(call.id, { prepared, cacheSystem: cacheSystem(table) });
       return {
         callId: call.id, payloadText: prepared.payloadText, digest: call.payloadDigest, presetId: call.presetId, model: call.model, endpoint: call.endpoint,
         estimatedMaxCostMicros: estimate, estimatedMaxCostDisplay: costDisplay(estimate, call.priceConfirmed, call.routeKind),
@@ -920,6 +922,8 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
         const subject = callSpend(current, spec);
         const rate = meteredRate(tx.state, current.ventureId, spec, current.model, transport.replay === true, subject);
         claimed.table = rate ? modelTableOf(rate, subject) : spec.priceTable;
+        // A newly enabled or disabled cache block requires a fresh preview of the exact body.
+        if (spec.kind === 'anthropic-messages' && held.cacheSystem !== cacheSystem(claimed.table)) throw stale;
         claimed.metered = rate !== null;
         if (rate) reserveSpend(tx, { ...subject, rate, estimateMicros: current.estimatedMaxCostMicros });
         const approved = replaceRecord(tx, {

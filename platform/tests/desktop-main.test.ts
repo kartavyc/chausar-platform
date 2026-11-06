@@ -937,7 +937,7 @@ test('C5 task 29: a worker that stops while Chausar quits is not started again',
 // One-shot C5 task 32: install on quit and the boot marker, called from main. update-wiring.cjs has its own tests.
 // ---------------------------------------------------------------------------
 
-const UPDATE_KEYS = { chausarUpdatePublicKey: 'the-public-key', chausarUpdateFeed: 'https://downloads.example.com/feed.json', chausarWindowsPublisher: 'Chausar', chausarPreview: false };
+const UPDATE_KEYS = { chausarUpdatePublicKey: 'the-public-key', chausarUpdateFeed: 'https://downloads.example.com/feed.json', chausarWindowsCertificateThumbprint: 'A'.repeat(40), chausarPreview: false };
 const standInUpdates = (order: unknown[], answer = { state: 'installer-started', version: '3.0.0' }) => ({
   startBoot: async () => { order.push('boot started'); return { attempts: 1, failed: false }; },
   clearBoot: async () => { order.push('boot cleared'); },
@@ -992,7 +992,7 @@ test('C5 task 32: Show installer answers the app window only and names only whic
   const contract = require('./ipc-contract.cjs');
   const d = await desktop([], Promise.resolve(), true, { metadata: UPDATE_KEYS, updates: standInUpdates([]) });
   const environment = d.engines[0].options.environment;
-  assert.deepEqual([environment.CHAUSAR_UPDATE_PUBLIC_KEY, environment.CHAUSAR_UPDATE_FEED, environment.CHAUSAR_WINDOWS_PUBLISHER], ['the-public-key', 'https://downloads.example.com/feed.json', 'Chausar']);
+  assert.deepEqual([environment.CHAUSAR_UPDATE_PUBLIC_KEY, environment.CHAUSAR_UPDATE_FEED, environment.CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT], ['the-public-key', 'https://downloads.example.com/feed.json', 'A'.repeat(40)]);
   const handler = d.handlers.get(contract.UPDATE_SHOW_CHANNEL), window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
   assert.equal((await handler({ sender: {}, senderFrame: own.senderFrame }, { kind: 'staged' })).error.code, 'UNTRUSTED_SENDER');
   for (const bad of [{}, { kind: 'previous' }, { kind: 'staged', path: 'C:/x' }, null]) assert.equal((await handler(own, bad)).error.code, 'INVALID_REQUEST', JSON.stringify(bad));

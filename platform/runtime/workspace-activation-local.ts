@@ -1,6 +1,8 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 import { constants } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, unlink } from 'node:fs/promises';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { authorize, check, ChausarError, hash, type Context, type State, internalCheck } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
@@ -13,7 +15,7 @@ import type { AuthenticatedActivationCandidate, WorkspaceActivationAuthority, Wo
   WorkspaceActivationPorts, WorkspaceActivationReadback } from './workspace-activation.ts';
 
 const purpose = 'workspace-interchange' as const;
-const sha = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
+const sha = (value: string | Uint8Array) => sha256Hex(value);
 const same = (a: unknown, b: unknown) => canonicalInterchangeJson(a) === canonicalInterchangeJson(b);
 const idPattern = /^[A-Za-z0-9_-]{1,100}$/;
 const slotPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -162,7 +164,7 @@ export class WorkspaceActivationLocalCustody {
     check(ledger?.format === 'chausar.activation-local-ledger.v1' && Array.isArray(ledger.claims) && ledger.claims.length <= 4096
       && ledger.claims.every(claim => claim?.format === 'chausar.activation-local-claim.v1'
         && [claim.sourceVaultId, claim.activationId, claim.candidateCreationId, claim.candidateId].every(id => idPattern.test(id))
-        && /^[a-f0-9]{64}$/.test(claim.pinDigest))
+        && DIGEST_PATTERN.test(claim.pinDigest))
       && new Set(ledger.claims.map(claim => claim.activationId)).size === ledger.claims.length
       && new Set(ledger.claims.map(claim => `${claim.sourceVaultId}:${claim.candidateCreationId}`)).size === ledger.claims.length,
     'ACTIVATION_JOURNAL_CHANGED', 'The authoritative durable identity ledger must contain distinct exact activation/candidate claims.');

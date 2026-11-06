@@ -9,11 +9,8 @@ import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { gstinValid } from '../runtime/memory.ts';
-import {
-  OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, STEP_IDS, STEP_PLAN, VENTURE_ERRORS,
-  type AnyVentureRecord, type ModelOutcome, type ModelPort, type ModelPurpose, type ModelTask, type SecretShelf,
-  type VentureDeps, type VentureMethod, type VentureRecordKind,
-} from '../runtime/venture/contracts.ts';
+import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, STEP_IDS, STEP_PLAN, VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
+import type { AnyVentureRecord, ModelOutcome, ModelPort, ModelPurpose, ModelTask, SecretShelf, VentureDeps, VentureMethod, VentureRecordKind } from '../runtime/venture/contracts.ts';
 import { assertNoNumbers, digest, doneClaimFindings, houseStyleFindings, ventureAction } from '../runtime/venture/records.ts';
 import { handlers, listCountries, previewPlan } from '../runtime/venture/core/index.ts';
 import { classifyIdea, offerWords, serviceTemplate, templateStrings } from '../runtime/venture/core/service-types.ts';

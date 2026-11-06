@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -17,7 +18,7 @@ import { Progress } from '../../parts/Progress';
 /** How often the screen looks again while a tool's own sign-in waits for the owner. */
 export const LOGIN_POLL_MS = 1500;
 const PRESET: Readonly<Record<ToolLite['cli'], string>> = { codex: 'codex-cli', 'claude-code': 'claude-code-cli' };
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const connectedTo = (status: ModelStatusLite | undefined) => Boolean(status && Object.values(status.tiers).some((tier) => tier.presetId !== TEMPLATES && tier.usable));
 
 /**
@@ -40,6 +41,8 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   /** One-shot C3 task 11: the owner stops watching the check; the key and Skip are here, and the answer is still taken when it lands. */
   const [stopLooking, setStopLooking] = useState(false);
   const options = useResource('venture.ai.options', {});
+  /** B4 task 12: the keychain chip shows only once a key is saved here. */
+  const saved = useResource('venture.ai.status', {});
   const [view, setView] = useState<ToolsLite | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   /** B4 task 4: what failed, in the card of the tool that failed, in place of its button; again() is the same press. */
@@ -154,7 +157,9 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
     try { await navigator.clipboard.writeText(code); setCopied(true); } catch { setCopied(false); }
   }
 
-  const recommended = view?.tools.find((tool) => tool.found)?.cli ?? null;
+  // B4 task 12: the fill sits on the way that works: a signed-in tool first, then the first one found; none while the key form is open.
+  const usable = view?.tools.find((tool) => tool.found && tool.signedIn === 'yes' && tool.setup?.state !== 'review' && tool.setup?.state !== 'refused');
+  const recommended = keyOpen ? null : usable?.cli ?? view?.tools.find((tool) => tool.found)?.cli ?? null;
   /** C4 task 4: Claude Code signed in on this computer, offered when Codex fails. */
   const claudeReady = view?.tools.some((tool) => tool.cli === 'claude-code' && tool.found && tool.signedIn === 'yes' && tool.setup?.state !== 'review' && tool.setup?.state !== 'refused') ?? false;
 
@@ -228,7 +233,6 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
 
   return (
     <div className={s.wrap}>
-      <p className={s.eyebrow}>{t('first-run.stepOf', { n: '1' })}</p>
       <h1 id={headingId} className={s.title}>{t('first-run.ai.title')}</h1>
       <p className={s.sub}>{t('first-run.ai.sub')}</p>
       <Bento className={s.grid} as="section" labelledBy={headingId}>
@@ -239,7 +243,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
         <Tile as="section" span={4} label={t('first-run.ai.key.name')} className={s.option} card>
           <div className={s.optionHead}><Icon name="lock" size={20} /><h2 className={s.optionName}>{t('first-run.ai.key.name')}</h2></div>
           <p className={s.optionLine}>{t('first-run.ai.key.line')}</p>
-          <span><Chip tone="line">{t('first-run.ai.key.chip')}</Chip></span>
+          {keyOpen && connectedTo(saved.data) && <span><Chip tone="line">{t('first-run.ai.key.chip')}</Chip></span>}
           <div className={s.optionAction}>
             <Button size="lg" aria-expanded={keyOpen} onClick={() => setKeyOpen((open) => !open)}>{t('first-run.ai.key.add')}</Button>
             <p className={s.hint}>{t('first-run.ai.key.hint')}</p>
@@ -273,11 +277,10 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
           </div>
         )}
 
-        <Tile span={12} className={s.footer}>
-          <Icon name="lock" size={16} />
-          <p>{t('first-run.ai.limits')}</p>
+        <div className={s.footer}>
           <Button variant="quiet" onClick={onSkip}>{t('first-run.ai.skip')}</Button>
-        </Tile>
+          <p className={s.hint}>{t('first-run.ai.limits')}</p>
+        </div>
       </Bento>
     </div>
   );

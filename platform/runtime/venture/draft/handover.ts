@@ -1,7 +1,7 @@
 // Chausar venture launcher, the draft desk: the handover into the vault on venture.create (onboarding spec 2.4).
 // Trusted host composition only (engine to venture host to deps), never from a payload. Everything it returns is a
 // copy; the keys leave only through moveKeys, and only after the vault write committed.
-import { MODEL_PRESET_IDS } from '../contracts.ts';
+import { MODEL_PRESET_IDS } from '../contract-values.ts';
 import type { ModelCallRecord, ModelConnectionRecord, SecretShelf } from '../contracts.ts';
 import type { DraftAi, DraftCompose, DraftHandoverPort } from '../onboarding-contracts.ts';
 import type { State, StateStore } from '../../contracts.ts';

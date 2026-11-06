@@ -26,7 +26,7 @@ const isPlace = (id: string): id is LayoutPlace => (PLACES as readonly string[])
 
 export function LayoutSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
-  if (!isPlace(id)) return <Sheet label={t('layout.sheet.label')} title={t('layout.arrange')} onClose={onClose} returnFocus={returnFocus}><LoadingPlace shape="list" /></Sheet>;
+  if (!isPlace(id)) return <Sheet label="" title={t('layout.sheet.title', { place: id })} onClose={onClose} returnFocus={returnFocus}><LoadingPlace shape="list" /></Sheet>;
   return <Arrange place={id} onClose={onClose} returnFocus={returnFocus} />;
 }
 
@@ -58,8 +58,9 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
   }
 
   const movable = (view?.blocks ?? []).filter((block) => block.movable);
+  const fixed = (view?.blocks ?? []).filter((block) => !block.movable && block.rename === 'fixed');
   return (
-    <Sheet label={t('layout.sheet.label')} title={title} line={t('layout.sheet.line')} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label="" title={title} line={t('layout.sheet.line')} onClose={onClose} returnFocus={returnFocus}>
       {said && (
         <p className={s.status} role="status" aria-label={t('layout.change.label')}>
           <span>{said.line}</span>
@@ -71,8 +72,10 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
       {layout.error && <p className={s.problem}>{layout.error.message}</p>}
       {view && (
         <>
+          {/* B4 task 13: what always shows is one line; a row is what can change. */}
+          {fixed.length > 0 && <p className={s.quiet}>{t('layout.always', { names: fixed.map((block) => block.name).join(', ') })}</p>}
           <ul className={s.list}>
-            {view.blocks.map((block) => (
+            {view.blocks.filter((block) => !fixed.includes(block)).map((block) => (
               <BlockRow
                 key={block.id}
                 block={block}
@@ -146,11 +149,10 @@ function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
             <Icon name="pencil" size={14} />
           </Button>
         )}
-        {!block.shown && <span className={s.hiddenMark}>{t('layout.hidden')}</span>}
         {block.movable && (
           <>
-            {!first && <Button variant="quiet" size="sm" disabled={busy} aria-label={t('layout.up', { name: block.name })} onClick={() => void send({ op: 'move', block: block.id, to: slot - 1 })}><span className={s.flip}><Icon name="chevron-down" size={16} /></span></Button>}
-            {!last && <Button variant="quiet" size="sm" disabled={busy} aria-label={t('layout.down', { name: block.name })} onClick={() => void send({ op: 'move', block: block.id, to: slot + 1 })}><Icon name="chevron-down" size={16} /></Button>}
+            {block.shown && !first && <Button variant="quiet" size="sm" disabled={busy} aria-label={t('layout.up', { name: block.name })} onClick={() => void send({ op: 'move', block: block.id, to: slot - 1 })}><span className={s.flip}><Icon name="chevron-down" size={16} /></span></Button>}
+            {block.shown && !last && <Button variant="quiet" size="sm" disabled={busy} aria-label={t('layout.down', { name: block.name })} onClick={() => void send({ op: 'move', block: block.id, to: slot + 1 })}><Icon name="chevron-down" size={16} /></Button>}
             <Button
               variant="secondary" size="sm" disabled={busy}
               aria-label={block.shown ? t('layout.hide', { name: block.name }) : t('layout.show', { name: block.name })}
@@ -161,7 +163,6 @@ function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
           </>
         )}
       </div>
-      {block.why && <p className={s.why}>{block.why}</p>}
       {editing && block.rename === 'free' && (
         <div className={s.rename}>
           <Field label={t('layout.name', { name: block.defaultName })} value={name} maxLength={32} autoFocus onKeyDown={keys} onChange={(event) => setName(event.currentTarget.value)} />

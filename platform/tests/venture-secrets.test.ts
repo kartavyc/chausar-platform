@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type {
   ModelHttpRequest, ModelTask, SecretName, SecretShelf, ShareLinkView, VentureDeps,
 } from '../runtime/venture/contracts.ts';

@@ -6,9 +6,10 @@
  */
 
 import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useT, type T } from '../../text';
+import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
+import { QUEUE_EVENTS } from '../../shell/needsYou';
 import { StorageNotice } from '../../shell/StorageNotice';
 import noteStyles from '../../shell/StorageNotice.module.css';
 import { StartAtLogin } from '../onboarding/StartAtLogin';
@@ -23,7 +24,7 @@ import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
 import { SwipeCard } from '../../parts/SwipeCard';
 import { cx } from '../../parts/cx';
-import { EngineError, type QueueAction, type QueueDecision, type QueueList, type QueueRow, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type QueueAction, type QueueDecision, type QueueRow, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { decide as decideRow, reread as rereadRow, seenKey, undoOf, useTodaySession, type DecidedLine } from './session';
 import { ViewSheet, viewSheetId } from './ViewSheet';
@@ -58,8 +59,6 @@ import ls from '../../parts/layout/Layout.module.css';
 // W6 6H1 (D39): the mini apps the owner pinned to Today (nothing when none is pinned).
 import { PinnedApps } from '../apps';
 
-/** A run waiting on the owner adds a row; a failed run adds "Run again". */
-const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 /** The team list changes with a posture or gate change, which the engine says with a queue change; the agents' states
  *  come from the runs, read on their own. */
 const TEAM_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
@@ -96,23 +95,6 @@ const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>
 
 const focusedRowId = () => (document.activeElement as HTMLElement | null)?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null;
 
-/**
- * 4Z2: the engine's summary in the screen's words, from its counts (queue.ts summaryOf: how many need you, across how
- * many businesses), so a Hindi screen reads Hindi. A locked business is its own card below, which says so. With nothing
- * counted, the engine's sentence stands.
- */
-function summaryWords(t: T, list: QueueList): string {
-  if (list.needsYou === 0) return list.summary;
-  return list.businesses > 1 ? t('today.sub.across', { count: list.needsYou, businesses: list.businesses }) : t('today.needs.count', { count: list.needsYou });
-}
-
-/** Two sentences on one line: the engine's summary and the working count, with a full stop between them. */
-function sentences(first: string | undefined, second: string | undefined): string | undefined {
-  if (!first) return second;
-  if (!second) return first;
-  return /[.!?।]$/.test(first.trim()) ? `${first} ${second}` : `${first}. ${second}`;
-}
-
 /** C4 task 35 (32.x1): after a passphrase opened this business, one quiet line on Today's first view, once. */
 function OpenedNote() {
   const t = useT();
@@ -148,6 +130,9 @@ function PlaceBody() {
   // The rows past the compact cards are shown; and a card the page was asked to bring into view and focus.
   const [expanded, setExpanded] = useState(false);
   const [reveal, setReveal] = useState<string | null>(null);
+  // B4 task 13: the card that equals the next best step stays mounted (the step presses its own buttons) and out of view
+  // until something brings it up: the step's press, its Open, a link to the row.
+  const [stepOpened, setStepOpened] = useState<string | null>(null);
   const listed = useRef<Map<string, QueueRow> | null>(null);
 
   const live = (queue.data?.rows ?? []).filter((row) => !session.isHidden(row.id)).map((row) => {
@@ -296,7 +281,6 @@ function PlaceBody() {
     ...held.map((row) => ({ row, done: undefined })),
     ...session.lines().filter((line) => !liveIds.has(line.row.id)).map((line) => ({ row: line.row, done: line })),
   ].sort((a, b) => deferredLast((id) => session.deferredRank(id))(a.row, b.row) || order((id) => session.place(id))(a.row, b.row));
-  const waiting = items.filter((item) => !item.done).length;
   const filter = knownFilter(route.query.show, live);
   const showBusiness = new Set(live.map((r) => r.businessId)).size > 1;
 
@@ -307,6 +291,7 @@ function PlaceBody() {
   function goToRow(id: string) {
     const row = live.find((r) => r.id === id);
     if (!row) return;
+    setStepOpened(id);
     const shown = matchesFilter(row, filter) ? filter : 'all';
     if (shown !== filter) chooseFilter('all');
     const place = items.filter((item) => matchesFilter(item.row, shown)).findIndex((item) => item.row.id === id);
@@ -366,6 +351,9 @@ function PlaceBody() {
   const stepId = goals.data?.next?.rowId;
   const stepDrawn = goalShown && stepId !== undefined && live.some((row) => row.id === stepId) && !session.line(stepId);
   const goalsPending = goalShown && goals.data === undefined && !goals.error;
+  // Only a row whose card adds nothing to the step: a plan or setup ask. A draft's card holds its preview, so it stays.
+  const stepKind = live.find((row) => row.id === stepId)?.kind;
+  const stepHidden = stepDrawn && stepId !== stepOpened && (stepKind === 'plan' || stepKind === 'setup') ? stepId : undefined;
   const holder = stepDrawn || goalsPending
     ? undefined
     : items.find((item) => !item.done && matchesFilter(item.row, filter) && !primaryOf(item.row, session.isViewed(seenKey(item.row)), t).locked)?.row.id;
@@ -394,7 +382,6 @@ function PlaceBody() {
   ));
 
   const activeRuns = runs.filter((run) => run.state === 'active').length;
-  const summary = waiting > 0 && queue.data ? summaryWords(t, queue.data) : undefined;
   // Keep a just-stopped row mounted while Today refreshes, so the owner's stop receipt and focus survive.
   // Once the queue arrives, a stopped run remains only while its resume row exists (replaced runs have none).
   const workingRuns = runs.filter((run) => ((run.state === 'active' || run.state === 'waiting')
@@ -411,8 +398,7 @@ function PlaceBody() {
   const blockContent: Readonly<Record<string, () => ReactNode>> = {
     greeting: () => (
       <Greeting
-        line={sentences(summary, activeRuns > 0 ? t('today.sub.working', { count: activeRuns }) : undefined)}
-        count={summary ? String(queue.data?.needsYou ?? waiting) : undefined}
+        line={activeRuns > 0 ? t('today.sub.working', { count: activeRuns }) : undefined}
         tools={<ArrangeButton place="today" />}
       />
     ),
@@ -432,6 +418,7 @@ function PlaceBody() {
         expanded={expanded}
         onExpand={(first) => { setExpanded(true); if (first) setReveal(first); }}
         card={card}
+        hiddenId={stepHidden}
         phone={narrow}
         tip={narrow && session.showsTip() ? <SwipeTip onHide={hideTip} /> : undefined}
       />
@@ -449,7 +436,6 @@ function PlaceBody() {
     if (!block?.shown) return null;
     return <div key={block.id} className={ls.block} data-block={block.id}>{blockContent[block.id]?.()}</div>;
   };
-  const ideasHidden = drawn.some((block) => block.id === 'ideas' && !block.shown);
 
   return (
     <PausedWork.Provider value={Boolean(business.data?.paused)}>
@@ -471,8 +457,6 @@ function PlaceBody() {
         )}
         {slot(7)}
         {slot(8)}
-        {/* Waiting on you lists what waits on the owner: it shows when the layout hides Ideas too. */}
-        {ideasHidden && <IdeasFold ideas={false} />}
         <FeedbackQuestion />
       </div>
     </PausedWork.Provider>

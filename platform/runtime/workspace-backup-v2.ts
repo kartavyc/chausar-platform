@@ -1,4 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
+import { randomUUID } from 'node:crypto';
 import { authorize, ChausarError, type Context, type State, internalCheck } from './contracts.ts';
 import type { PrivateArtifactPurpose, PrivateArtifactRef } from './vault.ts';
 
@@ -8,9 +10,9 @@ const SCOPE = 'authority-and-all-typed-private-artifacts' as const;
 const purposes: PrivateArtifactPurpose[] = ['private-trial', 'workspace-interchange'];
 const identifier = /^[A-Za-z0-9_-]{1,100}$/;
 const artifactIdentifier = /^[A-Za-z0-9_-]{1,180}$/;
-const digestPattern = /^[a-f0-9]{64}$/;
+const digestPattern = DIGEST_PATTERN;
 const namespacePattern = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_.-]+)*$/;
-const sha = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
+const sha = (value: string | Uint8Array) => sha256Hex(value);
 
 /** Explicit operation budgets supplied by trusted root policy; there are no implicit scope cuts. */
 export type WorkspaceBackupV2Budgets = {

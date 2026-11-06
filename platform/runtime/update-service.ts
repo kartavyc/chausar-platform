@@ -14,7 +14,7 @@ import { ReleaseUpdater, RELEASE_CHANNELS, fetchDownload, followRelease, compare
 export type { UpdateState, UpdatesView } from './update-service-core.ts';
 export type FeedReader = (url: string) => Promise<{ text: string; signature: string }>;
 export type UpdateServiceOptions = {
-  publicKey: string | null; feedUrl: string | null; directory: string; version: string; channel: ReleaseChannel; windowsPublisher: string | null;
+  publicKey: string | null; feedUrl: string | null; directory: string; version: string; channel: ReleaseChannel; windowsCertificateThumbprint: string | null;
   isBusy: () => boolean; platform?: NodeJS.Platform; appImage?: string | null; clock?: () => number; readFeed?: FeedReader; download?: ReleaseDownload;
 };
 type LastResult = 'up-to-date' | 'staged' | 'failed' | 'cut';
@@ -33,10 +33,10 @@ export function updateCheckDue(input: { now: number; startedAt: number; lastChec
 }
 
 /** What main hands the worker, as the engine's options. No folder: this host has no update service. */
-export function updatesOptionsFrom(environment: NodeJS.ProcessEnv): Pick<UpdateServiceOptions, 'directory' | 'publicKey' | 'feedUrl' | 'channel' | 'windowsPublisher' | 'appImage'> | undefined {
+export function updatesOptionsFrom(environment: NodeJS.ProcessEnv): Pick<UpdateServiceOptions, 'directory' | 'publicKey' | 'feedUrl' | 'channel' | 'windowsCertificateThumbprint' | 'appImage'> | undefined {
   const directory = environment.CHAUSAR_UPDATES_DIRECTORY;
   if (!directory) return undefined;
-  return { directory, publicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY || null, feedUrl: environment.CHAUSAR_UPDATE_FEED || null, channel: environment.CHAUSAR_UPDATE_CHANNEL === 'beta' ? 'beta' : 'stable', windowsPublisher: environment.CHAUSAR_WINDOWS_PUBLISHER || null, appImage: environment.APPIMAGE || null };
+  return { directory, publicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY || null, feedUrl: environment.CHAUSAR_UPDATE_FEED || null, channel: environment.CHAUSAR_UPDATE_CHANNEL === 'beta' ? 'beta' : 'stable', windowsCertificateThumbprint: environment.CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT || null, appImage: environment.APPIMAGE || null };
 }
 
 type Fetcher = typeof fetch;
@@ -129,7 +129,7 @@ export class UpdateService {
     const found = await this.#lastInstall(manifest.version);
     if (found === 'needs-signing' || found === 'publisher-mismatch' || found === 'data-newer' || found === 'manual') return found;
     const platform = this.#o.platform ?? process.platform;
-    if (platform === 'win32') return this.#o.windowsPublisher ? 'ready' : 'needs-signing';
+    if (platform === 'win32') return /^[a-f0-9]{40}$/i.test(this.#o.windowsCertificateThumbprint ?? '') ? 'ready' : 'needs-signing';
     if (platform === 'linux' && this.#o.appImage) return 'ready';
     return 'manual';
   }
@@ -186,6 +186,8 @@ export class UpdateService {
   async tick(): Promise<void> {
     if (!this.configured || this.#work) return;
     const kept = await this.#load();
+    // Another tick or Check now can start work while settings are loading.
+    if (this.#work) return;
     if (updateCheckDue({ now: this.#clock(), startedAt: this.#startedAt, lastCheckAt: kept.lastCheckAt, lastResult: kept.lastResult, daily: kept.daily, busy: this.#o.isBusy() })) this.#begin();
   }
   /** Tests and shutdown: the work under way has ended. */

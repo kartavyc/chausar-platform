@@ -112,7 +112,7 @@ export function quoted(text: string): ReactNode {
 }
 
 /** The engine's message, for a refusal the UI does not word itself. */
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** The engine's error code, or ''. */
 export const codeOf = (error: unknown): string => (error instanceof EngineError ? error.code : '');

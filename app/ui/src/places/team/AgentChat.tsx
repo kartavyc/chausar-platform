@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -22,7 +23,7 @@ import { cardLines, chatRefresh, itemId, partsText } from './chat';
 import c from './AgentChat.module.css';
 
 const CONSENT_CODES = new Set(['CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE']);
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** The owner said no to the consent: nothing failed, so the words go back to the box. */
 class ConsentDeclined extends Error {}
@@ -170,7 +171,8 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   // Earlier pages sit in the part of the log that is not read out; the page the thread read now is announced as it grows.
   const recentIds = new Set((data?.items ?? []).map(itemId));
   const olderEntries = entriesOf(items.filter((item) => !recentIds.has(itemId(item))));
-  const entries = [...entriesOf(items.filter((item) => recentIds.has(itemId(item)))), ...unsent.entries];
+  const entries: ThreadEntry[] = [...entriesOf(items.filter((item) => recentIds.has(itemId(item)))), ...unsent.entries];
+  if (asking) entries.push({ kind: 'card', id: 'chat-consent', at: clock().toISOString(), node: <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} /> });
 
   /** A proposal as decided here, until the thread is read again. */
   function proposal(view: AgentProposalView): AgentProposalView {
@@ -195,7 +197,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
     if (!suggestion) return [said];
     // C5 task 5: a reply written with no AI: its next step, set by code, opens Connections.
     if (suggestion.kind === 'connect-ai') {
-      return [said, { kind: 'card', id: `${message.id}-connect`, at: message.at, node: <Button onClick={() => goTo('connections')}>{t('team.chat.connect')}</Button> }];
+      return [said, { kind: 'card', id: `${message.id}-connect`, at: message.at, node: <a className={c.onToday} href="#/connections">{t('team.chat.connect')}</a> }];
     }
     return [said, {
       kind: 'card', id: `${message.id}-order`, at: message.at,
@@ -300,14 +302,13 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
         <p className={c.quiet} data-retired="">{data.retired.line}</p>
       ) : (
         <div className={c.compose}>
-          {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
           <Composer
             waitLabel={t('progress.writing')}
             key={initialKey ?? 0}
             initial={initial || undefined}
             label={t('team.chat.label', { name: agent.name })}
             onSend={unsent.sendKeeping}
-            suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
+            suggestions={[t('team.chat.suggest.ask'), { label: t('team.chat.suggest.rule'), fill: t('team.chat.suggest.standing') }, { label: t('team.chat.suggest.addNote'), fill: t('team.chat.suggest.note') }]}
             hint={t('team.chat.hint', { name: agent.name })}
           />
         </div>

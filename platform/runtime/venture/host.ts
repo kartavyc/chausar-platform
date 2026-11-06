@@ -13,7 +13,7 @@ import { settleError } from './refusals.ts';
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type State, type StateStore } from '../contracts.ts';
 import type { WorkKind } from './views/work-steps.ts';
-import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contract-values.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,

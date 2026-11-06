@@ -213,5 +213,50 @@ test('D5 fix: the real fetch port follows redirects and reports the final addres
   const fake = computer();
   await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host: 'desktop' }, { ...fake.ports, fetch: real.fetch }), code('CLAUDE_INSTALL_DOWNLOAD_FAILED'));
   assert.equal(fake.ran.length, 0, 'nothing run');
-  assert.deepEqual(asked.map(item => [item.url, item.init.redirect, item.init.signal instanceof AbortSignal]), [[CLAUDE_CODE_INSTALLERS.win32.url, 'follow', true]]);
+  assert.deepEqual(asked.map(item => [item.url, item.init.redirect, item.init.signal instanceof AbortSignal]), [[CLAUDE_CODE_INSTALLERS.win32.url, 'manual', true]]);
+});
+
+
+test('cleanup: omitted test ports fail closed without starting a process or fetching', async t => {
+  const { createRequire, syncBuiltinESMExports } = await import('node:module');
+  const child = createRequire(import.meta.url)('node:child_process');
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('real fetch reached'); });
+  t.mock.method(child, 'spawn', () => { throw new Error('real spawn reached'); });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  const ports = defaultClaudeInstallPorts({});
+  await assert.rejects(ports.fetch('https://claude.ai/install.sh', { signal: new AbortController().signal }), /test port not set/);
+  await assert.rejects(ports.run('never-run', [], { cwd: '.', env: {}, timeoutMs: 1, windowsHide: true, shell: false }), /test port not set/);
+});
+
+test('cleanup: installer redirects are checked before the next request and unused bodies are cancelled', async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  for (const target of ['https://outside.example/install.sh', 'http://claude.ai/install.sh', 'https://claude.ai/install.sh']) {
+    let sent = 0, cancelled = 0;
+    const ports = defaultClaudeInstallPorts({ fetch: async (url, init) => {
+      sent++;
+      assert.equal(init.redirect, 'manual');
+      return { ok: false, status: 302, url, headers: new Headers({ location: target }), body: { cancel: async () => { cancelled++; } } };
+    } });
+    await assert.rejects(ports.fetch('https://claude.ai/install.ps1', { signal: new AbortController().signal }));
+    assert.equal(cancelled, sent);
+    assert.equal(sent, target.startsWith('https://claude.ai/') ? 6 : 1);
+  }
+});
+
+test('cleanup: the installer refuses a body shorter than its declared length', async () => {
+  const fake = computer();
+  const fetch = fake.ports.fetch;
+  fake.ports.fetch = async (...args) => { const response = await fetch(...args); return { ...response, headers: new Headers({ 'content-length': String(SCRIPT.length + 1) }) }; };
+  await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'linux', host: 'desktop' }, fake.ports), code('CLAUDE_INSTALL_DOWNLOAD_FAILED'));
+  assert.equal(fake.ran.length, 0);
+});
+
+test('cleanup: a timed-out installer is killed and reports failure even if it never emits exit', { timeout: 2000 }, async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  let killed = 0;
+  const ports = defaultClaudeInstallPorts({ spawn: () => ({ once() {}, kill() { killed++; } }) });
+  assert.deepEqual(await ports.run('synthetic', [], { cwd: '.', env: {}, timeoutMs: 1, windowsHide: true, shell: false }), { exitCode: -1 });
+  assert.equal(killed, 1);
 });

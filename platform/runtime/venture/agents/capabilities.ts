@@ -12,7 +12,7 @@
 // reads, records, hands off, planned or off. An empty list never means everything. The words are typed against the
 // engine's own lists, so a new tool or effect cannot ship without them. Reads only; no model is asked.
 import { check, type Context, type State } from '../../contracts.ts';
-import { STEP_PLAN, TOOL_NAMES } from '../contracts.ts';
+import { STEP_PLAN, TOOL_NAMES } from '../contract-values.ts';
 import type {
   CapabilityItemView, CapabilityPageView, PlaybookStep, ServiceType, ToolName, VentureDeps, VentureHostKind, VentureRecord,
 } from '../contracts.ts';
@@ -227,7 +227,7 @@ const APPROVAL = 'Anything that sends, spends, posts or changes a price still wa
 export const TEAM_LINE = "The order's AI team shares one tool list: every agent that works on the order's files can use each tool here, and Chausar's code refuses any other. Whatever is on, anything that sends, spends, posts or changes a price still waits for your approval.";
 /** The line of an AI role with no act step: it holds no tools. */
 export const NO_TOOLS_LINE = `It holds no tools of its own: it works from what the team found. ${APPROVAL}`;
-const CODE_LINE = (name: string) => `${name} is code, not AI: it does the same steps the same way every time. ${APPROVAL}`;
+const CODE_LINE = (name: string) => `${name} uses fixed rules, not AI: it does the same steps the same way every time. ${APPROVAL}`;
 const PROVIDER = 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.';
 const JUDGE_PROVIDER = 'The AI quality check sends each draft it reads to your own AI provider.';
 const NOTHING_SEEN = 'Nothing: none of its steps gives it anything to read.';
@@ -393,7 +393,7 @@ export function capabilityTeam(state: State, venture: VentureRecord): (Capabilit
  * of the fixed steps. Keeper is AGENT_IS_CODE (its jobs are on Team); anyone else not on the team is AGENT_NOT_FOUND.
  */
 export function capabilityRole(state: State, venture: VentureRecord, agentId: string): { role: CapabilityRole; team: CapabilityTeam } {
-  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', 'Keeper is code, not AI. It holds no tools; its jobs are on Team.');
+  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', 'Keeper uses fixed rules, not AI. It holds no tools; its jobs are on Team.');
   const team = capabilityTeam(state, venture);
   check(team, 'AGENT_NOT_FOUND', 'That agent was not found.');
   const flagship = team.delivery;

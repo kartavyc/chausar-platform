@@ -38,32 +38,6 @@
   outline-offset: 1px;
 }
 
-.attach {
-  display: inline-grid;
-  place-items: center;
-  width: var(--control);
-  height: var(--control);
-  border: var(--hair) solid var(--btn-line);
-  border-radius: var(--r-button);
-  background: var(--surface);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.attach:has(:focus-visible) {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 1px;
-}
-
-.file {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  color: var(--fg2);
-  font-size: var(--text-label);
-}
-
 .hint {
   color: var(--dim);
   font-size: var(--text-label);
@@ -94,10 +68,11 @@
   font-weight: var(--weight-strong);
 }
 
+/* B4 task 12: a borderless two-column list of fields; the first run's only other way in. */
 .families {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--gap-grid);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--sp-6);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -108,41 +83,26 @@
 }
 
 .family {
-  display: grid;
-  gap: var(--sp-1);
   width: 100%;
-  height: 100%;
-  padding: var(--sp-4);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  min-height: var(--target);
+  padding: var(--sp-2) 0;
+  border: 0;
+  border-bottom: var(--hair) solid var(--line);
+  background: none;
   color: var(--fg);
   font: inherit;
+  font-size: var(--text-body);
   text-align: left;
   cursor: pointer;
 }
 
 .family:hover {
-  background: var(--hover);
+  color: var(--link);
 }
 
 .family:focus-visible {
   outline: var(--focus) solid var(--link);
   outline-offset: 1px;
-}
-
-.family[data-else] {
-  border-style: dashed;
-}
-
-.familyName {
-  font-size: var(--text-row);
-  font-weight: var(--weight-strong);
-}
-
-.familyLine {
-  color: var(--fg2);
-  font-size: var(--text-label);
 }
 
 /* Option B. */
@@ -208,13 +168,10 @@
   gap: var(--sp-2);
 }
 
+/* B4 task 12: the name block is flat. */
 .nameCard {
   display: grid;
   gap: var(--sp-1);
-  padding: var(--sp-4);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--inner);
 }
 
 .label {
@@ -231,7 +188,6 @@
 
 .offers {
   display: grid;
-  gap: var(--sp-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -240,9 +196,11 @@
 .offer {
   display: grid;
   gap: var(--sp-1);
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
+  padding: var(--sp-2) 0;
+}
+
+.offer + .offer {
+  border-top: var(--hair) solid var(--line);
 }
 
 .offerName {

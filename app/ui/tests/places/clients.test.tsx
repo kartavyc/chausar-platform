@@ -43,16 +43,17 @@ describe('Clients place', () => {
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     const boat = rows.find((r) => r.textContent?.includes('Boat Audio'))!;
-    expect(boat.textContent).toContain('Order open: Two mentions in episode 14');
+    expect(boat.textContent).toContain('Sponsor slot, Open');
+    expect(boat.textContent).not.toContain('Two mentions in episode 14');
     expect(within(boat).getByText('₹26,200').className).not.toContain('mono'); // B2: the body font
     expect(within(boat).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const nimbus = rows.find((r) => r.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.textContent).toContain('No orders yet.');
     expect(within(nimbus).queryByRole('button', { name: /receipt/i })).toBeNull();
-    // Ink v2 (3E2): the count in the header line is set in bold, so the line is one paragraph with a <b> in it.
+    // Counts belong to the tabs, without a repeated sentence under the heading.
     const line = screen.getByRole('heading', { level: 1, name: 'Clients' }).nextElementSibling!;
-    expect(line.textContent).toBe('2 clients');
-    expect(line.querySelector('b')?.textContent).toBe('2');
+    expect(line.textContent).toBe('');
+    expect(line.querySelector('b')).toBeNull();
   });
 
   it('opens a receipt from what a client owes', async () => {
@@ -182,20 +183,20 @@ describe('client sheet', () => {
     const suggestion = await within(field(sheet, 'Email')).findByRole('group', { name: 'Suggested email' });
     await act(async () => { fireEvent.click(within(suggestion).getByRole('button', { name: 'Dismiss' })); });
     expect(spy).toHaveBeenCalledWith('venture.evidence.dismiss', { id: 'ev-n2' });
-    expect(within(field(sheet, 'Email')).queryByRole('group', { name: 'Suggested email' })).toBeNull();
-    expect(document.activeElement).toBe(field(sheet, 'Email'));
+    expect(within(sheet).queryByRole('group', { name: 'Suggested email' })).toBeNull();
+    expect(document.activeElement).toBe(sheet.querySelector('[data-client-edit] summary'));
     await click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
     sheet = await openClient('Nimbus Mics');
-    await waitFor(() => expect(field(sheet, 'Email').textContent).toContain('Not given'));
-    expect(within(field(sheet, 'Email')).queryByRole('group', { name: 'Suggested email' })).toBeNull();
+    await waitFor(() => expect(within(sheet).queryByRole('group', { name: 'Email' })).toBeNull());
+    expect(within(sheet).queryByRole('group', { name: 'Suggested email' })).toBeNull();
     // The engine keeps it: a new window on the same engine does not show it either.
     unmount();
     window.location.hash = '#/clients';
     render(<App client={client} language="en" />);
     sheet = await openClient('Nimbus Mics');
-    await waitFor(() => expect(field(sheet, 'Email').textContent).toContain('Not given'));
-    expect(within(field(sheet, 'Email')).queryByRole('group', { name: 'Suggested email' })).toBeNull();
+    await waitFor(() => expect(within(sheet).queryByRole('group', { name: 'Email' })).toBeNull());
+    expect(within(sheet).queryByRole('group', { name: 'Suggested email' })).toBeNull();
     const items = (await client.request('venture.evidence.list', { subject: 'client:c-nimbus' })).items;
     expect(items.find((item) => item.id === 'ev-n2')?.dismissed).toBe(true);
   });

@@ -1,5 +1,7 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 import {AsyncLocalStorage} from 'node:async_hooks';
-import {createHash,randomUUID} from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {lstat,mkdir,readdir,readFile,open} from 'node:fs/promises';
 import {join,relative,resolve,isAbsolute,sep} from 'node:path';
 import {check,authorize,hash,ChausarError,type Context,type State,internalCheck} from './contracts.ts';
@@ -15,7 +17,7 @@ import {workspaceBackupV2Bytes,validateWorkspaceBackupV2,type WorkspaceBackupV2C
 import type {EmptyTargetInspection,WorkspaceInventory,ArtifactCapture} from './workspace-interchange-contracts.ts';
 import type {WorkspaceInterchangeSourceLease,WorkspaceInterchangeCustodyRecord} from './workspace-interchange-host.ts';
 
-const sha=(v:string|Uint8Array)=>createHash('sha256').update(v).digest('hex');
+const sha=(v:string|Uint8Array)=>sha256Hex(v);
 const equal=(a:unknown,b:unknown)=>canonicalInterchangeJson(a)===canonicalInterchangeJson(b);
 const ref=(v:PrivateArtifactRef):PrivateArtifactRef=>({id:v.id,purpose:v.purpose,valueDigest:v.valueDigest,diskBytes:v.diskBytes});
 const recordId=(id:string,part:string)=>'wac_'+sha(id)+'_'+part;
@@ -96,7 +98,7 @@ export class EngineWorkspaceActivation {
     const ledger:{format:'chausar.activation-candidate-ledger.v1';claims:CandidateClaim[]}=saved?value:{format:'chausar.activation-candidate-ledger.v1',claims:[]};
     check(ledger&&typeof ledger==='object'&&!Array.isArray(ledger)&&ledger.format==='chausar.activation-candidate-ledger.v1'&&equal(Object.keys(ledger).sort(),['claims','format'])&&Array.isArray(ledger.claims)&&ledger.claims.length<=4096
       &&ledger.claims.every(v=>v&&typeof v==='object'&&!Array.isArray(v)&&equal(Object.keys(v).sort(),['contextDigest','creationId','id','sourceVaultId'])&&typeof v.id==='string'&&typeof v.creationId==='string'&&idPattern.test(v.id)&&idPattern.test(v.creationId)
-        &&idPattern.test(v.sourceVaultId)&&/^[a-f0-9]{64}$/.test(v.contextDigest))
+        &&idPattern.test(v.sourceVaultId)&&DIGEST_PATTERN.test(v.contextDigest))
       &&new Set(ledger.claims.map(v=>v.id)).size===ledger.claims.length&&new Set(ledger.claims.map(v=>v.creationId)).size===ledger.claims.length,
       'ACTIVATION_CANDIDATE_CHANGED','Durable paired candidate identity consumption is malformed or ambiguous.');
     return{saved,ledger};

@@ -14,7 +14,7 @@
 // useopendesk/opendesk (Apache-2.0); the idempotency key on apply follows HelixDB/helix-foundry (Apache-2.0,
 // apps/api/src/routes/ontology.ts). These are rewrites in TypeScript, not copies.
 import { authorize, check, ChausarError, type Context, internalCheck } from '../../contracts.ts';
-import { JOURNAL_ACTION_IDS } from '../contracts.ts';
+import { JOURNAL_ACTION_IDS } from '../contract-values.ts';
 import type { ApprovalSeal, ConnectorPostRecord, IsoTime, JournalActionId, JournalRecord, JournalState, JournalTargetOutcome, VentureDeps } from '../contracts.ts';
 import { isAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { checkQuoteBinding, QUOTE_TTL_MS } from '../money/quote.ts';

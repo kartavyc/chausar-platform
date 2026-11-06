@@ -14,7 +14,7 @@ export function JobsTile({ departments, total, span }: { departments: readonly D
   const t = useT();
   const headId = useId();
   const points = departments
-    .filter((department) => department.jobs !== undefined)
+    .filter((department) => (department.jobs ?? 0) > 0)
     .map((department): BarPoint => ({
       key: department.id ?? department.dept,
       label: t(`dept.${department.dept}`),

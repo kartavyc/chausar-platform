@@ -92,7 +92,7 @@ function WorkRow({ run, detail, rowId, goToRow }: { run: RunSummary; detail: Run
   ) : state === 'waiting' ? (
     rowId ? (
       <button type="button" className={s.wait} onClick={() => goToRow(rowId)}>
-        {t('run.waiting')}
+        {t('today.working.review')}
         <span className="sr-only">{t('today.toRow')}</span>
       </button>
     ) : <span className={s.wait}>{t('run.waiting')}</span>
@@ -116,7 +116,7 @@ function WorkRow({ run, detail, rowId, goToRow }: { run: RunSummary; detail: Run
         </span>
       )}
       end={state === 'waiting' ? undefined : run.elapsed}
-      actions={stop.button}
+      actions={state === 'waiting' ? undefined : stop.button}
     >
       {stop.shown ? stop.panel : undefined}
     </Row>

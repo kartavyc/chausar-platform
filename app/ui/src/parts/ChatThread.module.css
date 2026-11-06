@@ -19,6 +19,10 @@
   margin-top: auto;
 }
 
+.thread[data-empty] > :first-child {
+  margin-top: 0;
+}
+
 /* Earlier pages the owner asked for (W4 4B3): spaced like the rest of the thread, outside what is read out. */
 .older {
   display: flex;

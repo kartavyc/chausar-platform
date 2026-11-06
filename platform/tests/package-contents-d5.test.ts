@@ -151,3 +151,18 @@ test('package-contents.mjs never imports desktop-package.mjs, so packaging canno
   const trim = await readFile(new URL('../../scripts/package-trim.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(trim, /^import /m, 'the shared rule imports nothing');
 });
+
+
+test('cleanup: an engine source map inside the archive refuses the package', async t => {
+  const root = await build(t, { archive: { ...CLEAN.archive, 'app/engine/maps/worker.js.map': '{}' } });
+  const result = await readPackageContents(root, { mode: 'beta' });
+  assert.ok(result.problems.some((line: string) => /source map ships/.test(line)));
+});
+
+
+test('cleanup: contents checks share the staging Codex version pin', async () => {
+  const staging = '../../scripts/codex-bundle.mjs';
+  const { CODEX_BUNDLE } = await import(staging);
+  const contents = await import(modulePath);
+  assert.equal(contents.CODEX_VERSION, CODEX_BUNDLE.version);
+});

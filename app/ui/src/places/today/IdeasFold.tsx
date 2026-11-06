@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -11,25 +12,14 @@ import { Fold } from '../../parts/Fold';
 /** Ideas rest on the business's records: a queue change (an invoice paid, an order moved) can make or retire one. */
 const IDEA_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.done' || event.type === 'run.failed';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-
-/**
- * Where a waiting line opens: an order on Work; a message on its reply card here on Today, whose id starts with
- * reply:<mail id> (network/inbound-rows.ts), which Today brings into view by that start (?row=).
- */
-function hrefOf(id: string, recordId: string): string {
-  return id.startsWith('waiting:order:') ? `#/work?order=${encodeURIComponent(recordId)}` : `#/today?row=${encodeURIComponent(`reply:${recordId}`)}`;
-}
 
 
 /** An idea the owner started here: the proposal it drafted, and where it stands now. */
 type Started = { idea: IdeaView; proposal: ProposalView | null; line: string; raised: string | null };
 
 /**
- * W4 4J22b, from 4J18 (catalogue A11): two folds at the very end of Today (D-Today's folds), closed at rest so the
- * page above them stays as it is.
- *   - Waiting on you: real records only (orders, and mail the owner answers themselves), newest first, each line
- *     the engine's, each opening where the thing is (the order on Work, the reply card on Today).
+ * W4 4J22b, from 4J18 (catalogue A11): a fold at the very end of Today, closed at rest so the page above it stays as it is.
+ * B4 task 13: "Waiting on you" left the page: the same things are cards above it and orders on Work.
  *   - Ideas: what code found in the business's own records (an invoice past its due day, an order delivered with no
  *     invoice, an order with no run a day after it came in), each with why and the records it rests on. An idea is a
  *     suggestion only: Start drafts a proposal (venture.ideas.start) and says so in the engine's words; nothing reaches
@@ -38,10 +28,9 @@ type Started = { idea: IdeaView; proposal: ProposalView | null; line: string; ra
  * A fold with nothing in it is not drawn at all.
  */
 /**
- * W6 6H3: `title`, the name the owner (or their AI) gave the Ideas fold; `ideas` false when the owner's layout hides it.
- * Waiting on you lists what waits on the owner, so it shows whatever the layout says.
+ * W6 6H3: `title`, the name the owner (or their AI) gave the Ideas fold.
  */
-export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string | undefined; ideas?: boolean } = {}) {
+export function IdeasFold({ title }: { title?: string | undefined } = {}) {
   const t = useT();
   const engine = useEngine();
   const view = useResource('venture.ideas.list', {}, { refreshOn: IDEA_EVENTS });
@@ -56,7 +45,6 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
   // An idea started here stays in view with its proposal, though the engine no longer lists it.
   const live = view.data.ideas.filter((idea) => !dismissed.has(idea.id) && !started[idea.id]);
   const ideas = [...Object.values(started).map((entry) => entry.idea), ...live];
-  const waiting = view.data.waiting;
 
   async function act(idea: IdeaView, what: 'start' | 'dismiss' | 'raise') {
     setBusy(idea.id);
@@ -84,23 +72,10 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
     }
   }
 
-  if ((!showIdeas || (ideas.length === 0 && !said && !problem)) && waiting.length === 0) return null;
+  if (ideas.length === 0 && !said && !problem) return null;
   return (
     <div className={s.folds}>
-      {waiting.length > 0 && (
-        <Fold summary={<><Icon name="clock" size={16} />
-            <span className={s.title}>{t('today.ideas.waiting')}</span>
-            <Count value={waiting.length} className={s.count} /></>} className={s.fold} data-today-fold="waiting" summaryClassName={s.summary}>
-          <ul className={s.waiting}>
-            {waiting.map((item) => (
-              <li key={item.id}>
-                <a className={s.waitLink} href={hrefOf(item.id, item.recordId)}>{item.line}</a>
-              </li>
-            ))}
-          </ul>
-        </Fold>
-      )}
-      {showIdeas && (ideas.length > 0 || said || problem) && (
+      {(ideas.length > 0 || said || problem) && (
         <Fold summary={<><Icon name="sparkles" size={16} />
             <span className={s.title}>{title ?? t('today.ideas.title')}</span>
             <Count value={live.length} className={s.count} /></>} className={s.fold} data-today-fold="ideas" summaryClassName={s.summary}>
@@ -110,10 +85,11 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
             {problem && <p className={s.problem} role="alert">{problem}</p>}
             {ideas.length > 0 && (
               <ul className={s.ideas}>
-                {ideas.map((idea) => (
+                {ideas.map((idea, index) => (
                   <li key={idea.id}>
                     <Idea
                       idea={idea}
+                      lead={index === 0}
                       started={started[idea.id]}
                       busy={busy === idea.id}
                       onAct={(what) => void act(idea, what)}
@@ -130,8 +106,8 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
 }
 
 /** One idea as a card: its title, why, the records it rests on, what Start would do, and Start (its one primary). */
-function Idea({ idea, started, busy, onAct }: {
-  idea: IdeaView; started: Started | undefined; busy: boolean; onAct: (what: 'start' | 'dismiss' | 'raise') => void;
+function Idea({ idea, lead, started, busy, onAct }: {
+  idea: IdeaView; lead: boolean; started: Started | undefined; busy: boolean; onAct: (what: 'start' | 'dismiss' | 'raise') => void;
 }) {
   const t = useT();
   const titleId = useId();
@@ -150,11 +126,11 @@ function Idea({ idea, started, busy, onAct }: {
         {!started && (
           <>
             <Button size="sm" disabled={busy} onClick={() => onAct('dismiss')}>{t('today.ideas.dismiss')}</Button>
-            <Button size="sm" variant="primary" disabled={busy} onClick={() => onAct('start')}>{t('today.ideas.start')}</Button>
+            <Button size="sm" variant={lead ? 'primary' : 'secondary'} disabled={busy} onClick={() => onAct('start')}>{t('today.ideas.start')}</Button>
           </>
         )}
         {started && !started.raised && started.proposal && (
-          <Button size="sm" variant="primary" disabled={busy} onClick={() => onAct('raise')}>{t('today.ideas.raise')}</Button>
+          <Button size="sm" variant={lead ? 'primary' : 'secondary'} disabled={busy} onClick={() => onAct('raise')}>{t('today.ideas.raise')}</Button>
         )}
         {started?.raised && (
           <a className={s.onToday} href={`#/today?row=${encodeURIComponent(started.raised)}`}>{t('today.ideas.onToday')}</a>

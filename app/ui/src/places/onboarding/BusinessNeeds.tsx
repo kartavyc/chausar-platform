@@ -23,7 +23,6 @@ export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'co
   const t = useT();
   const headingId = useId();
   const list = useResource('venture.needs.list', {});
-  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
   /** C4 task 4: the services the owner pressed Set up for here (skipping one is not setting it up). */
   const [started, setStarted] = useState<ReadonlySet<string>>(new Set());
   const country = useOwnerCountry() ?? 'IN';
@@ -45,21 +44,23 @@ export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'co
 
   // C4 task 4: how many of the services that can be set up today are, so the owner knows they can close this step.
   const settable = (list.data?.needs ?? []).filter((need) => need.label !== 'planned' && (need.connect.connectorId !== null || need.connect.place !== null));
+  // B4 task 12: the first run lists what works today; the rest are one line. Connections keeps every row with what it waits on.
+  const shownNeeds = first ? settable : (list.data?.needs ?? []);
+  const later = (list.data?.needs ?? []).filter((need) => !settable.includes(need));
   const setUpCount = settable.filter((need) => started.has(need.id)).length;
   const title = list.data?.family ? t('first-run.needs.list', { family: list.data.family.label }) : t('first-run.needs.listPlain');
   return (
     <section className={f.wrap} aria-labelledby={headingId}>
-      {first && <p className={f.eyebrow}>{t('first-run.stepOf', { n: '3' })}</p>}
       {first ? <h1 id={headingId} className={f.title}>{t('first-run.needs.title')}</h1> : <h2 id={headingId} className={f.title}>{title}</h2>}
       <p className={f.sub}>{t('first-run.needs.sub')}</p>
       {first && ask}
       {list.error && <p className={f.problem} role="alert">{t('first-run.needs.failed', { message: list.error.message })}</p>}
       {list.data && (
         <ul className={f.needs} aria-label={title}>
-          {list.data.needs.map((need) => {
+          {shownNeeds.map((need) => {
             const live = need.label !== 'planned' && (need.connect.connectorId !== null || need.connect.place !== null);
             return (
-              <Tile key={need.id} as="li" pad="compact" className={f.need}>
+              <Tile key={need.id} as="li" pad="compact" plain className={f.need}>
                 <div className={f.needText}>
                   <div className={f.needHead}>
                     <span className={f.needName}>{need.name}</span>
@@ -67,17 +68,16 @@ export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'co
                   </div>
                   <p className={f.needWhy}>{need.why}</p>
                   {need.label === 'planned' && need.waitsOn && <p className={f.hint}>{t('first-run.needs.waits', { waits: need.waitsOn, meanwhile: need.meanwhile ?? '' })}</p>}
-                  {skipped.has(need.id) && <p className={f.hint} role="status">{t('first-run.needs.skipped')}</p>}
                 </div>
                 <div className={f.needActions}>
                   {live && <Button size="sm" onClick={(event) => setUp(need, event.currentTarget)}>{t('first-run.needs.setUp')}</Button>}
-                  {first && !skipped.has(need.id) && <Button size="sm" variant="quiet" onClick={() => setSkipped((was) => new Set([...was, need.id]))}>{t('first-run.needs.skip')}</Button>}
                 </div>
               </Tile>
             );
           })}
         </ul>
       )}
+      {first && later.length > 0 && <p className={f.hint}>{t('first-run.needs.soon', { names: later.map((need) => need.name).join(', ') })}</p>}
       {first && (
         <div className={f.needsFoot}>
           {settable.length > 0 && <p className={f.hint}>{t('first-run.needs.count', { done: formatCount(setUpCount, country), total: formatCount(settable.length, country) })}</p>}

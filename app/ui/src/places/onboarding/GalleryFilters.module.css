@@ -1,11 +1,10 @@
-/* The gallery's toolbar: D-Start's `.toolbar`, `.sort` and its select. The chips wrap; Sort keeps to the right, and
-   drops under them when the row is narrow. */
+/* The gallery's toolbar: D-Start's `.toolbar`, `.sort` and its select. The chips and the lists sit together on the left, and wrap. */
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--sp-3);
 }
 

@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, recorded flows (wave 6, package 6H2; DECISIONS D41): venture.flows.list and
 // venture.flows.act, answered by the build package's table. The owner, inside the app, records a website task once in
 // the desktop's browser window (record), tests the draft with its samples (dry-run), approves that exact recipe once
@@ -7,7 +8,7 @@
 // stop waits for the owner to type it in the window (continue with no digest). A changed page stops the run and keeps
 // the controls on the page then; a repair (the owner's AI tool may propose it) picks one and becomes a new draft
 // version that needs its own dry run and approval. stop closes the window. Only the desktop has the window.
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { authorize, check, type Context, internalCheck } from '../../contracts.ts';
 import type { VentureDeps } from '../contracts.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, ventureAction } from '../records.ts';
@@ -32,7 +33,7 @@ function portOf(deps: VentureDeps): FlowBrowserPort {
   check(deps.host === 'desktop' && deps.flowBrowser, 'FLOW_BROWSER_UNAVAILABLE', FLOW_WORDS.browser);
   return deps.flowBrowser!;
 }
-const sha = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const sha = (value: unknown) => sha256Hex(JSON.stringify(value));
 const recipeOf = (row: FlowRecord): FlowRecipe => ({ name: row.name, origin: row.origin, steps: row.steps, blanks: row.blanks });
 
 function versions(deps: VentureDeps, flowId: unknown): FlowRecord[] {
@@ -126,7 +127,7 @@ async function startRun(deps: VentureDeps, ctx: Context, port: FlowBrowserPort, 
 /** The owner's tap on a stop before a submit: the exact-approval journal, then the press, then the rest of the run. */
 async function continueHeld(deps: VentureDeps, ctx: Context, port: FlowBrowserPort, flow: FlowRecord, run: FlowRunRecord, digest: unknown): Promise<FlowsActView> {
   const held = run.held!;
-  check(typeof digest === 'string' && digest === held.digest, 'APPROVAL_STALE', 'Approve the exact current stop of this run.');
+  check(typeof digest === 'string' && digest === held.digest, 'APPROVAL_STALE', 'Approve the exact current stop of this job.');
   const at = run.step;
   let pressing = false;
   const result = await journalled<boolean>(deps, ctx, {
@@ -235,10 +236,10 @@ export async function flowsAct(deps: VentureDeps, ctx: Context, payload: unknown
     await save(deps, ctx, 'stop', [stopped]);
     return { flow: null, run: runView(stopped) };
   }
-  check(run.state === 'held' || run.state === 'needs-you', 'FLOW_HELD', 'This run is not waiting for you.');
+  check(run.state === 'held' || run.state === 'needs-you', 'FLOW_HELD', 'This job is not waiting for you.');
   const session = sessions.get(port);
   if (!session || session.runRecordId !== run.id) {
-    const closed: FlowRunRecord = { ...run, state: 'stopped', held: null, line: 'The Chausar window for this run closed. Run the flow again.', endedAt: deps.clock().toISOString() };
+    const closed: FlowRunRecord = { ...run, state: 'stopped', held: null, line: 'The Chausar window for this job closed. Run the flow again.', endedAt: deps.clock().toISOString() };
     await save(deps, ctx, 'closed', [closed]);
     check(false, 'FLOW_BROWSER_CLOSED', closed.line);
   }
@@ -266,7 +267,7 @@ async function repair(deps: VentureDeps, ctx: Context, payload: unknown): Promis
   readVenture(deps, ctx);
   const body = exactPayload(payload, ['action', 'runId', 'option'], ['action', 'runId', 'option']);
   const run = runOf(deps, body.runId);
-  check(run.state === 'stopped' && Array.isArray(run.repairOptions) && run.repairOptions.length > 0, 'FLOW_INVALID', 'Only a run stopped by a changed page can be repaired.');
+  check(run.state === 'stopped' && Array.isArray(run.repairOptions) && run.repairOptions.length > 0, 'FLOW_INVALID', 'Only a job stopped by a changed page can be repaired.');
   check(Number.isInteger(body.option) && (body.option as number) >= 0 && (body.option as number) < run.repairOptions!.length, 'FLOW_INVALID', 'Choose one of the controls the page showed.');
   const from = versionOf(deps, run.flowId, run.version);
   const step = from.steps[run.step];

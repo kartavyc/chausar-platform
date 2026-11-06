@@ -59,3 +59,16 @@ test('--list on this checkout prints the tests near a named change and runs noth
   assert.ok(listed.engine.includes('platform/tests/benchmark-sharding.test.ts'), 'reads bench.mjs, which imports receipt.mjs');
   assert.deepEqual(listed.ui, []);
 });
+
+
+test('cleanup: option-shaped base names are refused before git runs', async t => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const folder = await mkdtemp(join(tmpdir(), 'chausar-near-options-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const script = fileURLToPath(new URL('../../scripts/near.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [script, '--list', `--base=--output=${join(folder, 'probe')}`], { encoding: 'utf8', windowsHide: true, timeout: 10_000 });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /base must be a revision name/);
+});

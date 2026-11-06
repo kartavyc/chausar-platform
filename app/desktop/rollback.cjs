@@ -26,7 +26,7 @@ async function placeChecked(path, bytes, fs) {
   } catch (error) { await fs.unlink(temporary).catch(() => {}); throw error; }
 }
 
-function createRollback({ userData, version, platform, appImage = null, publicKey, windowsPublisher = null, updates, app, note = () => {}, signatureOf, spawnInstaller, now = Date.now, fs = fsp }) {
+function createRollback({ userData, version, platform, appImage = null, publicKey, windowsCertificateThumbprint = null, updates, app, note = () => {}, signatureOf, spawnInstaller, now = Date.now, fs = fsp }) {
   const folder = join(userData, 'updates'), vaults = join(userData, 'vaults'), recordPath = join(folder, 'rollbacks.json');
   const readJson = async path => { try { return JSON.parse(await fs.readFile(path, 'utf8')); } catch { return null; } };
 
@@ -112,14 +112,14 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
       return { state: 'ready', path };
     }
     if (platform === 'win32') {
-      if (!windowsPublisher) return { state: 'needs-signing' };
+      if (!updates.certificateThumbprint(windowsCertificateThumbprint)) return { state: 'needs-signing' };
       const path = join(folder, 'stage', `chausar-update-${randomBytes(8).toString('hex')}.exe`);
       await fs.mkdir(dirname(path), { recursive: true });
       await fs.copyFile(release.artifactPath, path);
       if (!(await updates.verifyStaged({ ...release, artifactPath: path }, publicKey, platform))) { await fs.unlink(path).catch(() => {}); return { state: 'not-verified' }; }
       const signed = await signatureOf(path);
       if (signed?.status !== 'Valid') { await fs.unlink(path).catch(() => {}); return { state: 'needs-signing' }; }
-      if (signed.publisher !== windowsPublisher) { await fs.unlink(path).catch(() => {}); return { state: 'publisher-mismatch' }; }
+      if (!updates.publisherMatches(signed, windowsCertificateThumbprint)) { await fs.unlink(path).catch(() => {}); return { state: 'publisher-mismatch' }; }
       return { state: 'ready', path };
     }
     return { state: 'manual' };
@@ -135,7 +135,7 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
       return 'relaunching';
     }
     const signed = await signatureOf(prepared.path);
-    if (signed?.status !== 'Valid' || signed.publisher !== windowsPublisher) return 'not-verified';
+    if (!updates.publisherMatches(signed, windowsCertificateThumbprint)) return 'not-verified';
     spawnInstaller(prepared.path, ['/S', '--updated']);
     return 'installer-started';
   }

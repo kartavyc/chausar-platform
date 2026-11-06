@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -9,7 +10,7 @@ import { OptionRows } from '../../parts/OptionRows';
 
 export type Target = 'new' | 'add';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * The business picker under the one-sentence box (W4 4J21; founder decision): with a business open, the sentence can

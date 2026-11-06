@@ -2,9 +2,6 @@
   "appId": "in.chausar.desktop",
   "productName": "Chausar",
   "artifactName": "Chausar-Beta-${version}-${os}-${arch}.${ext}",
-  "directories": {
-    "output": "release/beta"
-  },
   "asar": true,
   "forceCodeSigning": false,
   "npmRebuild": false,

@@ -160,7 +160,7 @@ describe('first run, step 2: About you, A that becomes B', () => {
     expect(await screen.findByText('India, from your time zone')).toBeTruthy();
     expect(await screen.findByRole('button', { name: /^Money and tax/ })).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /^(Money and tax|Teaching and coaching|Creative work|Writing and content|Local services|Documents and reports|Research and analysis|People and careers|Shop and back office|Tech services|Licensed work)/ })).toHaveLength(11);
-    expect(screen.getByRole('button', { name: /^Something else/ })).toBeTruthy();
+    expect(screen.getByText('More fields')).toBeTruthy();
   });
 
   it('does not change while the owner types; Send turns it into B with one motion, and Back to fields returns to A', async () => {
@@ -290,13 +290,11 @@ describe('first run, step 3: Connect what your business needs', () => {
     expect(calls.find(([method]) => method === 'venture.owner.set')?.[1]).toEqual({ familyId: 'teaching' });
     const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' });
     const rows = within(list).getAllByRole('listitem');
-    expect(rows.map((row) => row.querySelector('[class*="needName"]')?.textContent)).toEqual(['Google Calendar', 'WhatsApp', 'Razorpay', 'Tally forms', 'Telegram alerts', 'Phone approvals']);
+    // B4 task 12: what works is a row; the rest are one line, and no row has a Skip.
+    expect(rows.map((row) => row.querySelector('[class*="needName"]')?.textContent)).toEqual(['Google Calendar']);
+    expect(screen.getByText('Coming soon: WhatsApp, Razorpay, Tally forms, Telegram alerts, Phone approvals')).toBeTruthy();
     expect(within(rows[0]!).getByText('Reads')).toBeTruthy();
     expect(within(rows[0]!).getByRole('button', { name: 'Set up' })).toBeTruthy();
-    // A planned service says what it waits on and offers nothing to connect.
-    expect(within(rows[4]!).getByText('Planned')).toBeTruthy();
-    expect(within(rows[4]!).queryByRole('button', { name: 'Set up' })).toBeNull();
-    for (const row of rows) await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Skip' })); });
     await press('Go to Today');
     await waitFor(() => expect(window.location.hash).toBe('#/today'));
     expect(await screen.findByRole('navigation', {}, { timeout: 4000 })).toBeTruthy();
@@ -507,8 +505,6 @@ describe('first run: ways on after a Codex failure, and the services count (C4 t
     await answerSideWork();
     const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' }, { timeout: 4000 });
     const total = within(list).getAllByRole('button', { name: 'Set up' }).length;
-    expect(screen.getByText(`0 of ${total} set up. You can do this later in Connections.`)).toBeTruthy();
-    await act(async () => { fireEvent.click(within(list).getAllByRole('button', { name: 'Skip' })[0]!); });
     expect(screen.getByText(`0 of ${total} set up. You can do this later in Connections.`)).toBeTruthy();
   });
 });

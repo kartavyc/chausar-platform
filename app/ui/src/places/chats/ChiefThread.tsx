@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * One chat with Chausar as chief of staff (D-Chats `.cv-head`, `.cv-body`, `.cv-comp`; spec 5.4): the head with the
  * mark, the chat's title (the owner's first question) and Pin; the thread; the composer with suggestions that fill it
@@ -61,7 +62,7 @@ function wakeOf(at: string, now: Date, zone: string): string {
 }
 
 const codeOf = (error: unknown) => (error instanceof EngineError ? error.code : null);
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export interface ChiefThreadProps {
   /** The chat to show; left out, a new chat. */

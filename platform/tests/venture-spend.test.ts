@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type { ModelHttpResponse, ModelTask, ModelTransport, SecretName, SecretShelf, SpendRate, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { PRESETS, createModelPort, handlers as modelHandlers } from '../runtime/venture/models/index.ts';

@@ -25,9 +25,9 @@ const MAX_DEADLINE_MS = 30 * 24 * 3_600_000;
 const MAX_FLOW_ENTRIES = 400;
 
 /** Why a gated approval step ended the run. */
-export const GATE_TIMEOUT_LINE = 'You did not decide in time, so the run stopped here. Nothing was approved for you.';
+export const GATE_TIMEOUT_LINE = 'You did not decide in time, so the job stopped here. Nothing was approved for you.';
 /** Why a run past its deadline ended. */
-export const DEADLINE_LINE = 'The run passed its deadline, so it stopped before the next step.';
+export const DEADLINE_LINE = 'The job passed its deadline, so it stopped before the next step.';
 
 const refuse = (message: string): never => { throw new ChausarError('INVALID_VENTURE_REQUEST', message); };
 const isInt = (value: unknown, min: number, max: number): value is number => Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
@@ -91,7 +91,7 @@ function checkStepFields(step: PlaybookStep, kinds: ReadonlyMap<string, Playbook
   if (step.maxLoops !== undefined && !isInt(step.maxLoops, 1, MAX_LOOPS)) refuse(`The step ${id} may come back between 1 and ${MAX_LOOPS} times.`);
   if (step.onExceeded !== undefined) {
     if (step.maxLoops === undefined) refuse(`The step ${id} says what happens past its cap, but has no cap.`);
-    if (step.onExceeded !== 'blocked' && step.onExceeded !== 'failed') refuse(`Past its cap, the step ${id} can end the run blocked or failed.`);
+    if (step.onExceeded !== 'blocked' && step.onExceeded !== 'failed') refuse(`Past its cap, the step ${id} can end the job blocked or failed.`);
   }
   if (step.timeoutMs !== undefined && !isInt(step.timeoutMs, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)) refuse(`The step ${id} needs a timeout between a second and seven days.`);
   if (step.failover !== undefined) {
@@ -108,7 +108,7 @@ function checkStepFields(step: PlaybookStep, kinds: ReadonlyMap<string, Playbook
   if (step.gate !== undefined) {
     if (step.kind !== 'approve') refuse(`Only a step you approve has a gate; ${id} is not one.`);
     check(step.gate && typeof step.gate === 'object' && isInt(step.gate.timeoutMs, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS), 'INVALID_VENTURE_REQUEST', `The gate on ${id} needs a time between a second and seven days.`);
-    if (step.gate.default !== 'blocked' && step.gate.default !== 'failed') refuse(`When time runs out, the gate on ${id} ends the run blocked or failed. It never approves for you.`);
+    if (step.gate.default !== 'blocked' && step.gate.default !== 'failed') refuse(`When time runs out, the gate on ${id} ends the job blocked or failed. It never approves for you.`);
   }
 }
 
@@ -171,7 +171,7 @@ function unapprovedOutside(steps: readonly PlaybookStep[]): string | null {
 export function validateFlow(steps: readonly PlaybookStep[], limits?: Pick<HarnessLimits, 'deadlineMs'>): void {
   const kinds = new Map(steps.map(step => [step.id, step.kind]));
   for (const step of steps) checkStepFields(step, kinds);
-  if (limits?.deadlineMs !== undefined && !isInt(limits.deadlineMs, MIN_DEADLINE_MS, MAX_DEADLINE_MS)) refuse('A run deadline is between a minute and thirty days.');
+  if (limits?.deadlineMs !== undefined && !isInt(limits.deadlineMs, MIN_DEADLINE_MS, MAX_DEADLINE_MS)) refuse('A job deadline is between a minute and thirty days.');
   const loop = uncappedLoop(steps);
   if (loop) {
     throw new ChausarError('PLAYBOOK_CYCLE_UNCAPPED', `The steps ${loop.join(', ')} go round in a loop with no cap and no approval step. Give one of them a cap, or put a step you approve in the loop.`);
@@ -221,7 +221,7 @@ const ended = (flow: FlowState, state: FlowEnd['state'], reason: string | null, 
  * its onExceeded (blocked unless it says failed); a run past its deadline ends blocked before the next step.
  */
 export function advanceFlow(steps: readonly PlaybookStep[], flow: FlowState, result: StepOutcome, nowMs: number): FlowState {
-  check(!flow.end && flow.stepId !== null, 'INVALID_VENTURE_REQUEST', 'This run has ended.');
+  check(!flow.end && flow.stepId !== null, 'INVALID_VENTURE_REQUEST', 'This job has ended.');
   const at = steps.findIndex(item => item.id === flow.stepId);
   check(at >= 0, 'STEP_NOT_FOUND', 'That step was not found.');
   const step = steps[at];
@@ -255,7 +255,7 @@ export function advanceFlow(steps: readonly PlaybookStep[], flow: FlowState, res
   check(target, 'STEP_NOT_FOUND', `The step ${to} is not in this work plan.`);
   const before = done.attempts[target.id] ?? 0;
   if (before > 0 && target.maxLoops !== undefined && before > target.maxLoops) {
-    return ended(done, target.onExceeded ?? 'blocked', `The run came back to ${target.id} ${target.maxLoops} ${target.maxLoops === 1 ? 'time' : 'times'}, its limit.`, step.id);
+    return ended(done, target.onExceeded ?? 'blocked', `The job came back to ${target.id} ${target.maxLoops} ${target.maxLoops === 1 ? 'time' : 'times'}, its limit.`, step.id);
   }
   return { ...done, stepId: target.id, attempts: { ...done.attempts, [target.id]: before + 1 }, trail: [...trail, { stepId: target.id, attempt: before + 1, outcome: null }] };
 }
@@ -267,7 +267,7 @@ export function advanceFlow(steps: readonly PlaybookStep[], flow: FlowState, res
 export function walkFlow(steps: readonly PlaybookStep[], decide: (stepId: string, attempt: number) => StepOutcome, options: { startedAt: number; limits?: Pick<HarnessLimits, 'deadlineMs'>; now?: (entries: number) => number }): FlowState {
   let flow = startFlow(steps, options.limits, options.startedAt);
   while (!flow.end) {
-    check(flow.trail.length <= MAX_FLOW_ENTRIES, 'INVALID_VENTURE_REQUEST', 'This run went round too many times.');
+    check(flow.trail.length <= MAX_FLOW_ENTRIES, 'INVALID_VENTURE_REQUEST', 'This job went round too many times.');
     const current = flow.trail[flow.trail.length - 1];
     flow = advanceFlow(steps, flow, decide(current.stepId, current.attempt), options.now ? options.now(flow.trail.length) : options.startedAt);
   }

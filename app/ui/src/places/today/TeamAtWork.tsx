@@ -8,7 +8,6 @@ import { ProgressRing } from '../../parts/ProgressRing';
 import { StoriesRow, type Story } from '../../parts/StoriesRow';
 import { Tile, TileHead } from '../../parts/Tile';
 import { DEPT_OF } from '../team/departments';
-import { ChausarStory } from './ChausarStory';
 import { STATE_ORDER, agentStateOf, currentStepOf, liveRunOf } from './runs';
 import s from './TeamAtWork.module.css';
 
@@ -31,13 +30,12 @@ export interface TeamAtWorkProps {
 }
 
 /**
- * The team at work (D-Today `.team`): how many agents are working, need you or are idle; every agent as a story with
+ * The team at work (D-Today `.team`): every agent as a story with
  * its ring, needs you first; then a live tile for each run that is working or waiting on you, with its ring and the
  * step it is on. With the engine's departments (W4 4A) each story and tile takes its agent's department: the tint, the
  * badge, and on a tile the department's name; an agent the engine put in no department has none. The engine's own
  * state wins where it sends one (Keeper's, from its jobs). "Add agent" leads to the ways to earn, where a way brings
- * its team. Chausar leads the stories and opens Chats (W4 4C2, ChausarStory.tsx); with no agents yet the tile still
- * shows Chausar and Add agent, with no counts.
+ * its team. With no agents yet the tile still shows Add agent.
  */
 export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = false, title }: TeamAtWorkProps) {
   const t = useT();
@@ -48,26 +46,18 @@ export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = 
     const department = agents.find((agent) => agent.name === name)?.department;
     return department ? DEPT_OF[department] : undefined;
   };
-  const count = (state: string) => states.filter((entry) => entry.state === state).length;
-  const failed = count('failed');
-  const meta = agents.length === 0 ? undefined : [
-    t('today.team.working', { count: count('working') }),
-    t('today.team.waiting', { count: count('waiting') }),
-    ...(failed > 0 ? [t('today.team.failed', { count: failed })] : []),
-    t('today.team.idle', { count: count('idle') }),
-  ].join(' · ');
-
   const stories: Story[] = [...states]
     .sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.index - b.index)
     .map(({ agent, state }) => ({ id: agent.id, name: agent.name, state, progress: state === 'working' ? liveRunOf(agent.name, runs)?.progress : undefined, dept: deptOf(agent.name) }));
 
-  const live = runs.filter((run) => run.state === 'active' || run.state === 'waiting').slice(0, LIVE_TILES);
+  // B4 task 13: a run with a card to answer is that card; only what has no card shows here.
+  const live = runs.filter((run) => run.state === 'active' || (run.state === 'waiting' && !rowForRun(run.runId))).slice(0, LIVE_TILES);
   const roleOf = (name: string) => agents.find((agent) => agent.name === name)?.role;
 
   return (
     <Tile as="section" labelledBy={headingId} className={s.team}>
-      <TileHead id={headingId} title={title ?? t('today.team.title')} meta={meta} more={{ href: '#/team', label: t('today.team.see') }} />
-      <StoriesRow stories={stories} lead={<ChausarStory />} onOpen={(id) => openSheet('agent', id)} onAdd={() => goTo('onboarding')} scroll={phone} className={s.stories} />
+      <TileHead id={headingId} title={title ?? t('today.team.title')} more={{ href: '#/team', label: t('today.team.see') }} />
+      <StoriesRow stories={stories} onOpen={(id) => openSheet('agent', id)} onAdd={() => goTo('onboarding')} scroll={phone} className={s.stories} />
       {live.length > 0 && (
         // On a phone the tiles are one row that scrolls sideways, so the row itself takes focus (arrow keys scroll it)
         // and is named, as the Board does: a tile may hold no button at all (w3 3I, axe in Chrome).

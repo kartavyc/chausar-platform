@@ -73,7 +73,7 @@ describe('Team: the quiet Chat button', () => {
     expect(window.location.hash).toBe('#/team');
     await click(await screen.findByRole('button', { name: 'Editor' }));
     const again = await panelOf('Editor');
-    expect(within(again).getByRole('tab', { name: /^Instructions/ }).getAttribute('aria-selected')).toBe('true');
+    expect(within(again).getByRole('tab', { name: /^How it works/ }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('nothing about chat is on Today', async () => {
@@ -143,7 +143,7 @@ describe('The Chat tab', () => {
     const panel = await panelOf('Researcher');
     await within(panel).findByRole('log');
     const chips = within(panel).getByRole('group', { name: 'Suggestions' });
-    await click(within(chips).getByRole('button', { name: 'From now on,' }));
+    await click(within(chips).getByRole('button', { name: 'Add a rule...' }));
     expect((within(panel).getByRole('textbox', { name: 'Message Researcher' }) as HTMLTextAreaElement).value).toBe('From now on, ');
     expect(calls(spy, 'venture.agents.thread.send')).toEqual([]);
   });
@@ -192,6 +192,7 @@ describe('The chat consent', () => {
     await act(async () => { fireEvent.change(within(panel).getByRole('textbox', { name: 'Message Bookkeeper' }), { target: { value: 'What did you match last?' } }); });
     await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Send' })); });
     const consent = await within(panel).findByRole('region', { name: 'Before your first message' });
+    expect(consent.closest('[role="log"]')).not.toBeNull();
     expect(consent.textContent).toContain('to Claude Sonnet 5.5 with your key. Keys, passphrases and bank or card numbers are never sent.');
     expect(calls(spy, 'venture.agents.thread.send')).toEqual([]);
 
@@ -245,13 +246,13 @@ describe('Proposals in the thread', () => {
     expect(within(after).getByRole('button', { name: 'Undo' })).toBeTruthy();
     // The engine's own line about the run already going, in the thread.
     expect(within(within(panel).getByRole('log')).getByText(/Version 5 is in use from the next job\. Jobs .* keep version 4\./)).toBeTruthy();
-    expect(within(panel).getByRole('tab', { name: 'Instructions v5' })).toBeTruthy();
+    expect(within(panel).getByRole('tab', { name: 'How it works' })).toBeTruthy();
 
     await act(async () => { fireEvent.click(within(after).getByRole('button', { name: 'Undo' })); });
     await settle();
     expect(calls(spy, 'venture.agents.version.undo')).toHaveLength(1);
     expect(within(panel).getByText('Back to version 4. Version 5 stays stored.')).toBeTruthy();
-    expect(within(panel).getByRole('tab', { name: 'Instructions v4' })).toBeTruthy();
+    expect(within(panel).getByRole('tab', { name: 'How it works' })).toBeTruthy();
     // Review 4B3: once undone, the card says so and offers Undo no more.
     const undone = within(panel).getByRole('article', { name: "Proposed change to Editor's instructions" });
     expect(undone.textContent).toContain('Undone. Editor is back on version 4.');
@@ -313,10 +314,10 @@ describe('The Instructions tab', () => {
   it('shows the version in use, each step with its guidance and the checks it must pass, and the AI review settings link', async () => {
     start('#/team?sheet=agent:editor');
     const panel = await panelOf('Editor');
-    expect(within(panel).getByRole('tab', { name: /^Instructions/ }).getAttribute('aria-selected')).toBe('true');
+    expect(within(panel).getByRole('tab', { name: /^How it works/ }).getAttribute('aria-selected')).toBe('true');
     const how = await within(panel).findByRole('region', { name: 'How Editor works' });
     await waitFor(() => expect(how.querySelector('[data-version]')?.textContent).toMatch(/^Version 4, made from your plan on 14 Oct/));
-    expect(within(panel).getByRole('tab', { name: 'Instructions v4' })).toBeTruthy();
+    expect(within(panel).getByRole('tab', { name: 'How it works' })).toBeTruthy();
     const shorts = within(how).getByRole('heading', { level: 4, name: 'Cut shorts from the episode' }).closest('li')!;
     expect(shorts.textContent).toContain('Pick moments that make sense without the episode.');
     expect(shorts.textContent).toContain("Done when these checks pass: the length is within limits, it claims no work it didn't do.");
@@ -331,7 +332,7 @@ describe('The Instructions tab', () => {
     const card = await within(panel).findByRole('article', { name: "Proposed change to Editor's instructions" });
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: /Accept/ })); });
     await settle();
-    await click(within(panel).getByRole('tab', { name: /^Instructions/ }));
+    await click(within(panel).getByRole('tab', { name: /^How it works/ }));
     await settle();
     const orders = await within(panel).findByRole('region', { name: 'Standing orders' });
     const item = within(orders).getByText("Put the episode's name in the first line of every short's description.").closest('li')!;
@@ -355,7 +356,7 @@ describe('The agent panel tabs, by keyboard and axe', () => {
     start('#/team?sheet=agent:editor');
     const panel = await panelOf('Editor');
     const tabs = within(within(panel).getByRole('tablist', { name: 'Editor' })).getAllByRole('tab');
-    await waitFor(() => expect(tabs.map((tab) => tab.textContent)).toEqual(['Chat', 'Instructions v4', 'Jobs 2', 'Notes', 'Can do']));
+    await waitFor(() => expect(tabs.map((tab) => tab.textContent)).toEqual(['Chat', 'How it works', 'Jobs 2', 'Notes']));
     const [chat, instructions, runs] = tabs;
     const last = tabs.at(-1)!;
     await act(async () => { instructions!.focus(); fireEvent.keyDown(instructions!, { key: 'ArrowRight' }); });
@@ -373,7 +374,7 @@ describe('The agent panel tabs, by keyboard and axe', () => {
     await within(panel).findByRole('log');
     await settle();
     expect(await axeOn(container)).toEqual([]);
-    for (const name of [/^Instructions/, 'Jobs', 'Notes']) {
+    for (const name of [/^How it works/, 'Jobs', 'Notes']) {
       await click(within(panel).getByRole('tab', { name }));
       await settle();
       expect(await axeOn(container)).toEqual([]);
@@ -395,7 +396,7 @@ describe('Review 4B3: reading, never writing; Undo as the engine says; the conse
     const { spy } = start('#/team?sheet=agent:editor&tab=chat');
     const panel = await panelOf('Editor');
     await within(panel).findByRole('log');
-    for (const name of [/^Instructions/, 'Jobs', 'Notes']) {
+    for (const name of [/^How it works/, 'Jobs', 'Notes']) {
       await click(within(panel).getByRole('tab', { name }));
       await settle();
     }
@@ -524,6 +525,6 @@ describe('C7: a way of working, offered by the agent', () => {
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Keep' })); });
     await settle();
     expect(calls(spy, 'venture.agents.proposal.decide').at(-1)).toMatchObject({ decision: 'accept' });
-    expect(within(panel).getByRole('tab', { name: 'Instructions v5' })).toBeTruthy();
+    expect(within(panel).getByRole('tab', { name: 'How it works' })).toBeTruthy();
   });
 });

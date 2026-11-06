@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -14,7 +15,7 @@ import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './int
 import { IntakeFields } from './IntakeFields';
 import { KitIntakeFields } from './KitIntakeFields';
 import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from './kit-intake';
-import { messageOf } from './PreviousRuns';
+
 import { clearPrefill, peekPrefill, prefillOrder } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
@@ -139,11 +140,14 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   } else {
     body = (
       <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
+        <div className={s.field}>
         <Select label={t('work.form.client')} value={who} onChange={(event) => setClientId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {clients.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>
+            {who === NEW_CLIENT && <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>}
           </Select>
+          {who !== NEW_CLIENT && <Button variant="quiet" size="sm" onClick={() => setClientId(NEW_CLIENT)}>{t('work.form.newClient')}</Button>}
+        </div>
         <Reveal open={who === NEW_CLIENT}><Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} /><Field label={t('work.form.clientPhone')} type="tel" inputMode="tel" value={newPhone} autoComplete="off" maxLength={40} onChange={(event) => setNewPhone(event.currentTarget.value)} /></Reveal>
         <Select label={t('work.form.service')} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError } from '../runtime/contracts.ts';
 import { Engine } from '../runtime/engine.ts';
-import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintView, BriefRecord, GitHubTransport, ModelHttpRequest, ModelPreset, ModelStatusView, ModelTransport, PriceReceiptRecord,
 } from '../runtime/venture/contracts.ts';

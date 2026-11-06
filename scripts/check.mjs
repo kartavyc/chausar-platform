@@ -11,7 +11,11 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 if (typeof vm.SourceTextModule !== 'function') {
-  const child = spawn(process.execPath, ['--experimental-vm-modules', '--no-warnings=ExperimentalWarning', ...process.execArgv, fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: 'inherit' });
+  if (process.argv.includes('--parser-started')) {
+    process.stderr.write('check.mjs parser is unavailable after restart.\n');
+    process.exit(1);
+  }
+  const child = spawn(process.execPath, ['--experimental-vm-modules', '--no-warnings=ExperimentalWarning', ...process.execArgv, fileURLToPath(import.meta.url), '--parser-started', ...process.argv.slice(2)], { stdio: 'inherit' });
   child.on('error', error => { process.stderr.write(`check.mjs could not start its parser: ${error.message}\n`); process.exit(1); });
   child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
 } else {
@@ -33,6 +37,7 @@ async function main() {
       if (SKIPPED.has(item.name)) continue;
       const path = join(directory, item.name);
       if (item.isDirectory()) await walk(path);
+      // JSX and TSX are checked by typecheck:ui, not Node's parser.
       // Declaration files are left to tsc (npm run typecheck reads them); they are types, never run.
       else if (/\.d\.[mc]?ts$/.test(path)) continue;
       else if (/\.(?:[mc]?ts|js|mjs|cjs)$/.test(path)) files.push(path);

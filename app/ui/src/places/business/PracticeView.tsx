@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -6,7 +7,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { keepPracticeDraft, practiceDraftId } from '../work/practice-drafts';
 import { Button } from '../../parts/Button';
 import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
-import { TileSection, dayOf, messageOf } from './shared';
+import { TileSection, dayOf } from './shared';
 // W4 4J22a: drills (4J15), experiments (4J16) and the guidance report (4J16).
 import { Drills, Experiments } from './Drills';
 import { GuidanceReport } from './GuidanceReport';
@@ -42,11 +43,12 @@ export function PracticeView() {
       <Rehearsal onSuggested={() => setSuggested((count) => count + 1)} />
       <div className={s.split} data-ratio="even">
         <Improvement suggested={suggested} />
-        <JudgeSetting />
+        <TileSection title={t('business.practice.safety')}>
+          <JudgeSetting />
+          <Drills />
+        </TileSection>
       </div>
       {/* W4 4J22a: the drills against the version in use, and each guidance line with the check that sees it. */}
-      <Drills />
-      <GuidanceReport />
     </div>
   );
 }
@@ -63,7 +65,7 @@ function Confirm({ ask, label, onConfirm, onCancel }: { ask: string; label: stri
       <p className={s.line}>{ask}</p>
       <div className={s.buttons}>
         <Button ref={cancelRef} variant="quiet" onClick={onCancel}>{t('approval.cancel')}</Button>
-        <Button variant="primary" onClick={onConfirm}>{label}</Button>
+        <Button onClick={onConfirm}>{label}</Button>
       </div>
     </div>
   );
@@ -125,6 +127,13 @@ function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
   const failed = (result?.episodes ?? []).filter((episode, index, all) => !episode.passed && all.findIndex((e) => e.scenarioId === episode.scenarioId && !e.passed) === index);
   // C4 task 17: each practice client once, its failed episode when it has one; a row with a draft opens it.
   const rows = (result?.episodes ?? []).filter((episode, index, all) => (failed.includes(episode) || (!failed.some((e) => e.scenarioId === episode.scenarioId) && all.findIndex((e) => e.scenarioId === episode.scenarioId) === index)));
+  const groups = new Map<string, EpisodeLite[]>();
+  for (const episode of rows) {
+    const key = episode.passed ? `passed:${episode.scenarioId}` : `failed:${failureOf(episode)}`;
+    const group = groups.get(key) ?? [];
+    group.push(episode);
+    groups.set(key, group);
+  }
   const openDraft = (episode: EpisodeLite, origin: HTMLElement) => {
     const id = practiceDraftId(result!.id, episode);
     keepPracticeDraft(client, id, { client: title(episode.scenarioId), text: episode.renderedText ?? '', checks: episode.checks });
@@ -139,7 +148,7 @@ function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
         {scenarios.data && templates.length === 0 && <p className={s.line}>{t('business.practice.none')}</p>}
         {templates.length > 0 && <ScenarioList scenarios={templates} />}
         <div className={s.buttons}>
-          <Button disabled={busy || templates.length === 0} onClick={() => void rehearse()}>{busy ? t('business.practice.rehearsing') : t('business.practice.rehearse')}</Button>
+          <Button variant={result && result.summary.passed > 0 ? 'secondary' : 'primary'} disabled={busy || templates.length === 0} onClick={() => void rehearse()}>{busy ? t('business.practice.rehearsing') : t('business.practice.rehearse')}</Button>
         </div>
         <p className={s.note}>{t('business.practice.ownAi')}</p>
         {/* One-shot C3 task 11: one row per practice client, ticking as each finishes. */}
@@ -150,7 +159,18 @@ function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
             <p className={s.strong} role="status">{t('business.practice.result', { passed: String(result.summary.passed), total: String(result.summary.scenarios) })}</p>
             {rows.length > 0 && (
               <ul className={s.log}>
-                {rows.map((episode) => {
+                {[...groups].map(([key, episodes]) => {
+                  const episode = episodes[0]!;
+                  if (episodes.length > 1) return (
+                    <li key={key}>
+                      <p className={s.line}>{failureOf(episode)}</p>
+                      <ul className={s.plain}>
+                        {episodes.map(item => <li key={item.scenarioId}>
+                          {item.renderedText ? <button type="button" className={s.rowLink} onClick={event => openDraft(item, event.currentTarget)}>{title(item.scenarioId)}</button> : title(item.scenarioId)}
+                        </li>)}
+                      </ul>
+                    </li>
+                  );
                   const words = episode.passed ? t('business.practice.passedRow', { client: title(episode.scenarioId) }) : t('business.practice.failure', { client: title(episode.scenarioId), failure: failureOf(episode) });
                   return (
                     <li key={`${episode.scenarioId}-${episode.index}`}>
@@ -324,6 +344,7 @@ function Improvement({ suggested }: { suggested: number }) {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
+      <GuidanceReport />
     </TileSection>
   );
 }
@@ -353,7 +374,8 @@ function JudgeSetting() {
   }
 
   return (
-    <TileSection title={t('business.practice.judge')}>
+    <div>
+      <h3 className={s.groupTitle}>{t('business.practice.judge')}</h3>
       {setting.error && !view && <p className={s.problem} role="alert">{t('business.failed', { message: setting.error.message })}</p>}
       {!view && !setting.error && <LoadingPlace shape="settings" />}
       {view && (
@@ -373,6 +395,6 @@ function JudgeSetting() {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
-    </TileSection>
+    </div>
   );
 }

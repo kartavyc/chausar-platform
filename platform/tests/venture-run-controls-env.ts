@@ -4,7 +4,7 @@
 // The container is fake too: its run can wait for the test, so a run can be stopped while a tool call is in progress.
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { PURPOSE_TIER, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { PURPOSE_TIER, STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, CountryProfile, DeliveryRunRecord, DeliveryRunView, ModelOutcome, ModelPort, ModelPreset, ModelPreview, ModelPurpose,
   ModelStatusView, ModelTask, OrderRecord, PriceFigure, PriceReceiptRecord, QueueDecision, QueueList, RunControlResult, RunDetail,

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreDependencies": [
+    "@duckdb/node-api",
+    "pg"
+  ],
+  "ignore": [
+    "fixtures/**",
+    "app/ui/src/text/guide-data.json",
+    "app/desktop/ipc-contract.d.cts"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "platform/runtime/worker.ts",
+        "platform/runtime/server.ts",
+        "platform/runtime/hosted/server.ts",
+        "app/desktop/main.cjs",
+        "app/ui/src/main.tsx",
+        "app/ui/parts.html",
+        "platform/tests/**/*.test.ts",
+        "app/ui/tests/**/*.test.{ts,tsx}",
+        "scripts/bench.mjs",
+        "scripts/build.mjs",
+        "scripts/bundle-engine.mjs",
+        "scripts/check-boundaries.mjs",
+        "scripts/check-clean-tree.mjs",
+        "scripts/check.mjs",
+        "scripts/codex-bundle.mjs",
+        "scripts/desktop-electron-smoke.mjs",
+        "scripts/desktop-launch.mjs",
+        "scripts/desktop-package.mjs",
+        "scripts/desktop-smoke.mjs",
+        "scripts/doctor.mjs",
+        "scripts/env-docs.mjs",
+        "scripts/near.mjs",
+        "scripts/perf-budgets.mjs",
+        "scripts/phone-web-preview.mjs",
+        "scripts/release-feed.mjs",
+        "scripts/release-key.mjs",
+        "scripts/release-notes.mjs",
+        "scripts/release-smoke.mjs",
+        "scripts/third-party-notices.mjs",
+        "scripts/ui-bench.mjs",
+        "scripts/ui-shots/walk.mjs",
+        "scripts/desktop-after-pack.cjs",
+        "platform/runtime/analytics-worker.ts",
+        "platform/runtime/wasm-worker.mjs",
+        "platform/runtime/venture/packs/pack-worker.mjs",
+        "platform/semantic-qualification/run-suite.ts",
+        "platform/tests/fixtures/*worker.ts",
+        "platform/tests/fixtures/*process.ts",
+        "app/ui/public/*.js",
+        "app/ui/specimens/index.tsx"
+      ],
+      "project": [
+        "platform/**/*.{ts,js,mjs,cjs}",
+        "app/desktop/**/*.{ts,js,mjs,cjs}",
+        "app/ui/**/*.{ts,tsx,js,mjs}",
+        "scripts/**/*.{ts,js,mjs,cjs}"
+      ]
+    },
+    "app/companion": {
+      "entry": [
+        "web/index.html",
+        "web/app.mjs",
+        "native/index.js",
+        "shared/preview.ts"
+      ],
+      "project": [
+        "**/*.{ts,tsx,js,mjs,cjs}"
+      ]
+    }
+  }
+}

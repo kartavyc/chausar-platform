@@ -9,7 +9,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, W5_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, W5_METHOD_LEVELS } from '../runtime/venture/contract-values.ts';
 import type { DeliveryRunRecord, VentureDeps, WorkReceiptRecord } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers } from '../runtime/venture/playbooks/index.ts';

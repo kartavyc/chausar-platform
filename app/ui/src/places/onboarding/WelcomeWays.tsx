@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -27,7 +28,7 @@ import { FilePick } from '../../parts/FilePick';
  */
 
 interface WayProps { onOpened: () => void; onBack: () => void }
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** The head of a way in: back to the list, the title (focused, for a screen reader) and one line. */
 export function Way({ title, lead, onBack, children }: { title: string; lead: string; onBack: () => void; children: ReactNode }) {
@@ -128,7 +129,13 @@ export function RestoreBackup({ onOpened, onBack }: WayProps) {
       {found.error && <p className={s.problem} role="alert">{refusalWords(found.error, t)}</p>}
       {!found.data && !found.error && <p className={s.progress} role="status">{t('onboarding.restore.reading')}</p>}
       {found.data && groups.size === 0 && <p className={s.note}>{t('onboarding.restore.none')}</p>}
-      {[...groups.entries()].map(([name, backups], index) => (
+      {/* B4 task 12: one business's backups are a flat list. */}
+      {groups.size === 1 && [...groups.entries()].map(([name, backups]) => (
+        <ul key={name} className={s.backups} aria-label={name}>
+          {backups.map((backup) => <RestoreRow key={backup.file} backup={backup} onOpened={onOpened} />)}
+        </ul>
+      ))}
+      {groups.size > 1 && [...groups.entries()].map(([name, backups], index) => (
         <Fold summary={name} key={name} className={s.more} open={index === 0}>
           <ul className={s.backups} aria-label={name}>
             {backups.map((backup) => <RestoreRow key={backup.file} backup={backup} onOpened={onOpened} />)}
@@ -265,7 +272,7 @@ export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { 
     if (bad) { setProblem(t(bad)); return; }
     const payload: ParamsOf<'workspace.transfer.import'> = { fileText, transferCode };
     if (pair.wanted) payload.passphrase = pair.value;
-    setCode('');
+    // B4 task 12: the code stays in its field after a refusal, so a typo can be fixed; it goes with the screen.
     pair.clear();
     setBusy(true);
     setProblem(null);
@@ -302,7 +309,7 @@ export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { 
           onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); setCodeWrong(null); setHere(null); }}
         />
         {/* C4 task 38 (222, B3's handoff): a stale error goes as soon as the owner types. */}
-        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); setProblem(null); }} onKeyDown={onEnter} />
+        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} placeholder={t('onboarding.move.codePlaceholder')} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); setProblem(null); }} onKeyDown={onEnter} />
                 {inside && <p className={s.note} role="status">{t(inside.movedOutAt ? 'onboarding.move.inside' : 'onboarding.move.insideName', { name: inside.name, when: inside.movedOutAt ? momentOf(inside.movedOutAt, zone) : '' })}</p>}
         {pair.node}
         {problem && <InlineError fix={here ? { label: t('onboarding.move.open', { name: here.name ?? t('onboarding.welcome.noName') }), onSelect: () => onOpen(here) } : undefined}>{problem}</InlineError>}

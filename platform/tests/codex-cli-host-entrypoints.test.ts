@@ -32,7 +32,7 @@ for (const entrypoint of ['server', 'worker'] as const) {
       assert.equal(code, 1);
       assert.match(stderr, /CLI_HOST_EVIDENCE_INVALID/);
       assert.doesNotMatch(stdout, /owner pairing link/);
-      assert.deepEqual(messages, [], 'worker must not announce readiness before evidence verification');
+      assert.deepEqual(messages, entrypoint === 'worker' ? [{ phase: 'loaded' }] : [], 'module loading may be reported, but readiness must wait for evidence verification');
     } finally { clearTimeout(deadline); if (child.exitCode === null) child.kill(); }
   });
 }

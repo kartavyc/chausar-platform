@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The draft sheet (`?sheet=outreach:<person id>:<draft id>`; D-Network's intro panel; the engine's 4E2 OutreachView): who it goes
  * to, who wrote it, the note itself (quoted), the note a connector can forward, a connection note's characters against
@@ -26,7 +27,7 @@ import type { OutreachChannel, OutreachHandoff, OutreachSentChannel, OutreachVie
 import type { SheetComponentProps } from '../../shell/sheets';
 import { reserveTab } from '../connections/external';
 import { NeverContactLost } from './NeverContactLost';
-import { codeOf, messageOf } from './network';
+import { codeOf } from './network';
 import { clientsChanged } from './signals';
 import {
   askOf, channelOf, draftSheetId, handoffText, keepAsk, keepDraft, keptDraft, opensPage, parseDraftSheetId, performHandoff, SENT_OF, writeTab, type DraftAsk,

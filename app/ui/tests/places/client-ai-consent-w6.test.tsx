@@ -37,7 +37,7 @@ describe('per-client AI permission',()=>{
   window.location.hash='#/clients?sheet=client%3Ac-boat';const client=createFakeClient(new FakeEngine());const spy=vi.spyOn(client,'request');render(<App client={client} language="en"/>);
   const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});const summary=await within(sheet).findByText('AI permission');
   expect(spy.mock.calls.some(([method])=>method==='venture.client.aiConsent.agree')).toBe(false);
-  fireEvent.click(summary);const allow=await within(sheet).findByRole('button',{name:'Allow AI access'});
+  expect(summary.closest('details')?.open).toBe(true);const allow=await within(sheet).findByRole('button',{name:'Allow AI access'});
   expect(sheet.textContent).toContain('Withdrawal stops future sharing');await act(async()=>fireEvent.click(allow));
   await within(sheet).findByRole('button',{name:'Withdraw permission'});
   const grant=spy.mock.calls.find(([method])=>method==='venture.client.aiConsent.agree');expect(grant?.[1]).toMatchObject({clientId:'c-boat',disclosureDigest:expect.any(String)});
@@ -47,7 +47,7 @@ describe('per-client AI permission',()=>{
  it('permission read failures stay visible and cannot enable an accidental grant',async()=>{
   window.location.hash='#/clients?sheet=client%3Ac-boat';const client=createFakeClient(new FakeEngine());const base=client.request.bind(client);
   client.request=((method,params)=>method==='venture.client.aiConsent.get'?Promise.reject(new EngineError('READ_FAILED','Permission is unavailable.')):base(method as never,params as never)) as EngineClient['request'];
-  render(<App client={client} language="en"/>);const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});fireEvent.click(await within(sheet).findByText('AI permission'));
+  render(<App client={client} language="en"/>);const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});await within(sheet).findByText('AI permission');
   await within(sheet).findByText('Permission is unavailable.');expect(within(sheet).queryByRole('button',{name:'Allow AI access'})).toBeNull();
  });
  it('Work: Start refused for permission shows Allow and start, which records it through the sheet call and then starts (B4)',async()=>{
@@ -93,7 +93,7 @@ describe('per-client AI permission',()=>{
   const orders=await engine.request('venture.order.list') as {id:string;clientId:string;request:string}[];const waiting=orders.find(order=>order.request==='Monthly books from October')!;
   client.request=((method,params)=>method==='venture.delivery.run'?Promise.resolve({id:'run_new'}):base(method as never,params as never)) as EngineClient['request'];
   const spy=vi.spyOn(client,'request');window.location.hash=`#/clients?sheet=client%3A${iyer.id}`;render(<App client={client} language="en"/>);
-  const sheet=await screen.findByRole('complementary',{name:'Iyer & Co'});fireEvent.click(await within(sheet).findByText('AI permission'));
+  const sheet=await screen.findByRole('complementary',{name:'Iyer & Co'});await within(sheet).findByText('AI permission');
   expect(within(sheet).queryByRole('button',{name:/order$/})).toBeNull();
   await act(async()=>fireEvent.click(await within(sheet).findByRole('button',{name:'Allow AI access'})));
   const start=await within(sheet).findByRole('button',{name:"Start Iyer & Co's order"});
@@ -105,7 +105,7 @@ describe('per-client AI permission',()=>{
  });
  it('Allow on a client with no order waiting offers nothing more',async()=>{
   window.location.hash='#/clients?sheet=client%3Ac-boat';const client=createFakeClient(new FakeEngine());render(<App client={client} language="en"/>);
-  const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});fireEvent.click(await within(sheet).findByText('AI permission'));
+  const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});await within(sheet).findByText('AI permission');
   await act(async()=>fireEvent.click(await within(sheet).findByRole('button',{name:'Allow AI access'})));
   await within(sheet).findByRole('button',{name:'Withdraw permission'});
   expect(within(sheet).queryByRole('button',{name:/^Start .+ order$/})).toBeNull();

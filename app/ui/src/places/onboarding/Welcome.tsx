@@ -3,6 +3,7 @@ import { GoBackOffer } from './GoBackOffer';
 import { useLanguageChoice, useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Icon } from '../../parts/Icon';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { noteOpenedWithPassphrase, refusalWords } from '../../parts/custody';
 import type { Openable, WelcomeFound } from './boot';
@@ -63,9 +64,15 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
   }
 
   const empty = businesses.length === 0;
+  const otherWays = [
+    <Button key="restore" variant="quiet" onClick={() => setWay({ kind: 'restore' })}>{t('onboarding.welcome.restore')}</Button>,
+    <Button key="code" variant="quiet" onClick={() => setWay({ kind: 'recover' })}>{t('onboarding.welcome.useCode')}</Button>,
+    ...(client.pickCopy && client.importCopy ? [<Button key="copy" variant="quiet" onClick={() => setWay({ kind: 'copy' })}>{t('onboarding.copy.title')}</Button>] : []),
+    ...(!complete || empty ? [<Button key="folder" variant="quiet" onClick={() => setWay({ kind: 'folder' })}>{t('onboarding.welcome.byFolder')}</Button>] : []),
+  ];
   return (
     <Shell status={status}>
-      <h1 className={s.question}>{t('onboarding.welcome.title')}</h1>
+      <h1 className={s.question}>{t(empty ? 'onboarding.welcome.titleNone' : 'onboarding.welcome.title')}</h1>
       {deleted && <DeletedNote result={deleted} />}
       {empty && <p className={s.note}>{t('onboarding.welcome.none')}</p>}
       {!empty && (
@@ -78,7 +85,11 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
                 onClick={() => void choose(business)}
               >
                 <span>{business.name ?? t('onboarding.welcome.noName')}</span>
-                {business.opens !== 'now' && <span className={s.businessNote}>{t(`onboarding.welcome.opens.${business.opens}`)}</span>}
+                <span className={s.businessEnd} data-open-mark="">
+                  {business.opens !== 'now' && <span className={s.businessNote}>{t(`onboarding.welcome.opens.${business.opens}`)}</span>}
+                  {business.opens === 'now' && <span className={s.businessNote} aria-hidden="true">{t('onboarding.welcome.open')}</span>}
+                  <Icon name="chevron-right" size={16} />
+                </span>
               </button>
               <Reveal open={asking === business.key}>
                 <PassphraseOpen business={business} onOpened={onOpened} onForgot={() => setWay({ kind: 'recover', folder: business.key })} />
@@ -89,18 +100,26 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
       )}
       <p className={s.progress} role="status">{opening !== null ? t('onboarding.welcome.opening') : ''}</p>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-      <div className={s.actions}>
-        <Button variant="quiet" onClick={onNew}>{t(empty ? 'onboarding.welcome.newFirst' : 'onboarding.welcome.new')}</Button>
-        {!hosted && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
-      </div>
-      <LanguageLink />
-      {!hosted && (
+      {asking === null ? (
+        <>
+          <div className={s.stacked}>
+            {!hosted && empty && <Button variant="primary" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
+            <Button variant="quiet" onClick={onNew}>{t(empty ? 'onboarding.welcome.newFirst' : 'onboarding.welcome.new')}</Button>
+            {!hosted && !empty && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
+          </div>
+          <LanguageLink />
+          {/* B4 task 12: one chooser for the other ways in; with only two, they are links at rest. */}
+          {!hosted && (otherWays.length > 2
+            ? <Fold summary={t('onboarding.welcome.bring')} className={s.more}><div className={s.stacked}>{otherWays}</div></Fold>
+            : <div className={s.stacked}>{otherWays}</div>)}
+        </>
+      ) : (
+        // While a passphrase is asked it is the way on; the rest wait under More options.
         <Fold summary={t('onboarding.welcome.more')} className={s.more}>
-          <div className={s.actions}>
-            <Button variant="quiet" onClick={() => setWay({ kind: 'restore' })}>{t('onboarding.welcome.restore')}</Button>
-            <Button variant="quiet" onClick={() => setWay({ kind: 'recover' })}>{t('onboarding.welcome.useCode')}</Button>
-            {client.pickCopy && client.importCopy && <Button variant="quiet" onClick={() => setWay({ kind: 'copy' })}>{t('onboarding.copy.title')}</Button>}
-            {(!complete || empty) && <Button variant="quiet" onClick={() => setWay({ kind: 'folder' })}>{t('onboarding.welcome.byFolder')}</Button>}
+          <div className={s.stacked}>
+            <Button variant="quiet" onClick={onNew}>{t('onboarding.welcome.new')}</Button>
+            {!hosted && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
+            {!hosted && otherWays}
           </div>
         </Fold>
       )}
@@ -126,7 +145,7 @@ function Shell({ status, children }: { status: ReactNode; children: ReactNode })
     <div className={s.first}>
       <div>{status}</div>
       <main id="main" tabIndex={-1} className={s.firstMain} data-anchored="">
-        <div className={s.alone}>
+        <div className={s.aloneFlat}>
           <Brand />
           {children}
         </div>

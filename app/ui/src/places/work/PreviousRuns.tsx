@@ -8,14 +8,14 @@ import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import { Tile, TileHead } from '../../parts/Tile';
 import { tookWords, useWaitingWords, workedWords } from '../../parts/run-time';
-import { useDay } from '../../parts/when';
+import { useDayKey, useLocalToday, useMoment } from '../../parts/when';
 import type { DeliveryLite, QueueRow, RunDetail, RunState, RunSummary } from '../../engine/types';
 import { newestRun, previousFailure } from './orders';
 import { againRow, useRunAgain } from './RunAgain';
 import s from './Work.module.css';
 
 const SEP = ' · ';
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** The ring each run's state draws around its agent: working, waiting on you, stopped; a finished run has none. */
 export const RINGS: Readonly<Record<RunState, AvatarState>> = { active: 'working', waiting: 'waiting', failed: 'failed', done: 'idle' };
@@ -50,6 +50,7 @@ export function superseded(runId: string, deliveries: readonly DeliveryLite[] | 
 
 export interface PreviousRunsProps {
   runs: RunSummary[];
+  label?: string | undefined;
   /** Delivery runs, to tell a stopped run that was already run again from one that cannot be. */
   deliveries: DeliveryLite[] | undefined;
   /** Today's rows: a failed run is run again through its "Run again" row, the engine's retry path. */
@@ -63,13 +64,14 @@ interface RunRowProps {
   row: QueueRow | undefined;
   /** Say plainly that a failed run cannot be run again from here. */
   noRetry: boolean;
+  showAvatar: boolean;
   onChanged: () => void;
 }
 
-function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
+function RunRow({ run, detail, row, noRetry, onChanged, showAvatar }: RunRowProps) {
   const t = useT();
   const again = useRunAgain(row, onChanged);
-  const day = useDay('short');
+  const moment = useMoment('short');
   const waitingWords = useWaitingWords();
   let end: ReactNode;
   let line: ReactNode;
@@ -87,7 +89,7 @@ function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
     const took = run.elapsed ? <>{SEP}<span>{tookWords(run, t, 'work.finished.took')}</span></> : null;
     // C4 task 12: who it was for (it opens their sheet) and the owner's date for it.
     const who = run.client ? <>{SEP}<button type="button" className={s.rowClient} onClick={(event) => openSheet('client', run.client!.id, event.currentTarget)}>{run.client.name}</button></> : null;
-    end = day(run.startedAt) || undefined;
+    end = moment(run.finishedAt ?? run.startedAt) || undefined;
     if (run.result === undefined) {
       line = <>{run.agent}{who}{took}</>;
     } else if (run.estimate) {
@@ -101,7 +103,7 @@ function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
   }
   return (
     <Row
-      id={`run-${run.runId}`} dense mark={<Avatar name={run.agent} state={RINGS[run.state]} size={32} />}
+      id={`run-${run.runId}`} dense mark={showAvatar ? <Avatar name={run.agent} state={RINGS[run.state]} size={32} /> : undefined}
       title={run.purpose} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
       onOpen={(origin) => { again.opened(); openSheet('run', run.runId, origin); }}
     >
@@ -118,14 +120,15 @@ function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
  * Run again as the engine's action asks, or a line saying it can't be run again from here. Still going: started, or
  * waiting on you.
  */
-export function PreviousRuns({ runs, deliveries, queue, onChanged }: PreviousRunsProps) {
+export function PreviousRuns({ runs, deliveries, queue, onChanged, label }: PreviousRunsProps) {
   const details = useRunDetails(runs.filter((r) => r.state === 'failed'));
+  const showAvatar = new Set(runs.map(run => run.agent)).size > 1;
   return (
-    <ul className={s.rows}>
+    <ul className={s.rows} aria-label={label}>
       {runs.map((run) => (
         <RunRow
           key={run.runId} run={run} detail={details[run.runId]} row={run.state === 'failed' ? againRow(queue, run.runId) : undefined}
-          noRetry={!!queue && !superseded(run.runId, deliveries)} onChanged={onChanged}
+          noRetry={!!queue && !superseded(run.runId, deliveries)} onChanged={onChanged} showAvatar={showAvatar}
         />
       ))}
     </ul>
@@ -139,12 +142,20 @@ const FINISHED_AT_REST = 5;
 export function Finished({ runs, moreHref, onChanged }: { runs: RunSummary[]; moreHref?: string | undefined; onChanged: () => void }) {
   const t = useT();
   const id = useId();
-  const shown = moreHref ? runs.slice(0, FINISHED_AT_REST) : runs;
+  const day = useDayKey();
+  const today = useLocalToday()();
+  const newest = [...runs].sort((a, b) => (b.finishedAt ?? b.startedAt).localeCompare(a.finishedAt ?? a.startedAt));
+  const shown = moreHref ? newest.slice(0, FINISHED_AT_REST) : newest;
+  const doneToday = runs.filter(run => run.finishedAt && day(run.finishedAt) === today).length;
+  const clientWork = shown.filter(run => !run.practice);
+  const practice = shown.filter(run => run.practice);
   const more = moreHref && runs.length > shown.length ? { href: moreHref, label: t('work.finished.more') } : undefined;
   return (
     <Tile as="section" labelledBy={id} className={s.finished}>
       <TileHead id={id} title={t('work.finished')} more={more} />
-      <PreviousRuns runs={shown} deliveries={undefined} queue={undefined} onChanged={onChanged} />
+      {doneToday > 0 && <p className={s.quiet}>{t('work.finished.today', { count: doneToday })}</p>}
+      {clientWork.length > 0 && <PreviousRuns runs={clientWork} deliveries={undefined} queue={undefined} onChanged={onChanged} />}
+      {practice.length > 0 && <><p className={s.quiet}>{t('work.finished.practice')}</p><PreviousRuns runs={practice} deliveries={undefined} queue={undefined} onChanged={onChanged} label={t('work.finished.practice')} /></>}
     </Tile>
   );
 }

@@ -1,11 +1,12 @@
+import { sha256Hex } from '../../../hash.ts';
 // One exact source validator shared by local rendering, Work and final delivery.
-import {createHash} from 'node:crypto';
+
 import {check,type State} from '../../../contracts.ts';
 import type {DemoProjectRecord,OrderRecord} from '../../contracts.ts';
 import {digest,listRecords} from '../../records.ts';
 import {requireDemoPlan} from './demo-runtime.ts';
 import {narrationRights} from '../narration-studio/source-core.ts';
-const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
+const sha=(bytes:Uint8Array)=>sha256Hex(bytes);
 /** today is the owner's day (the business's zone), which the narration licence's end day is checked against. */
 export function demoMediaSource(state:State,ventureId:string,order:OrderRecord,row:DemoProjectRecord,today:string){
  const orderId=order.id;requireDemoPlan(row.plan,row.approvedPlan);if(row.plan.aiVoice)narrationRights(order,today);

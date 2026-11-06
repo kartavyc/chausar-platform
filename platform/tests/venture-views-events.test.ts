@@ -10,7 +10,7 @@ import vm from 'node:vm';
 import { ChausarError } from '../runtime/contracts.ts';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
-import { VENTURE_EVENTS, VENTURE_RUN_EVENT_TYPES } from '../runtime/venture/contracts.ts';
+import { VENTURE_EVENTS, VENTURE_RUN_EVENT_TYPES } from '../runtime/venture/contract-values.ts';
 import type { DeliveryRunRecord, ModelTransport, QueueList, VentureDeps, VentureRunEvent } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { PACKAGE_LOADERS, VentureHost } from '../runtime/venture/host.ts';
@@ -214,7 +214,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['firstPaint', 'getAskLater', 'getBackground', 'importCopy', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickCopy', 'pickNetworkFile', 'previewDiagnostics', 'request', 'saveBriefFile', 'saveBusinessExport', 'saveDiagnostics', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'setBackupFolder', 'shareInvoice', 'sharePack', 'shareReceipt', 'showExport', 'showSavedExport', 'showShared', 'showUpdateInstaller']);
+  assert.deepEqual(Object.keys(api).sort(), ['firstPaint', 'getAskLater', 'getBackground', 'goBack', 'goBackOffer', 'importCopy', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickCopy', 'pickNetworkFile', 'previewDiagnostics', 'request', 'saveBriefFile', 'saveBusinessExport', 'saveDiagnostics', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'setBackupFolder', 'shareInvoice', 'sharePack', 'shareReceipt', 'showExport', 'showSavedExport', 'showShared', 'showUpdateInstaller']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });

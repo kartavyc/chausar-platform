@@ -2,7 +2,7 @@
 // owner reads the agent's runs as a conversation and talks to it: a question gets one answer whose figures only come
 // by receipt (any other number is labelled a model estimate); a request for work suggests a prefilled New order and
 // creates nothing; a request that lands on the floor becomes a drafted proposal for Today; a message while the agent's
-// run waits on the owner's question is that question's answer. Keys never enter a thread. Keeper is code, not AI.
+// run waits on the owner's question is that question's answer. Keys never enter a thread. Keeper uses fixed rules, not AI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ANSWER_INSTRUCTIONS } from '../runtime/venture/agents/answer.ts';
@@ -19,7 +19,7 @@ test('thread: unknown agents, Keeper and the code role have no chat', async () =
   await assert.rejects(env.agents('venture.agents.thread.list', { agent: 'nobody' }), code('AGENT_NOT_FOUND'));
   await assert.rejects(env.agents('venture.agents.thread.list', { agent: 'keeper' }), (error: any) => {
     assert.equal(error.code, 'AGENT_IS_CODE');
-    assert.equal(error.message, 'Keeper is code, not AI. It has no chat; its jobs are on Team.');
+    assert.equal(error.message, 'Keeper uses fixed rules, not AI. It has no chat; its jobs are on Team.');
     return true;
   });
   await assert.rejects(env.agents('venture.agents.thread.list', { agent: 'chausar' }), code('AGENT_IS_CODE'));

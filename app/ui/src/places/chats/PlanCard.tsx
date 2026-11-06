@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * "A short plan" under the chief's answer (D-Chats `.plan` and `.act`): the steps Chausar proposed, numbered, each with
  * what it does in the engine's words (ProposalView.what), the agent it names (when the engine names one), where it stands, and "each one asks you first". Chausar never
@@ -19,7 +20,7 @@ import s from './Chats.module.css';
 
 export type AgentLookup = (id: string) => { name: string; dept: DeptId | undefined } | undefined;
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function PlanCard({ proposals, agentOf, onChanged }: { proposals: readonly ProposalView[]; agentOf: AgentLookup; onChanged: () => void }) {
   const t = useT();

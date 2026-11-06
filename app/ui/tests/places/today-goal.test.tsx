@@ -81,11 +81,10 @@ describe('Today: the goal card with a goal set (W4 4I2)', () => {
     const foot = goal.querySelector<HTMLElement>('[data-goal-foot]')!;
     // How far ahead of today's pace comes from the engine with its receipt: "₹1,109.67 ahead of pace".
     expect(foot.textContent).toMatch(/ahead of pace/i);
-    expect(foot.textContent).toContain('Still to invoice');
-    expect(foot.textContent).toContain('₹37,600');
-    expect(foot.textContent).toContain('Received so far');
-    expect(within(foot).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
-    expect(foot.querySelectorAll('[data-receipt]')).toHaveLength(3);
+    // B4 task 13: one pace line; the others are on Money.
+    expect(foot.textContent).not.toContain('Still to invoice');
+    expect(foot.textContent).not.toContain('Received so far');
+    expect(foot.querySelectorAll('[data-receipt]')).toHaveLength(1);
     // A goal is set, so no suggestion is ever asked for, and nothing reads the pace receipt on its own.
     expect(calls.some(([method]) => method === 'venture.goals.suggest' || method === 'venture.receipt.get')).toBe(false);
     assertFiguresProved(goal);

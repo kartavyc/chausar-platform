@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The parts of one invoice that wave 4 adds to its sheet (W4 4J5, M11, M12 and M15): its one next step by state, a
  * draft's rate change (recalculating is the owner's choice), its credit notes and a way to ask for one, each payment
@@ -20,7 +21,7 @@ import { Figure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import type { InvoiceViewLite, PaymentLite } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
-import { messageOf, typedWords, useDay } from './words';
+import { typedWords, useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 

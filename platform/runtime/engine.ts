@@ -1,5 +1,6 @@
 import { markNewCaptureSample, isCaptureSample } from './venture/replay/sample.ts';
 import { currentRun } from './venture/replay/scope.ts';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { resolve, join, relative, isAbsolute, basename } from 'node:path';
 import { CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallPorts, type ClaudeInstallProgress, type ClaudeInstallResult, type ClaudeInstallView } from './venture/models/claude-code-install.ts';
 import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
@@ -1073,7 +1074,7 @@ export class Engine {
     const keys = confirm ? 'cli,path,sha256' : 'cli,sha256';
     const path = (payload as { path?: unknown } | null)?.path;
     check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === keys && (payload as { cli?: unknown }).cli === 'codex'
-      && typeof (payload as { sha256?: unknown }).sha256 === 'string' && /^[a-f0-9]{64}$/.test((payload as { sha256: string }).sha256)
+      && typeof (payload as { sha256?: unknown }).sha256 === 'string' && DIGEST_PATTERN.test((payload as { sha256: string }).sha256)
       && (!confirm || (typeof path === 'string' && path.length > 0 && path.length <= 4096)),
       'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
     const trust = this.options.venture?.codexCli as { record?: (sha256: unknown, path: unknown) => Promise<unknown>; held?(sha256: unknown): unknown; current?(): unknown } | undefined;
@@ -1661,7 +1662,7 @@ export class Engine {
       case 'answers.recovery.prepare': {
         const input = this.journalPayload(payload, ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'],
           ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'], 'INVALID_ANSWER_RECOVERY');
-        check(typeof input.reviewedEvidencePin === 'string' && /^[a-f0-9]{64}$/.test(input.reviewedEvidencePin),
+        check(typeof input.reviewedEvidencePin === 'string' && DIGEST_PATTERN.test(input.reviewedEvidencePin),
           'INVALID_ANSWER_RECOVERY', 'Review the exact current source evidence before preparing a fresh calculation.');
         const id = await store.update(state => {
           const view = this.answerRecoveryView(state), resolved = this.answerRecoveryEvidence(ctx, input.answerId, view);
@@ -2444,7 +2445,7 @@ export class Engine {
     return { ...base, status: 'completed', lineage: structuredClone(lineage), answer: result.answer, receipt };
   }
   private async executeAnswerRecovery(ctx: Context, newRequestId: unknown, preparationDigest: unknown) {
-    check(typeof preparationDigest === 'string' && /^[a-f0-9]{64}$/.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'This answer changed since you looked. Look at it again before confirming.');
+    check(typeof preparationDigest === 'string' && DIGEST_PATTERN.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'This answer changed since you looked. Look at it again before confirming.');
     const vault = this.store(), issued = this.answerRecoveryRecord(ctx, newRequestId, vault);
     check(issued.record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'Review this exact issued preparation before execution.');
     if (issued.record.status === 'completed') return this.answerRecoveryRead(ctx, newRequestId);
@@ -3444,7 +3445,7 @@ export class Engine {
   /** C5 task 31: one for the engine's life, so its ten quiet minutes count from the start. */
   #updates: UpdateService | null = null;
   private updateService(): UpdateService {
-    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsPublisher: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
+    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsCertificateThumbprint: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
   }
   /**
    * C5 task 32, trusted main-process route only, at quit: is a run busy, the open data's version, and the safety copy of the

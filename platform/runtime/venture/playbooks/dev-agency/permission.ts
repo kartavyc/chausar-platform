@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Original permission and week-one boundaries, catalogue X6. IT Act sections 43/66 inform the permission requirement; no external code copied.
 import {check} from './core.ts';
 export type DevPermission={owner:string;system:string;startsAt:string;endsAt:string;writtenFileId:string;writtenDigest:string};
@@ -7,7 +8,7 @@ const instant=(value:string)=>{check(typeof value==='string'&&/^\d{4}-\d{2}-\d{2
 export function assertDevPermission(permission:DevPermission|null,input:{system:string;now:string;writtenFileId:string;writtenDigest:string;liveTarget?:boolean}):true{
  check(input.liveTarget!==true,'DEV_LIVE_TARGET_REFUSED','Only a local source copy can be reviewed. Live-system testing is not supported.');
  check(permission&&typeof permission.owner==='string'&&permission.owner.trim().length>0&&permission.owner.length<=200,'PERMISSION_REQUIRED','Record the code owner and their written permission before security work.');
- check(permission.system===input.system&&permission.writtenFileId===input.writtenFileId&&permission.writtenDigest===input.writtenDigest&&/^[a-f0-9]{64}$/.test(permission.writtenDigest),'PERMISSION_REQUIRED','The written permission must cover this exact current source and repository.');
+ check(permission.system===input.system&&permission.writtenFileId===input.writtenFileId&&permission.writtenDigest===input.writtenDigest&&DIGEST_PATTERN.test(permission.writtenDigest),'PERMISSION_REQUIRED','The written permission must cover this exact current source and repository.');
  const now=instant(input.now),start=instant(permission.startsAt),end=instant(permission.endsAt);check(end>start&&now>=start&&now<end,'PERMISSION_REQUIRED','Written permission is outside its approved window.');return true;
 }
 /** Week one is seven full elapsed days, starting at the recorded retainer start. */

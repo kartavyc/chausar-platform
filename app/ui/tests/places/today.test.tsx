@@ -70,7 +70,8 @@ describe('Today: the header and the list', () => {
   it('greets the owner and says the engine summary line', async () => {
     start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
-    await waitFor(() => expect(headerLine()).toBe('12 need you, across 2 businesses. 2 agents are working.'));
+    // B4 task 13: the line says who is working; the waiting count is on Needs you and the rail.
+    await waitFor(() => expect(headerLine()).toBe('2 agents are working.'));
   });
 
   it('lists every row in the engine order, across businesses, each tagged with its business and agent', async () => {
@@ -137,7 +138,6 @@ describe('Today: deciding', () => {
     await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect((needsYou().querySelector('[data-row-id="q-signoff-gst"]') as HTMLElement).textContent).toBe('GST working for September · Sent to your CA'));
-    await waitFor(() => expect(headerLine()).toBe('11 need you, across 2 businesses. 2 agents are working.'));
   });
 
   it('a second ask confirms inside the row; the decided line carries the receipt', async () => {
@@ -305,7 +305,8 @@ describe('Today: deciding', () => {
     expect(screen.queryByRole('region', { name: 'Needs you' })).toBeNull();
     await go('#/today');
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"]')?.textContent).toBe('GST working for September · Sent to your CA'));
-    expect(rowIds().indexOf('q-signoff-gst')).toBe(QUEUE.findIndex((r) => r.id === 'q-signoff-gst'));
+    // B4 task 13: decided lines sit above the cards.
+    expect(rowIds().indexOf('q-signoff-gst')).toBe(0);
   });
 
   it('answering a run\'s question in the run sheet open over Today leaves the engine\'s line on Today (B3)', async () => {
@@ -351,7 +352,7 @@ describe('Today: deciding', () => {
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"][data-decided]')?.textContent).toBe('GST working for September · Sent to your CA'));
   });
 
-  it('with a locked business, the heading, the All chip, the greeting and the rail say the engine\'s count (B3)', async () => {
+  it('with a locked business, the heading and the rail say the engine\'s count (B3, B4 task 13)', async () => {
     const engine = new FakeEngine();
     start({ engine });
     const listed = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: QueueRow[]; needsYou: number };
@@ -361,8 +362,7 @@ describe('Today: deciding', () => {
     await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
     const head = needsYou().querySelector('h2')!.parentElement!;
     await waitFor(() => expect(head.querySelector('[aria-hidden="true"]')?.textContent).toBe(count));
-    expect(within(needsYou()).getByRole('button', { name: /^All/ }).textContent?.replace(/\s/g, '')).toBe(`All${count}`);
-    expect(screen.getByRole('heading', { level: 1 }).nextElementSibling?.querySelector('b')?.textContent).toBe(count);
+    expect(within(needsYou()).getByRole('button', { name: /^All/ }).textContent?.replace(/\s/g, '')).toBe('All');
     const rail = screen.getByRole('navigation', { name: 'Places' });
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')?.textContent).toBe(count);
   });
@@ -455,7 +455,7 @@ describe('Today: working now', () => {
     await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 5Stop4 min'));
     const waiting = line('Pricing the sponsor slot');
     expect(waiting.textContent).toContain('Producer');
-    expect(waiting.textContent).toContain('Waiting on you');
+    expect(waiting.textContent).toContain('Review');
     expect(waiting.textContent).not.toContain('6 min');
     expect(line('Rendering the thumbnail set').textContent).toContain('Failed');
   });
@@ -469,10 +469,10 @@ describe('Today: working now', () => {
     expect(await screen.findByRole('complementary', { name: 'Pricing the sponsor slot' })).toBeTruthy();
   });
 
-  it('"Waiting on you" takes you to the row that answers it', async () => {
+  it('"Review" takes you to the row that answers it', async () => {
     start();
     await rowOf('The sponsor wants to see the video before it goes up');
-    fireEvent.click(await screen.findByRole('button', { name: /^Waiting on you/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Review/ }));
     expect(document.activeElement?.getAttribute('data-row-id')).toBe('q-question-preview');
   });
 

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Leads (spec section 7.9): people the owner may write to, shown on the Pipeline tab (PipelineTab.tsx). A lead needs
  * the page it was found on; an email counts once a mail server answered for it; agents only draft, and the owner
@@ -25,7 +26,7 @@ import { useMoment } from '../money/words';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const codeOf = (error: unknown) => (error instanceof EngineError ? error.code : 'REQUEST_FAILED');
 
 export function LeadSheet(props: SheetComponentProps) {

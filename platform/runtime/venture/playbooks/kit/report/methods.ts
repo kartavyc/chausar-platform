@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../../hash.ts';
 // Chausar playbook kit (Ink v2 wave 5, package 5A5, P11): venture.report.render, a client report of one run's draft.
 // The draft's sections become blocks (playbooks/kit/report/blocks.ts), every figure checked against the run's receipts;
 // the HTML is made first (render-html.ts) and is always one of the files; the PDF is printed from that same HTML on
@@ -6,7 +7,7 @@
 // file's name, size and sha256, never the bytes (a later save makes the report again). venture.report.list lists them.
 // The print happens before the record is written, never inside the vault's transaction; the transaction checks the
 // draft is still the one rendered. Written for Chausar; nothing here is learned from an outside source.
-import { createHash } from 'node:crypto';
+
 import { check, type Context } from '../../../../contracts.ts';
 import type { ReportRecord, VentureDeps } from '../../../contracts.ts';
 import { copiedTokens, exactPayload, formatVentureDate, identifier, listRecords, readVenture, ventureAction } from '../../../records.ts';
@@ -29,7 +30,7 @@ const DEFAULT_FORMATS: readonly ReportFormat[] = Object.freeze(['html', 'pdf']);
 /** The most a report's files may weigh together, kept in the vault. */
 const MAX_REPORT_BYTES = 12_000_000;
 
-const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const sha256 = (bytes: Uint8Array) => sha256Hex(bytes);
 
 /** A file name from the title: lower case letters, digits and dashes, or 'report'. */
 function slug(title: string): string {

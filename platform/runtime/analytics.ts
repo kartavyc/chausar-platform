@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -41,7 +42,7 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
   check(receipt && typeof receipt.operation === 'string', 'SQL_OPERATION_UNSUPPORTED', 'The SQL calculator needs a published operation.');
   const binding = receipt.compiledCalculation;
   if (binding) {
-    check(Object.keys(binding).length === 2 && Object.hasOwn(binding, 'dictionaryHash') && Object.hasOwn(binding, 'sum') && binding.dictionaryHash === receipt.dictionaryHash && /^[a-f0-9]{64}$/.test(binding.dictionaryHash), 'SQL_PROJECTION_INVALID', 'The compiler artifact must belong to the receipt dictionary.');
+    check(Object.keys(binding).length === 2 && Object.hasOwn(binding, 'dictionaryHash') && Object.hasOwn(binding, 'sum') && binding.dictionaryHash === receipt.dictionaryHash && DIGEST_PATTERN.test(binding.dictionaryHash), 'SQL_PROJECTION_INVALID', 'The compiler artifact must belong to the receipt dictionary.');
     check(receipt.definitions?.length === 1 && receipt.definitionHash === hash(receipt.definitions), 'SQL_PROJECTION_INVALID', 'A compiled sum carries exactly its published definition.');
     assertCompiledSingleSum(binding.sum, receipt.operation, receipt.definitions[0], receipt.ontologyVersion);
   }

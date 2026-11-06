@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { check, hash, newId, type Fact, type State } from './contracts.ts';
 import { validDate, type FactInput } from './memory.ts';
 
@@ -32,7 +33,7 @@ export type ProducerRelationPublication = {
   lineage: ProducerFactLineage[]; staleArtifactIds: string[]; affectedReceiptIds: string[];
 };
 
-const SHA = /^[a-f0-9]{64}$/;
+const SHA = DIGEST_PATTERN;
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 200 && !value.includes('\u0000');
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const key = (fact: Pick<FactInput, 'kind' | 'entityId'>): string => JSON.stringify([fact.kind, fact.entityId]);

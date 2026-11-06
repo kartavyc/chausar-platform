@@ -223,6 +223,8 @@ test('a server that ignores the Range request starts the file again, and a wrong
   await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:cut}).stage(release,signature(release)),code('RELEASE_DOWNLOAD_CUT'));
   const lying:Download=async request=>({status:206,url:request.url,headers:{'content-range':`bytes 0-${bytes.length-1}/${bytes.length}`},body:chunks(bytes)});
   await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:lying}).stage(release,signature(release)),code('RELEASE_FETCH_REFUSED'));
+  assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.part')), 'a refused range drops the unusable partial file');
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:cut}).stage(release,signature(release)),code('RELEASE_DOWNLOAD_CUT'));
   const whole:Download=async request=>({status:200,url:request.url,body:chunks(bytes)});
   const staged=await new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole}).stage(release,signature(release));
   assert.deepEqual(await readFile(staged.artifactPath),bytes);

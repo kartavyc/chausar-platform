@@ -40,7 +40,7 @@ export function proposeTicket(input: TicketInput, now: string, existing: readonl
 /** Confirms an unexpired proposal only once the conversation has no active run. */
 export function confirmTicket(p: TicketProposal, now: string, active: boolean): SupportTicketBody {
   check(Date.parse(now) < Date.parse(p.expiresAt), 'TICKET_EXPIRED', 'This ticket proposal expired. Review a fresh proposal.');
-  check(!active, 'TICKET_RUN_ACTIVE', 'Wait for this conversation run to stop before confirming the ticket.');
+  check(!active, 'TICKET_RUN_ACTIVE', 'Wait for this conversation job to stop before confirming the ticket.');
   return { thread: p.thread, customerEmail: p.customerEmail, subject: p.subject, language: p.language, blocked: p.blocked, status: 'open', revision: 1, note: '', autoDraftsPaused: p.blocked, dueAt: null, resolutionDueAt: null, snoozedAt: null, snoozeUntil: null, snoozeReason: null, draft: null, sentAt: null, messages: [], policyChangeApproved: false };
 }
 /** Owner status changes check the revision; closing is final and a resolution needs a note. */

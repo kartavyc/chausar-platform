@@ -8,7 +8,7 @@
 // hints, the desktop's IPC allowlist, the Ink app's method map and the hosted allow-list, and that every read is
 // readOnly. The idea of hints beside each action follows mailcheap (lib/actions/define-action.js); learned from, not
 // copied (AGPL).
-import { VENTURE_METHODS, W4_METHOD_LEVELS, W5_METHOD_LEVELS } from './contracts.ts';
+import { VENTURE_METHODS, W4_METHOD_LEVELS, W5_METHOD_LEVELS } from './contract-values.ts';
 import type { MethodLevel, VentureMethod, W4Method, W5Method } from './contracts.ts';
 
 export type MethodHint = { readOnly: boolean; undoable: boolean; idempotent: boolean; reachesOutside: boolean };

@@ -11,8 +11,10 @@ import s from './Layout.module.css';
 
 export function ArrangeButton({ place }: { place: LayoutPlace }) {
   const t = useT();
+  // B4 task 13: named for its page.
+  const name = t('layout.sheet.title', { place: t(`layout.place.${place}`) });
   return (
-    <button type="button" className={s.tool} aria-label={t('layout.arrange')} title={t('layout.arrange')} onClick={(event) => openSheet('layout', place, event.currentTarget)}>
+    <button type="button" className={s.tool} aria-label={name} title={name} onClick={(event) => openSheet('layout', place, event.currentTarget)}>
       <Icon name="sliders-horizontal" size={18} />
     </button>
   );

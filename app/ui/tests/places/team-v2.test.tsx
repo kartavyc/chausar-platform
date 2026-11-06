@@ -109,7 +109,7 @@ describe('Team v2: the stats tiles', () => {
     // The stack: one avatar each, drawn without rings (D's `.stack`), hidden since the names are in words.
     expect(working.querySelectorAll('[data-dept][aria-hidden="true"]')).toHaveLength(2);
 
-    const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
+    const waiting = within(glance).getByText('Waiting on you in this business').closest('[data-card]') as HTMLElement;
     // B3: the count is what Today counts for this business (7 rows wait in Lumen); the line names the agent who waits.
     await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('7'));
     expect(waiting.getAttribute('data-tone')).toBe('wait');
@@ -140,7 +140,7 @@ describe('Team v2: the stats tiles', () => {
     expect(spend.querySelector('[data-ui-number]')?.textContent).toBe('₹33.50');
     const working = within(glance).getByText('Working').closest('[data-card]') as HTMLElement;
     expect(working.textContent).toContain('Nobody is working right now.');
-    const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
+    const waiting = within(glance).getByText('Waiting on you in this business').closest('[data-card]') as HTMLElement;
     // B3: no agent waits, but five of Ledgerline's rows do: the tile says Today's count, not "Nothing waits on you."
     await waitFor(() => expect(waiting.textContent).toContain('5 need you'));
     expect(waiting.textContent).not.toContain('Nothing waits on you.');
@@ -156,7 +156,7 @@ describe('Team v2: the stats tiles', () => {
     window.location.hash = '#/team';
     render(<App client={createFakeClient(engine)} language="en" />);
     const glance = await screen.findByRole('region', { name: 'Team summary' });
-    const waiting = (await within(glance).findByText('Waiting on you')).closest('[data-card]') as HTMLElement;
+    const waiting = (await within(glance).findByText('Waiting on you in this business')).closest('[data-card]') as HTMLElement;
     await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('3'));
     expect(waiting.textContent).not.toContain(team['team.stats.waitingNone']);
     expect(waiting.getAttribute('data-tone')).toBe('wait');
@@ -331,8 +331,8 @@ describe('Team v2: a department panel', () => {
     expect(panel.textContent).toContain('2 jobs failed');
     expect(panel.textContent).toContain('3 idle');
     // A department with nobody in it says so and points to the ways to earn (spec section 8).
-    expect(within(panel).getByText('No agents in Sales and clients yet.')).toBeTruthy();
-    expect(within(panel).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=sales');
+    expect(within(panel).getByText('No agents yet in Sales and clients.')).toBeTruthy();
+    expect(within(panel).getByRole('link', { name: 'Add an agent here' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     const css = readFileSync(join(import.meta.dirname, '../../src/places/team/Team.module.css'), 'utf8');
     expect(css).toMatch(/\[data-tone='wait'\][^{]*\{[^}]*color: var\(--wait-strong\)/);
   });
@@ -343,16 +343,15 @@ describe('Team v2: with departments from the engine', () => {
     start('#/team', { intercept: withDepartments });
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
     // C1 task 2: the row carries its counts at every width.
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
+    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production']);
     expect(within(toggle).getByRole('button', { name: /^All departments/ }).getAttribute('aria-pressed')).toBe('true');
     const panels = within(main()).getAllByRole('article').filter((a) => a.hasAttribute('data-dept'));
-    expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod', 'money', 'ops']);
+    expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod']);
     const marketing = within(main()).getByRole('article', { name: 'Marketing' });
     expect(within(within(marketing).getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
-    const money = within(main()).getByRole('article', { name: 'Money' });
-    expect(within(money).queryByRole('list', { name: 'Money agents' })).toBeNull();
-    expect(within(money).getByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(money).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
+    expect(within(main()).queryByRole('article', { name: 'Money' })).toBeNull();
+    expect(within(main()).getByText('No agents yet in Money, Operations.')).toBeTruthy();
+    expect(within(main()).getByRole('link', { name: 'Add an agent here' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     expect(screen.queryByRole('region', { name: 'Your agents' })).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Team' }).nextElementSibling!.textContent).toBe('4 agents in 3 departments.');
     assertInkRules(document.body);
@@ -373,8 +372,8 @@ describe('Team v2: with departments from the engine', () => {
 
   it('an address with a department opens on it; one with no agents says so and offers ways to earn', async () => {
     start('#/team?dept=money', { intercept: withDepartments });
-    expect(await within(main()).findByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(main()).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
+    expect(await within(main()).findByText('No agents yet in Money.')).toBeTruthy();
+    expect(within(main()).getByRole('link', { name: 'Add an agent here' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
   });
 
   for (const hash of ['#/team', '#/team?dept=prod']) {
@@ -442,8 +441,8 @@ describe('Team v2: one department', () => {
 
   it('with no agents: one sentence and a link to the ways to earn', () => {
     renderWithEngine(<OneDepartment data={{ dept: 'ops', counts: { working: 0, waiting: 0, stopped: 0, idle: 0 }, members: [] }} />);
-    expect(screen.getByText('No agents in Operations yet.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=ops');
+    expect(screen.getByText('No agents yet in Operations.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Add an agent here' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     expect(screen.queryByRole('region', { name: 'How Operations runs' })).toBeNull();
   });
 
@@ -473,7 +472,7 @@ describe('Team v2: the agent panel', () => {
     expect(panel.getAttribute('data-width')).toBe('panel');
     expect(avatarIn(panel).getAttribute('data-state')).toBe('working');
     expect(panel.querySelector('header')!.textContent).toContain('Cuts episodes and shorts');
-    expect(panel.querySelector('header')!.textContent).toContain('Working');
+    expect(panel.querySelector('header')!.textContent).not.toContain('Working');
     await click(within(panel).getByRole('button', { name: 'Close Editor' }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
   });
@@ -486,10 +485,10 @@ describe('Team v2: the agent panel', () => {
     const tabs = within(panel).getByRole('tablist', { name: 'Editor' });
     const [chat, steps, runs, notes] = within(tabs).getAllByRole('tab');
     expect([chat!.textContent, notes!.textContent]).toEqual(['Chat', 'Notes']);
-    expect(steps!.textContent).toMatch(/^Instructions/);
+    expect(steps!.textContent).toMatch(/^How it works/);
     expect(runs!.textContent).toMatch(/^Jobs/);
     expect(steps!.getAttribute('aria-selected')).toBe('true');
-    expect(within(panel).getByRole('tabpanel', { name: /^Instructions/ })).toBeTruthy();
+    expect(within(panel).getByRole('tabpanel', { name: /^How it works/ })).toBeTruthy();
     await act(async () => { steps!.focus(); fireEvent.keyDown(steps!, { key: 'ArrowRight' }); });
     expect(runs!.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(runs);

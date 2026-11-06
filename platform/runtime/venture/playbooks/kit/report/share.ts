@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../../hash.ts';
 // Chausar playbook kit (Ink v2 wave 5, package 5A5, P11): a client report's share link, on wave 4's share link rules
 // (build/share-links.ts). venture.report.share makes one for a date range and channels; .shareRotate gives it a new
 // token and ends the old; .shareDisable stops it. Each is the owner's approval inside the app.
@@ -14,7 +15,7 @@
 //   stops it.
 // The idea of a report link scoped to dates and channels, with rotate and disable, comes from postmill's analytics
 // share modal (AGPL, learn-only: no code read or copied), catalogue row P11. Written for Chausar.
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { ChausarError, check, type Context, type State } from '../../../../contracts.ts';
 import type { Display, IsoDate, ReportRecord, ReportShareRecord, VentureDeps, VentureRecord } from '../../../contracts.ts';
 import {
@@ -39,7 +40,7 @@ export const REPORT_SHARE_WORDS = Object.freeze({
 });
 const SHARABLE = new Set(['ready-for-review', 'accepted', 'edited']);
 const TOKEN = /^[A-Za-z0-9_-]{32}$/;
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string) => sha256Hex(value);
 
 function publicOrigin(deps: VentureDeps): string | null {
   return deps.host === 'hosted-web' && typeof deps.publicUrl === 'string' && deps.publicUrl ? deps.publicUrl.replace(/\/+$/, '') : null;

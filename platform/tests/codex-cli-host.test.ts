@@ -1,3 +1,4 @@
+import { noNet } from './helpers/no-net.ts';
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -443,3 +444,6 @@ for (const entrypoint of entrypoints) {
   });
 
 }
+
+// Real update defaults must never leave this test process.
+test.beforeEach(t => noNet(t));

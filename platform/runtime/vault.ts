@@ -1,5 +1,7 @@
 import { isCaptureSample } from './venture/replay/sample.ts';
-import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
@@ -169,7 +171,7 @@ function freshBootstrapState(options: CreateBootstrapVaultOptions): State {
     || budget.maxStateBytes > MAX_BYTES / 2 || budget.maxJsonDepth > 256)
     fail('BOOTSTRAP_LIMIT', 'Supply explicit positive bounded bootstrap byte, JSON and record budgets.');
   if (!bootstrapId(options.expectedWorkspaceId) || !bootstrapId(options.expectedOwnerId)
-    || typeof options.expectedStateDigest !== 'string' || !/^[a-f0-9]{64}$/.test(options.expectedStateDigest))
+    || typeof options.expectedStateDigest !== 'string' || !DIGEST_PATTERN.test(options.expectedStateDigest))
     fail('BOOTSTRAP_PIN_REQUIRED', 'Use independently reviewed constructor State, workspace and fresh owner pins.');
   const text = bootstrapJson(options.state, budget);
   if (hash(text) !== options.expectedStateDigest) fail('BOOTSTRAP_STATE_CHANGED', 'The exact ordered State differs from its independently reviewed digest.');
@@ -311,7 +313,7 @@ export async function atomicWriteText(path: string, content: string, replace: bo
 export async function readBoundedText(path: string): Promise<string> { return readBounded(path); }
 /** Public ciphertext metadata: which passphrase and recovery wrappers an envelope carries. */
 export function wrappersDigestOf(envelope: Pick<VaultEnvelope, 'passphrase' | 'recovery'>): string {
-  return createHash('sha256').update(JSON.stringify({ passphrase: envelope.passphrase, recovery: envelope.recovery })).digest('hex');
+  return sha256Hex(JSON.stringify({ passphrase: envelope.passphrase, recovery: envelope.recovery }));
 }
 async function readBounded(path: string): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
@@ -633,7 +635,7 @@ export class Vault implements StateStore {
     let plaintext: Buffer | undefined;
     try {
       const envelope: PrivateArtifactEnvelope = JSON.parse(raw);
-      if (Object.keys(envelope).sort().join(',') !== 'ciphertext,format,id,purpose,valueDigest,vaultId' || envelope.format !== 'chausar.private-artifact.v1' || envelope.vaultId !== this.#envelope.id || envelope.id !== input.id || envelope.purpose !== input.purpose || !/^[a-f0-9]{64}$/.test(envelope.valueDigest)) throw new Error('Artifact identity mismatch');
+      if (Object.keys(envelope).sort().join(',') !== 'ciphertext,format,id,purpose,valueDigest,vaultId' || envelope.format !== 'chausar.private-artifact.v1' || envelope.vaultId !== this.#envelope.id || envelope.id !== input.id || envelope.purpose !== input.purpose || !DIGEST_PATTERN.test(envelope.valueDigest)) throw new Error('Artifact identity mismatch');
       plaintext = unseal(key, envelope.ciphertext, `${envelope.format}:${envelope.vaultId}:${envelope.purpose}:${envelope.id}:${envelope.valueDigest}`);
       const value = JSON.parse(plaintext.toString('utf8'));
       if (hash(JSON.stringify(value)) !== envelope.valueDigest) throw new Error('Artifact payload mismatch');
@@ -731,7 +733,7 @@ export class Vault implements StateStore {
     for (const item of input.artifacts) {
       if (!item || !item.ref || !['private-trial', 'workspace-interchange'].includes(item.ref.purpose)
         || typeof item.ref.id !== 'string' || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id)
-        || !/^[a-f0-9]{64}$/.test(item.ref.valueDigest) || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
+        || !DIGEST_PATTERN.test(item.ref.valueDigest) || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
         fail('ARTIFACT_AUTHENTICATION_FAILED', 'A retained artifact reference has invalid identity or size.');
       if (!(item.bytes instanceof Uint8Array) || !item.bytes.byteLength || item.bytes.byteLength > budget.maxEntryBytes
         || item.bytes.byteLength > budget.maxTotalEntryBytes - totalBytes) fail('ARTIFACT_LIMIT', 'Encrypted artifacts exceed their authentication budget.');
@@ -766,7 +768,7 @@ export class Vault implements StateStore {
     for (const item of input.artifacts) {
       if (!exact(item, ['ref', 'bytes']) || !exact(item.ref, ['id', 'purpose', 'valueDigest', 'diskBytes'])
         || !['private-trial', 'workspace-interchange'].includes(item.ref.purpose) || typeof item.ref.id !== 'string'
-        || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id) || !/^[a-f0-9]{64}$/.test(item.ref.valueDigest)
+        || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id) || !DIGEST_PATTERN.test(item.ref.valueDigest)
         || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
         fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact references require exact typed identity, digest and byte fields.');
       const id = `${item.ref.purpose}/${item.ref.id}`.toLowerCase();
@@ -790,7 +792,7 @@ export class Vault implements StateStore {
   }
   writeArtifact(input: { id: string; purpose: PrivateArtifactPurpose; value: unknown; expectedDigest: string | null }): Promise<PrivateArtifactRef> {
     artifactIdentity(input.id, input.purpose);
-    if (!(input.expectedDigest === null || /^[a-f0-9]{64}$/.test(input.expectedDigest))) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact previous artifact digest or create-only admission.');
+    if (!(input.expectedDigest === null || DIGEST_PATTERN.test(input.expectedDigest))) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact previous artifact digest or create-only admission.');
     const text = JSON.stringify(input.value);
     if (typeof text !== 'string' || Buffer.byteLength(text) > 40 * 1024 * 1024) fail('ARTIFACT_LIMIT', 'Managed artifact payload exceeds its bounded size.');
     const value = JSON.parse(text), valueDigest = hash(JSON.stringify(value));
@@ -830,7 +832,7 @@ export class Vault implements StateStore {
   }
   removeArtifact(input: { id: string; purpose: PrivateArtifactPurpose; expectedDigest: string }): Promise<{ removed: boolean; diskBytes: number }> {
     artifactIdentity(input.id, input.purpose);
-    if (!/^[a-f0-9]{64}$/.test(input.expectedDigest)) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact retained artifact digest before discard.');
+    if (!DIGEST_PATTERN.test(input.expectedDigest)) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact retained artifact digest before discard.');
     return this.#artifactOperation(() => this.guarded<{ removed: boolean; diskBytes: number }>(async assertCurrent => {
       let ref: PrivateArtifactRef;
       try { ref = await this.#readArtifact(input); }

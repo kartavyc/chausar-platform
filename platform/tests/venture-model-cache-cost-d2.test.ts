@@ -4,12 +4,12 @@
 // count appears on the usage only when it is above zero, so a call without caching keeps exactly its old shape.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { callCostMicros, estimateMaxCostMicros } from '../runtime/venture/models/cost.ts';
-import { parseAnthropic } from '../runtime/venture/models/anthropic.ts';
+import { callCostMicros, estimateMaxCostMicros, recordedCallMicros } from '../runtime/venture/models/cost.ts';
+import { anthropicBody, parseAnthropic } from '../runtime/venture/models/anthropic.ts';
 import { parseOpenAI } from '../runtime/venture/models/openai.ts';
 import { parseClaudeCli, parseCodexCli } from '../runtime/venture/models/cli.ts';
 import { readUsage } from '../runtime/venture/models/types.ts';
-import type { ModelPriceTable, SpendRate } from '../runtime/venture/contracts.ts';
+import type { ModelPriceTable, ModelTask, SpendRate } from '../runtime/venture/contracts.ts';
 import { listRateOfTable, modelTableOf } from '../runtime/venture/money/spend.ts';
 
 const table = (rates: Partial<ModelPriceTable>): ModelPriceTable => ({ currency: 'USD', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000',
@@ -76,4 +76,26 @@ test('the rate card carries the cache prices both ways: a table to its card line
   const plain = modelTableOf(listRateOfTable('model:anthropic-sonnet', table({}))! as SpendRate);
   assert.equal('cacheReadMicrosPerMillion' in plain, false);
   assert.equal('cacheWriteMicrosPerMillion' in listRateOfTable('model:x', table({}))!, false);
+});
+
+test('only two saved cache rates enable the fixed Anthropic system block, including zero rates', () => {
+  const task = { instructions: 'Fixed system instructions.', input: { changing: 'owner words' }, maxOutputTokens: 10, schema: { type: 'object', properties: {}, additionalProperties: false } } as unknown as ModelTask<unknown>;
+  for (const rate of [null, table({}), table({ cacheReadMicrosPerMillion: '0' }), table({ cacheWriteMicrosPerMillion: '0' })]) {
+    assert.equal(JSON.parse(anthropicBody('synthetic-model', task, rate)).system, task.instructions);
+  }
+  const body = JSON.parse(anthropicBody('synthetic-model', task, table({ cacheReadMicrosPerMillion: '0', cacheWriteMicrosPerMillion: '0' })));
+  assert.deepEqual(body.system, [{ type: 'text', text: task.instructions, cache_control: { type: 'ephemeral' } }]);
+  assert.equal(body.messages[0].content, JSON.stringify(task.input));
+});
+
+test('cache reservations cover premium writes and any higher saved cache read price', () => {
+  const premium = table({ cacheReadMicrosPerMillion: '300000', cacheWriteMicrosPerMillion: '3750000' });
+  assert.equal(estimateMaxCostMicros(2000, 100, premium), '5250');
+  assert.equal(estimateMaxCostMicros(2000, 100, table({ cacheReadMicrosPerMillion: '6000000', cacheWriteMicrosPerMillion: '3750000' })), '7500');
+});
+test('cleanup: recorded costs retain the full supported 30 digit amount', () => {
+  const amount = '9'.repeat(30);
+  assert.equal(recordedCallMicros({ costMicros: amount }), amount);
+  assert.equal(recordedCallMicros({ costMicros: null, usage: {}, estimatedMaxCostMicros: amount }), amount);
+  assert.equal(recordedCallMicros({ costMicros: '9'.repeat(31) }), null);
 });

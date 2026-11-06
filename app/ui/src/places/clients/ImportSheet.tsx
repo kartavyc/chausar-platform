@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The import sheet (`?sheet=network-import:new`, or `:<kind>` from "Import a newer file"; 4D4 from the engine's 4D1):
  * choose the kind of file, pick it, and Chausar checks it first (venture.network.import { check: true }: what it would
@@ -23,7 +24,7 @@ import type { NetworkImportKind, NetworkImportResult } from '../../engine/types'
 import type { SheetComponentProps } from '../../shell/sheets';
 import { clientsChanged } from './signals';
 import { KIND_ICONS } from './NetworkSources';
-import { messageOf } from './network';
+
 import { Fold } from '../../parts/Fold';
 import s from './Network.module.css';
 import { FilePick } from '../../parts/FilePick';
@@ -168,7 +169,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
               {step.check.dropped.length > 0 && (
                 <>
                   <p className={s.label}>{t('clients.import.dropped')}</p>
-                  <ul className={s.lines}>{step.check.dropped.map((item) => <li key={item.what}>{item.what} <Count value={item.count} /></li>)}</ul>
+                  <ul className={s.lines}>{step.check.dropped.map((item) => <li className={s.droppedRow} key={item.what}><span>{item.what}</span><Count value={item.count} /></li>)}</ul>
                 </>
               )}
               <div className={s.actions}>

@@ -1,3 +1,4 @@
+import { noNet } from './helpers/no-net.ts';
 // D12 tasks 9 and 10: a version that won't start goes back to the kept release, once. Everything is in a temp folder with
 // stand-ins for the installer, the relaunch and the dialog, so nothing runs and nothing shows on screen.
 import test, { type TestContext } from 'node:test';
@@ -23,7 +24,7 @@ function manifestFor(platform: string, bytes = OLD, version = '0.1.0'): ReleaseM
 }
 const signatureOf = (manifest: ReleaseManifest) => sign(null, Buffer.from(canonicalReleaseManifest(manifest)), keys.privateKey).toString('base64url');
 
-async function setup(t: TestContext, options: { platform?: string; previous?: Buffer | null; publisher?: string | null; signature?: { status: string; publisher: string | null }; fs?: typeof fsp } = {}) {
+async function setup(t: TestContext, options: { platform?: string; previous?: Buffer | null; thumbprint?: string | null; signature?: { status: string; thumbprint: string | null }; fs?: typeof fsp } = {}) {
   const userData = await mkdtemp(join(await realpath(tmpdir()), 'chausar-rollback-d12-'));
   t.after(() => rm(userData, { recursive: true, force: true }));
   const platform = options.platform ?? 'linux', updates = join(userData, 'updates'), vaults = join(userData, 'vaults');
@@ -50,9 +51,9 @@ async function setup(t: TestContext, options: { platform?: string; previous?: Bu
   await writeFile(appImage, 'the failed version'); await chmod(appImage, 0o755);
   const seen = { relaunches: 0, exits: 0, ran: [] as { path: string; args: string[] }[], lines: [] as any[] };
   const rollback = createRollback({
-    userData, version: '0.2.0', platform, appImage: platform === 'linux' ? appImage : null, publicKey, windowsPublisher: options.publisher ?? null,
+    userData, version: '0.2.0', platform, appImage: platform === 'linux' ? appImage : null, publicKey, windowsCertificateThumbprint: options.thumbprint ?? null,
     updates: realUpdates, app: { relaunch: () => { seen.relaunches += 1; }, exit: () => { seen.exits += 1; } }, note: (line: unknown) => { seen.lines.push(line); },
-    signatureOf: async () => options.signature ?? { status: 'Valid', publisher: options.publisher ?? null },
+    signatureOf: async () => options.signature ?? { status: 'Valid', thumbprint: options.thumbprint ?? null },
     spawnInstaller: (path: string, args: string[]) => { seen.ran.push({ path, args }); },
     now: () => Date.parse('2026-11-06T10:00:00.000Z'), ...(options.fs ? { fs: options.fs } : {}),
   });
@@ -84,15 +85,15 @@ test('two failed starts with a verified previous: data back for the moved busine
 });
 
 test('Windows without a certificate: the data goes back, no installer runs, and the owner installs it from the dialog', async t => {
-  const { rollback, vaults, seen, older } = await setup(t, { platform: 'win32', publisher: null });
+  const { rollback, vaults, seen, older } = await setup(t, { platform: 'win32', thumbprint: null });
   const answer = await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' });
   assert.equal(answer.state, 'needs-signing');
   assert.equal(await liveOf(vaults), older);
   assert.deepEqual(seen.ran, []); assert.equal(seen.relaunches, 0);
 });
 
-test('Windows with the pinned publisher: the checked copy of the previous installer runs silently', async t => {
-  const { rollback, seen } = await setup(t, { platform: 'win32', publisher: 'Chausar' });
+test('Windows with the pinned thumbprint: the checked copy of the previous installer runs silently', async t => {
+  const { rollback, seen } = await setup(t, { platform: 'win32', thumbprint: 'A'.repeat(40) });
   const answer = await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' });
   assert.equal(answer.state, 'installer-started');
   assert.equal(seen.ran.length, 1); assert.deepEqual(seen.ran[0]!.args, ['/S', '--updated']);
@@ -191,7 +192,7 @@ test('the update row says once that Chausar went back, then the line goes', asyn
   const { UpdateService } = await import('../runtime/update-service.ts');
   const { rollback, updates } = await setup(t);
   await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' });
-  const service = new UpdateService({ publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory: updates, version: '0.1.0', channel: 'beta', windowsPublisher: null, isBusy: () => false, readFeed: async () => { throw new Error('no network in tests'); } });
+  const service = new UpdateService({ publicKey, feedUrl: 'https://downloads.example.com/feed.json', directory: updates, version: '0.1.0', channel: 'beta', windowsCertificateThumbprint: null, isBusy: () => false, readFeed: async () => { throw new Error('no network in tests'); } });
   assert.deepEqual((await service.view()).rolledBack, { from: '0.2.0', to: '0.1.0', at: '2026-11-06T10:00:00.000Z', reason: 'failed-start' });
   assert.equal((await service.view()).rolledBack, undefined, 'once');
   assert.equal(JSON.parse(await readFile(join(updates, 'rollbacks.json'), 'utf8')).swaps[0].told, true);
@@ -273,3 +274,6 @@ test('a candidate changed during the data copies restores the original vault and
   assert.equal(await readFile(appImage, 'utf8'), 'the failed version');
   assert.equal(seen.relaunches, 0);
 });
+
+// Real update defaults must never leave this test process.
+test.beforeEach(t => noNet(t));

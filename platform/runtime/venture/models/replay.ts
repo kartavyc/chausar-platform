@@ -2,7 +2,7 @@
 // It answers from a synthetic recording (hand-written, never captured from a live account) and refuses any
 // fixture with another label. It never touches the network or starts a process.
 import { InternalError, check } from '../../contracts.ts';
-import { MODEL_PURPOSES } from '../contracts.ts';
+import { MODEL_PURPOSES } from '../contract-values.ts';
 import type { ModelHttpRequest, ModelHttpResponse, ModelProcessRequest, ModelProcessResponse, ModelReplayFixture, ModelRouteKind, ModelTransport } from '../contracts.ts';
 import { isPlainRecord } from './types.ts';
 
