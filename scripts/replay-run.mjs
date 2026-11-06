@@ -4,8 +4,7 @@
 //                        it holds (model calls by purpose, driver lines, fetches, clock readings, records).
 //   --records <file>     compares the capture's records with the records a replay made (a JSON list), after ids, times
 //                        and digests are named by first appearance; one line per difference, exit 1 when any differ.
-// Running a capture against today's code end to end needs the engine's capture option and the driver hooks, which
-// land after the rebase (D11e); until then a replay is driven from a test with platform/runtime/venture/replay.
+// With no mode, run the recorded engine request in a fresh sample vault, with captured IO only.
 // Usage: node scripts/replay-run.mjs <capture.json> --check | --records <records.json>
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -14,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const usage = 'Usage: node scripts/replay-run.mjs <capture.json> --check | --records <records.json>';
 const [file, mode, other, ...rest] = process.argv.slice(2);
-if (!file || rest.length || !((mode === '--check' && !other) || (mode === '--records' && other))) { process.stderr.write(`${usage}\n`); process.exit(2); }
+if (!file || rest.length || !((!mode && !other) || (mode === '--check' && !other) || (mode === '--records' && other))) { process.stderr.write(`${usage}\n`); process.exit(2); }
 
 const { readRunCapture, diffRecords } = await import(pathToFileURL(join(root, 'platform/runtime/venture/replay/replay-run.ts')).href);
 const { secretFindings } = await import(pathToFileURL(join(root, 'platform/runtime/venture/core/secrets.ts')).href);
@@ -27,6 +26,11 @@ try {
     const count = kind => capture.events.filter(event => event.kind === kind).length;
     const purposes = [...new Set(capture.events.filter(event => event.kind === 'model').map(event => event.purpose))];
     process.stdout.write(`${capture.format}, captured ${capture.capturedAt}: ${count('model')} model calls (${purposes.join(', ') || 'none'}), ${count('driver')} driver lines, ${count('fetch')} fetches, ${count('clock')} clock readings, ${capture.records.length} records.\n`);
+  } else if (!mode) {
+    const { replayEngineRun } = await import(pathToFileURL(join(root, 'platform/runtime/venture/replay/engine-run.ts')).href);
+    const { differences } = await replayEngineRun(capture);
+    if (differences.length) { process.stdout.write(differences.join('\n') + '\n'); process.exitCode = 1; }
+    else process.stdout.write('The replayed engine records match the capture.\n');
   } else {
     const replayed = JSON.parse(await readFile(resolve(other), 'utf8'));
     if (!Array.isArray(replayed)) throw new Error(`${other} is not a JSON list of records.`);
