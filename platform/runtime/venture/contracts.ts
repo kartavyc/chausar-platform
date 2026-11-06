@@ -3,6 +3,7 @@
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
 // Owned by package P0. Other packages import from here and never redefine these shapes.
 import type { AccountantView } from './money/accountant.ts';
+import type { CaPackScheduleView } from './money/ca-pack.ts';
 import type { TelegramFound } from './notify/telegram.ts';
 import type { ClientAiDefaultView } from './clients/ai-consent-core.ts';
 import type { Context, StateStore } from '../contracts.ts';
@@ -207,6 +208,7 @@ export const VENTURE_RECORD_KINDS = [
   'venture-client-ai-default',
   // C5 task 16: who the owner's CA is.
   'venture-accountant',
+  'venture-ca-pack-order', 'venture-ca-pack',
   'venture-person', 'venture-network-import', 'venture-forgotten',
   'venture-tie', 'venture-network-search',
   'venture-opportunity', 'venture-pipeline-settings',
@@ -1478,6 +1480,10 @@ export type UntrustedReleaseRecord = RecordBase<'venture-untrusted-release'> & {
 export type ClientAiDefaultRecord = RecordBase<'venture-client-ai-default'> & { on: boolean; digest: string };
 /** C5 task 16: the CA's email and WhatsApp number; the newest is in use. */
 export type AccountantRecord = RecordBase<'venture-accountant'> & { email: string | null; whatsapp: string | null };
+/** C5 task 17: the standing order for the monthly CA pack. The newest is in use. */
+export type CaPackOrderRecord = RecordBase<'venture-ca-pack-order'> & { on: boolean };
+/** C5 task 17: one month's pack, made once. file: its name in Chausar's exports folder. doneAt: the owner sent it, so its row left Today. */
+export type CaPackRecord = RecordBase<'venture-ca-pack'> & { month: string; file: string; what: string; doneAt: IsoTime | null };
 export type JudgeSettingRecord = RecordBase<'venture-judge-setting'> & {
   auto: boolean;
   consent: { at: IsoTime; by: string; how: 'set' | 'default' | 'send'; entryId: string | null } | null;
@@ -2901,7 +2907,7 @@ export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; na
  * gate (4F1); 'resume' goes on with a stopped run (4F1).
  */
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
-  | 'sent' | 'continue' | 'stop' | 'resume';
+  | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file';
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
 export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
 /**
@@ -2942,13 +2948,13 @@ export interface QueueRow {
  * The needs-you probes (4G2, O10): failed posts, a broken connection, drafts waiting, a calendar gap, a sharp move, a
  * stalled client. 'idea' (Ink v2 wave 5, 5A3): a published idea whose seven days are over, waiting for its grade.
  */
-export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea';
+export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'ca-pack' | 'readable-copy';
 /**
  * A probe's notice (4G2): which probe made it, how much it matters, the screen Open goes to (an app address such as
  * #/connections), and each amount its line states, written exactly as there, with the receipt behind it, in the order
  * the line states them (any currency: the text is matched as written, not by a money pattern).
  */
-export type QueueNotice = { probe: NoticeProbe; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
+export type QueueNotice = { probe: NoticeProbe; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[]; /** C5 task 17: the file of Chausar's exports folder Show in folder shows. */ file?: string };
 /**
  * A reply row's parts (4E3): which mail, why it waits on the owner (a match to confirm, a move to Talking, a reply to
  * write yourself, the fixed answer to "are you a bot", notes after a call), who, the card, what it asks about, and for a
@@ -3201,7 +3207,7 @@ export const VENTURE_RUN_EVENT_TYPES: readonly VentureRunEventType[] = Object.fr
 ] as const);
 export const QUEUE_ACTION_IDS: readonly QueueActionId[] = Object.freeze([
   'approve', 'deny', 'later', 'watch', 'read', 'answer', 'send-to-ca', 'open', 'connect', 'set-prices', 'keep', 'issue', 'run-again',
-  'sent', 'continue', 'stop', 'resume',
+  'sent', 'continue', 'stop', 'resume', 'show-file',
 ] as const);
 
 /** One owner decision on a Today row. Decide-once: a second decision on the same row id is refused. */
@@ -4478,7 +4484,9 @@ export type AgentRelayRecord = RecordBase<'venture-agent-relay'> & {
 export type RoutineSchedule =
   | { kind: 'once'; at: IsoTime }
   | { kind: 'interval'; everyMinutes: number; from: IsoTime }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  // C5 task 17: a day of the month from 1 to 28, which every month has.
+  | { kind: 'monthly'; day: number; time: string; timeZone: string };
 /** A routine (4J13): a standalone prompt on a schedule, for an agent or the chief. It never approves anything. */
 export type RoutineRecord = RecordBase<'venture-routine'> & {
   recordReport?: 'va-morning'|'va-weekly';
@@ -5208,7 +5216,8 @@ export interface CashView {
 export type MarginRowView = { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null };
 export interface MarginsView { month: string; rows: MarginRowView[]; line: Display; basis: TotalBasis }
 /** 4J4. The month's CSV for the owner's CA; cells that could run as a formula are prefixed. */
-export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
+/** csv: the file's text, whatever its format (C5 task 18: Tally XML under format 'tally-xml'). */
+export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; format?: 'csv' | 'tally-xml' | 'gstr1-csv' }
 /**
  * 4J10: the business's signed receipts with their signatures and the public halves of its keys, which the CA's export
  * carries and node scripts/verify-receipts.mjs checks offline. Never a private half.
@@ -5456,6 +5465,17 @@ export type VentureWorkspacePort = {
    */
   backups?(): Promise<{ auto: boolean; count: number; newestAt: IsoTime | null; nextDueAt: IsoTime | null; lastError: string | null } | null>;
   /**
+   * C5 task 17: writes one file of the open business in Chausar's own exports folder, under the managed name
+   * chausar-<workspace id>-<tail>, and answers its name; null where this host keeps no folder (the hosted app).
+   */
+  keepFile?(tail: string, text: string): Promise<string | null>;
+  /** C5 task 22: the open business's readable copies on this computer the owner hasn't said to keep, by file name and time. */
+  readableExports?(): Promise<{ file: string; at: IsoTime }[]>;
+  /** C5 task 22: Keep it: that copy is never asked about again. */
+  keepReadable?(file: string): Promise<void>;
+  /** C5 task 22: Delete: removes exactly that copy. */
+  deleteReadable?(file: string): Promise<void>;
+  /**
    * Ink v2 wave 4 (4J6): what Chausar saved about each other business on this computer when it was last open, the open
    * one left out. A business that opens with a passphrase (or whose key this computer lost) is never read: `locked`. A
    * saved file that is tampered with, from another computer, or for another vault is `unreadable`. Empty on hosted.
@@ -5610,7 +5630,7 @@ export type AnyVentureRecord =
   | ChannelHoldRecord
   | ScreenSettingRecord | UntrustedReleaseRecord
   | PostingStepsRecord | BankMatchRecord | PostingLimitsRecord
-  | JudgeSettingRecord | ClientAiDefaultRecord | AccountantRecord
+  | JudgeSettingRecord | ClientAiDefaultRecord | AccountantRecord | CaPackOrderRecord | CaPackRecord
   | TranscriptionSetupRecord
   | TalkSettingRecord
   | TalkHeardRecord
@@ -5895,6 +5915,9 @@ export const VENTURE_METHODS = [
   'venture.notify.telegram.findChat',
   'venture.accountant.get',
   'venture.accountant.set',
+  'venture.accountant.schedule.get',
+  'venture.accountant.schedule.set',
+  'venture.accountant.pack.done',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -6063,6 +6086,9 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.notify.telegram.findChat': 'notify',
   'venture.accountant.get': 'money',
   'venture.accountant.set': 'money',
+  'venture.accountant.schedule.get': 'money',
+  'venture.accountant.schedule.set': 'money',
+  'venture.accountant.pack.done': 'money',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -6152,6 +6178,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.client.aiDefault.set',
   'venture.notify.telegram.findChat',
   'venture.accountant.set',
+  'venture.accountant.schedule.set',
+  'venture.accountant.pack.done',
   'venture.desk.act',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
@@ -6515,6 +6543,9 @@ export type VenturePayloads = {
   'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
   'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
   'venture.layout.get': { place: LayoutPlace };
+  'venture.accountant.pack.done': { month: string };
+  'venture.accountant.schedule.set': { on: boolean };
+  'venture.accountant.schedule.get': Empty;
   'venture.accountant.set': { email?: string | null; whatsapp?: string | null };
   'venture.accountant.get': Empty;
   'venture.notify.telegram.findChat': { token: string };
@@ -6582,7 +6613,7 @@ export type VenturePayloads = {
   'venture.money.flow': { months?: number };
   'venture.money.cash': Empty;
   'venture.money.margins': { month: string };
-  'venture.money.export': { month: string };
+  'venture.money.export': { month: string; format?: 'csv' | 'tally-xml' | 'gstr1-csv' };
   /** recurring: left out, a bill taking an expected one's place keeps its repeat; null says it does not repeat. */
   'venture.bills.add': { vendor: string; lines: BillLineInput[]; billDate: IsoDate; dueDate: IsoDate; recurring?: 'monthly' | 'quarterly' | null };
   'venture.bills.pay': { billId: string; paidOn: IsoDate; method: PaymentMethod } & TypedAmount;
@@ -6942,6 +6973,9 @@ export type VentureResults = {
   'venture.apps.pin': { app: MiniAppView; undo: { pinned: boolean }; line: Display }; 'venture.apps.export': { fileName: string; document: string; mediaType: 'text/html' };
   'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
   'venture.layout.get': LayoutView;
+  'venture.accountant.pack.done': { done: boolean };
+  'venture.accountant.schedule.set': CaPackScheduleView;
+  'venture.accountant.schedule.get': CaPackScheduleView;
   'venture.accountant.set': AccountantView;
   'venture.accountant.get': AccountantView;
   'venture.notify.telegram.findChat': TelegramFound;

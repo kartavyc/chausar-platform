@@ -1,7 +1,8 @@
 // Existing Intl schedule arithmetic, shared exactly with browser rehearsal.
-export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string};
+export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string}|{kind:'monthly';day:number;time:string;timeZone:string};
 type IsoTime=string;
 const MINUTE_MS=60_000,DAY_MS=24*60*MINUTE_MS;
+const iso = (ms: number) => new Date(ms).toISOString();
 const formats = new Map<string, Intl.DateTimeFormat>();
 function format(timeZone: string): Intl.DateTimeFormat {
   let found = formats.get(timeZone);
@@ -51,7 +52,6 @@ export type Occurrences = { count: number; latest: IsoTime | null; previous: Iso
 export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, upToMs: number): Occurrences {
   const none: Occurrences = { count: 0, latest: null, previous: null };
   if (upToMs <= afterMs) return none;
-  const iso = (ms: number) => new Date(ms).toISOString();
   if (schedule.kind === 'once') {
     const at = Date.parse(schedule.at);
     return at > afterMs && at <= upToMs ? { count: 1, latest: schedule.at, previous: null } : none;
@@ -65,6 +65,7 @@ export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, u
     return { count: last - first + 1, latest: iso(from + last * step), previous: last > first ? iso(from + (last - 1) * step) : null };
   }
   const [hour, minute] = schedule.time.split(':').map(Number);
+  if (schedule.kind === 'monthly') return monthsBetween(schedule, hour!, minute!, afterMs, upToMs);
   // Walk the local calendar day by day (never 24-hour steps, which slip across a clock change), from the day before
   // the start to the day after the end, and read each day's time where it falls.
   const first = wall(Math.max(afterMs, upToMs - 3660 * DAY_MS), schedule.timeZone);
@@ -93,7 +94,37 @@ export function nextOccurrence(schedule: RoutineSchedule, afterMs: number): IsoT
     const k = afterMs < from ? 0 : Math.floor((afterMs - from) / step) + 1;
     return new Date(from + k * step).toISOString();
   }
+  if (schedule.kind === 'monthly') {
+    // A monthly day falls within the next two months, whichever month the clock is in.
+    const found = occurrencesBetween(schedule, afterMs, afterMs + 63 * DAY_MS);
+    if (!found.count) return null;
+    const [hour, minute] = schedule.time.split(':').map(Number);
+    const start = wall(afterMs, schedule.timeZone);
+    for (let i = 0; i < 3; i += 1) {
+      const date = new Date(Date.UTC(start.y, start.m - 1 + i, schedule.day));
+      const at = instantAt(date.getUTCFullYear(), date.getUTCMonth() + 1, schedule.day, hour!, minute!, schedule.timeZone);
+      if (at > afterMs) return iso(at);
+    }
+    return null;
+  }
   return firstOf(schedule, afterMs);
+}
+
+/** C5 task 17: a monthly schedule's occurrences in (afterMs, upToMs], walking the local months. Day 1 to 28 exists in every month. */
+function monthsBetween(schedule: Extract<RoutineSchedule, { kind: 'monthly' }>, hour: number, minute: number, afterMs: number, upToMs: number): Occurrences {
+  const first = wall(Math.max(afterMs, upToMs - 3660 * DAY_MS), schedule.timeZone), last = wall(upToMs, schedule.timeZone);
+  const months = (last.y - first.y) * 12 + last.m - first.m;
+  const found: number[] = [];
+  let count = 0;
+  for (let i = 0; i <= months; i += 1) {
+    const date = new Date(Date.UTC(first.y, first.m - 1 + i, 1));
+    const at = instantAt(date.getUTCFullYear(), date.getUTCMonth() + 1, schedule.day, hour, minute, schedule.timeZone);
+    if (at <= afterMs || at > upToMs) continue;
+    count += 1;
+    found.push(at);
+    if (found.length > 2) found.shift();
+  }
+  return count ? { count, latest: iso(found.at(-1)!), previous: found.length > 1 ? iso(found[0]!) : null } : { count: 0, latest: null, previous: null };
 }
 
 /** The first calendar occurrence after an instant, looked for a day further at a time, for eight days. */

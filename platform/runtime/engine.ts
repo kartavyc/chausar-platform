@@ -3,7 +3,7 @@ import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Vault, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard } from './vault.ts';
+import { STORE_LIMIT_BYTES, Vault, atomicWriteText, readBoundedText, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
@@ -68,10 +68,11 @@ import { authorize, audit, check, ChausarError, hash, InternalError, internalChe
 import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
-import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
+import { DriveBackup, driveClientOfBuild, type DriveEndpoints, type DriveTokens } from './drive-backup.ts';
+import { type BackupCopySetting, CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
 import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
-import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupCopyView, type BackupKind, type BackupView, type CopyImportResult, type CustodyView, type DriveStatus, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
@@ -103,6 +104,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted host composition (server.ts, worker.ts): keep each business's vault key with this computer's login and
    * write automatic encrypted backups. Absent: today's behaviour, a passphrase for every vault and no automatic backups. */
   workspaceCustody?: { deviceKeys: 'os' | 'none' | DeviceKeyStore; autoBackups: boolean; clock?: () => number };
+  /** C5 task 24: the Google client, for tests; a build's comes from package.json. tokens: where tests keep the refresh token. */
+  drive?: { clientId: string | null; clientSecret?: string | null; endpoints?: DriveEndpoints; tokens?: DriveTokens; chunkBytes?: number };
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -136,10 +139,17 @@ function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integ
 function transferHint(parsed: any): RecoveryState {
   return parsed?.transfer?.format === 'chausar.transfer.v1' && ['made', 'not-made'].includes(parsed.transfer.recovery) ? parsed.transfer.recovery : 'unknown';
 }
+/** C5 task 23: the card's copy setting as the window may see it: the folder's last name, never its path. */
+function copyViewOf(copy: BackupCopySetting | null | undefined): BackupCopyView | null {
+  return copy ? { folderName: copy.folder.split(/[\\/]/).filter(Boolean).pop() ?? copy.folder, lastCopiedAt: copy.lastCopiedAt, problem: copy.problem } : null;
+}
+
 export class Engine {
   options: EngineOptions;
   readonly version: string;
   vault: Vault | null = null;
+  /** C5 task 24: the open business's Drive client. */
+  #drive: { workspaceId: string; client: DriveBackup } | null = null;
   #baseContext: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
   #requestContext = new AsyncLocalStorage<Context>();
   #stagedVaults = new Set<Vault>();
@@ -255,6 +265,19 @@ export class Engine {
     // Business snapshots (Ink v2 wave 4, 4J6): the other businesses as Chausar saved them when each was last open; a
     // passphrase one is locked and never read; none on the hosted app.
     snapshots: async () => this.snapshotReads(),
+    // C5 task 22: the readable copies of the open business still on this computer; none on the hosted app.
+    readableExports: async () => (this.options.venture?.host === 'hosted-web' || !this.vault ? [] : this.custodyFiles().readableExports(this.vault.read().workspace.id)),
+    keepReadable: async (file: string) => { await this.custodyFiles().keepReadable(file); },
+    deleteReadable: async (file: string) => { await this.custodyFiles().deleteReadable(file); },
+    // C5 task 17: a file of the open business in Chausar's own exports folder, under its managed name, so Forget removes it.
+    keepFile: async (tail: string, text: string) => {
+      if (this.options.venture?.host === 'hosted-web' || !this.vault) return null;
+      const name = `chausar-${this.vault.read().workspace.id}-${tail}`;
+      check(MANAGED_COPY_TAIL.test(tail), 'INVALID_PATH', 'Chausar names these files itself.');
+      const folder = await safeDirectory(resolve(this.options.directory, 'exports'), true);
+      await atomicWriteText(join(folder, name), text, true);
+      return name;
+    },
     // The never-contact list the businesses on this computer share (C10), as keyed checks; nothing on the hosted app.
     neverContact: Object.freeze({
       has: async (values: readonly string[]) => this.snapshotStore()?.neverContactHas(values) ?? false,
@@ -1007,7 +1030,7 @@ export class Engine {
   }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'Chausar is finishing its work and closing. Open it again in a moment.');
-    const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
+    const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore', 'workspace.import']);
     const transition = transitions.has(method);
     // Lock, open, switch, delete and restore stop a transcript being made, and wait for it (capped), instead of VAULT_BUSY.
     if (transition && !this.#transition && this.#activeRequests) await this.stopLongWork();
@@ -1082,6 +1105,7 @@ export class Engine {
       case 'workspace.list': return this.custodyFiles().listBusinesses(this.storageKind());
       case 'workspace.backups.list': return this.backupList();
       case 'workspace.transfer.import': return this.transferImport(payload);
+      case 'workspace.import': return this.importCopy(payload);
     }
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
@@ -1250,6 +1274,10 @@ export class Engine {
       case 'workspace.custody.neverContactReset': this.requireAppOwner(ctx); return this.custodySerial(() => this.neverContactReset(payload));
       case 'workspace.backups.create': this.requireAppOwner(ctx); return this.custodySerial(() => this.writeBackup('manual'));
       case 'workspace.backups.restore': this.requireAppOwner(ctx); return this.custodySerial(() => this.restoreManagedBackup(payload));
+      case 'workspace.backups.copyTo': this.requireAppOwner(ctx); return this.custodySerial(() => this.backupCopyTo(payload));
+      case 'workspace.backups.drive.status': this.requireAppOwner(ctx); return this.driveStatus();
+      case 'workspace.backups.drive.connect': this.requireAppOwner(ctx); return this.driveOf().connect();
+      case 'workspace.backups.drive.disconnect': this.requireAppOwner(ctx); await this.driveOf().disconnect(); return this.custodySerial(() => this.driveNote(null).then(() => this.driveStatus()));
       case 'workspace.transfer.export': this.requireAppOwner(ctx); return this.custodySerial(() => this.transferExport(payload));
       case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);
@@ -1720,7 +1748,10 @@ export class Engine {
       case 'workspace.export': {
         this.requireWorkspaceOwner(ctx); check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the export in the app.');
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
-        await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
+        await store.export(path, { plaintext: payload.plaintext === true });
+        // C5 task 22: a readable copy notes itself, kind and time only, so Today can ask about it a day later.
+        if (payload.plaintext === true) await this.custodyFiles().noteReadable(path.split(/[\\/]/).pop()!, new Date(this.custodyNow()).toISOString()).catch(() => {});
+        return { path, encrypted: payload.plaintext !== true };
       }
       case 'workspace.delete': {
         this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
@@ -1889,6 +1920,9 @@ export class Engine {
       case 'venture.chief.settle.set':
       case 'venture.layout.get':
       case 'venture.layout.change':
+      case 'venture.accountant.pack.done':
+      case 'venture.accountant.schedule.set':
+      case 'venture.accountant.schedule.get':
       case 'venture.accountant.set':
       case 'venture.accountant.get':
       case 'venture.notify.telegram.findChat':
@@ -2537,6 +2571,8 @@ export class Engine {
     this.#openFolder = null; this.#openUnlock = null;
     this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
     this.#snapshotMark = { at: null, revision: null };
+    // C5 task 24: an unfinished Google sign-in closes with the business.
+    this.#drive?.client.close(); this.#drive = null;
   }
   // ------------------------------------------------------------ business snapshots (Ink v2 wave 4, 4J6)
   // What the other businesses on this computer may know about one that is closed (workspace-snapshots.ts): written at
@@ -2698,7 +2734,7 @@ export class Engine {
     const files = this.custodyFiles(), cards = this.custodyHost() ? await files.listCards() : [];
     const found = (await files.backupViews(this.store().read().workspace.id, cards)).backups.find(view => view.file === name);
     check(found, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-    return found;
+    return (await this.labelledBackups([found]))[0]!;
   }
   /** Writes one managed backup (ciphertext only) and, for automatic and safety copies, applies the rotation. */
   private async writeBackup(kind: BackupKind): Promise<BackupView> {
@@ -2712,7 +2748,87 @@ export class Engine {
       const { remove } = keepBackups(await files.backupFiles(workspaceId), this.custodyNow());
       for (const old of remove) await files.removeBackup(old).catch(() => {});
     }
+    if (kind === 'auto') await this.copyBackupOut();
     return this.backupView(name);
+  }
+  /** C5 task 23: sets or clears the drive or folder automatic backups are copied to, and copies the newest now. Main asks this after its own folder pick. */
+  private async backupCopyTo(payload: any): Promise<{ copy: BackupCopyView | null }> {
+    check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the folder in the app.');
+    const card = await this.currentCard(), files = this.custodyFiles();
+    if (payload.folder === null) { await files.writeCard({ ...card, copy: null }); return { copy: null }; }
+    check(typeof payload.folder === 'string' && isAbsolute(payload.folder), 'INVALID_PATH', 'Pick the folder in the app.');
+    const inside = relative(resolve(this.options.directory), resolve(payload.folder));
+    check(inside.startsWith('..') || isAbsolute(inside), 'INVALID_PATH', "Pick a folder outside Chausar's own folders.");
+    await files.writeCard({ ...card, copy: { folder: resolve(payload.folder), lastFile: null, lastCopiedAt: null, problem: null } });
+    await this.copyBackupOut();
+    return { copy: copyViewOf((await this.currentCard()).copy) };
+  }
+  /** C5 task 24: the open business's Drive client. Its refresh token stays in the credential store, under this business. */
+  private driveOf(): DriveBackup {
+    const workspaceId = this.store().read().workspace.id;
+    if (this.#drive?.workspaceId === workspaceId) return this.#drive.client;
+    this.#drive?.client.close();
+    const option = this.options.drive, build = option ?? driveClientOfBuild(), port = this.options.venture?.credentials;
+    const tokens: DriveTokens = option?.tokens ?? {
+      read: async () => (port ? port.get(workspaceId, 'backups:google-drive') : null),
+      write: async (text: string) => { if (!port) throw new ChausarError('DRIVE_NOT_SET_UP', CUSTODY_WORDS.errors.DRIVE_NOT_SET_UP); await port.set(workspaceId, 'backups:google-drive', text); },
+      remove: async () => { await port?.delete(workspaceId, 'backups:google-drive'); },
+    };
+    const client = new DriveBackup({ clientId: build.clientId, clientSecret: build.clientSecret ?? null, tokens, ...(option?.endpoints ? { endpoints: option.endpoints } : {}), ...(option?.chunkBytes ? { chunkBytes: option.chunkBytes } : {}) });
+    this.#drive = { workspaceId, client };
+    return client;
+  }
+  private async driveStatus(): Promise<DriveStatus> {
+    const { state } = await this.driveOf().status();
+    const card = this.custodyHost() && this.#openFolder ? await this.custodyFiles().readCard(this.#openFolder) : null;
+    return { state, lastCopiedAt: card?.drive?.lastCopiedAt ?? null, problem: card?.drive?.problem ?? null };
+  }
+  /** What the card remembers about Drive: the last file and when, or the problem. Never a token. */
+  private async driveNote(note: NonNullable<VaultCard['drive']> | null): Promise<void> {
+    const custody = this.custodyHost(); if (!custody || !this.#openFolder) return;
+    const card = await custody.files.readCard(this.#openFolder);
+    if (card) await custody.files.writeCard({ ...card, drive: note });
+  }
+  /** C5 task 24: the newest backup to Drive, when Drive is connected and hasn't got it. Never throws: a problem is said on the card. */
+  private async driveBackupOut(): Promise<void> {
+    const custody = this.custodyHost(), vault = this.vault;
+    if (!custody || !vault || !this.#openFolder) return;
+    try {
+      const drive = this.driveOf();
+      if ((await drive.status()).state !== 'connected') return;
+      const card = await custody.files.readCard(this.#openFolder), workspaceId = vault.read().workspace.id;
+      const newest = (await custody.files.backupFiles(workspaceId))[0];
+      if (!card || !newest || (card.drive?.lastFile === newest.name && !card.drive.problem)) return;
+      try {
+        await drive.upload(newest.name, Buffer.from(await readBoundedText(custody.files.backupPath(newest.name))), workspaceId);
+        await this.driveNote({ lastFile: newest.name, lastCopiedAt: new Date(this.custodyNow()).toISOString(), problem: null });
+      } catch (error) {
+        await this.driveNote({ lastFile: card.drive?.lastFile ?? null, lastCopiedAt: card.drive?.lastCopiedAt ?? null, problem: error instanceof ChausarError ? error.message : "Google Drive didn't take the copy. Chausar tries again with the next backup." });
+      }
+    } catch { /* not set up, or nothing to do: Drive is a help, never a gate */ }
+  }
+  /** C5 task 23: the newest backup to the owner's folder, when it isn't there yet. Never throws: a problem is said on the card, and the next tick tries again. */
+  private async copyBackupOut(): Promise<void> {
+    const custody = this.custodyHost(), vault = this.vault;
+    if (!custody || !vault || !this.#openFolder) return;
+    try {
+      const files = custody.files, card = await files.readCard(this.#openFolder), copy = card?.copy;
+      if (!card || !copy) return;
+      const workspaceId = vault.read().workspace.id, newest = (await files.backupFiles(workspaceId))[0];
+      if (!newest || (copy.lastFile === newest.name && !copy.problem)) return;
+      let next = copy;
+      try {
+        await files.copyBackupOut(newest.name, copy.folder, workspaceId);
+        next = { ...copy, lastFile: newest.name, lastCopiedAt: new Date(this.custodyNow()).toISOString(), problem: null };
+      } catch (error) {
+        const code = (error as { code?: unknown }).code;
+        const words = code === 'ENOENT' || code === 'ENOTDIR' || code === 'ENODEV' ? CUSTODY_WORDS.copy.missing
+          : code === 'EACCES' || code === 'EPERM' || code === 'EROFS' ? CUSTODY_WORDS.copy.denied
+            : code === 'ENOSPC' || code === 'EDQUOT' ? CUSTODY_WORDS.copy.full : CUSTODY_WORDS.copy.failed;
+        next = { ...copy, problem: words };
+      }
+      await files.writeCard({ ...card, copy: next });
+    } catch { /* the copy is a help, never a gate: the next tick tries again */ }
   }
   /** A safety copy before a lock change. Best effort, except with no recovery code yet: then it is the only way back
    * if the change is cut short, so the change is refused (SAFETY_BACKUP_FAILED) and nothing changes. */
@@ -2748,6 +2864,10 @@ export class Engine {
         try { await this.writeBackup('auto'); }
         catch (error) { this.#schedule.lastError = (error as Error).message.slice(0, 300); }
       });
+      // C5 task 23: a copy that couldn't reach its folder goes when it can.
+      await this.custodySerial(() => this.copyBackupOut());
+      // C5 task 24: and the newest to Google Drive, once it is connected.
+      await this.custodySerial(() => this.driveBackupOut());
     } finally { this.#activeRequests--; this.notifyIdle(); }
   }
   /** Closing: back up first when the business changed since its last backup. Best effort, never blocks closing. */
@@ -2768,11 +2888,24 @@ export class Engine {
     const backups = await files.backupFiles(vault.read().workspace.id), next = custody?.autoBackups ? nextBackupAt(this.#schedule, vault.read().revision, this.custodyNow()) : null;
     return { computer, business: { folder: this.#openFolder ?? '', unlock: this.#openUnlock ?? 'passphrase', recovery: card?.recovery ?? 'unknown', storage: vault.storageKind,
       backups: { auto: !!custody?.autoBackups, count: backups.length, newestAt: backups[0] ? new Date(backups[0].at).toISOString() : null,
-        nextDueAt: next === null ? null : new Date(next).toISOString(), lastError: this.#schedule.lastError } } };
+        nextDueAt: next === null ? null : new Date(next).toISOString(), lastError: this.#schedule.lastError, copy: copyViewOf(card?.copy) },
+      storeBytes: vault.storeBytes(), storeLimit: STORE_LIMIT_BYTES } };
   }
   private async backupList() {
     const files = this.custodyFiles(), cards = await files.listCards();
-    return files.backupViews(this.vault ? this.vault.read().workspace.id : null, cards);
+    const listed = await files.backupViews(this.vault ? this.vault.read().workspace.id : null, cards);
+    return this.vault ? { ...listed, backups: await this.labelledBackups(listed.backups) } : listed;
+  }
+  /** C5 task 20: each backup with what came just before it, read from the open vault. A label that can't be worked out is left off. */
+  private async labelledBackups(backups: BackupView[]): Promise<BackupView[]> {
+    if (!this.vault || !backups.length) return backups;
+    try {
+      // A label holds business words, and this list is answered before the vault check: the owner, in the app, only.
+      this.requireAppOwner(this.context);
+      const { backupLabels } = await import('./venture/journal/backup-labels.ts');
+      const labels = backupLabels(this.vault.read(), backups.map(backup => backup.at), this.context.memberId);
+      return backups.map((backup, index) => (labels[index] ? { ...backup, after: labels[index]! } : backup));
+    } catch { return backups; }
   }
   private async passphraseOn(payload: any) {
     const vault = this.store(), card = await this.currentCard();
@@ -2941,6 +3074,71 @@ export class Engine {
     } finally { await files.removeTransfer(path).catch(() => {}); }
     await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: transferHint(parsed) });
     return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase' };
+  }
+  /**
+   * C5 task 21: workspace.import { file, passphrase?, recoveryCode?, restore? }. The desktop's main process asks it after its
+   * own file pick, so no window ever names a path. The encrypted export is the backup format. A business not on this computer
+   * opens as a new one with its passphrase or recovery code; one already here answers IMPORT_ALREADY_HERE, and with restore
+   * goes through the restore path, opening it first when it is closed and making a safety copy first. A readable copy is
+   * refused: nothing proves it wasn't changed.
+   */
+  private async importCopy(payload: any): Promise<CopyImportResult> {
+    check(typeof payload.file === 'string' && isAbsolute(payload.file), 'INVALID_PATH', 'Choose the copy in the app.');
+    const errors = CUSTODY_WORDS.errors;
+    let parsed: any = null;
+    try { parsed = JSON.parse(await readBoundedText(payload.file)); } catch { parsed = null; }
+    if (parsed && parsed.backupFormat === undefined && parsed.workspace && Number.isSafeInteger(parsed.revision)) throw new ChausarError('IMPORT_READABLE', errors.IMPORT_READABLE);
+    if (payload.file.toLowerCase().endsWith('.json') && parsed?.backupFormat === undefined) throw new ChausarError('IMPORT_READABLE', errors.IMPORT_READABLE);
+    const envelope = parsed?.envelope;
+    check(parsed?.backupFormat === 'chausar.backup.v1' && envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)
+      && [envelope.passphrase, envelope.recovery, envelope.snapshot].every(part => part && typeof part === 'object'), 'IMPORT_INVALID', errors.IMPORT_INVALID);
+    const files = this.custodyFiles(), id: string = envelope.id;
+    if (this.vault) {
+      this.requireAppOwner(this.context);
+      check(this.vault.vaultId === id, 'IMPORT_CLOSE_FIRST', errors.IMPORT_CLOSE_FIRST);
+      check(payload.restore === true, 'IMPORT_ALREADY_HERE', errors.IMPORT_ALREADY_HERE);
+      return this.custodySerial(() => this.restoreFromCopy(payload.file));
+    }
+    this.#draft?.clear();
+    if ((await files.vaultIds()).has(id)) {
+      check(payload.restore === true, 'IMPORT_ALREADY_HERE', errors.IMPORT_ALREADY_HERE);
+      const card = (await files.listCards()).find(item => item.vaultId === id && item.state === 'ready');
+      await this.handleRequest('workspace.open', { folder: card?.folder ?? 'main', ...(typeof payload.passphrase === 'string' ? { passphrase: payload.passphrase } : {}) });
+      return this.custodySerial(() => this.restoreFromCopy(payload.file));
+    }
+    const recoveryCode = typeof payload.recoveryCode === 'string' && payload.recoveryCode ? payload.recoveryCode : undefined;
+    const typed = typeof payload.passphrase === 'string' && payload.passphrase ? payload.passphrase as string : undefined;
+    check(recoveryCode !== undefined || typed !== undefined, 'PASSPHRASE_REQUIRED', errors.IMPORT_NEEDS_SECRET);
+    const custody = this.custodyHost();
+    const folder = nextFolder(`copy-${randomBytes(3).toString('hex')}`, await files.takenFolders());
+    this.workspacePath(folder);
+    let how: 'this-computer' | 'typed' = 'typed', fresh: Buffer | null = null, credentials: { passphrase: string } | { recoveryCode: string; newPassphrase: string };
+    if (recoveryCode !== undefined && typed !== undefined) credentials = { recoveryCode, newPassphrase: typed };
+    else if (recoveryCode !== undefined) {
+      if (!custody) throw deviceKeysUnavailable('not-configured');
+      const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+      fresh = randomBytes(32); how = 'this-computer';
+      credentials = { recoveryCode, newPassphrase: fresh.toString('base64url') };
+    } else credentials = { passphrase: typed! };
+    try {
+      const vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: payload.file, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+      if (fresh) await this.storeComputerSecret(vault, fresh);
+      await this.attachSafely(vault);
+    } catch (error) {
+      await this.removeEmptyFolder(this.workspacePath(folder));
+      throw error;
+    } finally { fresh?.fill(0); }
+    await this.afterOpen(folder, how, { recovery: recoveryCode !== undefined ? 'made' : 'unknown', reseal: recoveryCode !== undefined });
+    return { workspace: this.store().read().workspace, folder, unlock: how === 'typed' ? 'passphrase' : 'this-computer' };
+  }
+  /** The open business from an exported copy of itself, with a safety copy first, as a backup's restore does. */
+  private async restoreFromCopy(file: string): Promise<CopyImportResult> {
+    const vault = this.store();
+    await this.writeBackup('safety');
+    await vault.replaceFromBackup(file);
+    await this.attachSafely(vault);
+    await vault.update(state => audit(state, 'backup.restored', { file: 'exported-copy', revision: vault.read().revision }));
+    return { workspace: this.store().read().workspace, folder: this.#openFolder ?? '', unlock: this.#openUnlock ?? 'passphrase', restored: true };
   }
   /** One-shot A4: removes a deleted business's folder when it holds nothing (never recursive); else leaves it. Never throws. */
   private async removeEmptyFolder(path: string) {

@@ -70,6 +70,7 @@ export const GONE_LINE = 'This was resolved elsewhere.';
 const NOT_A_DECISION: Partial<Record<QueueActionId, string>> = {
   watch: 'Open it to watch it.', read: 'Open it to read it.', connect: 'Connect it under Connections.',
   'set-prices': 'Set your prices in the business menu.', keep: 'Keep this business safe in the business menu.', open: 'Open it from the business menu.',
+  'show-file': 'Show it from the row.',
 };
 const BUILDERS: Readonly<Record<string, string>> = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
 /** The plan and setup rows lead Today, in this order; other rows made at the same moment keep it too. */
@@ -577,6 +578,10 @@ const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
   ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
   ['money', moneyRows], // 4J5: credit notes waiting to be issued
   ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead
+  // C5 task 22: a readable copy still on this computer a day after its export, loaded on use
+  ['readable-copy', async (deps, ctx, state, venture) => (await import('./readable-copy.ts')).readableCopyRows(deps, ctx, state, venture)],
+  // C5 task 17: the monthly pack for the CA, loaded on use
+  ['notice', async (deps, ctx, state, venture) => (await import('../money/ca-pack.ts')).caPackRows(deps, ctx, state, venture)],
   // Ink v2 wave 5 (5A1): kit chains that stopped or wait on the client past a stage's waitDays, as notices, loaded on use
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/kit/chain.ts')).chainRows(deps, ctx, state, venture)],
   // Ink v2 wave 5 (5A3): published ideas waiting for their grade, loaded on use

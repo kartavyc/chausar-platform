@@ -1,12 +1,12 @@
 'use strict';
 // Chausar desktop (review of A1, row 1): the exports:show channel. After Delete, the copies the owner exported to keep
 // stay in Chausar's exports folder, and the window may ask to show one in the system file manager. The window names only
-// the file, as Chausar names an export (chausar-<workspace id>-<time>.vault or .json); this file shows that file of the
+// the file, as Chausar names an export (chausar-<workspace id>-<time>.vault or .json, or a CA pack's ca-<month>.csv); this file shows that file of the
 // exports folder and nothing else, never a path the window wrote.
 const { stat } = require('node:fs/promises');
 const { join, relative } = require('node:path');
 const failure = (code, message) => Object.assign(new Error(message), { code });
-const EXPORT_NAME = /^chausar-[A-Za-z0-9_-]{1,120}-\d{1,16}\.(?:vault|json)$/;
+const EXPORT_NAME = /^chausar-[A-Za-z0-9_-]{1,120}-(?:\d{1,16}\.(?:vault|json)|ca-\d{4}-\d{2}(?:\.csv|-receipts\.json))$/;
 
 async function showExport(event, input, deps) {
   try {

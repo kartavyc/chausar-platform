@@ -12,7 +12,7 @@
 
 export type Display = string; // engine-formatted text; the UI never computes it
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
-  | 'sent' | 'continue' | 'stop' | 'resume'; // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
+  | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file'; // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
 export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
 export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector' | 'bank'
@@ -52,7 +52,7 @@ export interface QueueRow {
    * 4G2: a needs-you probe's notice: which probe, how much it matters, the screen Open goes to (an address such as
    * #/connections), and each amount its line states, exactly as written there, with its receipt, in order.
    */
-  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
+  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'ca-pack' | 'readable-copy'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[]; file?: string };
 }
 /**
  * The row kinds Ink v2 wave 4 adds on the engine (4C1 proposal, 4E1 followup, 4E3 reply, 4G2 notice). W3's states.ts
@@ -586,6 +586,8 @@ export interface BlueprintLite {
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
   backOffice: {
     taxRateBps?:string;taxState?:string|null;lutConfirmed?:boolean;
+    /** C5 task 13. */
+    taxRateBy?:string;taxId?:string|null;
     currency: string; taxLabel: string; taxRegistered: LabelledLite<boolean>; invoiceKind: 'tax-invoice' | 'invoice';
     taxInvoiceReady: boolean; taxInvoiceMissing: string[]; paymentRail: string;
   };
@@ -656,10 +658,21 @@ export interface CustodyViewLite {
   computer: { available: boolean; scheme: string | null; reason: string | null; checked: boolean; where: string; loss: string | null };
   business: {
     folder: string; unlock: UnlockMode; recovery: 'made' | 'not-made' | 'unknown'; storage: 'experimental-file' | 'postgres';
-    backups: { auto: boolean; count: number; newestAt: string | null; nextDueAt: string | null; lastError: string | null };
+    backups: { auto: boolean; count: number; newestAt: string | null; nextDueAt: string | null; lastError: string | null; copy: BackupCopyLite | null };
+    /** C5 task 19: how big the business is, and the most it can be. */
+    storeBytes: number; storeLimit: number;
   } | null;
 }
-export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean }
+export type RecoveryLite = 'made' | 'not-made' | 'unknown';
+/** C5 task 23: the drive or folder backups are copied to: its last name only, never a path. problem: the engine's words. */
+export interface BackupCopyLite { folderName: string; lastCopiedAt: string | null; problem: string | null }
+/** C5 task 24. */
+export interface DriveStatusLite { state: 'not-connected' | 'connecting' | 'connected'; lastCopiedAt: string | null; problem: string | null }
+/** C5 task 21: the pick's token and what the engine asked for; never a path. */
+export interface CopyImportInput { token: string; passphrase?: string; recoveryCode?: string; restore?: true }
+export interface CopyImportResult { workspace: WorkspaceLite; folder: string; unlock: UnlockMode; restored?: boolean }
+/** after (C5 task 20): what came just before it, while the business is open. */
+export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
 /** The vault's own record of a business, as workspace.open, .recover, .restore and the moves return it (trimmed). */
 export interface WorkspaceLite { id?: string; name: string }
 /**
@@ -1190,6 +1203,8 @@ export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'r
 export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: string; outcome: 'ok' | 'warn' | 'failed'; line: Display } | null; note: Display | null }
 export interface KeeperView { jobs: KeeperJobView[] }
 export interface TeamListView {
+  /** C5 task 1: the agents this member has not met yet, each with its one code-written line. */
+  introduce?: { agentId: string; line: string }[];
   agents: AgentView[]; departments?: DepartmentView[]; shared?: DepartmentSpend | null;
   /** The team's totals, from the same partition as the departments; spendThisMonth is Money's own figure. */
   totals?: { doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; held: MoneyFigure | null };
@@ -1548,7 +1563,8 @@ export interface CashView {
 export interface CashIssueView { invoiceId: string; client: string; due: string; week: string; amount: KindedFigure }
 export interface MarginsView { month: string; rows: { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null }[]; line: Display; basis: TotalBasis }
 /** receipts (4J10): the business's signed receipts with the public halves of its keys, for the CA to check offline; saved as its own file. */
-export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
+export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; format?: MoneyExportFormat }
+export type MoneyExportFormat = 'csv' | 'tally-xml' | 'gstr1-csv';
 export interface SignedReceiptsFile { format: string; business: string; algorithm: string; publicKey: string | null; keys: { id: string; publicKey: string }[]; receipts: unknown[] }
 /** 4J20: the amount as typed (amount) or in minor units (amountMinor), and the rate as typed (taxRate, a percentage) or in basis points; one of each. */
 export type BillLineInput = { description: string; taxName: string }
@@ -1709,7 +1725,8 @@ export interface OrderContractView {
 export type RoutineSchedule =
   | { kind: 'once'; at: string }
   | { kind: 'interval'; everyMinutes: number; from: string }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  | { kind: 'monthly'; day: number; time: string; timeZone: string };
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
@@ -1954,9 +1971,9 @@ export interface EngineMethods {
   'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead } };
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
   'venture.spend.policy.set': {
-    /** C5 task 15: use the reference rate shipped with this release; not together with inrPerUsd. */
-    useReference?: true;
     params: {
+      /** C5 task 15: use the reference rate shipped with this release; not together with inrPerUsd. */
+      useReference?: true;
       capUsd?: string | null; askFirstUsd?: string | null; rates?: SpendRateInput[]; inrPerUsd?: string | null;
       // 4F2: the day's cap, the alert share in permille, each agent's own monthly limit, and lower daily write caps.
       dailyCapUsd?: string | null; alertPermille?: number; agentCaps?: { agent: string; capUsd: string }[]; writeCaps?: Partial<Record<WriteCapKind, number>>;
@@ -2042,6 +2059,10 @@ export interface EngineMethods {
   /** With a business open, its backups; with none open (Welcome back), every backup on this computer, newest first. */
   'workspace.backups.list': { params: Record<string, never>; result: { backups: BackupLite[]; more: boolean } };
   'workspace.backups.create': { params: Record<string, never>; result: BackupLite };
+  /** C5 task 24: DRIVE_NOT_SET_UP until the build has its Google client. */
+  'workspace.backups.drive.status': { params: Record<string, never>; result: DriveStatusLite };
+  'workspace.backups.drive.connect': { params: Record<string, never>; result: { state: 'connecting'; url: string } };
+  'workspace.backups.drive.disconnect': { params: Record<string, never>; result: DriveStatusLite };
   /** The open business goes back to the backup. The engine writes a safety copy of how it is now first. */
   'workspace.backups.restore': { params: { file: string; confirmed: true }; result: { workspace: WorkspaceLite; restoredFrom: BackupLite; safety: BackupLite } };
   /** Needs the passphrase when the business is locked with one (PASSPHRASE_WRONG otherwise). */
@@ -2213,6 +2234,9 @@ export interface EngineMethods {
   // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
   'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };
   'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
+  'venture.accountant.pack.done': { params: { month: string }; result: { done: boolean } };
+  'venture.accountant.schedule.set': { params: { on: boolean }; result: { on: boolean; at: string | null; next: string | null } };
+  'venture.accountant.schedule.get': { params: Record<string, never>; result: { on: boolean; at: string | null; next: string | null } };
   'venture.accountant.set': { params: { email?: string | null; whatsapp?: string | null }; result: { email: string | null; whatsapp: string | null; at: string | null } };
   'venture.accountant.get': { params: Record<string, never>; result: { email: string | null; whatsapp: string | null; at: string | null } };
   'venture.notify.telegram.findChat': { params: { token: string }; result: { found: { chatId: string; name: string } | null; line: Display } };
@@ -2359,7 +2383,7 @@ export interface EngineMethods {
   'venture.money.flow': { params: { months?: number }; result: FlowView };
   'venture.money.cash': { params: Record<string, never>; result: CashView };
   'venture.money.margins': { params: { month: string }; result: MarginsView };
-  'venture.money.export': { params: { month: string }; result: MoneyExportFile };
+  'venture.money.export': { params: { month: string; format?: MoneyExportFormat }; result: MoneyExportFile };
   'venture.bills.add': { params: { vendor: string; lines: BillLineInput[]; billDate: string; dueDate: string; recurring?: 'monthly' | 'quarterly' | null }; result: { bill: BillView; receiptId?: string } };
   'venture.bills.pay': { params: { billId: string; paidOn: string; method: PaymentMethod } & ({ amount: string; amountMinor?: never } | { amountMinor: string; amount?: never }); result: { bill: BillView; receiptId?: string } };
   'venture.bills.list': { params: Record<string, never>; result: { bills: BillView[]; owed?: MoneyFigure | null } };
@@ -2540,7 +2564,12 @@ export interface EngineClient {
    * when the owner cancelled; refusals (EXPORT_EXISTS, EXPORT_NOT_SAVED) as engine errors. Absent on the web, the
    * hosted app and the fake, where the page downloads the engine's CSV itself.
    */
-  saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  saveMoneyExport?(month: string, format?: MoneyExportFormat): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  /** C5 task 21, desktop only: main shows the file dialog; the window gets a token and the file's name. Null when cancelled. */
+  pickCopy?(): Promise<{ token: string; name: string } | null>;
+  importCopy?(input: CopyImportInput): Promise<CopyImportResult>;
+  /** C5 task 23, desktop only: main shows the folder dialog, or clears the setting. Null when cancelled. */
+  setBackupFolder?(action: 'pick' | 'clear'): Promise<{ copy: BackupCopyLite | null } | null>;
   /**
    * Desktop only (review of A1, row 1): shows one export Delete kept in the file manager, by its file name (the desktop
    * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.

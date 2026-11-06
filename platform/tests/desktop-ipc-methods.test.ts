@@ -105,7 +105,7 @@ test('desktop forwards the nine onboarding draft methods, right after venture.pr
 
 test('desktop forwards the eleven custody methods, right after workspace.delete, in the contract order', async () => {
   const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
-  assert.equal(CUSTODY_METHODS.length, 11); // 4J6 added workspace.custody.neverContactReset
+  assert.equal(CUSTODY_METHODS.length, 14); // 4J6 added workspace.custody.neverContactReset; C5 task 24 the three Drive methods
   const at = METHODS.indexOf('workspace.delete');
   assert.deepEqual(METHODS.slice(at + 1, at + 1 + CUSTODY_METHODS.length), [...CUSTODY_METHODS]);
   const declared = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');

@@ -39,6 +39,9 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.chief.thread.state': ['prepare', 'ui'], 'venture.chief.settle.set': ['prepare', 'ui'],
   // W6 6H3: a place's layout; each change carries its exact Undo.
   'venture.layout.get': ['read', 'rui'], 'venture.layout.change': ['prepare', 'ui'],
+  'venture.accountant.pack.done': ['prepare', 'ui'],
+  'venture.accountant.schedule.set': ['approve', 'ui'],
+  'venture.accountant.schedule.get': ['read', 'rui'],
   'venture.accountant.set': ['prepare', 'ui'],
   'venture.accountant.get': ['read', 'rui'],
   'venture.notify.telegram.findChat': ['prepare', 'uio'],

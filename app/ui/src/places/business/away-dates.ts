@@ -6,7 +6,7 @@
 export type QuickDates = { id: 'tomorrow' | 'weekend' | 'nextWeek'; from: string; to: string };
 
 const DAY_MS = 86_400_000;
-const plus = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
+const plus = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS).toISOString().split('T')[0]!;
 /** 0 Sunday to 6 Saturday, of a calendar day. */
 const weekday = (day: string) => new Date(`${day}T00:00:00.000Z`).getUTCDay();
 

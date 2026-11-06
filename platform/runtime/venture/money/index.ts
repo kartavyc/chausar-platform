@@ -2,6 +2,7 @@
 // Every money number comes from BigInt code with a receipt; the existing calculator proves billed,
 // received and earned from the facts written here. Loaded by the venture host on first use.
 import { accountantGetHandler, accountantSetHandler } from './accountant.ts';
+import { caPackDone, caPackScheduleGet, caPackScheduleSet } from './ca-pack.ts';
 import { getClientAiDefault, setClientAiDefault } from '../clients/ai-default.ts';
 import { ChausarError } from '../../contracts.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
@@ -51,6 +52,9 @@ export const handlers: VentureHandlerTable = {
   'venture.client.aiDefault.get': getClientAiDefault,
   'venture.accountant.get': accountantGetHandler,
   'venture.accountant.set': accountantSetHandler,
+  'venture.accountant.schedule.get': caPackScheduleGet,
+  'venture.accountant.schedule.set': caPackScheduleSet,
+  'venture.accountant.pack.done': caPackDone,
   'venture.client.aiDefault.set': setClientAiDefault,
   'venture.order.create': createOrder,
   'venture.order.list': listOrders,

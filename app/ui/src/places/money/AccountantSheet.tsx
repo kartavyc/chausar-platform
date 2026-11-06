@@ -19,15 +19,18 @@ import { messageOf, monthBefore, useMoment, useMonthWords, useThisMonth } from '
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 
-export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
+export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
   const monthId = useId();
   const moment = useMoment();
   const monthWords = useMonthWords();
   const thisMonth = useThisMonth();
-  const months = [thisMonth, monthBefore(thisMonth), monthBefore(monthBefore(thisMonth))];
-  const [month, setMonth] = useState(thisMonth);
+  // C5 task 17: Today's row opens the sheet on the month its pack is for (`accountant:2026-11`).
+  const asked = /^\d{4}-\d{2}$/.test(id) ? id : null;
+  const recent = [thisMonth, monthBefore(thisMonth), monthBefore(monthBefore(thisMonth))];
+  const months = asked && !recent.includes(asked) ? [...recent, asked] : recent;
+  const [month, setMonth] = useState(asked ?? thisMonth);
   const [link, setLink] = useState<ShareLink | null>(null);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
@@ -63,6 +66,7 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
   return (
     <Sheet label={t('money.accountant.label')} title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
       <SendToCa month={month} />
+      <MonthlyPack />
       {!link && (
         <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); void make(); }}>
           <div className={s.field}>
@@ -137,6 +141,8 @@ function SendToCa({ month }: { month: string }) {
     try {
       const done = await engine.sharePack(month, how);
       setSaid(done.opened === 'none' ? { text: t('money.ca.noMailApp'), problem: true } : { text: t(how === 'email' ? 'money.ca.draftReady' : 'money.ca.whatsappReady'), problem: false });
+      // C5 task 17: that month's row on Today has done its job. It says nothing here if there is none.
+      if (done.opened !== 'none') void engine.request('venture.accountant.pack.done', { month }).catch(() => undefined);
     } catch (error) {
       setSaid({ text: messageOf(error), problem: true });
     }
@@ -164,6 +170,35 @@ function SendToCa({ month }: { month: string }) {
         </div>
       )}
       {said && <p className={said.problem ? s.failed : s.quietLine} role="status" data-engine-line="">{said.text}</p>}
+    </section>
+  );
+}
+
+/** C5 task 17: the standing order: last month's files saved on this computer on the 1st, with one row on Today. */
+function MonthlyPack() {
+  const t = useT();
+  const engine = useEngine();
+  const schedule = useResource('venture.accountant.schedule.get', {});
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  if (!schedule.data) return null;
+  const { on } = schedule.data;
+  async function set(next: boolean) {
+    setBusy(true);
+    setProblem(null);
+    try { await engine.request('venture.accountant.schedule.set', { on: next }); }
+    catch (error) { setProblem(messageOf(error)); }
+    schedule.reload();
+    setBusy(false);
+  }
+  return (
+    <section className={s.form} aria-label={t('money.pack.label')}>
+      <label className={v.packSwitch}>
+        <input type="checkbox" checked={on} disabled={busy} onChange={(event) => void set(event.currentTarget.checked)} />
+        {t('money.pack.label')}
+      </label>
+      {on && <p className={s.quietLine}>{t('money.pack.line')}</p>}
+      {problem && <p className={s.failed} role="alert" data-engine-line="">{problem}</p>}
     </section>
   );
 }

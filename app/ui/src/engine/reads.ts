@@ -13,7 +13,7 @@ import { EngineError, type EngineClient, type MethodName, type ParamsOf, type Ve
  * only these, so a new screen that reads a write method does not compile.
  */
 export const READS = [
-  'venture.about.families', 'venture.accountant.get', 'venture.agentSettings.get', 'venture.agents.capabilities', 'venture.agents.notes.list',
+  'venture.about.families', 'venture.accountant.get', 'venture.accountant.schedule.get', 'venture.agentSettings.get', 'venture.agents.capabilities', 'venture.agents.notes.list',
   'venture.agents.orders.list', 'venture.agents.retire.check', 'venture.agents.thread.list', 'venture.ai.options',
   'venture.ai.status', 'venture.ai.tools', 'venture.apps.get', 'venture.apps.list', 'venture.assets.list',
   'venture.away.get', 'venture.away.preview', 'venture.bank.alerts.get', 'venture.bank.ledger', 'venture.billing.get', 'venture.bills.list',
@@ -43,7 +43,7 @@ export const READS = [
   'venture.speechOut.providers', 'venture.spend.list', 'venture.spend.policy.get', 'venture.talk.get',
   'venture.tax.working', 'venture.team.keeper', 'venture.team.list', 'venture.transcription.get',
   'venture.voice.get', 'venture.voiceConsent.list', 'venture.web.search', 'venture.work.get',
-  'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
+  'workspace.backups.drive.status', 'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
 ] as const satisfies readonly MethodName[];
 
 export type ReadMethod = (typeof READS)[number];

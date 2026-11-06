@@ -88,6 +88,13 @@ export function checkSchedule(raw: unknown, nowMs: number = Number.NEGATIVE_INFI
     check(typeof clean.timeZone === 'string' && knownTimeZone(clean.timeZone), 'INVALID_VENTURE_REQUEST', 'Choose a time zone by its name, like Asia/Kolkata.');
     return { kind: 'calendar', weekdays: [...(days as number[])].sort((a, b) => a - b), time: clean.time, timeZone: clean.timeZone };
   }
+  if (body.kind === 'monthly') {
+    const clean = exactPayload(body, ['kind', 'day', 'time', 'timeZone'], ['kind', 'day', 'time', 'timeZone']);
+    check(Number.isInteger(clean.day) && (clean.day as number) >= 1 && (clean.day as number) <= 28, 'INVALID_VENTURE_REQUEST', 'Choose a day of the month from 1 to 28, which every month has.');
+    check(typeof clean.time === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clean.time), 'INVALID_VENTURE_REQUEST', 'Give the time as HH:MM on a 24-hour clock, like 09:00.');
+    check(typeof clean.timeZone === 'string' && knownTimeZone(clean.timeZone), 'INVALID_VENTURE_REQUEST', 'Choose a time zone by its name, like Asia/Kolkata.');
+    return { kind: 'monthly', day: clean.day as number, time: clean.time, timeZone: clean.timeZone };
+  }
   throw new ChausarError('INVALID_VENTURE_REQUEST', CRON_WORDS);
 }
 
@@ -108,6 +115,10 @@ export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord
   if (schedule.kind === 'interval') {
     const every = schedule.everyMinutes % (24 * 60) === 0 ? `${schedule.everyMinutes / (24 * 60)} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, zone, order)}, ${zone}`;
+  }
+  if (schedule.kind === 'monthly') {
+    const tail = schedule.day % 10 === 1 && schedule.day !== 11 ? 'st' : schedule.day % 10 === 2 && schedule.day !== 12 ? 'nd' : schedule.day % 10 === 3 && schedule.day !== 13 ? 'rd' : 'th';
+    return `Every month on the ${schedule.day}${tail}, ${formatClock(schedule.time)}, ${schedule.timeZone}`;
   }
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map(day => DAY_NAMES[day - 1]));
   return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;

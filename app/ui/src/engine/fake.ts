@@ -102,6 +102,8 @@ const DONE_LINES: Partial<Record<QueueAction['id'], string>> = {
 const RECEIPTED = new Set(['price', 'quote', 'invoice']);
 
 export interface FakeOptions {
+  /** C5 task 19: how big the open business is, for the store-size line. */
+  storeBytes?: number;
   /** An opt-in synthetic UI example, never evidence of a live model run. */
   agentProgress?: boolean;
   /** C5 task 1: the demo team has not met its agents yet, so Team introduces each once. */
@@ -202,6 +204,8 @@ export class FakeEngine {
   private readonly agentSettings = new FakeAgentSettings({ current: () => this.current, exists: () => this.ventures.has(this.current), agents: () => (this.agents[this.current] ?? []).filter(agent => agent.kind !== 'code').map(({ id, name }) => ({ id, name })), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private rows: QueueRow[];
   private decided = new Set<string>();
+  /** C5 task 20: what the owner last decided, for the next backup's label. */
+  private lastDecided: string | null = null;
   private runs: RunDetail[];
   private agents: Record<string, AgentView[]>;
   private clients: Record<string, ClientLite[]>;
@@ -324,7 +328,7 @@ export class FakeEngine {
       businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       rows: () => this.rows, setRows: (rows) => { this.rows = rows; }, digest: digestOf,
       settle: (id) => { this.decided.add(id); }, emit: (event) => this.emit(event),
-      business: (id) => this.businesses.find((b) => b.id === id) ?? null, deviceKeys: () => this.deviceKeys && !this.hosted,
+      business: (id) => this.businesses.find((b) => b.id === id) ?? null, deviceKeys: () => this.deviceKeys && !this.hosted, storeBytes: () => options.storeBytes ?? 4_300_000, lastDecided: () => this.lastDecided,
       // 4H2: the hosted app lists the command-line presets as unavailable (models/presets.ts availabilityOf).
       hosted: () => this.hosted,
       // W6 6C1: the sample Codex, once its own sign-in finished, can connect (models/cli-status.ts 'unverified').
@@ -535,6 +539,9 @@ export class FakeEngine {
     if (method === 'venture.client.aiDefault.get' || method === 'venture.client.aiDefault.set') return this.aiDefault.request(method, params, this.current, this.now());
     if (method === 'venture.accountant.get') return this.accountants[this.current] ?? { email: null, whatsapp: null, at: null };
     if (method === 'venture.accountant.set') return this.setAccountant(p);
+    if (method === 'venture.accountant.schedule.get') return this.packSchedule();
+    if (method === 'venture.accountant.schedule.set') return this.setPackSchedule(p);
+    if (method === 'venture.accountant.pack.done') return this.packDone(p);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
     if (method === 'venture.agentSettings.get' || method === 'venture.agentSettings.set') return this.agentSettings.request(method, params);
     if (method === 'venture.mcpCredential.set') return this.agentSettings.credential(params);
@@ -819,6 +826,28 @@ export class FakeEngine {
     return (this.accountants[this.current] = { email, whatsapp: whatsapp || null, at: this.now() });
   }
 
+  /** C5 task 17: the monthly pack's standing order, as money/ca-pack.ts answers (midnight on the 1st in India). */
+  private readonly packOrders: Record<string, { on: boolean; at: string }> = {};
+  private packSchedule() {
+    const order = this.packOrders[this.current];
+    const now = new Date(this.now());
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + (now.getUTCDate() === 1 && now.getUTCHours() < 18 ? 0 : 1), 0, 18, 30));
+    return { on: order?.on === true, at: order?.at ?? null, next: order?.on === true ? next.toISOString() : null };
+  }
+  private setPackSchedule(p: Record<string, unknown>) {
+    if (Object.keys(p).length !== 1 || typeof p.on !== 'boolean') throw new EngineError('INVALID_VENTURE_REQUEST', 'Send on as true or false.');
+    this.packOrders[this.current] = { on: p.on, at: this.now() };
+    return this.packSchedule();
+  }
+  private packDone(p: Record<string, unknown>) {
+    if (Object.keys(p).length !== 1 || typeof p.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(p.month)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a month like 2026-10.');
+    const before = this.rows.length;
+    this.rows = this.rows.filter((row) => !row.id.startsWith(`ca-pack:${p.month}:`));
+    if (this.rows.length === before) return { done: false };
+    this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
+    return { done: true };
+  }
+
   /** C5 task 7: Allow AI for new clients. */
   private readonly aiDefault = new FakeClientAiDefault();
 
@@ -990,6 +1019,12 @@ export class FakeEngine {
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
       return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.' };
+    }
+    this.lastDecided = `you chose ${action.label}: ${row.title}`;
+    // C5 task 22, as views/readable-copy.ts.
+    if (row.id.startsWith('readable-copy:')) {
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      return { outcome: 'done', line: action.id === 'approve' ? 'The readable copy is deleted.' : "Kept. Chausar won't ask about this copy again." };
     }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);

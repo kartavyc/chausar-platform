@@ -88,7 +88,7 @@ const PLACES_FOR: Partial<Record<QueueAction['id'], () => void>> = {
  * the owner to another place, and opening the thing to look at. A swipe right never presses them (3H1 review): on a
  * phone those cards swipe left only.
  */
-const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>(['open', 'watch', 'read', ...(Object.keys(PLACES_FOR) as QueueAction['id'][])]);
+const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>(['open', 'watch', 'read', 'show-file', ...(Object.keys(PLACES_FOR) as QueueAction['id'][])]);
 
 const focusedRowId = () => (document.activeElement as HTMLElement | null)?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null;
 
@@ -251,6 +251,11 @@ export function Place() {
   function navigate(row: QueueRow, action: QueueAction): boolean {
     if (openOutreach(row, action)) return true;
     if (openNotice(row, action)) return true;
+    // C5 task 17: the desktop shows the file in its folder; the window names only the file.
+    if (action.id === 'show-file') {
+      if (row.notice?.file) void client.showExport?.(row.notice.file)?.catch(() => undefined);
+      return true;
+    }
     const go = PLACES_FOR[action.id];
     if (!go) return false;
     go();

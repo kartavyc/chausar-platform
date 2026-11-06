@@ -51,7 +51,7 @@ export function recordDecision(tx: VentureTx, input: DecisionInput): DecisionRec
 const ACTION_WORDS: Readonly<Record<QueueActionId, string>> = Object.freeze({
   approve: 'Approve', deny: 'No', later: 'Later', watch: 'Watch', read: 'Read', answer: 'Answer', 'send-to-ca': 'Send to CA', open: 'Open',
   connect: 'Connect', 'set-prices': 'Set prices', keep: 'Keep', issue: 'Issue', 'run-again': 'Run again', sent: 'I sent it',
-  continue: 'Continue', stop: 'Stop', resume: 'Resume',
+  continue: 'Continue', stop: 'Stop', resume: 'Resume', 'show-file': 'Show in folder',
 });
 
 /**

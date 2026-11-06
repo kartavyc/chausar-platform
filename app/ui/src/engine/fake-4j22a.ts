@@ -97,6 +97,10 @@ function whenWords(schedule: RoutineSchedule): string {
     const every = schedule.everyMinutes % 1440 === 0 ? `${schedule.everyMinutes / 1440} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, ZONE)}, ${ZONE}`;
   }
+  if (schedule.kind === 'monthly') {
+    const tail = schedule.day % 10 === 1 && schedule.day !== 11 ? 'st' : schedule.day % 10 === 2 && schedule.day !== 12 ? 'nd' : schedule.day % 10 === 3 && schedule.day !== 13 ? 'rd' : 'th';
+    return `Every month on the ${schedule.day}${tail}, ${formatClock(schedule.time)}, ${schedule.timeZone}`;
+  }
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map((day) => DAY_NAMES[day - 1]!));
   return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
 }
@@ -123,6 +127,14 @@ function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
     try { known = typeof s.timeZone === 'string' && !!new Intl.DateTimeFormat('en-US', { timeZone: s.timeZone }); } catch { known = false; }
     if (!known) throw invalid('Choose a time zone by its name, like Asia/Kolkata.');
     return { kind: 'calendar', weekdays: [...(days as number[])].sort((a, b) => a - b), time: s.time, timeZone: s.timeZone as string };
+  }
+  if (s.kind === 'monthly') {
+    if (!Number.isInteger(s.day) || (s.day as number) < 1 || (s.day as number) > 28) throw invalid('Choose a day of the month from 1 to 28, which every month has.');
+    if (typeof s.time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.time)) throw invalid('Give the time as HH:MM on a 24-hour clock, like 09:00.');
+    let known = false;
+    try { known = typeof s.timeZone === 'string' && !!new Intl.DateTimeFormat('en-US', { timeZone: s.timeZone }); } catch { known = false; }
+    if (!known) throw invalid('Choose a time zone by its name, like Asia/Kolkata.');
+    return { kind: 'monthly', day: s.day as number, time: s.time, timeZone: s.timeZone as string };
   }
   throw invalid(cron);
 }
