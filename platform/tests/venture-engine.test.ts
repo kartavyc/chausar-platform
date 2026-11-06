@@ -1,3 +1,4 @@
+import { VENTURE_METHODS as REGISTRY_VENTURE_METHODS, PRE_VAULT_METHODS as REGISTRY_PRE_VAULT, DRAFT_METHODS as REGISTRY_DRAFT } from '../runtime/method-registry.ts';
 // P6: the venture host behind the real Engine (demo mode, experimental file storage, a temp folder).
 // Tests that need other packages skip while those packages answer NOT_BUILT_YET; in Phase C they must pass.
 import test from 'node:test';
@@ -101,7 +102,7 @@ test('after workspace.create, every other venture method called with {} reaches 
   // Batches 8 and 9 added twenty (6H1, 6H2, 6H3, 6I1).
   // 6J2 added six feedback methods. One-shot A2 added venture.ai.setup.trust, which the engine answers (and refuses here).
   // C2 added venture.find. C3 added venture.work.list, which the engine answers. C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove.
-  assert.equal(methods.length, 403);
+  assert.equal(methods.length, REGISTRY_VENTURE_METHODS.filter(name => !REGISTRY_PRE_VAULT.includes(name) && !REGISTRY_DRAFT.includes(name)).length);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
 });
