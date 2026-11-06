@@ -88,7 +88,7 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
   let bundleWorker = false;
   try { bundleWorker = (await lstat(join(bundle, 'runtime', 'worker.js'))).isFile(); } catch { bundleWorker = false; }
   if (!bundleWorker) problems.push("the engine bundle's worker (app/engine/dist/runtime/worker.js) is not unpacked");
-  const maps = [];
+  const maps = archive.filter(path => path.startsWith('app/engine/') && path.endsWith('.map'));
   try {
     for (const entry of await readdir(bundle, { withFileTypes: true, recursive: true })) {
       if (entry.isFile() && entry.name.endsWith('.map')) maps.push(join(entry.parentPath ?? entry.path, entry.name).slice(unpacked.length + 1).replace(/\\/g, '/'));
