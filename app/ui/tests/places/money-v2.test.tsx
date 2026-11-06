@@ -482,6 +482,8 @@ describe('Money v2: the sheets', () => {
 
   it('the invoice sheet says in its own words what happened; only an engine refusal is marked as engine words', async () => {
     const engine = new FakeEngine({ now: NOW });
+    // C4 (T21): pay details set, so Issue asks its plain question.
+    await engine.request('venture.billing.set', { upiId: 'lumen.studio@okaxis' });
     // Boat Audio's episode 14 order, not invoiced yet.
     const draft = (await engine.request('venture.invoice.prepare', { orderId: 'o-boat-14' })) as { invoice: { id: string } };
     start(`#/money/invoices?sheet=invoice:${draft.invoice.id}`, { engine });

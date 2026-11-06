@@ -22,9 +22,13 @@ function start(hash: string, engine = new FakeEngine({ now: NOW }), override: Re
   render(<App client={client} language="en" />);
   return { engine, client, calls };
 }
-/** A business with a draft invoice for Boat Audio's episode 14 order, prepared before the screen opens. */
+/**
+ * A business with a draft invoice for Boat Audio's episode 14 order, prepared before the screen opens. C4 (T21): with a
+ * UPI ID set, so Issue asks its plain question (without pay details it warns first).
+ */
 async function withDraft() {
   const engine = new FakeEngine({ now: NOW });
+  await engine.request('venture.billing.set', { upiId: 'lumen.studio@okaxis' });
   const view = (await engine.request('venture.invoice.prepare', { orderId: 'o-boat-14' })) as { invoice: { id: string; digest: string } };
   return { engine, draft: view.invoice };
 }
@@ -222,5 +226,82 @@ describe('Money: invoices', () => {
     const sheet = await screen.findByRole('complementary', { name: 'Record a payment' });
     await waitFor(() => expect(sheet.textContent).toContain('This invoice takes no payment now.'));
     expect(within(sheet).queryByLabelText('Amount received')).toBeNull();
+  });
+});
+
+/*
+ * One-shot C4 (T21): each row shows its total with the receipt that proves it; the table reads in sections, Issued and
+ * Paid, with "No invoices yet" under an empty one; and Issue says first when clients can't see how to pay.
+ */
+describe('C4: invoice sections, totals and the pay-details warning', () => {
+  it('every row with a total carries the receipt that proves it', async () => {
+    start('#/money/invoices');
+    const table = await screen.findByRole('table', { name: /invoices/i });
+    await waitFor(() => expect(table.textContent).toContain('₹26,200'));
+    const rows = [...table.querySelectorAll<HTMLElement>('tr[data-row-id]')];
+    expect(rows.length).toBeGreaterThan(1);
+    for (const row of rows) {
+      expect(row.hasAttribute('data-figure-group'), row.dataset.rowId).toBe(true);
+      expect(row.querySelector('[data-receipt]'), row.dataset.rowId).toBeTruthy();
+      expect(row.querySelector('[data-num]')?.textContent, row.dataset.rowId).toMatch(/₹/);
+    }
+  });
+
+  it('reads in two sections, Issued then Paid, each row under its own', async () => {
+    start('#/money/invoices');
+    const table = await screen.findByRole('table', { name: /invoices/i });
+    const issued = await within(table).findByRole('rowheader', { name: 'Issued' });
+    const paid = within(table).getByRole('rowheader', { name: 'Paid' });
+    const rows = within(table).getAllByRole('row');
+    const at = (cell: HTMLElement) => rows.indexOf(cell.closest('tr')!);
+    const open = within(table).getByRole('button', { name: 'Invoice INV-0039' }).closest('tr')!;
+    const closed = within(table).getByRole('button', { name: 'Invoice INV-0038' }).closest('tr')!;
+    expect(at(issued)).toBeLessThan(rows.indexOf(open));
+    expect(rows.indexOf(open)).toBeLessThan(at(paid));
+    expect(at(paid)).toBeLessThan(rows.indexOf(closed));
+    expect(table.textContent).not.toContain('No invoices yet');
+  });
+
+  it('an empty section says No invoices yet under its heading', async () => {
+    start('#/money/invoices', new FakeEngine({ now: NOW }), {
+      'venture.invoice.list': async (params, request) => ((await request('venture.invoice.list', params)) as { status: string }[]).filter((row) => row.status !== 'paid' && row.status !== 'void'),
+    });
+    const table = await screen.findByRole('table', { name: /invoices/i });
+    const paid = await within(table).findByRole('rowheader', { name: 'Paid' });
+    const after = paid.closest('tr')!.nextElementSibling as HTMLElement;
+    expect(after.textContent).toBe('No invoices yet');
+  });
+
+  it('without UPI or bank details, Issue says clients will not see how to pay, with Add them and Issue anyway', async () => {
+    const engine = new FakeEngine({ now: NOW });
+    const view = (await engine.request('venture.invoice.prepare', { orderId: 'o-boat-14' })) as { invoice: { id: string; digest: string } };
+    const { calls } = start(`#/money/invoices?sheet=invoice:${view.invoice.id}`, engine);
+    const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
+    await click(await within(sheet).findByRole('button', { name: 'Issue invoice' }));
+    expect(sheet.textContent).toContain("Clients won't see how to pay you. Add UPI or bank details first?");
+    expect(within(sheet).queryByRole('button', { name: 'Issue' })).toBeNull();
+    await click(within(sheet).getByRole('button', { name: 'Add them' }));
+    await waitFor(() => expect(window.location.hash).toContain('billing'));
+    expect(called(calls, 'venture.invoice.issue')).toEqual([]);
+  });
+
+  it('Issue anyway issues the invoice shown', async () => {
+    const engine = new FakeEngine({ now: NOW });
+    const view = (await engine.request('venture.invoice.prepare', { orderId: 'o-boat-14' })) as { invoice: { id: string; digest: string } };
+    const { calls } = start(`#/money/invoices?sheet=invoice:${view.invoice.id}`, engine);
+    const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
+    await click(await within(sheet).findByRole('button', { name: 'Issue invoice' }));
+    await click(within(sheet).getByRole('button', { name: 'Issue anyway' }));
+    expect(called(calls, 'venture.invoice.issue')).toEqual([['venture.invoice.issue', { invoiceId: view.invoice.id, digest: view.invoice.digest }]]);
+    await waitFor(() => expect(sheet.textContent).toContain('Issued as INV-0042.'));
+  });
+
+  it('with UPI set, Issue asks the plain question only', async () => {
+    const { engine, draft } = await withDraft();
+    start(`#/money/invoices?sheet=invoice:${draft.id}`, engine);
+    const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
+    await click(await within(sheet).findByRole('button', { name: 'Issue invoice' }));
+    expect(sheet.textContent).not.toContain("Clients won't see how to pay you");
+    expect(within(sheet).getByRole('button', { name: 'Issue' })).toBeTruthy();
   });
 });
