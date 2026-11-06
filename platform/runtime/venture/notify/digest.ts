@@ -94,7 +94,8 @@ export function readyToInvoicePlan(state: State, venture: VentureRecord, month: 
 
 /** One notification as the centre shows it. */
 export function notificationView(record: NotificationRecord): NotificationView {
-  return { id: record.id, rowId: record.rowId, kind: record.rowKind, title: record.title, at: record.at, read: record.readAt !== null };
+  // One-shot C4 task 7: ended says the item no longer waits, so the centre leaves it plain text (no link).
+  return { id: record.id, rowId: record.rowId, kind: record.rowKind, title: record.title, at: record.at, read: record.readAt !== null, ...(record.endedAt ? { ended: true as const } : {}) };
 }
 
 /** A digest as the centre shows it: the items it listed for the first time, and the receipts behind its money. */

@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
+import { ClockProvider } from '../../src/shell/clock';
 import { NARROW } from '../../src/shell/useNarrow';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { EngineClient, NotificationView, VentureRunEvent } from '../../src/engine/types';
@@ -54,7 +55,8 @@ describe('the bell', () => {
     await waitFor(() => expect(centre()).not.toBeNull());
     const sheet = centre()!;
     expect(within(sheet).getByRole('heading', { name: 'Notifications' })).toBeTruthy();
-    const items = within(await within(sheet).findByRole('list', { name: 'Notifications' })).getAllByRole('listitem');
+    // C4 task 7: grouped by the owner's day; these all came two days ago, so all sit under Earlier.
+    const items = within(await within(sheet).findByRole('list', { name: 'Earlier' })).getAllByRole('listitem');
     expect(items).toHaveLength(7);
     expect(items[0]!.textContent).toContain('Thumbnail set');
     expect(items[0]!.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-21T10:06:00.000Z');
@@ -82,12 +84,12 @@ describe('the bell', () => {
     expect(within(centre()!).getByText('Nothing new.')).toBeTruthy();
   });
 
-  it('an item opens its approval on the approval page and is marked read', async () => {
+  it('an item opens its card on Today and is marked read (C4 task 7)', async () => {
     const { calls } = start('#/work');
     fireEvent.click(await within(tools()).findByRole('button', { name: 'Notifications, 2 new' }));
     await waitFor(() => expect(centre()).not.toBeNull());
     const first = within(centre()!).getAllByRole('link').find((a) => a.textContent?.includes('Post to X'))!;
-    expect(first.getAttribute('href')).toBe('#/approve/post:linkedin-ep13:v1');
+    expect(first.getAttribute('href')).toBe('#/today?focus=post%3Alinkedin-ep13%3Av1');
     fireEvent.click(first);
     await waitFor(() => expect(calls.some(([method, params]) => method === 'venture.notify.read' && Array.isArray((params as { ids?: string[] }).ids))).toBe(true));
   });
@@ -107,6 +109,36 @@ describe('the bell', () => {
     await waitFor(() => expect(centre()).not.toBeNull());
     expect(within(centre()!).getByText('Nothing here yet. When something needs you, it shows here.')).toBeTruthy();
     expect(within(centre()!).queryByRole('list', { name: 'Notifications' })).toBeNull();
+  });
+
+  it('C4 task 7: items sit under Today and Earlier by the owner's day; a live one lands on its focused Today card, an ended one is plain text', async () => {
+    const engine = new FakeEngine({ now: NOW });
+    window.location.hash = '#/work';
+    const client = createFakeClient(engine);
+    const request = client.request.bind(client);
+    const items: NotificationView[] = [
+      { id: 'n1', rowId: 'q-run-again-thumbs', kind: 'question', title: 'Thumbnail set failed', at: '2026-10-23T12:00:00.000Z', read: false },
+      { id: 'n2', rowId: 'gone-row', kind: 'draft', title: 'A draft, no longer waiting on you', at: '2026-10-23T09:00:00.000Z', read: true, ended: true },
+      { id: 'n3', rowId: 'post:linkedin-ep13:v1', kind: 'connector', title: 'Post to X', at: '2026-10-22T09:00:00.000Z', read: true },
+    ];
+    client.request = (async (method: string, params?: unknown) => (method === 'venture.notify.list'
+      ? { unread: 1, items: structuredClone(items), digest: null }
+      : request(method as never, params as never))) as EngineClient['request'];
+    render(<ClockProvider now={() => new Date(NOW())}><App client={client} language="en" /></ClockProvider>);
+    fireEvent.click(await within(tools()).findByRole('button', { name: 'Notifications, 1 new' }));
+    await waitFor(() => expect(centre()).not.toBeNull());
+    const today = within(centre()!).getByRole('list', { name: 'Today' });
+    const earlier = within(centre()!).getByRole('list', { name: 'Earlier' });
+    expect(within(today).getAllByRole('listitem').map((li) => li.querySelector('[class*="title"]')?.textContent)).toEqual(['Thumbnail set failed', 'A draft, no longer waiting on you']);
+    expect(within(earlier).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(today).getAllByRole('link')).toHaveLength(1);
+    expect(within(today).getByText('A draft, no longer waiting on you').closest('a')).toBeNull();
+    const live = within(today).getByRole('link');
+    expect(live.getAttribute('href')).toBe('#/today?focus=q-run-again-thumbs');
+    await act(async () => { window.location.hash = live.getAttribute('href')!; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await settle();
+    await waitFor(() => expect((document.activeElement as HTMLElement | null)?.closest('[data-row-id]')?.getAttribute('data-row-id')).toBe('q-run-again-thumbs'));
+    await waitFor(() => expect(window.location.hash).not.toContain('focus='));
   });
 
   it('on a phone it sits in the top bar, with no border', async () => {

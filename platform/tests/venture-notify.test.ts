@@ -11,6 +11,7 @@ import type {
   NotificationRecord, NotifyListView, NotifySettingsRecord, NotifySettingsView, QueueList, KeeperRunRecord, RoutineRecord,
 } from '../runtime/venture/contracts.ts';
 import { handlers } from '../runtime/venture/notify/index.ts';
+import { notificationView } from '../runtime/venture/notify/digest.ts';
 import { DEFAULT_NOTIFY_SETTINGS, NOTIFY_PACING, notifyRefresh, planAlert, planRefresh, type AlertInput } from '../runtime/venture/notify/centre.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
 import { nativeContext } from './fixtures/venture/native-context.ts';
@@ -239,12 +240,16 @@ test('an item that leaves Today and comes back is news again: a second draft pla
   await notifyRefresh(env.deps, owner);
   const plans = () => notifications(env).filter(record => record.subject === `plan:${env.venture.id}`);
   assert.equal(plans()[0].alert, 'sent');
+  // One-shot C4 task 7: a live item carries no ended mark; the centre links it to its Today card.
+  assert.equal(notificationView(plans()[0]).ended, undefined);
   env.advance(HOUR);
   await seedBlueprint(env, { price2: '1500000' }); // accepted: the plan row leaves Today
   await notifyRefresh(env.deps, owner);
   assert.equal(plans().length, 1);
   assert.notEqual(plans()[0].readAt, null);
   assert.equal(plans()[0].title, 'Your plan, no longer waiting on you', 'once it left Today the item keeps a kind word and that it ended, not its words (B1, row 22)');
+  // C4 task 7: an ended item says so in the view, so the centre leaves it plain text.
+  assert.equal(notificationView(plans()[0]).ended, true);
   env.advance(3 * HOUR);
   env.published.length = 0;
   await seedBlueprint(env, { status: 'draft', version: 3, price2: '1700000' }); // a new plan to approve, same subject
