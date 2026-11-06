@@ -1,3 +1,5 @@
+import type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendView, LeadView, LostReason, MailboxView, NetworkBandCounts, NetworkImportKind, NetworkImportView, NetworkSourcesView, OutreachDraftView, OutreachKind, OutreachView, PeopleView, PersonSummary, PersonView, PipelineCaps, PipelineCardView, PipelineQuoteView, PipelineStage, PipelineView, TieBand, TriageRule, WarmPathView } from './contract.gen';
+export type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendView, LeadView, LostReason, MailboxView, NetworkBandCounts, NetworkImportKind, NetworkImportView, NetworkSourcesView, OutreachDraftView, OutreachKind, OutreachView, PeopleView, PersonSummary, PersonView, PipelineCaps, PipelineCardView, PipelineQuoteView, PipelineStage, PipelineView, TieBand, TriageRule, WarmPathView } from './contract.gen';
 import type { AcrossLeftOut, AcrossMoneyView, AgingView, BankAlertsView, BankConsentView, BankImportResult, BankLedgerRow, BillLineInput, BillView, CaDiffExplanation, CaReceiptView, CashIssueView, CashView, CreditNoteView, DepartmentSpend, FlowView, InvoiceNext, InvoiceTimelineEntry, MarginsView, MoneyExportFile, MoneyOverview, ReceiptVerifyView, RecurringInvoiceView, SeriesPoint, SignedReceiptsFile, SpendMeterView, SpendPolicyView, SpendRateInput, StatTileView, TotalBasis } from './contract.gen';
 export type { AcrossLeftOut, AcrossMoneyView, AgingView, BankAlertsView, BankConsentView, BankImportResult, BankLedgerRow, BillLineInput, BillView, CaDiffExplanation, CaReceiptView, CashIssueView, CashView, CreditNoteView, DepartmentSpend, FlowView, InvoiceNext, InvoiceTimelineEntry, MarginsView, MoneyExportFile, MoneyOverview, ReceiptVerifyView, RecurringInvoiceView, SeriesPoint, SignedReceiptsFile, SpendMeterView, SpendPolicyView, SpendRateInput, StatTileView, TotalBasis } from './contract.gen';
 import type { CoverageView, DeliverableReport, DeliveredFile, DraftChangeView, DrillRunView, FileRequestView, OrderContract, OrderContractView, OrderStageView, ReportItem, RunDetail, RunSummary, RunToolLine } from './contract.gen';
@@ -211,20 +213,13 @@ export interface CaSignoffRequest { signoffId?: string | null; id: string; deliv
 export interface CaView { citations?: CaCitationsView; ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
 
 /** Leads (platform/runtime/venture/contracts.ts LeadView): agents draft, the owner sends from his own mailbox. */
-export interface LeadEmailCheck { status: 'unverified' | 'verified' | 'failed'; at: string | null; line: string }
-export interface OutreachDraftView {
-  id: string; leadId: string; to: string; subject: string; text: string;
-  footer: { businessName: string; postalAddress: string; unsubscribe: string }; sourceUrl: string; by: 'agent' | 'owner'; at: string; digest: string;
-}
-export interface LeadSendView { draftId: string; sentAt: string; recordedBy: string; recordedAt: string; channel: 'own-mailbox' }
+
+
+
 export type LeadStage = 'new' | 'drafted' | 'contacted' | 'replied' | 'won' | 'lost' | 'blocked';
 /** One stage move with what it rests on: the draft, the owner's send, the reply, the outcome or the opt-out. */
-export interface LeadMoveView { from: LeadStage; to: LeadStage; at: string; by: string; evidence: { kind: 'draft' | 'send' | 'reply' | 'outcome' | 'opt-out'; id: string } }
-export interface LeadView {
-  id: string; name: string; company: string | null; email: string | null; emailDomain: string | null; sourceUrl: string; emailCheck: LeadEmailCheck;
-  /** Forward only: new, drafted, contacted, replied, then won or lost; blocked is never left. */
-  status: LeadStage; drafts: OutreachDraftView[]; sends: LeadSendView[]; moves: LeadMoveView[]; addedBy: string; addedAt: string;
-}
+
+
 
 /** Bank statements (contracts.ts BankImportResult, BankConsentView). No bank provider is wired: imports are CSV files. */
 
@@ -1197,29 +1192,16 @@ export interface ChiefMessageView {
 export interface ChiefFit { wayId: string; line: Display; estimate: true }
 
 /** 4D1 to 4D3 the owner's network. */
-export type NetworkImportKind = 'linkedin-connections' | 'linkedin-messages' | 'contacts-csv' | 'vcard' | 'calendar-ics' | 'mail-headers';
-export type TieBand = 'close' | 'know-well' | 'know' | 'met-once' | 'cold';
-export interface PersonSummary { id: string; name: string; initials: string; title: Display | null; company: string | null; band: TieBand | null; dots: number; hidden: boolean; degree: '1st' | '2nd' | null }
-export interface WarmPathView { kind: 'direct' | 'same-company' | 'connector'; via: { id: string; name: string } | null; confirmed: boolean; strength: TieBand; line: Display }
+
+
+
+
 /** 4D4: consent, the chat consent a search needs while it is needed (needed or stale, with its text and digest), else null. */
-export interface PeopleView { people: PersonSummary[]; suggestions: { a: string; b: string; line: Display }[]; total: number; consent: ChatConsentView | null; chips?: string[] }
-export interface PersonView {
-  person: PersonSummary; fields: { field: string; value: Display; source: Display; sourceId: string }[]; how: { line: Display; receiptId: string | null }[];
-  paths: WarmPathView[]; card: PipelineCardView | null; drafts: OutreachView[]; merged: boolean; web: { text: string; url: string }[];
-  /** 4D4: the LinkedIn address the files hold, or null. */
-  linkedin: string | null;
-}
-export interface NetworkBandCounts { close: number; knowWell: number; know: number; metOnce: number; cold: number }
-export interface NetworkSourcesView {
-  sources: { kind: NetworkImportKind; fileName: string; at: string; kept: number; dropped: number; line: Display; stale: Display | null }[];
-  /** permille (4D4): each band's share of the ties counted, floored by the engine, so the bars are drawn without dividing. */
-  bands: NetworkBandCounts & { receiptId: string; permille: NetworkBandCounts } | null;
-  /** 4D4: whether a web search is set up here; when not, screens say so in place of the web choice. */
-  webSearch: 'set-up' | 'not-set-up';
-  /** 4E4: the read-only mailbox's and the calendar address's state (never the password or the address); null on the hosted app. */
-  mailbox: MailboxView | null; calendar: CalendarFeedView | null;
-}
-export interface NetworkImportView { id: string; kind: NetworkImportKind; fileName: string; at: string; rows: number; people: number; merged: number; dropped: { what: string; count: number }[]; undone: boolean; line: Display }
+
+
+
+
+
 
 export interface SearchResultView {
   person: PersonSummary | null; url: string | null; fitBp: number; why: Display;
@@ -1233,62 +1215,31 @@ export interface SearchResultView {
 
 
 /** 4E1 to 4E3 the pipeline, outreach and inbound mail. */
-export type PipelineStage = 'found' | 'asked' | 'talking' | 'proposal' | 'won' | 'lost' | 'not-now';
-export type LostReason = 'no-budget' | 'no-reply' | 'chose-someone-else' | 'not-a-fit' | 'timing' | 'other' | 'opted-out';
-export type OutreachKind = 'intro-request' | 'double-opt-in' | 'connection-note' | 'follow-up' | 'reply' | 'cold-email' | 'reminder';
+
+
+
 
 
 /** 4E2: the languages Chausar drafts in, the lawful basis of a cold email, and the send governor's lanes. */
 
 
 
-export interface PipelineCaps { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] }
+
 export interface ScoreRule { field: string; operator: 'is' | 'contains' | 'at-least' | 'at-most'; value: string; points: number }
-export interface PipelineCardView {
-  id: string; personId: string; name: string; initials: string; company: string | null; stage: PipelineStage; band: TieBand | null; dots: number;
-  path: WarmPathView | null; next: { text: Display; due: string; line: Display; late: boolean } | null; draft: Display | null; business: string; trigger: Display;
-  /** 4E4: the waiting draft the draft line names (the newest not sent), so the screens open it again after a reload. */
-  draftId: string | null; draftChannel: OutreachChannel | null;
-  /** 4E4: per kind and channel, whether a draft is cold and still needs its lawful basis; basis, the one kept on the card. */
-  outreach: { kind: OutreachKind; channel: OutreachChannel; cold: boolean; needsBasis: boolean }[];
-  basis: LawfulBasis | null;
-  /** 4E4: a Proposal card's quote with its price receipt; a Won card's client, in words. */
-  quote: { value: Display; receiptId: string } | null;
-  client: { name: string; line: Display } | null;
-  score: { bucket: 'hot' | 'warm' | 'cold'; reasons: Display[] } | null;
-  timeline: { what: 'sent' | 'scheduled' | 'projected' | 'reply' | 'accepted'; at: string; line: Display; estimated: boolean }[];
-  blocked?: Display; thread?: { age: 'alive' | 'cooling' | 'presumed-dead'; days: number; line: Display };
-}
 
-export interface PipelineView {
-  columns: { stage: PipelineStage; label: Display; sub: Display; count: number; folded: boolean; cards: PipelineCardView[] }[];
-  /** 4E4: reachedPermille, the stage's count against the largest (the bar); share, movedOnPermille in the engine's words. */
-  tiles: StatTileView[]; funnel: { stage: PipelineStage; reached: number; movedOnPermille: number | null; receiptId: string; reachedPermille: number; share: Display | null }[];
-  forecast: { value: Display; label: Display; receiptId: string } | { line: Display } | null;
-  /** 4E4: the business's quotes, newest first, for a Proposal move's evidence (a quote names no person). */
-  quotes: PipelineQuoteView[];
-}
+
+
 /** 4E4: one quote a Proposal move can rest on: its offer's name, quantity and amount before tax (or its total). */
-export interface PipelineQuoteView { receiptId: string; offer: Display; quantity: string; value: Display; at: string }
-export interface FollowupView { cardId: string; name: string; company: string | null; line: Display; due: string; late: boolean; channel: OutreachChannel | null; draftId: string | null }
 
-export interface OutreachView {
-  id: string; opportunityId: string | null; kind: OutreachKind; channel: OutreachChannel; to: Display | null; subject: string | null; text: string; blurb: string | null;
-  footer: { unsubscribe: string; postalAddress: string } | null; lints: { rule: string; line: Display }[]; counter: { used: number; limit: number } | null;
-  sent: { at: string; channel: OutreachSentChannel } | null; digest: string;
-  /** 4E2: absent on a view another package built (4J5's reminder): read as a template, English, not accepted. */
-  author?: 'model' | 'template' | 'owner'; language?: OutreachLanguage; accepted?: { on: string; line: Display } | null;
-  /** 4E2: the engine's words for the sheet: Chausar never sends, and counts only the notes you mark as sent. */
-  line?: Display;
-  /** 4E4: the forwardable note's sentences, counted by the engine; null with no note. */
-  blurbSentences?: number | null;
-}
+
+
+
 /** 4E2: one handoff to the owner's own app, with its line. Chausar never sends. copy: too long for one link, so the owner copies the text. */
 
 
 /** 4E4: needsPassword, connected but the app password left the engine's shelf with a restart: type it again. */
-export interface MailboxView { connected: boolean; host: string | null; user: string | null; lastSync: string | null; line: Display; needsPassword: boolean }
-export interface InboundView { id: string; from: string; date: string; subject: string; triage: InboundTriage; matched: { opportunityId: string; name: string } | null; line: Display }
+
+
 /** 4E4: nextRead, when the morning read comes next, while the address is on the engine's shelf; else null. */
 export interface CalendarFeedView { set: boolean; host: string | null; lastRead: string | null; line: Display; nextRead: string | null }
 
@@ -1395,7 +1346,7 @@ export interface DecisionView {
 }
 
 
-export interface TriageRule { keys: { field: TriageField; order: 'asc' | 'desc' }[]; words: string }
+
 
 
 /** 4J2: line says how the revision was merged; replacement is offered when the owner's own version sits beside the agent's. */
