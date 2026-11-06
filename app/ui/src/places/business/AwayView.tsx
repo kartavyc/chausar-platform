@@ -44,6 +44,20 @@ export function AwayView() {
     }
   }
 
+  // C4 task 40 (C5 asks for it): the owner clears the days at once; the engine ends Away and keeps when.
+  async function clear() {
+    setBusy(true);
+    setProblem(null);
+    setCopied(null);
+    try {
+      setShown(await client.request('venture.away.set', { clear: true }));
+    } catch (error) {
+      setProblem(t('business.away.failed', { message: refusalWords(error, t) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function copy(text: string) {
     try {
       if (!navigator.clipboard) throw new Error('no clipboard');
@@ -66,6 +80,7 @@ export function AwayView() {
             <Field label={t('business.away.to')} type="date" value={to} disabled={busy} required onChange={(event) => setTo(event.currentTarget.value)} />
           </div>
           <div className={a.acts}>
+            {view.away && <Button disabled={busy} onClick={() => void clear()}>{t('business.away.clear')}</Button>}
             <Button type="submit" variant="primary" disabled={busy || !from || !to}>{t('business.away.set')}</Button>
           </div>
           {problem && <p className={s.problem} role="status">{problem}</p>}

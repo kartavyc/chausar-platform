@@ -1,8 +1,8 @@
 // Chausar venture launcher, delivery (Ink v2 wave 4, package 4F1; catalogue O4): Away. The owner says which days they
 // will be away and Chausar lists, from records only: the promises falling due between those days (client payments due
 // on issued invoices, posts planned on a content calendar), what keeps running (the engine's own Keeper jobs that ran),
-// how many approvals will wait, and an auto-reply for the owner to paste into their own mail app, with their real
-// response time when Chausar has measured it on at least three orders. Chausar sends nothing. While the owner is away,
+// how many approvals will wait, and a short auto-reply in the owner's words for them to paste into their own mail app
+// (one-shot C4 task 40: signed with their first name and the business). Chausar sends nothing. While the owner is away,
 // no new work starts on its own (run-guards.ts). Once back, "Since you left" names Today's rows made while away.
 // The readiness list follows sealeap's time-away readiness skill (ideas only); this is a rewrite.
 import { check, type Context, type State } from '../../contracts.ts';
@@ -13,14 +13,12 @@ import { latestAway } from './run-guards.ts';
 import { localDayAt, ownerToday } from '../local-day.ts';
 import { calendarSlotsOrNone } from '../playbooks/social/draft-posts.ts';
 import { queueListHandler } from '../views/queue.ts';
+import { ownerProfileOf } from '../core/owner.ts';
 
 /** The longest time away Chausar plans for, in days. */
 const MAX_AWAY_DAYS = 90;
 /** How long after the last day away the owner still sees "Since you left". */
 const SINCE_DAYS = 7;
-/** Orders a response time is read from, newest first, and how many it needs. */
-const RESPONSE_ORDERS = 10;
-const RESPONSE_NEEDED = 3;
 const DAY_MS = 86_400_000;
 
 /** The Keeper's jobs, in the owner's words. They are Chausar's own code: none of them starts work for an agent. */
@@ -36,24 +34,26 @@ function addDays(day: string, days: number): string {
   return new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 /**
- * The owner's usual response time in whole days: for the newest orders that got a reviewed draft, the days from the
- * order coming in to the owner accepting or editing its draft, the middle value. Null below three orders.
+ * One-shot C4 task 40 (201.w2): a day as a client reads it in the reply, in the country's date order, with the year only
+ * when it is not this year ("10 Nov", "2 Jan 2027", "Nov 10"). Calendar parts only, no Date arithmetic.
  */
-function responseDays(state: State, ventureId: string): number | null {
-  const orders = new Map(listRecords(state, 'venture-order', ventureId).map(order => [order.id, order]));
-  const first = new Map<string, string>();
-  for (const run of listRecords(state, 'venture-delivery-run', ventureId)) {
-    if (!run.verdict || run.verdict.choice === 'rejected' || !orders.has(run.orderId)) continue;
-    const known = first.get(run.orderId);
-    if (!known || run.verdict.at < known) first.set(run.orderId, run.verdict.at);
-  }
-  const days = [...first.entries()]
-    .sort((a, b) => (orders.get(b[0])!.at).localeCompare(orders.get(a[0])!.at))
-    .slice(0, RESPONSE_ORDERS)
-    .map(([orderId, at]) => Math.max(1, Math.ceil((Date.parse(at) - Date.parse(orders.get(orderId)!.at)) / DAY_MS)))
-    .sort((a, b) => a - b);
-  return days.length < RESPONSE_NEEDED ? null : days[Math.floor(days.length / 2)];
+function replyDay(iso: string, order: VentureRecord['country']['dateOrder'], thisYear: string): string {
+  const [year, month, day] = iso.split('-');
+  if (order === 'year-month-day') return iso;
+  const name = MONTHS[Number(month) - 1];
+  const same = year === thisYear;
+  if (order === 'month-day-year') return same ? `${name} ${Number(day)}` : `${name} ${Number(day)}, ${year}`;
+  return same ? `${Number(day)} ${name}` : `${Number(day)} ${name} ${year}`;
+}
+
+/** "10 to 12 Nov" inside one month of this year (day first), else both days in full ("30 Oct to 2 Nov"). */
+function replyRange(from: string, to: string, order: VentureRecord['country']['dateOrder'], thisYear: string): string {
+  const end = replyDay(to, order, thisYear);
+  if (order === 'day-month-year' && from.slice(0, 7) === to.slice(0, 7)) return `${Number(from.slice(8, 10))} to ${end}`;
+  return `${replyDay(from, order, thisYear)} to ${end}`;
 }
 
 /** Client promises falling due between the two days: payments due on issued invoices, posts planned on a calendar. */
@@ -95,10 +95,12 @@ async function awayView(deps: VentureDeps, ctx: Context, state: State, venture: 
     return { away: null, promises: [], keepsRunning: keeper, approvalsWaiting: queue.needsYou, autoReply: null, line: 'You are not away. Set the days you will be away and Chausar lists what falls due.' };
   }
   const back = addDays(live.to, 1);
-  const days = responseDays(state, venture.id);
-  const autoReply = `Thank you for your message. I am away from ${say(live.from)} to ${say(live.to)} and back on ${say(back)}. ${days === null
-    ? 'I will reply after I am back.'
-    : `I usually reply within ${days === 1 ? '1 day' : `${days} days`}, so you can expect my answer by ${say(addDays(back, days))}.`}\n\n${venture.workingName}`;
+  // C4 task 40 (201.w2): written by code in the owner's own voice, shorter, signed with their first name and the
+  // business's name; the year only when it is not this one. Chausar sends nothing: the owner copies it.
+  const thisYear = today.slice(0, 4);
+  const firstName = ownerProfileOf(state, venture.id).firstName;
+  const signature = firstName ? `${firstName}, ${venture.workingName}` : venture.workingName;
+  const autoReply = `Thanks for your message! I'm away ${replyRange(live.from, live.to, order, thisYear)} and back on ${replyDay(back, order, thisYear)}. I'll reply then.\n\n${signature}`;
   const waits = `${queue.needsYou} ${queue.needsYou === 1 ? 'thing waits' : 'things wait'} for you.`;
   const started = today >= live.from;
   const rowIds = started
@@ -115,10 +117,12 @@ async function awayView(deps: VentureDeps, ctx: Context, state: State, venture: 
 
 /**
  * venture.away.set { from, to } (approve, app only): the days the owner will be away, at most 90, ending today or
- * later. Returns the code-built list; Chausar sends nothing.
+ * later. Returns the code-built list; Chausar sends nothing. C4 task 40: { clear: true } clears the days now (Away
+ * ends at once, planned or under way); the record keeps when it was cleared.
  */
 export async function awaySetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AwayView> {
   requireAppChannel(ctx, 'venture.away.set');
+  if (payload && typeof payload === 'object' && Object.hasOwn(payload, 'clear')) return clearAway(deps, ctx, payload);
   const body = exactPayload(payload, ['from', 'to'], ['from', 'to']);
   const from = isoDate(body.from, 'The first day away');
   const to = isoDate(body.to, 'The last day away');
@@ -129,6 +133,21 @@ export async function awaySetHandler(deps: VentureDeps, ctx: Context, payload: u
   const record = await ventureAction(deps, ctx, 'approve', 'away.set', tx => tx.put<AwayRecord>({ ...tx.base('venture-away'), from, to, by: ctx.memberId, clearedAt: null }));
   const after = readAs(deps, ctx, 'read');
   return awayView(deps, ctx, after.state, after.venture, record);
+}
+
+/** { clear: true }: ends the time away now, planned or under way; refused when there is none to clear. */
+async function clearAway(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AwayView> {
+  const body = exactPayload(payload, ['clear'], ['clear']);
+  check(body.clear === true, 'INVALID_VENTURE_REQUEST', 'Send clear: true to clear the days away.');
+  await ventureAction(deps, ctx, 'approve', 'away.clear', tx => {
+    const venture = tx.venture as VentureRecord;
+    const record = latestAway(tx.state, venture.id);
+    const today = localDayAt(tx.now, venture.country ?? { code: 'XX' });
+    check(record && !record.clearedAt && record.to >= today, 'INVALID_VENTURE_REQUEST', 'You are not away, so there are no days to clear.');
+    tx.replace<AwayRecord>({ ...record, clearedAt: tx.now });
+  });
+  const after = readAs(deps, ctx, 'read');
+  return awayView(deps, ctx, after.state, after.venture, latestAway(after.state, after.venture.id));
 }
 
 /** venture.away.get {} (read): the owner's time away and its list, built from records now; away is null when none. */
