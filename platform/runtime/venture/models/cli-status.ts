@@ -275,5 +275,6 @@ export function cliStatusView(finding: CliFinding, context: { claudeTerms: 'acce
     cli: finding.cli, label: CLI_LABELS[finding.cli], found: finding.found, path: homePath(finding.path), version: finding.version, flags: finding.flags,
     missingFlags: [...finding.missingFlags], signedIn: finding.signedIn, terms, lastTask: context.lastTask,
     ...statusWords(finding, terms, context.lastTask),
+    ...(finding.kept === true ? { kept: true as const, checkedAt: finding.at } : {}),
   };
 }

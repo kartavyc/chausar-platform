@@ -1546,6 +1546,8 @@ export interface CliStatusView {
   setup?: CodexSetupLite;
   /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
   provider?: ProviderTroubleLite;
+  /** D4 task 6: a look kept between starts, and when it was really taken; the fresh look follows within seconds. */
+  kept?: true; checkedAt?: string;
 }
 /** C7: event triggers (venture.events.*): the relay's host, the recent events and each event's blanks. */
 export interface RelayEventLite { id: string; source: 'razorpay' | 'cal-com'; kind: 'payment' | 'booking' | 'booking-cancelled'; receivedAt: string; state: 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed'; line: Display }

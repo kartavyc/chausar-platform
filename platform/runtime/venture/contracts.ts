@@ -884,6 +884,8 @@ export type CliFinding = {
   via?: 'npm-shim';
   /** 4H2: the look started the tool on this computer (its version check at least); never for a located-only or replayed tool. */
   ran?: boolean;
+  /** D4 task 6: answered from the file kept between starts: `at` is when it was really looked at, and the real look follows. */
+  kept?: true;
 };
 
 export type ModelHttpRequest = { url: string; method: 'POST'; headers: Record<string, string>; body: string; timeoutMs: number; purpose: ModelPurpose };
@@ -5162,6 +5164,8 @@ export type CliStatusView = {
   setup?: import('./core/first-run-types.ts').CodexSetupView;
   /** A2: after a failed last task, the provider's status page when it says the provider has problems. */
   provider?: import('./core/first-run-types.ts').ProviderTrouble;
+  /** D4 task 6: a look kept between starts, and when it was really taken; the fresh look replaces it within seconds. */
+  kept?: true; checkedAt?: IsoTime;
 };
 export interface CliStatusList { clis: CliStatusView[]; line: Display }
 /** 4H1. The tiers each agent's steps use and the preset that serves each; the team runs as one agent. */

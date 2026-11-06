@@ -16,7 +16,7 @@ export const KEPT_LOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const CLI_LOOKS_FILE = 'cli-looks.json';
 
 /** A finding answered from the file: as last seen, sign-in unknown until the background look lands (A2's rule). */
-export type KeptCliFinding = CliFinding & { kept?: true };
+export type KeptCliFinding = CliFinding;
 /** One tool's kept look: the finding and the program it was taken of. */
 export type KeptLook = { command: string; size: number; mtimeMs: number; finding: CliFinding };
 export type KeptLooks = Partial<Record<DelegateCli, KeptLook>>;
