@@ -65,3 +65,9 @@ export function formatBytes(bytes: number): string {
   const megabytes = bytes / (1024 * 1024);
   return `${megabytes < 10 ? Math.round(megabytes * 10) / 10 : Math.round(megabytes)} MB`;
 }
+
+/** C5 task 27: a small file's size: "512 bytes", "2 KB", then as formatBytes. */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} ${bytes === 1 ? 'byte' : 'bytes'}`;
+  return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : formatBytes(bytes);
+}

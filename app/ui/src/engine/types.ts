@@ -2536,6 +2536,9 @@ export class EngineError extends Error {
 }
 
 /** What the status line shows. `ok` shows nothing. */
+/** C5 task 27: the files and crash files going in, how many crash files are here, how many didn't fit, and the exact text. */
+export type DiagnosticsPreview = { id: string; files: { name: string; bytes: number }[]; dumps: { name: string; bytes: number }[]; dumpsThere: number; leftOut: number; text: string; bytes: number };
+
 export type EngineStatus =
   | { state: 'ok' }
   | { state: 'starting' }
@@ -2571,6 +2574,9 @@ export interface EngineClient {
   saveMoneyExport?(month: string, format?: MoneyExportFormat): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   /** C5 task 35: the desktop saves the brief where the owner picks; null when cancelled. */
   saveBriefFile?(builder: FileBuilderId): Promise<{ saved: true; name: string; companion: string } | null>;
+  /** C5 task 27, desktop only: what Export diagnostics would save, read first; then that preview saved, by its id. Null when cancelled. */
+  previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
+  saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;
   /** C5 task 21, desktop only: main shows the file dialog; the window gets a token and the file's name. Null when cancelled. */
   pickCopy?(): Promise<{ token: string; name: string } | null>;
   importCopy?(input: CopyImportInput): Promise<CopyImportResult>;

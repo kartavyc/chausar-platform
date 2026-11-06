@@ -10,10 +10,13 @@
 import type { BackupCopyLite, CopyImportInput, CopyImportResult, PackShareResult } from './types';
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
 import { errorLine, ownerError } from './owner-errors';
-import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
+  /** C5 task 27, desktop only: what Export diagnostics would save; then that preview saved, by its id. Null when cancelled. */
+  previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
+  saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;
   /** C5 task 26, desktop only: says once that the page has painted (shell/first-paint.ts). */
   firstPaint?(): Promise<unknown>;
   openExternal?(url: string): Promise<void>;
@@ -276,6 +279,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string, format?: string) => (format === undefined ? bridge.saveMoneyExport!(month) : bridge.saveMoneyExport!(month, format)).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // C5 tasks 21, 23: an exported copy and a backup folder, picked by main, with its refusals as engine errors.
     ...(bridge?.saveBriefFile ? { saveBriefFile: (builder: string) => bridge.saveBriefFile!(builder).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.previewDiagnostics ? { previewDiagnostics: (dumps: boolean) => bridge.previewDiagnostics!(dumps).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.saveDiagnostics ? { saveDiagnostics: (id: string) => bridge.saveDiagnostics!(id).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.pickCopy ? { pickCopy: () => bridge.pickCopy!().catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.importCopy ? { importCopy: (input: CopyImportInput) => bridge.importCopy!(input).then((value) => value as CopyImportResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.setBackupFolder ? { setBackupFolder: (action: 'pick' | 'clear') => bridge.setBackupFolder!(action).then((value) => value as { copy: BackupCopyLite | null } | null, (error: unknown) => { throw asEngineError(error); }) } : {}),

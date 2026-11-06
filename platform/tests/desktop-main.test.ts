@@ -589,3 +589,18 @@ test('C5 task 26: main gives the harness a timing writer for rpc.jsonl, and the 
   await bridge.firstPaint('anything');
   assert.deepEqual(plain(calls), [['chausar:first-paint']]);
 });
+
+test('C5 task 27: main answers Export diagnostics for the app window only, and the preload sends only the tick and the id', async () => {
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop([]);
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame }, stranger = { sender: {}, senderFrame: own.senderFrame };
+  assert.equal((await d.handlers.get(contract.DIAGNOSTICS_PREVIEW_CHANNEL)(stranger, { dumps: false })).error.code, 'UNTRUSTED_SENDER');
+  assert.equal((await d.handlers.get(contract.DIAGNOSTICS_SAVE_CHANNEL)(stranger, { id: 'x' })).error.code, 'UNTRUSTED_SENDER');
+  assert.equal((await d.handlers.get(contract.DIAGNOSTICS_PREVIEW_CHANNEL)(own, { dumps: false, path: 'C:/x' })).error.code, 'INVALID_REQUEST');
+  let bridge: any; const calls: unknown[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (...parts: unknown[]) => { calls.push(parts); return { ok: true, result: null }; } } }) });
+  await bridge.previewDiagnostics(true);
+  await bridge.previewDiagnostics('C:/x');
+  await bridge.saveDiagnostics('abc');
+  assert.deepEqual(plain(calls), [['chausar:diagnostics:preview', { dumps: true }], ['chausar:diagnostics:preview', { dumps: false }], ['chausar:diagnostics:save', { id: 'abc' }]]);
+});

@@ -357,6 +357,11 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
+  // C5 task 27: Export diagnostics: the window reads what's inside first, and the file saved is exactly that.
+  const diagnosticsFiles = require('./diagnostics-export.cjs'), diagnosticsExport = diagnosticsFiles.createDiagnosticsExport();
+  const diagnosticsDeps = () => ({ dialog, window, assertTrustedSender, publicError, documents: app.getPath('documents'), sources: diagnosticsFiles.diagnosticSources(app.getPath('userData')), dumpsFolder: app.getPath('crashDumps'), version: app.getVersion?.() ?? null, platform: process.platform });
+  ipcMain.handle(require('./ipc-contract.cjs').DIAGNOSTICS_PREVIEW_CHANNEL, (event, input) => diagnosticsExport.preview(event, input, diagnosticsDeps()));
+  ipcMain.handle(require('./ipc-contract.cjs').DIAGNOSTICS_SAVE_CHANNEL, (event, input) => diagnosticsExport.save(event, input, diagnosticsDeps()));
   // C5 tasks 21, 23: an exported copy and a backup folder, picked here so the window never names a path.
   const keepDeps = () => ({ dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:copy:pick', (event, input) => require('./keep-files.cjs').pickCopy(event, input, keepDeps()));

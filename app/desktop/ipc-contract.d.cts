@@ -3,6 +3,8 @@ export type DesktopMethod = typeof METHODS[number];
 export const REQUEST_CHANNEL: string;
 export const STATUS_CHANNEL: string;
 export const FIRST_PAINT_CHANNEL: string;
+export const DIAGNOSTICS_PREVIEW_CHANNEL: string;
+export const DIAGNOSTICS_SAVE_CHANNEL: string;
 export const VENTURE_EVENT_CHANNEL: string;
 /** Ink v2 wave 4: the desktop reads one of the owner's network files in a worker and hands back what Chausar keeps (4D1). */
 export const PICK_FILE_CHANNEL: string;

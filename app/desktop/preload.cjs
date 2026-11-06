@@ -126,6 +126,17 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'Chausar could not change this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // C5 task 27: Export diagnostics. Main gathers and saves; only the tick and the preview's id go to it.
+  previewDiagnostics: async dumps => {
+    const reply = await ipcRenderer.invoke('chausar:diagnostics:preview', { dumps: dumps === true });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read its diagnostics.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  saveDiagnostics: async id => {
+    const reply = await ipcRenderer.invoke('chausar:diagnostics:save', { id: String(id) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
   // C5 task 26: the page has painted; only the event goes to main.
   firstPaint: () => ipcRenderer.invoke('chausar:first-paint'),
   onEngineStatus: callback => {
