@@ -14,7 +14,7 @@ test('method registry contains unique names and preserves every current engine e
   for (const name of CUSTODY_METHODS) assert.ok(CORE_METHODS.some(row => row.name === name), name);
 });
 test('registry agrees with engine dispatch, including the main-only custody operations', async () => {
-  const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+  const source = (await Promise.all(['engine.ts', 'legacy/dispatch.ts'].map(file => readFile(new URL('../runtime/' + file, import.meta.url), 'utf8')))).join('\n');
   const dispatch = new Set([...source.matchAll(/(?:case\s+|method\s*===\s*)'([^']+)'/g)].map(row => row[1]!));
   for (const name of VENTURE_METHODS) dispatch.add(name);
   for (const name of ALL_METHODS) assert.ok(dispatch.has(name), `No engine dispatcher for ${name}`);

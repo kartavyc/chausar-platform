@@ -6,9 +6,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { preloadBridge, type PreloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge, type TrustedHostBridge } from './trusted-host-bridge.ts';
 
-// Independent acceptance: the desktop's request sequence -> actual preload -> strict IPC
+// Independent acceptance: the desktop's request sequence -> actual trusted host validation -> strict IPC
 // clone boundary -> EngineHarness -> production worker loop -> actual Engine.
 // Synthetic provider contracts are authored, not LLM semantic-quality evidence.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -61,8 +61,8 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
   await engine.request('trust.update', { send: 'shape' });
   const request = (method: string, payload: Record<string, unknown> = {}) => engine.request(method, payload);
   assert.ok(created.workspace);
-  // One desktop window's preload; after a restart a fresh one reaches the new worker, as a reopened window would.
-  const desktop = () => preloadBridge({ dispatch: request });
+  // One trusted desktop host client; after a restart a fresh one reaches the new worker, as a reopened window would.
+  const desktop = () => trustedHostBridge({ dispatch: request });
   const h = await desktop();
   async function calls(): Promise<any[]> {
     try { return (await readFile(join(directory, 'acceptance-provider-calls.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
@@ -77,7 +77,7 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 /** The desktop's answer readback after a turn: a grounded turn with any answer is read again by its ID. */
-async function current(h: PreloadBridge, data: any) {
+async function current(h: TrustedHostBridge, data: any) {
   if (data?.kind === 'grounded-conversation') return data.results?.some((result: any) => result.answer) ? (await h.request('conversation.get', { id: data.id })).answer : data;
   if (data?.kind === 'business-context' && data.receipt?.id) return h.request('business.context.receipt', { id: data.receipt.id });
   if (data?.receipt?.id) return { ...data, receipt: await h.request('receipts.get', { id: data.receipt.id }) };
