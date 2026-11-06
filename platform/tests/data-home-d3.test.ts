@@ -160,3 +160,10 @@ test('no script writes to results/ in the checkout; every --output script uses t
   assert.deepEqual(naming, [], 'scripts that still name results/');
   assert.deepEqual(unrooted, [], 'scripts with --output that do not use run-root.mjs');
 });
+
+
+test('cleanup: Windows real-location checks use native path expansion for short names', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../runtime/run-root.mjs', import.meta.url), 'utf8');
+  assert.match(source, /realpathSync\.native\(current\)/);
+});
