@@ -255,6 +255,13 @@ export function runError(state: State, run: DeliveryRunRecord): string {
   return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This job stopped before it finished. Nothing was sent to the client.';
 }
 
+/** C5 task 9: the answer to a one-tap reject, naming its reason. */
+const REJECT_LINES: Readonly<Partial<Record<DeliveryReason, string>>> = {
+  'wrong-fact': 'Draft rejected: wrong facts. The agent gets this as a rehearsal case.',
+  tone: 'Draft rejected: wrong tone. The agent gets this as a rehearsal case.',
+  'not-needed': 'Draft rejected: not needed. Nothing is learned from it.',
+};
+
 const reviewReason = (answer: string | null): DeliveryReason =>
   answer !== null && (DELIVERY_REASONS as readonly string[]).includes(answer) ? answer as DeliveryReason : 'other';
 
@@ -313,7 +320,9 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     if (run.status === 'ready-for-review' && run.awaitingYou) {
       const review = (verdict: 'accepted' | 'rejected'): Perform => async (d, ctx, input) => {
         await deliveryReviewHandler(d, ctx, verdict === 'accepted' ? { runId: run.id, verdict } : { runId: run.id, verdict, reason: reviewReason(input.answer) });
-        return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : 'Draft rejected. The agent learns from it.' };
+        // C5 task 9: the answer names the reason; not needed teaches nothing, so it says so.
+        const reason = reviewReason(input.answer);
+        return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : REJECT_LINES[reason] ?? 'Draft rejected. The agent learns from it.' };
       };
       const viewDraft = { kind: 'draft' as const, id: run.id };
       // AI-native CA firm: papers held only for the CA's sign-off, not yet with the CA, go to the CA from this row.

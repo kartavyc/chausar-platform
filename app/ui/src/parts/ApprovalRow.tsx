@@ -150,7 +150,10 @@ export interface ApprovalRowProps {
   done?: { line: string; receiptId?: string | undefined } | undefined;
 }
 
-type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
+type Phase = 'idle' | 'confirm' | 'answer' | 'reasons' | 'sending' | 'decided';
+
+/** C5 task 9: Reject on a draft asks why in one tap; each goes as the decision's answer (DELIVERY_REASONS). */
+const REJECT_REASONS = [['wrong-fact', 'approval.reason.fact'], ['tone', 'approval.reason.tone'], ['not-needed', 'approval.reason.notNeeded']] as const;
 type Notice = { kind: 'stale' | 'refused' | 'failed'; text: string } | null;
 
 const isTimeout = (error: unknown) => (error as { code?: unknown } | null)?.code === 'REQUEST_TIMEOUT';
@@ -349,6 +352,7 @@ export function ApprovalRow({
     if (action.id === 'answer') { setPhase('answer'); return 'asking'; }
     // W4 4E4: a next step drafted from call notes that wrote no day takes the day as Approve's answer (row.needs).
     if (action.id === 'approve' && current.needs?.answer === 'day') { setPending(action); setPhase('answer'); return 'asking'; }
+    if (action.id === 'deny' && current.kind === 'draft') { setPending(action); setPhase('reasons'); return 'asking'; }
     if (action.secondAsk) { setPending(action); setPhase('confirm'); return 'asking'; }
     void decide(action);
     return 'pressed';
@@ -364,7 +368,7 @@ export function ApprovalRow({
   function press(action: QueueAction): PressResult {
     if (phase === 'decided') return 'none';
     if (inFlight.current || phase === 'sending') return 'busy';
-    if (phase === 'confirm' || phase === 'answer') return 'asking';
+    if (phase === 'confirm' || phase === 'answer' || phase === 'reasons') return 'asking';
     // W4 4J19: a tool's box (Send back) is open: a swipe or the next step decides nothing until it is closed.
     if (toolsOpen) return 'asking';
     if (action === primary && locked) return 'locked';
@@ -438,11 +442,21 @@ export function ApprovalRow({
   const lineMarks = { 'data-engine-line': shownLine && !shownLine.proved ? '' : undefined, 'data-content': current.kind === 'question' ? '' : undefined };
   // A change the engine proved through its amounts (a plan's change count) carries that proof.
   const change = current.change && !current.change.receiptId && !current.change.estimate ? { ...current.change, ...(changeProof(current) ?? {}) } : current.change;
+  const reasonsNode = pending ? (
+    <div className={s.confirm} role="group" aria-label={t('approval.reason.ask')}>
+      <p className={s.ask}>{t('approval.reason.ask')}</p>
+      <div className={s.acts}>
+        {REJECT_REASONS.map(([reason, words]) => <Button key={reason} size={buttonSize ?? 'sm'} onClick={() => void decide(pending, reason)}>{t(words)}</Button>)}
+        <Button variant="quiet" size={buttonSize ?? 'sm'} onClick={() => void decide(pending)}>{t('approval.reason.none')}</Button>
+      </div>
+      <Button ref={cancelRef} variant="quiet" size={buttonSize ?? 'sm'} onClick={cancel}>{t('approval.cancel')}</Button>
+    </div>
+  ) : null;
   const toolsApi: ApprovalToolsApi = {
     row: current, busy, open: toolsOpen, setOpen: setToolsOpen, size: buttonSize ?? 'sm',
     finish: (decision, undo) => { if (apply(decision, undo)) inFlight.current = true; },
   };
-  const toolsNode = tools && phase !== 'confirm' && phase !== 'answer' ? tools(toolsApi) : null;
+  const toolsNode = tools && phase !== 'confirm' && phase !== 'answer' && phase !== 'reasons' ? tools(toolsApi) : null;
   const facts = (
     <>
       <RowFacts row={current} onReceipt={onReceipt} />
@@ -451,7 +465,7 @@ export function ApprovalRow({
   );
 
   if (layout === 'row') {
-    const actions = phase === 'confirm' || phase === 'answer' ? null : (
+    const actions = phase === 'confirm' || phase === 'answer' || phase === 'reasons' ? null : (
       <>
         {others.map((action, index) => (
           <Button key={action.id} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
@@ -494,6 +508,7 @@ export function ApprovalRow({
         )}
         {facts}
         {notices}
+        {phase === 'reasons' && pending && reasonsNode}
         {phase === 'confirm' && pending && (
           <div className={s.inline}>
             <p className={s.ask}>{t('approval.secondAsk', { action: pending.label })}</p>
@@ -623,6 +638,7 @@ export function ApprovalRow({
         </p>
       )}
 
+      {phase === 'reasons' && pending && reasonsNode}
       {phase === 'confirm' && pending && (
         <div className={s.confirm}>
           <p className={s.ask}>{t('approval.secondAsk', { action: pending.label })}</p>
@@ -641,7 +657,7 @@ export function ApprovalRow({
           </div>
         </form>
       )}
-      {phase !== 'confirm' && phase !== 'answer' && !toolsOpen && (
+      {phase !== 'confirm' && phase !== 'answer' && phase !== 'reasons' && !toolsOpen && (
         <div className={s.acts}>
           {others.map((action, index) => (
             <Button key={action.id} size={size} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>

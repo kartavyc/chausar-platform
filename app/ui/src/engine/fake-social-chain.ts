@@ -78,7 +78,7 @@ export class FakeSocialChain {
   exact(p,['runId','verdict','reason','editedText'],['runId','verdict']);
   if(!['accepted','edited','rejected'].includes(String(p.verdict)))throw new EngineError('INVALID_VENTURE_REQUEST','Choose accept, edit or reject.');
   if(run.status!=='ready-for-review')throw new EngineError('DELIVERY_NOT_READY','This draft reply is not ready for review.');
-  if(p.reason!==undefined&&(typeof p.reason!=='string'||!['wrong-fact','missing-fact','missing-section','off-brief','tone','format','too-long','too-short','wrong-number','late','claims-work-not-done','other'].includes(p.reason)))throw new EngineError('INVALID_VENTURE_REQUEST','Choose a reason from the list.');
+  if(p.reason!==undefined&&(typeof p.reason!=='string'||!['wrong-fact','missing-fact','missing-section','off-brief','tone','format','too-long','too-short','wrong-number','late','claims-work-not-done','other','not-needed'].includes(p.reason)))throw new EngineError('INVALID_VENTURE_REQUEST','Choose a reason from the list.');
   if(p.verdict==='rejected'&&!p.reason)throw new EngineError('INVALID_VENTURE_REQUEST','Choose why you reject this draft.');
   if(p.verdict==='edited'&&(typeof p.editedText!=='string'||!p.editedText.trim()||p.editedText.trim().length>20000))throw new EngineError('INVALID_VENTURE_REQUEST','Write the edited draft.');
   if(p.verdict!=='edited'&&p.editedText!==undefined||p.verdict==='accepted'&&p.reason!==undefined)throw new EngineError('INVALID_VENTURE_REQUEST','Send only fields for this decision.');
