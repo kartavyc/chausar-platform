@@ -2135,6 +2135,7 @@ export class Engine {
       case 'venture.events.get':
       case 'venture.events.relay.set':
       case 'venture.events.calKey.set':
+      case 'venture.agents.hire.duties':
       case 'venture.desk.act':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);

@@ -64,6 +64,8 @@ export function AgentSettings() {
           <legend className={connections.subheading}>{t('connections.settings.approvals')}</legend>
           <label className={s.check}><input type="checkbox" checked={draft.autoReview} onChange={event => { changed(); setDraft({ ...draft, autoReview: event.currentTarget.checked }); }} />{t('connections.settings.defaultReview')}</label>
           {resource.data?.agents.map(agent => <label className={s.check} key={agent.id}><input type="checkbox" checked={draft.agentAutoReview[agent.id] ?? draft.autoReview} onChange={event => { changed(); setDraft({ ...draft, agentAutoReview: { ...draft.agentAutoReview, [agent.id]: event.currentTarget.checked } }); }} />{t('connections.settings.agentReview', { name: agent.name })}</label>)}
+          {/* C7: offers are on until the owner says no; each one is still theirs to keep or dismiss. */}
+          <label className={s.check}><input type="checkbox" checked={draft.offerWays !== false} onChange={event => { changed(); setDraft({ ...draft, offerWays: event.currentTarget.checked }); }} />{t('connections.settings.offerWays')}</label>
           <p className={connections.note}>{t('connections.settings.outside')}</p>
         </fieldset>
         <McpServers servers={draft.mcpServers} busy={busy} saved={!dirty.current} onCredentialSaved={() => resource.reload()} onChange={mcpServers => { changed(); setApproveMcp(false); setDraft({ ...draft, mcpServers }); }} />

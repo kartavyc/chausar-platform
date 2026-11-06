@@ -210,4 +210,20 @@ export async function hireCancelHandler(deps: VentureDeps, ctx: Context, payload
   });
 }
 
-export const HIRE_HANDLERS = { 'venture.agents.hire.start': hireStartHandler, 'venture.agents.hire.answer': hireAnswerHandler, 'venture.agents.hire.confirm': hireConfirmHandler, 'venture.agents.hire.cancel': hireCancelHandler };
+/** venture.agents.hire.duties { agent, duties } (approve, app only): the owner changes a hired agent's duties, checked again. */
+export async function hireDutiesHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<HireView> {
+  requireAppChannel(ctx, 'venture.agents.hire.duties');
+  const body = exactPayload(payload, ['agent', 'duties'], ['agent', 'duties']);
+  const agent = identifier(body.agent, 'Agent');
+  return ventureAction(deps, ctx, 'approve', 'agents.hire.duties', tx => {
+    const record = hiredRecords(tx.state, tx.venture!.id).find(item => item.id === agent);
+    check(record?.role, 'HIRE_NOT_FOUND', HIRE_WORDS.notFound);
+    const others = teamAgents(tx.state, tx.venture!).filter(item => item.id !== agent).map(item => item.name);
+    const checked = checkHire({ ...record.role, duties: body.duties as string[], reads: record.reads.map(item => item.read), department: record.department }, { agentNames: others });
+    const stored = tx.replace<HireRecord>({ ...record, role: { ...record.role, duties: checked.duties } });
+    tx.emit('queue.changed', {});
+    return viewOf(stored);
+  });
+}
+
+export const HIRE_HANDLERS = { 'venture.agents.hire.duties': hireDutiesHandler, 'venture.agents.hire.start': hireStartHandler, 'venture.agents.hire.answer': hireAnswerHandler, 'venture.agents.hire.confirm': hireConfirmHandler, 'venture.agents.hire.cancel': hireCancelHandler };

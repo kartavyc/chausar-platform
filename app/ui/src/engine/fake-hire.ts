@@ -6,7 +6,7 @@ import { checkHire } from '../../../../platform/runtime/venture/agents/hire-chec
 import { EngineError, type AgentView, type HireReadLite, type HireViewLite, type HireVoiceLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 
-export const FAKE_HIRE_METHODS: readonly string[] = ['venture.agents.hire.start', 'venture.agents.hire.answer', 'venture.agents.hire.confirm', 'venture.agents.hire.cancel'];
+export const FAKE_HIRE_METHODS: readonly string[] = ['venture.agents.hire.duties', 'venture.agents.hire.start', 'venture.agents.hire.answer', 'venture.agents.hire.confirm', 'venture.agents.hire.cancel'];
 const READS = ['clients', 'orders', 'runs', 'money', 'plan', 'journal', 'notes', 'trackers'] as const;
 const DEPARTMENTS = ['sales', 'marketing', 'production', 'money', 'operations'] as const;
 const NEVER = ['No stock tips, target prices or promised returns without a SEBI registration.', 'No fake reviews.', 'It never sends, pays, posts, deletes or changes a price by itself.'];
@@ -82,6 +82,14 @@ export class FakeHire {
         const held = this.find(p.hireId);
         if (held.phase !== 'review' || held.digest !== p.digest) throw new EngineError('APPROVAL_STALE', STALE);
         held.status = 'hired';
+        return structuredClone(held);
+      }
+      case 'venture.agents.hire.duties': {
+        const held = this.mine().find((item) => item.status === 'hired' && item.id === p.agent);
+        if (!held) throw new EngineError('HIRE_NOT_FOUND', 'That hire was not found.');
+        const names = (this.host.ask('venture.team.list', {}) as { agents: AgentView[] }).agents.filter((agent) => agent.id !== held.id).map((agent) => agent.name);
+        try { held.role = { ...held.role!, duties: checkHire({ ...held.role!, duties: p.duties as string[], reads: held.reads.map((item) => item.read), department: held.department } as never, { agentNames: names }).duties }; }
+        catch (error) { const known = error as { code: string; message: string }; throw new EngineError(known.code, known.message); }
         return structuredClone(held);
       }
       case 'venture.agents.hire.cancel': { this.find(p.hireId).status = 'cancelled'; return { cancelled: true }; }

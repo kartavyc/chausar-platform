@@ -108,6 +108,7 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.needs.list': ['read', 'rui'],
   // A2: the owner's yes to the Codex found on this computer; it writes only Chausar's own trust folder.
   'venture.ai.setup.trust': ['approve', 'ui'],
+  'venture.agents.hire.duties': ['approve', 'u'],
   'venture.events.calKey.set': ['approve', 'ui'],
   'venture.events.relay.set': ['approve', 'ui'],
   'venture.events.get': ['read', 'rui'],

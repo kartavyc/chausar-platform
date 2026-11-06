@@ -5924,6 +5924,7 @@ export const VENTURE_METHODS = [
   'venture.events.get',
   'venture.events.relay.set',
   'venture.events.calKey.set',
+  'venture.agents.hire.duties',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -6097,6 +6098,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.events.get': 'build',
   'venture.events.relay.set': 'build',
   'venture.events.calKey.set': 'build',
+  'venture.agents.hire.duties': 'agents',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6189,6 +6191,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.agents.hire.cancel',
   'venture.events.relay.set',
   'venture.events.calKey.set',
+  'venture.agents.hire.duties',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6727,6 +6730,7 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.agents.hire.duties': { agent: string; duties: string[] };
   'venture.events.calKey.set': { key: string | null };
   'venture.events.relay.set': { address: string | null };
   'venture.events.get': Record<string, never>;
@@ -7139,6 +7143,7 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.agents.hire.duties': import('./agents/hire.ts').HireView;
   'venture.events.calKey.set': import('./build/event-triggers.ts').EventsView;
   'venture.events.relay.set': import('./build/event-triggers.ts').EventsView;
   'venture.events.get': import('./build/event-triggers.ts').EventsView;

@@ -65,6 +65,10 @@ test('it can be retired and restored; its posture cannot be loosened; a "from no
   await ventureAction(env.deps, owner, 'prepare', 'test.check', tx => tx.put({ ...tx.base('venture-connector-check'), rows: [{ connectorId: 'model:anthropic-sonnet-5-5', outcome: 'answered', line: 'Answered.', account: null, expiresOn: null }] } as any));
   const routine = await env.agents('venture.routines.set', { routine: { name: 'Calendar check', agent: id, prompt: 'List what is due on the content calendar this week and flag anything late.', on: true, schedule: { kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' } } });
   assert.equal(routine.routine.agent, id);
+  // Its duties change in its sheet, checked again.
+  await assert.rejects(env.agents('venture.agents.hire.duties', { agent: id, duties: ['Pays vendor bills at month end'] }), { code: 'HIRE_FLOOR' });
+  const changed = await env.agents('venture.agents.hire.duties', { agent: id, duties: ['Tracks what is due this week'] });
+  assert.deepEqual(changed.role.duties, ['Tracks what is due this week']);
   const check = await env.agents('venture.agents.retire.check', { agent: id });
   await env.agents('venture.agents.retire', { agent: id, to: 'owner', digest: check.digest });
   assert.equal((await team(env)).agents.some((agent: any) => agent.id === id), false);

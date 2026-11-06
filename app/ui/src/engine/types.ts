@@ -2442,6 +2442,7 @@ export interface EngineMethods {
   'venture.events.get': { params: Record<string, never>; result: EventsViewLite };
   'venture.events.relay.set': { params: { address: string | null }; result: EventsViewLite };
   'venture.events.calKey.set': { params: { key: string | null }; result: EventsViewLite };
+  'venture.agents.hire.duties': { params: { agent: string; duties: string[] }; result: HireViewLite };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
