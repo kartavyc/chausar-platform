@@ -199,8 +199,8 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
     const order = (await screen.findByRole('heading', { name: 'Two mentions in episode 14' })).closest('li')!;
     await settle();
-    const meta = within(order).getByText("How it's priced").closest('p')!;
-    expect(within(meta).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
+    // C4 task 11: the card shows the price itself, on its receipt, so no "How it's priced" line.
+    expect(within(order).getByRole('button', { name: receiptMark('R-0415') }).closest('[data-figure]')).not.toBeNull();
     // W4 4J3: the order's stage steps name a "Price" stage; that is a step's name, not a price line.
     expect(within(order).queryAllByText(/^Price$/).filter((el) => !el.closest('[data-order-steps]'))).toEqual([]);
   });

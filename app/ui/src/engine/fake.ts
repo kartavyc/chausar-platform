@@ -527,6 +527,8 @@ export class FakeEngine {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
+    // C4 task 33: the Undo of the owner's own price (core/owner-price.ts) belongs to the plan's desk, before the queue's own undo.
+    if (method === 'venture.queue.undo' && typeof p.rowId === 'string' && p.rowId.startsWith('price-set:')) return this.desk.undoOwnerPrice(p.rowId);
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
@@ -833,8 +835,6 @@ export class FakeEngine {
     if (method === 'venture.client.add') return this.addClient(p);
     // 4J2: a set approval decides each item as Today does (fake-4j2.ts).
     if (method === 'venture.queue.decide') return this.decide(p as ParamsOf<'venture.queue.decide'>);
-    // C4 task 33: the Undo of the owner's own price (core/owner-price.ts) belongs to the plan's desk.
-    if (method === 'venture.queue.undo' && typeof p.rowId === 'string' && p.rowId.startsWith('price-set:')) return this.desk.undoOwnerPrice(p.rowId);
     if (this.network.handles(method)) return this.networkAnswer(method, p);
     for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) {
       if (desk.handles(method)) return desk.request(method, p);

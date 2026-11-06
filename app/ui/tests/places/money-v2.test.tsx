@@ -331,7 +331,8 @@ describe('Money v2: the invoices table', () => {
     const { calls } = start('#/money/invoices', { engine });
     const table = await screen.findByRole('table', { name: /invoices/i });
     const draft = (await within(table).findByRole('button', { name: 'Draft · Boat Audio' })).closest('tr')!;
-    expect(within(table).getAllByRole('row')[1]).toBe(draft);
+    // C4 (T21): row 0 is the column heads, row 1 the Draft section's heading.
+    expect(within(table).getAllByRole('row')[2]).toBe(draft);
     expect(draft.textContent).toContain('Draft');
     const issue = within(draft).getByRole('button', { name: 'Issue' });
     expect(issue.dataset.variant).toBe('primary');
@@ -504,7 +505,9 @@ describe('Money v2: the invoices table on a phone', () => {
     expect(table.getAttribute('role')).toBe('table');
     for (const group of table.querySelectorAll('thead, tbody')) expect(group.getAttribute('role')).toBe('rowgroup');
     for (const row of table.querySelectorAll('tr')) expect(row.getAttribute('role')).toBe('row');
-    for (const head of table.querySelectorAll('th')) expect(head.getAttribute('role')).toBe('columnheader');
+    for (const head of table.querySelectorAll('thead th')) expect(head.getAttribute('role')).toBe('columnheader');
+    // C4 (T21): a section's heading heads its row.
+    for (const head of table.querySelectorAll('tbody th')) expect(head.getAttribute('role')).toBe('rowheader');
     for (const cell of table.querySelectorAll('td')) expect(cell.getAttribute('role')).toBe('cell');
     const row = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
     await waitFor(() => expect(row.textContent).toContain('₹26,200'));

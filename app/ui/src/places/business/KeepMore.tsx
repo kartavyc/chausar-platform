@@ -188,7 +188,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
           {noCode && (
             <>
               <p className={s.warn}>{t('business.moveCodeFirst')}</p>
-              <div className={s.buttons}><Button disabled={busy} onClick={makeCode}>{t('business.makeCode')}</Button></div>
+              <div className={s.buttons}><Button disabled={busy} onClick={makeCode}>{t('business.moveCodeMake')}</Button></div>
             </>
           )}
           {problem && <p className={s.problem} role="alert">{problem}</p>}

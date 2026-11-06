@@ -180,7 +180,7 @@ describe('Keep this business: moving to another computer', () => {
     const { calls } = start('#/business/keep', engine);
     const move = await fold('Move to another computer');
     expect(within(move).getByText('Make a recovery code first, in case the move goes wrong.')).toBeTruthy();
-    await press(within(move).getByRole('button', { name: 'Make a recovery code' }));
+    await press(within(move).getByRole('button', { name: 'Make the code' }));
     expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(1);
     expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
   });

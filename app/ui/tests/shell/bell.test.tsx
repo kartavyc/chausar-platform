@@ -176,7 +176,9 @@ describe('the bell', () => {
     expect(live.textContent).toBe('Notifications, 3 new');
     fireEvent.click(within(tools()).getByRole('button', { name: 'Notifications, 3 new' }));
     await waitFor(() => expect(centre()).not.toBeNull());
-    const items = within(await within(centre()!).findByRole('list', { name: 'Notifications' })).getAllByRole('listitem');
+    // C4 task 7: one list per day; these all sit under one day or the next, in order.
+    await within(centre()!).findAllByRole('listitem');
+    const items = within(centre()!).getAllByRole('list').flatMap((list) => within(list).getAllByRole('listitem'));
     expect(items.map((item) => item.querySelector('[data-kind]')?.textContent)).toEqual(['Follow-up', 'Reply', 'Notice', 'Proposal']);
     expect(items[0]!.querySelector('[data-sep]')?.getAttribute('aria-hidden')).toBe('true');
     // One read serves the bell and the centre together.

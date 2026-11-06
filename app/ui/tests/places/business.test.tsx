@@ -223,6 +223,7 @@ describe('Business: prices', () => {
 
   it("C4 task 33: the owner's own price applies on Save, says so with Undo, and nothing waits on Today", async () => {
     const { engine } = start('#/business/prices');
+    const before = ((await engine.request('venture.queue.list', {})) as QueueList).rows.map((row) => row.id);
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
@@ -232,7 +233,7 @@ describe('Business: prices', () => {
     expect(decided.closest('[data-price-decided]')).not.toBeNull();
     expect(screen.queryByText('Waiting on you', { selector: 'h2' })).toBeNull();
     const queue = (await engine.request('venture.queue.list', {})) as QueueList;
-    expect(queue.rows.filter((row) => row.kind === 'price' || row.kind === 'plan')).toHaveLength(0);
+    expect(queue.rows.map((row) => row.id).filter((id) => !before.includes(id))).toEqual([]);
     // Undo puts back exactly the version before: no price again, and the line says what happened.
     const holder = decided.closest('[data-price-decided]') as HTMLElement;
     await act(async () => { fireEvent.click(within(holder).getByRole('button', { name: 'Undo' })); });
