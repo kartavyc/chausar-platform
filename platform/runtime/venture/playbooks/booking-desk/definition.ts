@@ -38,14 +38,16 @@ const raw: PlaybookDefinition = {
   roles: [
     { id: 'reader', name: 'Reader', kind: 'agent', department: 'sales', job: 'Reads enquiries and lists what is missing.' },
     { id: 'writer', name: 'Writer', kind: 'agent', department: 'sales', job: 'Drafts confirmations with no amounts.' },
-    { id: 'keeper', name: 'Keeper', kind: 'code', department: 'operations', job: 'Code keeps slots and stops double bookings.' },
+    // Named Chausar, as every playbook's own code is: Keeper is Chausar's one agent on every team (views/keeper.ts), and a
+    // role with its id and name showed on Team as a second Keeper (found in the real app, 16 Nov 2026).
+    { id: 'chausar', name: 'Chausar', kind: 'code', department: 'operations', job: 'Code keeps slots and stops double bookings.' },
     { id: 'billing', name: 'Billing', kind: 'code', department: 'money', job: 'Code quotes from your prices and drafts deposit invoices.' },
     { id: 'owner', name: 'You', kind: 'person', department: 'sales', job: 'Confirms bookings, approves every message and sends it.' },
   ],
   steps: [
     step('intake', 'Read the enquiry', 'gather', 'reader', ['files.read']),
     step('quote', 'Quote from your prices', 'compute', 'billing'),
-    step('slot', 'Hold an open slot', 'compute', 'keeper'),
+    step('slot', 'Hold an open slot', 'compute', 'chausar'),
     step('deposit', 'Draft the deposit invoice', 'compute', 'billing'),
     step('draft', 'Draft the booking confirmation', 'write', 'writer'),
     step('approve', 'Approve the exact message', 'approve', 'owner', [], 'Every client message asks.'),
@@ -91,5 +93,4 @@ const raw: PlaybookDefinition = {
   words: () => [],
 };
 
-export const BOOKING_DESK_RAW = raw;
 export const BOOKING_DESK_DEFINITION = definePlaybook(raw);

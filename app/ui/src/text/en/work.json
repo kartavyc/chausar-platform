@@ -98,6 +98,11 @@
   "work.form.fileType": "{name} isn't a CSV, Excel, PDF, SRT or VTT file.",
   "work.form.fileSize": "{name} is empty or larger than 1.5 MB.",
   "work.form.submit": "Add order",
+  "work.form.aiNeeded": "{name}'s work can start only after you allow their data to reach your AI.",
+  "work.form.aiAllowed": "Allowed. {name}'s data can reach your AI.",
+  "work.form.aiNew": "Before a new client's work starts, you are asked to allow their data to reach your AI.",
+  "work.form.added": "Order added.",
+  "work.form.done": "Done",
   "work.form.needClientAndService": "Pick a client and a service",
   "work.form.needNameAndService": "Add the client's name and a service",
   "work.form.needClient": "Pick a client first",
@@ -400,5 +405,12 @@
   "work.intake.channel.bluesky": "Bluesky",
   "work.intake.channel.mastodon": "Mastodon",
   "work.intake.channel.telegram": "Telegram",
-  "work.intake.channel.discord": "Discord"
+  "work.intake.channel.discord": "Discord",
+  "work.file.label": "File",
+  "work.file.gone": "This file is no longer kept.",
+  "work.file.facts": "{format}, {size}, added {date}",
+  "work.file.fromClient": "A client sent this file.",
+  "work.file.transcript": "A transcript made on this computer.",
+  "work.file.practice": "A made-up practice file. It is no client's.",
+  "work.file.openOrder": "Open its order"
 }

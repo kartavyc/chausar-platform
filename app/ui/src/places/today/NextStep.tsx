@@ -13,10 +13,14 @@ import { goalAmount, type GoalAmount } from './goal';
 import { wordedRow } from './OutreachRows';
 import s from './NextStep.module.css';
 
-/** The one row the engine ranks first for the goal (W4 4I's next best step), as the tile beside the goal card. */
+/**
+ * The next best step of the chief's standing plan (venture.chief.plan.get `next`), as the tile beside the goal card:
+ * a card waiting on Today (W4 4I's ranking), or a step the plan names itself (finish what is sold, an overdue invoice,
+ * a move of the week).
+ */
 export interface NextStepData {
-  /** The queue row it is about; the primary presses that row's own primary (see NextStepProps.onPrimary). */
-  rowId: string;
+  /** The queue row it is about, when it is one; the primary presses that row's own primary (see NextStepProps.onPrimary). */
+  rowId?: string | undefined;
   title: string;
   line?: string | undefined;
   agent?: string | undefined;
@@ -25,22 +29,25 @@ export interface NextStepData {
   total?: GoalAmount | undefined;
   /** The engine's words for the goal once this is done ("92%"). */
   goalAfter?: string | undefined;
+  /** The engine's one quiet line for the setup cards that also wait (venture.chief.plan.get `next.also`). */
+  also?: string | undefined;
 }
 
 export interface NextStepProps {
   data: NextStepData;
   /**
    * The row's primary exactly as its card holds it (ApprovalHandle.primary()): its words, whether it is locked until the
-   * thing is opened and the note that says so, and whether it asks once more before anything goes out.
+   * thing is opened and the note that says so, and whether it asks once more before anything goes out. Left out, the
+   * step has nothing to press (nothing needs the owner right now).
    */
-  primary: ApprovalPrimary;
+  primary?: ApprovalPrimary | undefined;
   /** Open the thing the row is about. Left out, there is no Open: the primary already goes where it would (B4). */
   onOpen?: (() => void) | undefined;
   /**
    * Press the row's primary. TodayNextStep wires this to the card's own ApprovalHandle (`pressPrimary`), so the second ask,
    * view before approve and the digest hold exactly as on the card; this tile never decides anything itself.
    */
-  onPrimary: () => void;
+  onPrimary?: (() => void) | undefined;
 }
 
 /**
@@ -56,7 +63,7 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
   const size = plain ? 'lg' : 'xl';
   const who = [data.agent, data.business].filter(Boolean).join(' · ');
   // The card's own note: why it is locked, else that it asks once more.
-  const note = primary.locked ? primary.note : primary.asksAgain ? t('today.next.asksAgain') : undefined;
+  const note = primary?.locked ? primary.note : primary?.asksAgain ? t('today.next.asksAgain') : undefined;
   return (
     <section className={s.next} aria-labelledby={titleId} data-card="" data-next-step="" data-plain={plain ? '' : undefined}>
       <div className={s.body}>
@@ -71,6 +78,7 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
         </div>
         <h2 id={titleId} className={s.title}>{data.title}</h2>
         {data.line && <p className={s.line}>{data.line}</p>}
+        {data.also && <p className={s.line} data-also-waiting="">{data.also}</p>}
         {(data.total || data.goalAfter) && (
           <div className={s.figures}>
             {data.total && (
@@ -90,26 +98,28 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
         )}
         {note && (
           <p id={noteId} className={s.note}>
-            <Icon name={primary.locked ? 'lock' : 'shield-check'} size={14} />
+            <Icon name={primary?.locked ? 'lock' : 'shield-check'} size={14} />
             {note}
           </p>
         )}
       </div>
-      <div className={s.acts}>
-        {onOpen && <Button size={size} onClick={onOpen}>{t('today.next.open')}</Button>}
-        <Button
-          size={size}
-          variant="primary"
-          locked={primary.locked}
-          lockedReason={note}
-          lockedNoteId={primary.locked && note ? noteId : undefined}
-          aria-describedby={!primary.locked && note ? noteId : undefined}
-          onClick={() => { if (!primary.locked) onPrimary(); }}
-        >
-          {primary.label}
-          {!primary.locked && <Icon name="arrow-right" size={16} />}
-        </Button>
-      </div>
+      {primary && (
+        <div className={s.acts}>
+          {onOpen && <Button size={size} onClick={onOpen}>{t('today.next.open')}</Button>}
+          <Button
+            size={size}
+            variant="primary"
+            locked={primary.locked}
+            lockedReason={note}
+            lockedNoteId={primary.locked && note ? noteId : undefined}
+            aria-describedby={!primary.locked && note ? noteId : undefined}
+            onClick={() => { if (!primary.locked) onPrimary?.(); }}
+          >
+            {primary.label}
+            {!primary.locked && <Icon name="arrow-right" size={16} />}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
@@ -134,7 +144,8 @@ export interface NextStepHost {
 const GOES_THERE: ReadonlySet<string> = new Set(['open', 'connect', 'set-prices', 'keep']);
 
 /**
- * The engine's next best step (venture.goals.get `next`) on Today, beside the goal card. Its primary is the row's card
+ * A next best step that is a card on Today (the plan's step, ChiefPlan.tsx PlanStep), beside the goal card. title: the
+ * plan's own words for the step, which lead the tile. Its primary is the row's card
  * primary, worded and locked as that card is (primaryOf). Pressing it brings the card into view and presses the card's
  * own button through its handle, so view before approve, the second ask and the digest hold exactly as on the card:
  * a second ask opens inside the card, and this tile decides nothing itself. Open opens what the row is about; it is left
@@ -142,7 +153,7 @@ const GOES_THERE: ReadonlySet<string> = new Set(['open', 'connect', 'set-prices'
  * "Connect" says the same twice). The engine ranks only the open business's rows, so the tile names the agent and not the
  * business.
  */
-export function TodayNextStep({ step, row, host, folded = false }: { step: NextBestStep; row: QueueRow; host: NextStepHost; folded?: boolean }) {
+export function TodayNextStep({ step, row, host, folded = false, title = row.title, also }: { step: NextBestStep; row: QueueRow; host: NextStepHost; folded?: boolean; title?: string; also?: string | undefined }) {
   const t = useT();
   const [pending, setPending] = useState<string | null>(null);
   // Press once the card is on screen: it may sit behind a filter or the fold until goToRow opens them.
@@ -161,12 +172,13 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
   const press = () => { setPending(row.id); host.goToRow(row.id); };
   const primaryId = (row.actions.find((action) => action.primary) ?? row.actions[0])?.id;
   const open = () => (row.viewRef ? host.look(row) : host.goToRow(row.id));
-  if (folded) return <FoldedStep title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} onOpen={open} />;
+  if (folded) return <FoldedStep title={title} total={total ?? undefined} primary={primary} onPrimary={press} onOpen={open} also={also} />;
   // The row's own line and "asks you once more" are on its card already: the tile says neither again (words).
   const data: NextStepData = {
-    rowId: row.id, title: row.title, agent: step.agent ?? row.agent,
+    rowId: row.id, title, agent: step.agent ?? row.agent,
     ...(total ? { total } : {}),
     ...(step.goalAfterPercent !== null ? { goalAfter: `${step.goalAfterPercent}%` } : {}),
+    ...(also ? { also } : {}),
   };
   return (
     <NextStep
@@ -180,9 +192,10 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
 
 /**
  * The next best step folded into the goal card on a phone (D-Phone-Today): "Next best step", the row's title and its
- * figure on one line, and the card's one filled button, the row's own primary (locked and worded as its card).
+ * figure on one line, and the card's one filled button: the row's own primary (locked and worded as its card), or the
+ * step's own. With nothing to press it is the line alone.
  */
-function FoldedStep({ title, total, primary, onPrimary, onOpen }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void; onOpen: () => void }) {
+export function FoldedStep({ title, total, primary, onPrimary, onOpen, also }: { title: string; total?: GoalAmount | undefined; primary?: ApprovalPrimary | undefined; onPrimary?: (() => void) | undefined; onOpen?: (() => void) | undefined; also?: string | undefined }) {
   const t = useT();
   const noteId = useId();
   const plain = usePlainTiles();
@@ -193,20 +206,23 @@ function FoldedStep({ title, total, primary, onPrimary, onOpen }: { title: strin
         <span>{title}</span>
         {total && <Figure {...total} tone={plain ? undefined : 'dark'} />}
       </p>
-      {primary.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}
+      {also && <p className={s.foldedNote} data-also-waiting="">{also}</p>}
+      {primary?.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}
       {/* C4 task 9 (shot 248): a locked primary has Open beside it, which opens the thing to read so it unlocks. */}
-      {primary.locked && <Button size="xl" onClick={onOpen}>{t('today.next.open')}</Button>}
-      <Button
-        size="xl"
-        variant="primary"
-        locked={primary.locked}
-        lockedReason={primary.note}
-        lockedNoteId={primary.locked && primary.note ? noteId : undefined}
-        onClick={() => { if (!primary.locked) onPrimary(); }}
-      >
-        {primary.label}
-        {!primary.locked && <Icon name="arrow-right" size={16} />}
-      </Button>
+      {primary?.locked && onOpen && <Button size="xl" onClick={onOpen}>{t('today.next.open')}</Button>}
+      {primary && (
+        <Button
+          size="xl"
+          variant="primary"
+          locked={primary.locked}
+          lockedReason={primary.note}
+          lockedNoteId={primary.locked && primary.note ? noteId : undefined}
+          onClick={() => { if (!primary.locked) onPrimary?.(); }}
+        >
+          {primary.label}
+          {!primary.locked && <Icon name="arrow-right" size={16} />}
+        </Button>
+      )}
     </div>
   );
 }

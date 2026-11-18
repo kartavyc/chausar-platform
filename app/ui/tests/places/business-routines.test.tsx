@@ -4,6 +4,10 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type MethodName } from '../../src/engine/types';
 import { assertInkRules } from '../helpers/ink-rules';
+import { setComputerZone } from '../../../../platform/runtime/owner-format';
+
+// A schedule says where its time is only when that is not where this computer is: the tests' computer is in India.
+setComputerZone('Asia/Kolkata');
 
 /*
  * W4 4J22a, Business > Routines (from 4J13; catalogue A12): each routine with its schedule in words and its time zone
@@ -41,7 +45,7 @@ describe('Business > Routines (4J22a)', () => {
     const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Routines' }).getAttribute('aria-current')).toBe('page');
     const item = await screen.findByRole('article', { name: 'Weekly review' });
-    expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 9:00 am, Asia/Kolkata');
+    expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday at 9:00 am');
     expect(item.querySelector('[data-asks]')!.textContent).toBe('Asks Chausar');
     // Worded by the screen from routine.on and routine.next, in the routine's own time zone.
     expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next time 26 Oct, 9:00 am');
@@ -80,23 +84,42 @@ describe('Business > Routines (4J22a)', () => {
       schedule: { kind: 'calendar', weekdays: [1, 3], time: '08:30', timeZone: 'Asia/Kolkata' },
     } });
     const added = await screen.findByRole('article', { name: 'Morning check' });
-    expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday 8:30 am, Asia/Kolkata');
+    expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday at 8:30 am');
+  });
+
+  it('says the place only when the computer is somewhere else, on the same stored schedule (found live, 15 Nov 2026)', async () => {
+    setComputerZone('Europe/London');
+    try {
+      start();
+      const item = await screen.findByRole('article', { name: 'Weekly review' });
+      expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday at 9:00 am, Kolkata time');
+      // The daily review reads the same way here as on Today.
+      const daily = await screen.findByRole('article', { name: 'Daily review' });
+      expect(daily.querySelector('[data-when]')!.textContent).toBe('Every day at 8:00 am, Kolkata time');
+    } finally { setComputerZone('Asia/Kolkata'); }
+  });
+
+  it('the daily review reads "Every day at 8:00 am" where the owner is, as on Today', async () => {
+    start();
+    const daily = await screen.findByRole('article', { name: 'Daily review' });
+    expect(daily.querySelector('[data-when]')!.textContent).toBe('Every day at 8:00 am');
+    expect(daily.textContent).not.toContain('Asia/Kolkata');
   });
 
   it('C4 task 32: with no routines, the ready ones from the plan each have Add, which fills the form; the owner still saves', async () => {
-    const monthly = { name: 'Draft the monthly report for review', agent: null, prompt: 'Draft the monthly report for review for this business, from its own records and plan. Keep it as a draft for my approval.', schedule: { kind: 'monthly', day: 1, time: '09:00', timeZone: 'Asia/Kolkata' }, when: 'On the 1st of each month, 9:00 am, Asia/Kolkata', step: 'Draft the monthly report for review' };
-    const weekly = { name: 'Send the weekly summary', agent: null, prompt: 'Send the weekly summary for this business, from its own records and plan. Keep it as a draft for my approval.', schedule: { kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' }, when: 'Every Monday 9:00 am, Asia/Kolkata', step: 'Send the weekly summary' };
+    const monthly = { name: 'Draft the monthly report for review', agent: null, prompt: 'Draft the monthly report for review for this business, from its own records and plan. Keep it as a draft for my approval.', schedule: { kind: 'monthly', day: 1, time: '09:00', timeZone: 'Asia/Kolkata' }, when: 'On the 1st of each month at 9:00 am', step: 'Draft the monthly report for review' };
+    const weekly = { name: 'Send the weekly summary', agent: null, prompt: 'Send the weekly summary for this business, from its own records and plan. Keep it as a draft for my approval.', schedule: { kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' }, when: 'Every Monday at 9:00 am', step: 'Send the weekly summary' };
     const { calls } = start({ 'venture.routines.list': () => ({ routines: [] }), 'venture.routines.suggestions': () => ({ suggestions: [monthly, weekly] }) });
     const ready = await screen.findByRole('list', { name: 'Ready from your plan' });
     const items = within(ready).getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('[data-suggestion-name]')!.textContent)).toEqual([monthly.name, weekly.name]);
-    expect(items[0]!.textContent).toContain('On the 1st of each month, 9:00 am, Asia/Kolkata');
+    expect(items[0]!.textContent).toContain('On the 1st of each month at 9:00 am');
     await press(items[0]!, 'Add');
     const form = screen.getByRole('form', { name: 'Add a routine' });
     expect((form.closest('details') as HTMLDetailsElement).open).toBe(true);
     expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe(monthly.name);
     expect((within(form).getByLabelText('What to ask') as HTMLTextAreaElement).value).toBe(monthly.prompt);
-    expect(form.textContent).toContain('On the 1st of each month, 9:00 am, Asia/Kolkata');
+    expect(form.textContent).toContain('On the 1st of each month at 9:00 am');
     expect(calls.some((c) => c.method === 'venture.routines.set')).toBe(false);
     await press(form, 'Save routine');
     const set = calls.find((c) => c.method === 'venture.routines.set')!;

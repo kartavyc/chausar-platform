@@ -46,12 +46,13 @@ function fromRun(run: DeliveryLite, summaries: readonly RunSummary[]): OrderStat
     case 'accepted':
     case 'edited': return run.practice ? 'practice' : 'approved';
     // One-shot A1 (row 9): a draft the AI is still finishing (the engine's run is active, nothing waits on you) is working.
+    case 'finishing':
     case 'ready-for-review': return run.practice ? 'practice' : run.awaitingYou === false && summaries.find((s) => s.runId === run.id)?.state === 'active' ? 'working' : 'draft-ready';
     default: {
       // Still going. The engine's run state says whether it waits on the owner; without it, the delivery run does.
       const engine = summaries.find((s) => s.runId === run.id);
       if (engine) return engine.state === 'waiting' ? 'waiting' : 'working';
-      return (run.awaitingYou ?? run.status !== 'brief-waiting') ? 'waiting' : 'working';
+      return (run.awaitingYou ?? run.status !== 'working') ? 'waiting' : 'working';
     }
   }
 }

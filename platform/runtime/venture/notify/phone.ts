@@ -1,9 +1,11 @@
 // Wave 6 package 6F7 (D35): phone access. The owner opens Chausar on their own phone, on the same Wi-Fi by a one-time
 // pairing link, or away from home through Tailscale. venture.phone.access (app only) reads the state, makes a pairing
 // link (the host starts its phone listener when needed) or stops phone access, which ends every phone session. The
-// listener itself belongs to the host (platform/runtime/phone-access.ts through VentureDeps.phoneAccess): a phone gets
-// the channel 'phone', so everything the app keeps to itself (app-only methods, such as AI connect, compose decide and
-// fill, billing and these settings) stays refused there, exactly as before. The hosted app has its own address.
+// listener closes by itself when the last unused link runs out with no phone paired, and when the last paired phone's
+// time ends; every answer here is the listener's state at that moment, so the page can always say it is on and stop it.
+// The listener itself belongs to the host (platform/runtime/phone-access.ts through VentureDeps.phoneAccess): a phone gets
+// the channel 'phone', so everything the app keeps to itself (app-only methods, such as AI connect, billing and these
+// settings) stays refused there, exactly as before. The hosted app has its own address.
 import { authorize, check, type Context } from '../../contracts.ts';
 import { exactPayload, requireAppChannel, requireVenture } from '../records.ts';
 import type { PhoneAccessPort, PhoneAccessView, VentureDeps } from '../contracts.ts';
@@ -19,14 +21,16 @@ const WORDS = Object.freeze({
   hours: 'Choose how long a phone stays paired, from 1 to 24 hours.',
   off: 'Phone access is off. Make a pairing link to open Chausar on your phone.',
   link: `Open this link on your phone within ${PHONE_LINK_MINUTES} minutes. It works once.`,
+  waiting: 'Phone access is on: a pairing link is waiting and no phone is paired. It turns off by itself when the link runs out.',
 });
 
 function viewOf(port: PhoneAccessPort, link: { link: string; expiresAt: string } | null = null): PhoneAccessView {
   const status = port.status();
   const line = link ? WORDS.link
     : !status.on ? WORDS.off
-      : `Phone access is on. ${status.phones} ${status.phones === 1 ? 'phone is' : 'phones are'} paired. Some approvals still need this computer.`;
-  return { on: status.on, addresses: status.addresses.map(item => ({ ...item })), phones: status.phones, link: link?.link ?? null, expiresAt: link?.expiresAt ?? null, line, qr: link ? (({ size, rows }) => ({ size, rows }))(qrMatrix(link.link)) : null };
+      : status.phones === 0 ? WORDS.waiting
+        : `Phone access is on. ${status.phones} ${status.phones === 1 ? 'phone is' : 'phones are'} paired. It turns off by itself when the pairing ends. Some approvals still need this computer.`;
+  return { on: status.on, addresses: status.addresses.map(item => ({ ...item })), phones: status.phones, waiting: status.waiting, closesAt: status.closesAt, link: link?.link ?? null, expiresAt: link?.expiresAt ?? null, line, qr: link ? (({ size, rows }) => ({ size, rows }))(qrMatrix(link.link)) : null };
 }
 
 /**

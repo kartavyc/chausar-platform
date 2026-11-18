@@ -86,7 +86,8 @@ test('6E1: the UI and its fake engine know the same service types, labels, keywo
   const common = JSON.parse(await read('text/en/common.json'));
   for (const type of SERVICE_TYPES) assert.equal(common[`business.kind.${type}`], SERVICE_TYPE_LABELS[type], type);
   const fixtures = await read('engine/fixtures.ts');
-  assert.match(fixtures, /from '\.\.\/\.\.\/\.\.\/\.\.\/platform\/runtime\/venture\/core\/service-keywords'/, 'the fake guesses from the engine keywords');
+  // The fake guesses with the engine's own classifier, playbook first and then the keywords (core/service-keywords.ts classifiedBy).
+  assert.match(await read('engine/fake.ts'), /import \{ classifiedBy, type PlaybookPicks \} from '\.\.\/\.\.\/\.\.\/\.\.\/platform\/runtime\/venture\/core\/service-keywords'/, 'the fake classifies with the engine\'s own function');
   for (const type of SERVICE_TYPES) assert.ok(fixtures.includes(`'${SERVICE_TYPE_LABELS[type]}'`), `fixtures label ${type}`);
   const practice = await read('engine/fake-practice.ts');
   for (const type of SERVICE_TYPES) for (const kind of ['clean', 'messy', 'pushback'] as const) {

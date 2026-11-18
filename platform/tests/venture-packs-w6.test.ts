@@ -106,7 +106,7 @@ test('an added pack calculator answers inside a job with a code receipt the draf
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A plain voice sheet.', intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });
   const playbook = await ensurePlaybook(env.deps, owner);
   const run = await ventureAction(env.deps, owner, 'prepare', 'test.run', tx => { tx.touch({ launchStage: 'approve-each' });
-    return tx.put({ ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, status: 'waiting-for-you', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null }); });
+    return tx.put({ ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, status: 'working', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null }); });
   const consent = await getClientAiConsent(env.deps, owner, { clientId: env.client.id });
   await agreeClientAiConsent(env.deps, owner, { clientId: env.client.id, disclosureDigest: consent.disclosureDigest });
   const job = await createNativeJob(env.deps, owner, run.id, { agentId: 'writer', sections: ['Reply'], check: () => undefined }); t.after(() => job.close());

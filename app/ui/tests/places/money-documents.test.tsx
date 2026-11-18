@@ -208,15 +208,16 @@ describe('Money w4: bills', () => {
 });
 
 describe('Money w4: margins per client', () => {
-  it('each client invoiced before tax with its receipt; without a rupee rate the spend and margin say Not counted, and why', async () => {
-    // The sample has the owner's rupee rate (4Z3); without one, as here, the spend cannot be counted in rupees.
+  it('each client invoiced before tax with its receipt; with no rate of the owner\'s own the spend and margin count at the reference rate, named', async () => {
+    // The sample has the owner's rupee rate (4Z3); cleared, as here, a rupee business counts at the dated reference rate
+    // (fix round 4, real-app problem 12). "Not counted" is for a business outside India (money-views.test.tsx).
     const { calls } = await start('#/money/margins', { before: async (engine) => { await engine.request('venture.spend.policy.set', { inrPerUsd: null }); } });
     const section = await screen.findByRole('region', { name: 'Margins in October 2026' });
     await waitFor(() => expect(calls).toContainEqual(['venture.money.margins', { month: '2026-10' }]));
     const row = await within(section).findByRole('row', { name: /Boat Audio/ });
-    expect(within(row).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
-    expect(within(row).getAllByText('Not counted')).toHaveLength(2);
-    expect(section.textContent).toContain('The AI and tool spend is not counted: no rupee rate set.');
+    expect(within(row).getAllByRole('button', { name: receiptMark(/^R-/) }).length).toBeGreaterThan(1);
+    expect(within(row).queryByText('Not counted')).toBeNull();
+    expect(section.textContent).toContain('at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026).');
     assertInkRules();
     assertFiguresProved();
   });

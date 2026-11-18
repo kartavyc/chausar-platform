@@ -284,10 +284,23 @@ describe('Connections: Your AI', () => {
     await engine.request('workspace.open', { folder: 'ledgerline' });
     start('#/connections', engine);
     const section = await ai();
-    await waitFor(() => expect(section.textContent).toContain('$0.04 (estimate)'));
+    // A rupee business reads the month in rupees first, at its own rate (found on Windows, 17 Nov 2026: it read $0.00).
+    await waitFor(() => expect(section.textContent).toContain('This month: ₹3.34 (estimate) ($0.04 at ₹83.50 per $1)'));
     const connected = within(section).getByRole('list', { name: 'Connected' });
     const haiku = within(connected).getByText('Claude Haiku 5.5').closest('li')!;
+    // Found on the real app, 16 November 2026: one press turned the AI off. It asks once first, in the row.
     await act(async () => { fireEvent.click(within(haiku).getByRole('button', { name: 'Disconnect' })); });
+    const words = 'Chausar stops using Claude Haiku 5.5. Its jobs fall back to built-in templates unless another connected AI does them. Connecting it again asks you to agree again to what is sent.';
+    expect(within(haiku).getByText(words)).toBeTruthy();
+    expect(((await engine.request('venture.models.status', {})) as ModelStatusLite).tiers.fast.presetId).not.toBe('built-in-templates');
+    // Cancel has the focus, changes nothing and gives the button back, with the focus on it.
+    expect(document.activeElement).toBe(within(haiku).getByRole('button', { name: 'Cancel' }));
+    await act(async () => { fireEvent.click(within(haiku).getByRole('button', { name: 'Cancel' })); });
+    expect(within(haiku).queryByText(words)).toBeNull();
+    expect(document.activeElement).toBe(within(haiku).getByRole('button', { name: 'Disconnect' }));
+    expect(within(connected).getByText('Claude Haiku 5.5')).toBeTruthy();
+    await act(async () => { fireEvent.click(within(haiku).getByRole('button', { name: 'Disconnect' })); });
+    await act(async () => { fireEvent.click(within(within(haiku).getByText(words).closest('[data-second-ask]') as HTMLElement).getByRole('button', { name: 'Disconnect' })); });
     await waitFor(() => expect(within(connected).queryByText('Claude Haiku 5.5')).toBeNull());
     expect(section.textContent).toContain('Quick work: No AI connected; using built-in templates');
     const status = (await engine.request('venture.models.status', {})) as ModelStatusLite;

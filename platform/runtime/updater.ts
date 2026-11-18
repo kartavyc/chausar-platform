@@ -6,7 +6,6 @@ import { isIP } from 'node:net';
 import { check, newId, internalCheck } from './contracts.ts';
 import { safeDirectory } from './vault.ts';
 import { acquireProcessLock } from './process-lock.ts';
-import type { BoundedHttp } from './connectors.ts';
 
 // C5 task 31: the cap is the signed size, under a 512 MiB ceiling (the beta installer is about 309 MB).
 const MAX_ARTIFACT = 512 * 1024 * 1024;
@@ -123,8 +122,7 @@ function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).dige
 async function fileDigest(path:string,hash=createHash('sha256')){for await(const chunk of createReadStream(path))hash.update(chunk as Buffer);return hash;}
 
 // C5 task 31, the stage half: a release is fetched as a stream. `ReleaseDownload` is the seam: tests pass a stand-in,
-// the app uses `fetchDownload` (fetch, a redirect followed only to the release hosts, and an idle timer). A BoundedHttp passed as `http` still
-// works and is read as one chunk, so older callers keep their shape.
+// the app uses `fetchDownload` (fetch, a redirect followed only to the release hosts, and an idle timer).
 export type DownloadRequest = { url:string; headers:Record<string,string>; idleTimeoutMs:number; redirect:'error' };
 export type DownloadResponse = { status:number; url?:string; headers?:Record<string,string>; body:AsyncIterable<Uint8Array> };
 export type ReleaseDownload = (request:DownloadRequest)=>Promise<DownloadResponse>;
@@ -152,7 +150,8 @@ export async function followRelease(url:string,init:RequestInit,fetcher:typeof f
  * came from doesn't matter, since the signed length and hash decide.
  */
 export async function fetchDownload(request:DownloadRequest,fetcher:typeof fetch=fetch):Promise<DownloadResponse>{
-  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+
   const response=await followRelease(request.url,{method:'GET',headers:request.headers,signal:controller.signal},fetcher).catch(error=>{clearTimeout(timer);throw error;});
   const headers:Record<string,string>={};response.headers.forEach((value,key)=>{headers[key]=value;});
   const reader=response.body?.getReader();
@@ -161,13 +160,6 @@ export async function fetchDownload(request:DownloadRequest,fetcher:typeof fetch
     finally{clearTimeout(timer);await reader?.cancel().catch(()=>{});}
   }
   return {status:response.status,headers,body:body()};
-}
-function fromBoundedHttp(http:BoundedHttp,maxBytes:number):ReleaseDownload{
-  return async request=>{
-    const response=await http({url:request.url,method:'GET',headers:request.headers,maxBytes,timeoutMs:request.idleTimeoutMs,redirect:'error'});
-    const bytes=typeof response.body==='string'?Buffer.from(response.body):Buffer.from(response.body);
-    return {status:response.status,url:response.url,headers:response.headers,body:(async function*(){yield bytes;})()};
-  };
 }
 /** Read a bounded snapshot from a regular file, checking both handle and path identity. */
 async function rollbackFile(path:string,maximum:number,code:string) {
@@ -204,13 +196,12 @@ export class ReleaseUpdater {
   #key:KeyObject;
   #version:string;
   #directory:string;
-  #http:BoundedHttp|undefined;
   #download:ReleaseDownload|undefined;
-  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp;download?:ReleaseDownload}) {
+  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;download?:ReleaseDownload}) {
     this.#key=typeof options.publicKey==='string'?createPublicKey(options.publicKey):options.publicKey;
     check(this.#key.type==='public' && this.#key.asymmetricKeyType==='ed25519','INVALID_UPDATE_KEY','Pin an explicit Ed25519 release public key.');
     versionParts(options.version);check(isAbsolute(options.stageDirectory),'UNSAFE_STAGE','Choose an absolute private staging directory.');
-    this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http;this.#download=options.download;
+    this.#version=options.version;this.#directory=options.stageDirectory;this.#download=options.download;
   }
   verify(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
     const value=this.#authenticate(manifest,signature);
@@ -292,7 +283,7 @@ export class ReleaseUpdater {
       const size=(await lstat(partPath)).size;
       if(size>0&&size<verified.size){hash=await fileDigest(partPath);offset=size;}else await unlink(partPath);
     }
-    const download=this.#download??(this.#http?fromBoundedHttp(this.#http,verified.size):fetchDownload);
+    const download=this.#download??fetchDownload;
     const headers:Record<string,string>={Accept:'application/octet-stream'};if(offset)headers.Range=`bytes=${offset}-`;
     const response=await download({url:verified.url,headers,idleTimeoutMs:IDLE_TIMEOUT_MS,redirect:'error'});
     check(!response.url||response.url===verified.url,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');

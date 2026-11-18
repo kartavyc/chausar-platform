@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { ChausarError, type Context, type State } from '../../contracts.ts';
 import { digest, findRecord, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import type { DeliveryRunRecord, FileManifest, IsoTime, VentureDeps } from '../contracts.ts';
+import { handedOver as wentOut, reopen } from './run-machine.ts';
 
 export const FILE_CHANGED_WORDS = 'A file in this draft changed after you accepted it, so nothing was shared, posted or sent. It is back on Today for you to review.';
 
@@ -58,7 +59,6 @@ export function acceptManifest(state: State, run: DeliveryRunRecord, at: IsoTime
 }
 
 /** The verdicts that hand files over: the owner accepted the draft, or edited it into their own version. */
-const BOUND: readonly DeliveryRunRecord['status'][] = ['accepted', 'edited'];
 
 /**
  * The files of an accepted or edited draft the owner did not see as they are now: bytes that differ from the manifest,
@@ -66,7 +66,7 @@ const BOUND: readonly DeliveryRunRecord['status'][] = ['accepted', 'edited'];
  * Nothing for a draft not yet accepted: nothing of it is bound.
  */
 export function changedFiles(state: State, run: DeliveryRunRecord): string[] {
-  if (!BOUND.includes(run.status)) return [];
+  if (!wentOut(run)) return [];
   const files = run.manifest?.files ?? {};
   const changed = new Set(Object.entries(files).filter(([id, sha]) => fileSha(state, run.ventureId, id) !== sha).map(([id]) => id));
   for (const id of handedOver(state, run)) if (!Object.hasOwn(files, id)) changed.add(id);
@@ -87,10 +87,7 @@ export function clearChangedAcceptance(tx: VentureTx, runId: string): boolean {
   const run = tx.find('venture-delivery-run', runId);
   const changed = run ? changedFiles(tx.state, run) : [];
   if (!run || !changed.length) return false;
-  tx.replace<DeliveryRunRecord>({
-    ...run, status: 'ready-for-review', verdict: null, manifest: null,
-    reopened: { count: (run.reopened?.count ?? 0) + 1, at: tx.now, files: changed },
-  });
+  tx.replace<DeliveryRunRecord>(reopen({ ...run, manifest: null, reopened: { count: (run.reopened?.count ?? 0) + 1, at: tx.now, files: changed } }));
   tx.emit('delivery-ready', { runId });
   tx.emit('run.waiting', { runId });
   return true;

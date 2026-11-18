@@ -1,8 +1,9 @@
 // Agent threads (Ink v2 wave 4, package 4B1, catalogue A2, spec 5.2 and 8): one thread per agent per business. The
-// owner reads the agent's runs as a conversation and talks to it: a question gets one answer whose figures only come
-// by receipt (any other number is labelled a model estimate); a request for work suggests a prefilled New order and
-// creates nothing; a request that lands on the floor becomes a drafted proposal for Today; a message while the agent's
-// run waits on the owner's question is that question's answer. Keys never enter a thread. Keeper is code, not AI.
+// owner reads the agent's runs as a conversation and talks to it: the owner's AI answers every message in its own
+// words (a figure with a receipt shows its receipt; any other number or amount stays, labelled a model estimate); a
+// request for work also gets a prefilled New order button and creates nothing; a request that lands on the floor also
+// becomes a drafted proposal for Today. With no AI connected, code says those two lines itself. Keys never enter a
+// thread. Keeper is code, not AI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ANSWER_INSTRUCTIONS } from '../runtime/venture/agents/answer.ts';
@@ -50,7 +51,7 @@ test('thread: keys never enter a thread; the message is refused and nothing is s
   assert.equal(env.models.previewed.length, 0);
 });
 
-test('thread: a question gets one answer; figures only by receipt, other numbers labelled, money without a receipt left out', async () => {
+test('thread: a question gets one answer; a figure shows its receipt, and every other number or amount stays, labelled a model estimate', async () => {
   const env = await agentBusiness();
   await consent(env, 'packager');
   const order = await episodeOrder(env);
@@ -74,12 +75,16 @@ test('thread: a question gets one answer; figures only by receipt, other numbers
   assert.ok(input.figures.some((item: any) => item.receiptId === receiptId && item.key === 'total'));
   assert.deepEqual(input.standingOrders, []);
   const reply = sent.added[1].message;
-  assert.deepEqual(reply.parts.map((part: any) => part.kind), ['text', 'figure', 'estimate']);
-  assert.equal(reply.parts[1].receiptId, receiptId);
-  assert.equal(reply.parts[1].key, 'total');
-  assert.match(reply.parts[1].display, /1,000/);
-  assert.equal(reply.parts[2].text, 'It should reach about 18000 views.');
-  assert.equal(sent.line, 'Four figures were left out: they had no receipt.');
+  // The AI's words come first, a part for each paragraph; the figure it cited follows, with its receipt.
+  assert.deepEqual(reply.parts.map((part: any) => part.kind), ['text', 'estimate', 'estimate', 'estimate', 'estimate', 'figure']);
+  assert.equal(reply.parts[5].receiptId, receiptId);
+  assert.equal(reply.parts[5].key, 'total');
+  assert.match(reply.parts[5].display, /1,000/);
+  // Nothing the AI wrote is cut: a number or an amount with no receipt is shown whole, as a model estimate.
+  assert.equal(reply.parts[0].text, 'The episode package is waiting for you.');
+  assert.deepEqual(reply.parts.slice(1, 5).map((part: any) => part.text), ['It should reach about 18000 views.', 'The client paid ₹31,600 last time.', 'We got INR 31600.', '31600 रुपये मिले।']);
+  // Only a cited figure that names a receipt Chausar does not hold has nothing to show.
+  assert.equal(sent.line, 'One figure was left out: it had no receipt.');
   assert.equal(reply.suggestion, undefined, 'C5 task 5: with an AI, no Connect your AI button');
   assert.equal(listRecords(env.store.read(), 'venture-agent-message').at(-1)!.author, 'model');
   assert.ok(run.id);
@@ -129,24 +134,45 @@ for (const moment of ['dispatch', 'response', 'regrant'] as const) test(`thread:
   assert.equal(listRecords(env.store.read(), 'venture-agent-message').length, 0);
 });
 
-test('thread: a request for work suggests a prefilled New order and creates nothing', async () => {
+test('thread: a request for work is answered by the AI, with a prefilled New order under it, and creates nothing', async () => {
   const env = await agentBusiness();
   await consent(env);
   const orders = listRecords(env.store.read(), 'venture-order').length;
+  let input: any = null;
+  scriptChat(env, { answer: task => { input = task.input; return { parts: [said('I would open on the cold-open laugh and keep it under a minute. Which platform is it for?')] }; } });
   const sent = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Cut a trailer from episode 14.' });
   const reply = sent.added[1].message;
+  assert.equal(reply.parts[0].text, 'I would open on the cold-open laugh and keep it under a minute. Which platform is it for?', 'the AI talks; no canned line replaces it');
+  assert.equal(input.question, 'Cut a trailer from episode 14.');
+  assert.equal(input.request, 'work', 'the AI is told a New order button will show');
   assert.deepEqual(reply.suggestion, { kind: 'order', offerId: null, request: 'Cut a trailer from episode 14.' });
-  assert.match(reply.parts[0].text, /New order/);
+  assert.equal(listRecords(env.store.read(), 'venture-agent-message').at(-1)!.author, 'model');
   assert.equal(listRecords(env.store.read(), 'venture-order').length, orders, 'nothing is created');
-  assert.equal(env.models.previewed.filter(item => item.purpose === 'agent-chat').length, 0, 'code decides, no model call');
+  assert.equal(env.models.previewed.filter(item => item.purpose === 'agent-chat').length, 1, 'one call to the AI');
+});
+
+test('thread: with no AI connected, code still answers a request for work and a request on the floor itself', async () => {
+  const env = await agentBusiness();
+  env.models.main = 'template';
+  env.models.fast = 'template';
+  const work = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Cut a trailer from episode 14.' });
+  assert.equal(work.added[1].message.parts[0].text, 'I can start on that as a new order. Check the details in New order, then create it.');
+  assert.deepEqual(work.added[1].message.suggestion, { kind: 'order', offerId: null, request: 'Cut a trailer from episode 14.' });
+  const floor = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Publish the trailer on YouTube today.' });
+  assert.equal(floor.added[1].message.parts[0].text, 'That needs your approval on Today.');
+  assert.equal(listRecords(env.store.read(), 'venture-proposal').at(-1)!.status, 'raised');
+  assert.equal(env.models.previewed.filter(item => item.purpose === 'agent-chat').length, 0);
 });
 
 test('thread: a request that lands on the floor becomes a drafted proposal for Today (spec 8)', async () => {
   const env = await agentBusiness();
   await consent(env);
+  let input: any = null;
+  scriptChat(env, { answer: task => { input = task.input; return { parts: [said('I would post it at six with the cold-open thumbnail. It waits for your yes on Today.')] }; } });
   const sent = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Publish the trailer on YouTube today.' });
   const reply = sent.added[1].message;
-  assert.equal(reply.parts[0].text, 'That needs your approval on Today.');
+  assert.equal(reply.parts[0].text, 'I would post it at six with the cold-open thumbnail. It waits for your yes on Today.', 'the AI talks; the approval still goes to Today');
+  assert.equal(input.request, 'needs-approval');
   const proposal = listRecords(env.store.read(), 'venture-proposal').at(-1)!;
   assert.equal(proposal.proposalKind, 'start-work');
   assert.equal(proposal.source, 'agent');
@@ -226,6 +252,7 @@ test('thread: a business on the eight fixed steps has one delivery agent, whose 
   await assert.rejects(env.agents('venture.agents.thread.list', { agent: 'story-editor' }), code('AGENT_NOT_FOUND'));
   const view = await env.agents('venture.agents.thread.list', { agent: 'delivery' });
   assert.equal(view.agent.id, 'delivery');
+  scriptChat(env, { answer: () => ({ parts: [said('It is ready to go once you approve it on Today.')] }) });
   await env.agents('venture.agents.thread.send', { agent: 'delivery', text: 'Send the reply to the client now.' });
   const proposal = listRecords(env.store.read(), 'venture-proposal').at(-1)!;
   assert.deepEqual(proposal.input, { agent: 'delivery', request: 'Send the reply to the client now.', stepId: 'send' });
@@ -288,12 +315,15 @@ test('thread: notes, file names and the waiting question are screened before the
 test('thread: Hindi price and delete words land on the floor (S3)', async () => {
   const env = await agentBusiness();
   await consent(env);
+  const requests: string[] = [];
+  scriptChat(env, { answer: task => { requests.push((task.input as any).request); return { parts: [said('यह आपकी मंज़ूरी के बाद होगा।')] }; } });
   for (const text of ['शॉर्ट्स की कीमत बढ़ा दो', 'पुरानी फ़ाइल डिलीट कर दो', 'इस क्लाइंट को छूट दे दो', 'पुराने ड्राफ्ट मिटा दो']) {
     const sent = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text });
-    assert.equal(sent.added[1].message.parts[0].text, 'That needs your approval on Today.', text);
+    assert.equal(sent.added[1].message.parts[0].text, 'यह आपकी मंज़ूरी के बाद होगा।', text);
+    assert.equal(sent.added[1].message.proposalId, listRecords(env.store.read(), 'venture-proposal').at(-1)!.id, text);
   }
   assert.equal(listRecords(env.store.read(), 'venture-proposal').length, 4);
-  assert.equal(env.models.previewed.filter(item => item.purpose === 'agent-chat').length, 0);
+  assert.deepEqual(requests, ['needs-approval', 'needs-approval', 'needs-approval', 'needs-approval']);
 });
 
 test('thread: the consent is checked again right before the send, and the preview must go to the consented AI (S4)', async () => {
@@ -428,6 +458,7 @@ test('thread: a labelled bank account in a note, and id file names, never reach 
 test('thread (4B3): the reply to a request on the floor names the proposal it raised, so the thread can open its Today card', async () => {
   const env = await agentBusiness();
   await consent(env);
+  scriptChat(env, { answer: () => ({ parts: [said('It waits for your yes on Today.')] }) });
   const sent = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Publish the trailer on YouTube today.' });
   const proposal = listRecords(env.store.read(), 'venture-proposal').at(-1)!;
   assert.equal(sent.added[1].message.proposalId, proposal.id);
@@ -437,10 +468,90 @@ test('thread (4B3): the reply to a request on the floor names the proposal it ra
   assert.equal(reply.message.proposalId, proposal.id);
 });
 
-// One-shot C4 task 10 (154.f1): an agent's chat answer is short unless the owner asks for more. The rule sits in the
-// fixed instructions, ahead of anything that changes per question (D2's prompt-weight rule).
-test('C4: the agent chat instructions ask for at most two short paragraphs, under 60 words, unless the owner asks for more', () => {
+// The agent talks: the fixed instructions set no word limit, invite a question back, and say truthfully what a request
+// for work or for something on the floor leads to, so the AI never has to refuse to discuss it.
+test('the agent chat instructions set no length limit and say what happens to a request', () => {
   assert.equal(typeof ANSWER_INSTRUCTIONS, 'string');
-  assert.match(ANSWER_INSTRUCTIONS, /at most two short paragraphs, under 60 words, unless the owner asks for more/);
-  assert.ok(ANSWER_INSTRUCTIONS.indexOf('under 60 words') < ANSWER_INSTRUCTIONS.indexOf('figure part'), 'the length rule comes early in the fixed instructions');
+  assert.doesNotMatch(ANSWER_INSTRUCTIONS, /\bunder \d+ words\b|at most two short paragraphs/);
+  assert.match(ANSWER_INSTRUCTIONS, /ask the owner a question/);
+  assert.match(ANSWER_INSTRUCTIONS, /New order/);
+  assert.match(ANSWER_INSTRUCTIONS, /Today/);
+  assert.match(ANSWER_INSTRUCTIONS, /model estimate/);
+});
+
+test('a long answer in many paragraphs is kept whole', async () => {
+  const env = await agentBusiness();
+  await consent(env);
+  const long = 'I would start from the strongest moment and work outward. '.repeat(12).trim();
+  scriptChat(env, { answer: () => ({ parts: Array.from({ length: 12 }, () => said(long)) }) });
+  const sent = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'How would you approach the next season?' });
+  assert.equal(sent.added[1].message.parts.length, 12);
+  assert.equal(sent.added[1].message.parts[0].text, long);
+  assert.equal(listRecords(env.store.read(), 'venture-agent-message').at(-1)!.author, 'model');
+});
+
+// The answer is the AI's own words as one reply plus the receipts it cites. The earlier shape (typed parts, each with
+// four required fields) made Claude Code 2.1.321 fail an ordinary message: it left the two empty fields off a sentence
+// and its own schema check refused the whole call (seen live on 11 Nov 2026).
+test('the agent answer shape: one reply and the figures it cites; the old typed parts and wrong shapes are refused', async () => {
+  const { ANSWER_SCHEMA, validateAnswer, checkedParts, paragraphsOf } = await import('../runtime/venture/agents/answer.ts');
+  const { assertSchemaSafe } = await import('../runtime/venture/models/schema.ts');
+  assert.doesNotThrow(() => assertSchemaSafe(ANSWER_SCHEMA));
+  assert.deepEqual((ANSWER_SCHEMA as any).required, ['reply', 'figures']);
+  assert.deepEqual(validateAnswer({ reply: 'Two paragraphs.\n\nThe second one.', figures: [] }), { reply: 'Two paragraphs.\n\nThe second one.', figures: [] });
+  for (const wrong of [{ parts: [said('Old shape.')] }, { reply: 'No figures list.' }, { reply: '   ', figures: [] }, { reply: 'Hidden​ mark.', figures: [] }, { reply: 'Ok.', figures: [{ receiptId: 'r' }] }, { reply: 'Ok.', figures: [], extra: true }, { reply: 'x'.repeat(16_001), figures: [] }]) {
+    assert.throws(() => validateAnswer(wrong), code('MODEL_OUTPUT_REJECTED'), JSON.stringify(wrong).slice(0, 60));
+  }
+  // A paragraph is a part, so only the paragraph that states a number carries the label; a figure cited twice shows once.
+  const held = [{ receiptId: 'rcpt_a', key: 'total', label: 'Total', display: '₹1,000' }];
+  const { parts, leftOut } = checkedParts({ reply: 'The package is ready.\n\nIt may reach 18000 views.\nWhat should I title it?', figures: [{ receiptId: 'rcpt_a', key: 'total' }, { receiptId: 'rcpt_a', key: 'total' }, { receiptId: 'rcpt_b', key: 'total' }] }, held as any, 'How is it going?');
+  assert.deepEqual(parts, [
+    { kind: 'text', text: 'The package is ready.' }, { kind: 'estimate', text: 'It may reach 18000 views.' }, { kind: 'text', text: 'What should I title it?' },
+    { kind: 'figure', receiptId: 'rcpt_a', key: 'total', display: '₹1,000' },
+  ]);
+  assert.equal(leftOut, 1);
+  // Found live, 15 Nov 2026 (P2-5): a reply that only repeats the owner's own figure is not an estimate; a number of
+  // the agent's own still is.
+  const said200 = ['I make pottery by hand in Koregaon Park, about 200 pieces a month.'];
+  const kindsOf = (reply: string) => checkedParts({ reply, figures: [] }, held as any, 'What will you do for me?', said200).parts.map(part => part.kind);
+  assert.deepEqual(kindsOf('I will keep your Koregaon Park location and roughly 200 pieces a month in mind.'), ['text']);
+  assert.deepEqual(kindsOf('At 200 pieces a month you could serve about 8 cafes.'), ['estimate']);
+  assert.deepEqual(kindsOf('Your order total is ₹1,000.'), ['text'], 'a figure the agent was given with its receipt is not its own estimate');
+  assert.deepEqual(paragraphsOf('a\nb\nc\nd', 3), ['a', 'b', 'c d'], 'past the most parts, the rest stay together; nothing is cut');
+});
+
+// Conversation memory: the AI is given the earlier messages of the same chat, oldest first, so a follow-up ("and the
+// second one?") means something. Job progress lines are not chat, and nothing written before a client withdrew their AI
+// permission is sent again.
+test('thread: a follow-up carries the earlier messages of this chat, capped, and nothing from before a withdrawn client permission', async () => {
+  const env = await agentBusiness();
+  await consent(env);
+  const inputs: any[] = [];
+  scriptChat(env, { answer: task => { inputs.push(task.input); return { parts: [said(`Answer ${inputs.length}.`)] }; } });
+  await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Which hook is strongest?' });
+  assert.equal(inputs[0].history, undefined, 'a first message has no history');
+  await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'And the second strongest?' });
+  assert.deepEqual(inputs[1].history, [{ from: 'owner', text: 'Which hook is strongest?' }, { from: 'you', text: 'Answer 1.' }]);
+  assert.equal(inputs[1].question, 'And the second strongest?');
+  // Another agent's chat is another conversation.
+  await env.agents('venture.agents.thread.send', { agent: 'packager', text: 'How is packaging?' });
+  assert.equal(inputs[2].history, undefined);
+  // A job's progress line in the thread is not part of the conversation.
+  await ventureAction(env.deps, owner, 'prepare', 'test.progress', tx => { appendAgentMessage(tx, { agent: 'story-editor', from: 'agent', text: 'Reading the client file.', author: 'model', runId: 'run_synthetic' }); });
+  await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Why that one?' });
+  assert.deepEqual(inputs[3].history.map((turn: any) => turn.text), ['Which hook is strongest?', 'Answer 1.', 'And the second strongest?', 'Answer 2.']);
+  // Only the newest twelve are carried.
+  for (let index = 0; index < 6; index += 1) await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: `What about option ${index}?` });
+  assert.equal(inputs.at(-1).history.length, 12);
+  assert.equal(inputs.at(-1).history.at(-1).from, 'you');
+  // A client withdraws their AI permission: what was said before that is not sent again.
+  const permission = await getClientAiConsent(env.deps, owner, { clientId: env.client.id });
+  await agreeClientAiConsent(env.deps, owner, { clientId: env.client.id, disclosureDigest: permission.disclosureDigest });
+  env.setNow('2026-11-12T09:00:00.000Z');
+  await withdrawClientAiConsent(env.deps, owner, { clientId: env.client.id });
+  env.setNow('2026-11-12T09:05:00.000Z');
+  await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Where were we?' });
+  assert.equal(inputs.at(-1).history, undefined);
+  await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'And now?' });
+  assert.deepEqual(inputs.at(-1).history.map((turn: any) => turn.text), ['Where were we?', `Answer ${inputs.length - 1}.`]);
 });

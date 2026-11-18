@@ -3,9 +3,7 @@ import { FakeEngine } from '../../src/engine/fake';
 import { EngineError, type VentureViewLite, type WaysView } from '../../src/engine/types';
 import PICKS from '../../src/engine/fixtures-playbook-picks.json';
 
-const ROUTE = /^#\/(?:today|team|work|clients|money|connections|business|onboarding)(?:\/[a-z0-9][a-z0-9-]{0,47})*$/;
-
-describe('fake engine: the Start gallery and the setup checklist (4J8)', () => {
+describe('fake engine: the Start gallery (4J8)', () => {
   it('answers venture.playbooks.list with the engine\'s ways, the open sample business on its own way', async () => {
     const engine = new FakeEngine();
     const view = (await engine.request('venture.playbooks.list', {})) as WaysView;
@@ -35,13 +33,11 @@ describe('fake engine: the Start gallery and the setup checklist (4J8)', () => {
     expect(view.ways.flatMap((way) => way.yours)).toEqual([]);
   });
 
-  it("carries the setup checklist on venture.get, each item with the engine's name and link", async () => {
+  it('venture.get carries no checklist any more: only how far what is sold is from ready, as the plan counts it', async () => {
     const engine = new FakeEngine();
     const venture = (await engine.request('venture.get', {})) as VentureViewLite;
-    const checklist = venture.checklist!;
-    expect(checklist).toHaveLength(12);
-    expect(checklist.filter((item) => item.done)).toHaveLength(venture.done);
-    for (const item of checklist) expect(item.link).toMatch(ROUTE);
-    expect(checklist.find((item) => item.id === 'prices')).toMatchObject({ label: 'Set your prices', link: '#/business/prices' });
+    expect('checklist' in venture).toBe(false);
+    // Lumen Studio's plan is accepted, and one of its offers still has no price.
+    expect([venture.done, venture.total]).toEqual([1, 2]);
   });
 });

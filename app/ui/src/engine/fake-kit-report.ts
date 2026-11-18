@@ -9,7 +9,7 @@
  * Chausar; nothing is learned from an outside source.
  */
 
-import { EngineError } from './types';
+import { EngineError, inReview } from './types';
 import { reportNumberEstimate } from './fake-report-numbers';
 import type { CaView, DeliveryLite, ReportFileView, ReportFormat, ReportListItem, ReportListView, ReportShareView, ReportView } from './types';
 import type { W4DeskHost } from './fake-w4';
@@ -268,9 +268,9 @@ export class FakeKitReportDesk {
     const run = this.draft(report.runId);
     const orders = this.host.ask('venture.order.list', {}) as { id: string; internal?: boolean }[];
     if (orders.some(order => order.id === run.orderId && order.internal)) throw new EngineError('INTERNAL_ORDER', 'Your own shop work has no client share link.');
-    if (!['ready-for-review', 'accepted', 'edited'].includes(run.status)) throw new EngineError('DELIVERY_NOT_READY', WORDS.shareNotReady);
+    if (!['finishing', 'ready-for-review', 'accepted', 'edited'].includes(run.status)) throw new EngineError('DELIVERY_NOT_READY', WORDS.shareNotReady);
     if (run.practice || run.practiceNow) throw new EngineError('PRACTICE_DRAFT', WORDS.practice);
-    if (run.status === 'ready-for-review' && run.canAccept === false) throw new EngineError('DELIVERY_NOT_READY', run.acceptBlocked ?? WORDS.shareNotReady);
+    if (inReview(run) && run.canAccept === false) throw new EngineError('DELIVERY_NOT_READY', run.acceptBlocked ?? WORDS.shareNotReady);
     if (this.wordsOf(run) !== report.draftDigest) throw new EngineError('REPORT_STALE', WORDS.stale);
     const ca = this.host.ask('venture.ca.get', {}) as CaView | null;
     const regulated = ca && (ca.latestPapers?.deliveryId === run.id || ca.requests.some((request) => request.deliveryId === run.id));

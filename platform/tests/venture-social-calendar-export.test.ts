@@ -245,7 +245,7 @@ test('refusals: not a social draft, no calendar, no draft yet, a practice draft,
     assert.equal(error.message, 'This order has no calendar, so code planned no slots. Only a content calendar order has a calendar file.');
     return true;
   });
-  const waiting = await socialDraft(env, { fields: { status: 'waiting-for-you', deliverable: null, renderedText: null, verdict: null } });
+  const waiting = await socialDraft(env, { fields: { status: 'working', deliverable: null, renderedText: null, verdict: null } });
   await assert.rejects(calendarOf(env, waiting.run.id), code('DELIVERY_NOT_READY'));
   const practice = await socialDraft(env, { fields: { practice: true } });
   await assert.rejects(calendarOf(env, practice.run.id), code('PRACTICE_DRAFT'));

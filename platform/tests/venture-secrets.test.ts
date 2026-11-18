@@ -24,7 +24,7 @@ import {
 import { PRESETS, createModelPort, handlers as modelHandlers } from '../runtime/venture/models/index.ts';
 import { cliEnv } from '../runtime/venture/models/cli.ts';
 import { delegateEnv } from '../runtime/venture/delivery/harness/delegate.ts';
-import { journalled, proposeAction } from '../runtime/venture/journal/index.ts';
+import { journalled, proposeAction } from '../runtime/venture/journal/journal.ts';
 import { recordEvidence } from '../runtime/venture/evidence/ledger.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';
 import { sharePage } from '../runtime/venture/build/share-links.ts';

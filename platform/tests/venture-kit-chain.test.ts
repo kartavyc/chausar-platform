@@ -58,7 +58,7 @@ test('accepting the voice draft starts the calendar run on the same order, never
   const next = runs().find(run => run.id !== voice.id)!;
   assert.ok(next, 'the calendar run started');
   assert.equal(next.chainStage, 2);
-  assert.equal(next.status,'waiting-for-you','the AI owns its turns until the checked draft');
+  assert.equal(next.status,'working','the AI owns its turns until the checked draft');
   assert.equal(next.preview,null);
   const view = await env.call('venture.order.chain', { orderId: order.id });
   assert.equal(view.line, 'Stage 2 of 3');

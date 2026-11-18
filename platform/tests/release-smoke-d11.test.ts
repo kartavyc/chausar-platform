@@ -4,24 +4,37 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installRefusal } from '../../scripts/release-smoke.mjs';
+import { installRefusal, quitWay } from '../../scripts/release-smoke.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/release-smoke.mjs', import.meta.url));
 
 // The stand-in: reads --smoke-user-data, writes the start phases (all, or not the paint), may leave a detached child.
-const STAND_IN = `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+// 15 Nov 2026: like the app, a second launch with --quit asks the running one (the one with the same user data folder)
+// to close and exits 0 once it has gone; in the mode 'ignores-quit' the running one is never told, so the ask waits.
+const STAND_IN = `import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 const dir = process.argv.find(arg => arg.startsWith('--smoke-user-data=')).slice('--smoke-user-data='.length);
 mkdirSync(join(dir, 'diagnostics'), { recursive: true });
 const phase = name => appendFileSync(join(dir, 'diagnostics', 'startup.jsonl'), JSON.stringify({ phase: name, at: Date.now() }) + '\\n');
 const mode = process.env.STAND_IN_MODE;
+if (process.argv.includes('--quit')) {
+  writeFileSync(join(dir, 'asked.pid'), String(process.pid));
+  let running = 0; try { running = Number(readFileSync(join(dir, 'running.pid'), 'utf8')); } catch {}
+  const gone = () => { try { process.kill(running, 0); return false; } catch { return true; } };
+  if (!running || gone()) process.exit(0);
+  if (mode !== 'ignores-quit') process.kill(running);
+  await new Promise(() => { setInterval(() => { if (gone()) process.exit(0); }, 50); });
+}
+writeFileSync(join(dir, 'running.pid'), String(process.pid));
 phase('main-ready');
+if (mode !== 'engine-never-ready') phase('engine-ready');
 if (mode === 'leaves-child') {
   const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { detached: true, stdio: 'ignore', windowsHide: true });
   child.unref();
@@ -90,6 +103,12 @@ test('usage: an installer or an app is needed, and an unknown installer kind is 
   const odd = spawnSync(process.execPath, [SCRIPT, '--installer', join(f.folder, 'chausar.zip')], { encoding: 'utf8', windowsHide: true });
   assert.equal(odd.status, 2);
   assert.match(odd.stderr, /\.exe \(Windows NSIS\), \.AppImage or \.deb/);
+  // The Mac build (14 Nov 2026): a dmg or a Mac zip is not installed here; the words say how a Mac build is smoked.
+  for (const name of ['Chausar-Beta-0.3.0-mac-arm64.dmg', 'Chausar-Beta-0.3.0-mac-x64.zip']) {
+    const mac = spawnSync(process.execPath, [SCRIPT, '--installer', join(f.folder, name)], { encoding: 'utf8', windowsHide: true });
+    assert.equal(mac.status, 2, name);
+    assert.match(mac.stderr, /A Mac build is smoked from the app itself: pass --app .*Chausar\.app\/Contents\/MacOS\/Chausar/, name);
+  }
 });
 
 // D11f task 30: the Linux run, ready for the VPS (a fresh Ubuntu 24.04). Text checks: it installs what the AppImage and
@@ -128,4 +147,65 @@ test('--allow-install is read as a flag and the refusal comes before anything ru
   assert.equal(run.status, 1);
   assert.match(run.stdout, process.platform === 'win32' ? /CI=true or --allow-install|already has Chausar installed|could not read/ : /Windows only/);
   assert.equal(spawnSync(process.execPath, [SCRIPT, '--app', installer, '--allow-install', 'extra'], { encoding: 'utf8', windowsHide: true }).status, 2);
+});
+
+// 15 Nov 2026 (the first walk of the built Windows app): "taskkill /PID" without /F cannot quit Chausar, so the Windows
+// smoke always said "forced after 10 s". It now asks the way a person or an installer can: a second launch with --quit
+// and the same user data folder (app/desktop/quit-ask.cjs). The forced end stays as the fallback, said in plain words.
+test('the smoke asks through a --quit launch on Windows and a signal elsewhere, and --quit-by picks either', async t => {
+  assert.equal(quitWay('win32'), 'launch');
+  assert.equal(quitWay('darwin'), 'signal');
+  assert.equal(quitWay('linux'), 'signal');
+  const source = await readFile(SCRIPT, 'utf8');
+  const desktop = createRequire(import.meta.url)('../../app/desktop/quit-ask.cjs');
+  assert.ok(source.includes(`const QUIT_ARGUMENT = '${desktop.QUIT_ARGUMENT}';`), 'the same argument the app reads');
+  assert.equal(/spawnSync\('taskkill'/.test(source), false, 'no taskkill: without /F it cannot quit Chausar');
+  const f = await fixture(t);
+  assert.equal(f.run(['--quit-by', 'shout']).status, 2);
+});
+
+test('--quit-by launch: the app closes when a second launch with --quit asks, and the smoke says so', async t => {
+  const f = await fixture(t);
+  const result = f.run(['--quit-by', 'launch', '--keep']);
+  const userData = userDataOf(result.stdout);
+  t.after(() => rm(userData, { recursive: true, force: true }));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^ok +quit: it closed when asked \(a --quit launch\)$/m);
+  assert.match(result.stdout, /^ok +no process left$/m);
+  assert.equal(alive(Number(await readFile(join(userData, 'asked.pid'), 'utf8'))), false, 'the asking launch has gone too');
+  // The signal way says which it was as well.
+  if (process.platform !== 'win32') assert.match(f.run(['--quit-by', 'signal']).stdout, /^ok +quit: it closed when asked \(SIGTERM\)$/m);
+});
+
+test('--quit-by launch: an app that does not close when asked is ended by force, said plainly, and the asking launch is ended too', async t => {
+  const f = await fixture(t);
+  const result = f.run(['--quit-by', 'launch', '--keep'], 'ignores-quit');
+  const userData = userDataOf(result.stdout);
+  t.after(() => rm(userData, { recursive: true, force: true }));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^ok +quit: forced after 2 s: it did not close when asked \(a --quit launch\)$/m);
+  assert.equal(alive(Number(await readFile(join(userData, 'asked.pid'), 'utf8'))), false, 'the asking launch is not left waiting');
+  assert.equal(alive(Number(await readFile(join(userData, 'running.pid'), 'utf8'))), false);
+});
+
+// Found on the first real run of the smoke with the quit launch (this Mac, 15 Nov 2026): the temp folder is reached
+// through a link (/var to /private/var), the vault refuses linked paths, so the app could not list its businesses and
+// the smoke never saw the real first screen. The smoke's own user data folder is made under the temp folder's real path.
+test('the smoke makes its user data folder under the real path of the temp folder, never through a link', async t => {
+  const f = await fixture(t);
+  const result = f.run([]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const parent = dirname(userDataOf(result.stdout));
+  assert.equal(parent, realpathSync(parent));
+  assert.equal(parent, realpathSync(tmpdir()));
+});
+
+// 15 Nov 2026: the window now opens before the engine has started, so a first paint alone no longer shows that the
+// engine came up. The smoke waits for both.
+test('an app that paints but whose engine never becomes ready fails, named', async t => {
+  const f = await fixture(t);
+  const result = f.run([], 'engine-never-ready');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /^FAIL first paint: no engine-ready phase in .*startup\.jsonl within 4 s/m);
+  assert.match(result.stdout, /^ok +quit/m);
 });

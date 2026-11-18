@@ -1,16 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { generateKeyPairSync, randomBytes, sign } from 'node:crypto';
-import { fork, type ChildProcess, type ForkOptions } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import vm from 'node:vm';
 import { EngineHarness } from '../../app/desktop/engine-harness.cjs';
 import ipcContract from '../../app/desktop/ipc-contract.cjs';
-import type { PhoneSessionInvite, PhoneSessionMetadata } from '../runtime/engine-phone-sessions.ts';
-import type { SessionGrant } from '../runtime/phone/contracts.ts';
 const { METHODS, validateRequest, assertTrustedSender, publicError } = ipcContract;
 
 class Child extends EventEmitter {
@@ -29,10 +25,8 @@ const code = (expected: string) => (error: any) => error.code === expected;
 
 test('desktop accepts only explicit engine methods and bounded plain JSON payloads', async () => {
   assert.deepEqual(validateRequest({ method: 'workspace.status' }), { method: 'workspace.status', payload: {} });
-  const ownerPhoneMethods = ['phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer'];
-  assert.deepEqual(METHODS.filter((method: string) => method.startsWith('phone.')), ownerPhoneMethods);
-  for (const method of ownerPhoneMethods) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
-  for (const method of ['phone.*', 'phone.chat.start', 'phone.pairing.accept', 'pairing.accept', 'session.validate', 'chat.start']) {
+  assert.deepEqual(METHODS.filter((method: string) => method.startsWith('phone.')), []);
+  for (const method of ['phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer', 'phone.*', 'phone.chat.start', 'phone.pairing.accept', 'pairing.accept', 'session.validate', 'chat.start']) {
     assert.throws(() => validateRequest({ method, payload: {} }), code('INVALID_REQUEST'));
   }
   for (const input of [{ method: 'os.execute', payload: {} }, { method: 'workspace.status', payload: [] }, { method: 'workspace.status', payload: new Date() }, { method: 'workspace.status', payload: { number: NaN } }, { method: 'workspace.status', payload: {}, extra: true }, { method: 'workspace.status', payload: JSON.parse('{"__proto__": {"admin":true}}') }]) assert.throws(() => validateRequest(input), code('INVALID_REQUEST'));
@@ -40,129 +34,17 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: cyclic }), code('INVALID_REQUEST'));
   let invoked = false; const getter = { get secret() { invoked = true; return 'secret'; } };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: getter }), code('INVALID_REQUEST')); assert.equal(invoked, false);
-  assert.throws(() => validateRequest({ method: 'sources.preview', payload: { content: 'x'.repeat(2_000_000) } }), code('REQUEST_TOO_LARGE'));
-  assert.throws(() => validateRequest({ method: 'sources.preview', payload: { repeated: Array(50).fill('x'.repeat(100_000)) } }), code('REQUEST_TOO_LARGE'));
-  assert.throws(() => validateRequest({ method: 'sources.preview', payload: { sparse: Array(1_000_000_000) } }), code('INVALID_REQUEST'));
+  assert.throws(() => validateRequest({ method: 'venture.files.add', payload: { content: 'x'.repeat(2_000_000) } }), code('REQUEST_TOO_LARGE'));
+  assert.throws(() => validateRequest({ method: 'venture.files.add', payload: { repeated: Array(50).fill('x'.repeat(100_000)) } }), code('REQUEST_TOO_LARGE'));
+  assert.throws(() => validateRequest({ method: 'venture.files.add', payload: { sparse: Array(1_000_000_000) } }), code('INVALID_REQUEST'));
   let deep: any = {}; for (let i = 0; i < 34; i++) deep = { child: deep };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: deep }), code('INVALID_REQUEST'));
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
   const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z][a-zA-Z]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+)'/g)].map(match => match[1]);
-  assert.ok(implemented.includes('jobs.calendar.configure'), 'Nested calendar methods must be included in the contract comparison.');
-  assert.ok(implemented.includes('workspace.backup.v2.restoreInert'), 'Versioned archive methods must be included in the contract comparison.');
+  assert.ok(implemented.includes('workspace.backups.drive.status'), 'Deeply nested methods must be included in the contract comparison.');
   // C5 tasks 21, 23: these two name a path, so only main asks them, after its own pick (keep-files.cjs): the decision is no.
   const mainOnly = ['workspace.import', 'workspace.backups.copyTo'];
   assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].filter(method => !mainOnly.includes(method)).sort(), 'Engine additions need an explicit desktop contract decision.');
-});
-
-test('headless desktop worker joins exact owner phone methods to its actual synthetic Vault', async t => {
-  const directory = await mkdtemp(join(tmpdir(), 'chausar-desktop-phone-owner-'));
-  const workerPath = join(directory, 'synthetic-worker.mjs');
-  // Trusted, disposable host fixture: owner requests use the production worker
-  // loop. Signed companion HTTP is fed to the real Engine handler in memory,
-  // without a socket, a renderer transport alias, or a live model provider.
-  await writeFile(workerPath, `
-import { Readable } from 'node:stream';
-import { Engine } from ${JSON.stringify(new URL('../runtime/engine.ts', import.meta.url).href)};
-import { runEngineWorker } from ${JSON.stringify(new URL('../runtime/worker.ts', import.meta.url).href)};
-let providerCalls = 0;
-const engine = new Engine({ directory: ${JSON.stringify(directory)}, demo: true, storage: 'experimental-file', gateway: {
-  http: async () => { providerCalls++; throw new Error('Synthetic provider must not dispatch in the owner bridge test.'); },
-} });
-process.on('message', async message => {
-  if (message?.kind !== 'synthetic-companion-http') return;
-  const request = Readable.from([Buffer.from(message.body)]);
-  Object.assign(request, { method: 'POST', url: '/api/companion/rpc', headers: message.headers,
-    rawHeaders: Object.entries(message.headers).flat() });
-  const response = { statusCode: 0, setHeader() {}, end(body) {
-    process.send?.({ kind: 'synthetic-companion-result', id: message.id,
-      status: this.statusCode, body: JSON.parse(body), providerCalls });
-  } };
-  await engine.handleCompanionHttp(request, response);
-});
-runEngineWorker(engine);
-`, 'utf8');
-  const launched: { child?: ChildProcess } = {};
-  const harness = new EngineHarness({ workerPath, environment: {}, startupTimeoutMs: 10000,
-    requestTimeoutMs: 10000, shutdownTimeoutMs: 10000, forkProcess: (path, args, options) => {
-      const child = fork(path, args, options as ForkOptions); launched.child = child; return child;
-    } });
-  t.after(async () => {
-    await harness.stop();
-    const target = resolve(directory);
-    assert.equal(dirname(target).toLowerCase(), resolve(tmpdir()).toLowerCase());
-    assert.ok(basename(target).startsWith('chausar-desktop-phone-owner-'));
-    await rm(target, { recursive: true, force: true });
-  });
-  await harness.start();
-  const mainFrame = { url: 'chausar://app/index.html' }, contents = { mainFrame };
-  const owner = <T = unknown>(method: string, payload: Record<string, unknown> = {}): Promise<T> => {
-    assertTrustedSender({ sender: contents, senderFrame: mainFrame }, contents);
-    return harness.request(method, payload) as Promise<T>;
-  };
-  await owner('workspace.create', { name: 'SYNTHETIC desktop phone owner business', folder: 'fixture',
-    passphrase: 'SYNTHETIC disposable desktop phone passphrase', demo: false, pack: 'ecommerce' });
-  await owner('sources.import', { sourceId: 'synthetic-owner-sale', format: 'csv',
-    content: 'id,kind,date,amount,currency,branch,status\nsynthetic-sale,sale,2026-09-05,12000,INR,main,delivered',
-    expectedTotals: { rowCount: 1, amountMinor: '12000' }, recipe: {
-      version: 1, id: 'synthetic-owner-recipe', system: 'synthetic-csv', edition: '1',
-      scope: { company: 'SYNTHETIC desktop phone owner business', branches: ['main'] }, bindings: [
-        { target: 'entityId', source: 'id', type: 'string', nulls: 'reject' },
-        { target: 'kind', source: 'kind', type: 'string', nulls: 'reject' },
-        { target: 'validFrom', source: 'date', type: 'date', dateFormat: 'ISO', nulls: 'reject' },
-        { target: 'amountMinor', source: 'amount', type: 'money', moneyUnit: 'minor', currency: 'INR', nulls: 'reject' },
-        ...['currency', 'branch', 'status'].map(field => ({ target: field, source: field, type: 'string', nulls: 'reject' })),
-      ], allowedKinds: ['sale'], allowedStatuses: ['delivered'], onUnmapped: 'reject',
-    } });
-  await owner('models.configure', { config: { id: 'synthetic-owner-phone-route', kind: 'openai-responses',
-    model: 'synthetic-fixture-only', endpoint: 'https://synthetic-owner-phone.invalid/v1/responses',
-    budgetMinor: '0', maxCostMinor: '0' }, secret: 'synthetic-fixture-only' });
-  await owner('trust.update', { send: 'shape' });
-  const keys = generateKeyPairSync('ed25519'), deviceId = 'synthetic-owner-phone', keyId = 'synthetic-owner-key';
-  const devicePublicKey = keys.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
-  const invite = await owner<PhoneSessionInvite>('phone.invite', { memberId: 'owner', deviceId, keyId, channel: 'web', devicePublicKey,
-    capabilities: ['chat'], inviteTtlMs: 60000, sessionTtlMs: 600000 });
-  assert.deepEqual(await owner('phone.sessions'), []);
-  const proof = sign(null, Buffer.from(JSON.stringify(['chausar-phone-pairing-v1', invite.inviteCode,
-    deviceId, 'web', keyId, devicePublicKey])), keys.privateKey).toString('base64url');
-  const body = JSON.stringify({ protocolVersion: 1, method: 'pairing.accept', payload: {
-    inviteCode: invite.inviteCode, deviceId, channel: 'web', devicePublicKey, proof,
-  } });
-  const timestamp = new Date().toISOString(), nonce = randomBytes(32).toString('base64url');
-  const bytes = Buffer.from(JSON.stringify(['chausar-phone-request-v1', 'POST', '/api/companion/rpc',
-    deviceId, keyId, timestamp, nonce, null, Buffer.byteLength(body)]) + '\n' + body);
-  const headers = { 'content-type': 'application/json', 'x-chausar-device': deviceId, 'x-chausar-key': keyId,
-    'x-chausar-time': timestamp, 'x-chausar-nonce': nonce,
-    'x-chausar-proof': sign(null, bytes, keys.privateKey).toString('base64url') };
-  assert.ok(launched.child); const child = launched.child;
-  const pair = await new Promise<{ status: number; body: { result?: SessionGrant; error?: { code: string } }; providerCalls: number }>((resolvePair, reject) => {
-    const id = 'synthetic-owner-pair';
-    const cleanup = () => { clearTimeout(timer); child.removeListener('message', receive); };
-    const receive = (message: any) => {
-      if (message?.kind !== 'synthetic-companion-result' || message.id !== id) return;
-      cleanup(); resolvePair(message);
-    };
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Synthetic in-memory pairing timed out.')); }, 10000);
-    child.on('message', receive);
-    child.send({ kind: 'synthetic-companion-http', id, body, headers }, error => { if (error) { cleanup(); reject(error); } });
-  });
-  assert.equal(pair.status, 200); assert.equal(pair.body.error, undefined); assert.equal(pair.providerCalls, 0);
-  assert.ok(pair.body.result); const grant = pair.body.result, sessionId = grant.authority.sessionId;
-  assert.notEqual(grant.credential, invite.inviteCode);
-  const metadata = await owner<PhoneSessionMetadata[]>('phone.sessions');
-  assert.equal(metadata.length, 1); assert.equal(metadata[0].sessionId, sessionId);
-  assert.deepEqual(Object.keys(metadata[0]).sort(), ['binding', 'capabilities', 'channel', 'expiresAt', 'keyId', 'revoked', 'sessionId']);
-  const request = { purpose: 'conversation', questionDisclosure: 'verbatim', routeId: 'synthetic-owner-phone-route',
-    question: 'SYNTHETIC: calculate September revenue from the reviewed source.',
-    sourceIds: ['synthetic-owner-sale'], period: { from: '2026-09-01', to: '2026-09-30' } };
-  const preview = await owner<{ id: string }>('models.preview', request);
-  const approval = await owner<{ id: string }>('models.approve', { id: preview.id });
-  const offerInput = { sessionId, request: { ...request, previewId: preview.id, approvalId: approval.id } };
-  const offer = await owner<{ sessionId: string; previewId: string }>('phone.conversation.offer', offerInput);
-  assert.equal(offer.sessionId, sessionId); assert.equal(offer.previewId, preview.id);
-  assert.deepEqual(await owner('phone.revoke', { sessionId }), { sessionId, revoked: true });
-  assert.equal((await owner<PhoneSessionMetadata[]>('phone.sessions'))[0].revoked, true);
-  await assert.rejects(owner('phone.conversation.offer', offerInput), code('ACCESS_REVOKED'));
-  assert.throws(() => validateRequest({ method: 'chat.start', payload: {} }), code('INVALID_REQUEST'));
 });
 
 test('IPC sender requires the owned window main frame and exact document', () => {
@@ -172,6 +54,13 @@ test('IPC sender requires the owned window main frame and exact document', () =>
   mainFrame.url += '?attacker'; assert.throws(() => assertTrustedSender({ sender: contents, senderFrame: mainFrame }, contents), code('UNTRUSTED_SENDER'));
   assert.deepEqual(publicError(new Error('bounded')), { code: 'REQUEST_FAILED', message: 'bounded' });
   assert.equal(publicError({ code: 'bad-code', message: 'x'.repeat(1000), stack: 'private' }).message.length, 512);
+  // Words the engine wrote for the owner (owner: true, set only by the engine's own refusals) arrive whole: a consent
+  // the owner must read is never cut mid-sentence. They are still bounded, and anything unflagged keeps the short bound.
+  const consent = 'Chats send your message and what Chausar reads to answer it. '.repeat(14);
+  assert.ok(consent.length > 512);
+  assert.deepEqual(publicError({ code: 'CHAT_CONSENT_REQUIRED', message: consent, owner: true }), { code: 'CHAT_CONSENT_REQUIRED', message: consent, owner: true });
+  assert.equal(publicError({ code: 'CHAT_CONSENT_REQUIRED', message: 'y'.repeat(9000), owner: true }).message.length, 4096);
+  for (const flag of [undefined, false, 'yes', 1]) assert.equal(publicError({ code: 'CHAT_CONSENT_REQUIRED', message: consent, owner: flag }).message.length, 512, String(flag));
 });
 
 test('worker launch hides windows, uses owned paths, and sends correlated requests', async () => {
@@ -222,6 +111,35 @@ test('sandbox bridge unwraps typed envelopes and removes only its status listene
   assert.equal(status.state, 'failed'); assert.equal(status.private, undefined); assert.equal(Object.isFrozen(status), true); remove(); assert.equal(ipc.listenerCount('chausar:engine-status'), 0);
 });
 
+// Found on the first real run of the Mac app (14 Nov 2026): Electron copies an error thrown across its context bridge
+// with its message alone, so a refusal's code and owner flag never reached the page. `settled` answers the outcome of
+// one bridge call as plain data, which crosses whole.
+test('the bridge answers a refusal as plain data, so its code survives a bridge that keeps only an error\'s message', async () => {
+  const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
+  const ipc = new EventEmitter() as any; let api: any;
+  // As Electron's context bridge passes values on: data is cloned, and a rejection becomes a new Error with the message only.
+  const asElectron = (value: any) => Object.fromEntries(Object.entries(value).map(([name, entry]) => [name, typeof entry !== 'function' ? entry
+    : (...args: unknown[]) => { const out = (entry as Function)(...args); return typeof out?.then === 'function' ? Promise.resolve(out).then(answer => (answer === undefined ? answer : structuredClone(answer)), error => { throw new Error(error?.message); }) : out; }]));
+  vm.runInNewContext(source, { require: () => ({ ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = asElectron(value); } } }) });
+  const sent: any[] = [];
+  ipc.invoke = async (channel: string, input: unknown) => { sent.push([channel, structuredClone(input)]); return { ok: false, error: { code: 'CHAT_CONSENT_REQUIRED', message: 'Agree first.', owner: true } }; };
+  // The thrown error is what the page used to get: the words, and no code.
+  await assert.rejects(api.request('venture.chief.thread.send', { text: 'Hello' }), (error: any) => error.message === 'Agree first.' && error.code === undefined);
+  assert.deepEqual(await api.settled('request', 'venture.chief.thread.send', { text: 'Hello' }), { ok: false, error: { code: 'CHAT_CONSENT_REQUIRED', message: 'Agree first.', owner: true } });
+  assert.deepEqual(sent.at(-1), ['chausar:request', { method: 'venture.chief.thread.send', payload: { text: 'Hello' } }]);
+  ipc.invoke = async () => ({ ok: true, result: { open: false } });
+  assert.deepEqual(await api.settled('request', 'workspace.status'), { ok: true, result: { open: false } });
+  // Another call of the bridge the same way, with its own refusal.
+  ipc.invoke = async () => ({ ok: false, error: { code: 'BACKGROUND_UNAVAILABLE', message: 'Not here.' } });
+  assert.deepEqual(await api.settled('setBackground', { startAtLogin: true }), { ok: false, error: { code: 'BACKGROUND_UNAVAILABLE', message: 'Not here.' } });
+  // Only the bridge's own calls: never itself, a listener, or a name it does not have.
+  let invoked = 0; ipc.invoke = async () => { invoked += 1; return { ok: true }; };
+  for (const name of ['settled', 'onEvent', 'onEngineStatus', 'firstPaint', 'constructor', 'toString', '__proto__', 'nothing', '', 7, null]) {
+    assert.deepEqual(await api.settled(name, 'request', 'workspace.status'), { ok: false, error: { code: 'INVALID_REQUEST', message: 'That is not a desktop request.' } });
+  }
+  assert.equal(invoked, 0);
+});
+
 // ---------------------------------------------------------------------------
 // One-shot C5 task 26: each request's timing: the method, the milliseconds and the bytes, never what was asked or answered.
 // ---------------------------------------------------------------------------
@@ -235,11 +153,11 @@ test('C5 task 26: a request writes one timing line holding no payload text', asy
   const log = createDiagnostics({ folder });
   const context = setup({ onTiming: (line: unknown) => { void log.line('rpc.jsonl', line); } });
   await ready(context);
-  const asked = context.harness.request('sources.preview', { content: 'secret-marker in the request' });
+  const asked = context.harness.request('venture.files.add', { content: 'secret-marker in the request' });
   const { id } = context.child.sent.at(-1);
   context.child.emit('message', { id, result: { text: 'secret-marker in the answer' } });
   assert.deepEqual(await asked, { text: 'secret-marker in the answer' });
-  const refused = context.harness.request('sources.preview', { content: 'secret-marker again' });
+  const refused = context.harness.request('venture.files.add', { content: 'secret-marker again' });
   context.child.emit('message', { id: context.child.sent.at(-1).id, error: { code: 'NOT_ALLOWED', message: 'secret-marker in the words' } });
   await assert.rejects(refused, code('NOT_ALLOWED'));
   await log.flushed();
@@ -249,7 +167,7 @@ test('C5 task 26: a request writes one timing line holding no payload text', asy
   assert.equal(lines.length, 2);
   const { at: _a, ms: first, ...rest } = lines[0];
   assert.ok(Number.isInteger(first) && first >= 0);
-  assert.deepEqual(rest, { method: 'sources.preview', requestBytes: Buffer.byteLength(JSON.stringify({ content: 'secret-marker in the request' })), answerBytes: Buffer.byteLength(JSON.stringify({ text: 'secret-marker in the answer' })), ok: true });
+  assert.deepEqual(rest, { method: 'venture.files.add', requestBytes: Buffer.byteLength(JSON.stringify({ content: 'secret-marker in the request' })), answerBytes: Buffer.byteLength(JSON.stringify({ text: 'secret-marker in the answer' })), ok: true });
   assert.equal(lines[1].ok, false);
   assert.equal(lines[1].code, 'NOT_ALLOWED');
   assert.equal(lines[1].answerBytes, 0);
@@ -259,9 +177,9 @@ test('C5 task 26: the host hooks write no timing line, and a broken timing write
   const seen: unknown[] = [];
   const context = setup({ onTiming: (line: unknown) => { seen.push(line); throw new Error('no disk'); } });
   await ready(context);
-  const lifecycle = context.harness.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
-  context.child.emit('message', { id: context.child.sent.at(-1).id, kind: 'host-lifecycle', applied: true, result: { applied: true } });
-  await lifecycle;
+  const hook = context.harness.prepareUpdateInstall({ backup: false });
+  context.child.emit('message', { id: context.child.sent.at(-1).id, result: { busy: false, openDataSchema: null, backup: 'skipped' } });
+  await hook;
   assert.deepEqual(seen, []);
   const asked = context.harness.request('workspace.status');
   context.child.emit('message', { id: context.child.sent.at(-1).id, result: { open: false } });

@@ -22,6 +22,7 @@ import { ListSheet, ListsSheet } from './ListsSheet';
 import { ClientsTab } from './ClientsTab';
 import { ImportSheet } from './ImportSheet';
 import { LeadSheet } from './Leads';
+import { FindCustomersSheet } from './FindCustomers';
 import { CardSheet } from './CardSheet';
 import { OutreachSheet } from './OutreachSheet';
 import { pipelineRefresh } from './pipeline';
@@ -81,6 +82,8 @@ function Clients({ tab }: { tab: Tab }) {
       <>
         <Button data-import-network="" onClick={(event) => openSheet('network-import', 'new', event.currentTarget)}><Icon name="upload" size={16} />{t('clients.pipeline.import')}</Button>
         <Button data-add-lead="" onClick={(event) => openSheet('lead', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('clients.leads.add')}</Button>
+        {/* Finding customers, for every business: the search runs only after the owner approves its card. */}
+        <Button data-find-customers="" onClick={(event) => openSheet('find', 'new', event.currentTarget)}>{t('clients.find.open')}</Button>
         {/* W6 6G3: the owner's other pipelines, each a list with its own stages. */}
         <Button data-crm-lists="" onClick={(event) => openSheet('lists', 'all', event.currentTarget)}>{t('crm.lists.open')}</Button>
       </>
@@ -103,7 +106,7 @@ function Clients({ tab }: { tab: Tab }) {
 }
 
 export const sheets: Readonly<Record<string, SheetComponent>> = {
-  client: ClientSheet, lead: LeadSheet, person: PersonSheet, 'network-import': ImportSheet, card: CardSheet, outreach: OutreachSheet,
+  client: ClientSheet, lead: LeadSheet, find: FindCustomersSheet, person: PersonSheet, 'network-import': ImportSheet, card: CardSheet, outreach: OutreachSheet,
   proposal: ProposalSheet, // W5 5A2: a sales proposal for a client or a pipeline person
   company: CompanySheet, lists: ListsSheet, list: ListSheet, // W6 6G3: a company with its links, and the owner's lists
 };

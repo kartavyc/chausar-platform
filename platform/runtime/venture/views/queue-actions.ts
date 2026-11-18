@@ -19,6 +19,7 @@ import { GONE_LINE, queueDecideHandler, queueRowsWithSubjects, STALE_LINE } from
 import { recordDecision } from '../journal/decisions.ts';
 import { PRACTICE_REASON, runView } from '../delivery/runs.ts';
 import { sameWords } from '../delivery/owner-edit.ts';
+import { allows, inReview, undoReject as undoRejectMove } from '../delivery/run-machine.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { reopenMark, RESTORED_LINE, revisionWords, SEND_BACK_MAX, startRevision, TOO_LATE_LINE, undoRevision } from '../delivery/revise.ts';
 import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
@@ -186,7 +187,7 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
   const state = deps.store.read();
   const venture = currentVenture(state)!;
   const run = findRecord(state, 'venture-delivery-run', runId);
-  if (!run || run.status !== 'ready-for-review') return staleOrGone(await queueRowsWithSubjects(deps, ctx), found.subject);
+  if (!run || !inReview(run)) return staleOrGone(await queueRowsWithSubjects(deps, ctx), found.subject);
   // A practice draft is never used, so an edit of it can't be either (delivery/runs.ts PRACTICE_REASON).
   const shown = runView(run, venture, deps.clock().getTime(), state);
   if (shown.practiceNow) return refused('PRACTICE_DRAFT', PRACTICE_REASON);
@@ -203,7 +204,7 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
   return answered(deps, ctx, found.subject, async () => {
     await ventureAction(deps, ctx, 'approve', 'queue.edit', tx => {
       const current = tx.find('venture-delivery-run', runId);
-      check(current && current.status === 'ready-for-review' && current.renderedText === run.renderedText && current.editedText === run.editedText, 'APPROVAL_STALE', STALE_LINE);
+      check(current && inReview(current) && current.renderedText === run.renderedText && current.editedText === run.editedText, 'APPROVAL_STALE', STALE_LINE);
       const shown = current.editedText ?? current.renderedText ?? '';
       tx.put<DraftEditRecord>({
         ...tx.base('venture-draft-edit'), runId, rowId: found.row.id, text, replacedHash: digest(shown), by: ctx.memberId, undoneAt: null,
@@ -251,7 +252,7 @@ export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload:
       const run = tx.find('venture-delivery-run', edit.runId);
       const newest = tx.list('venture-draft-edit').filter(item => item.runId === edit.runId && !item.undoneAt).at(-1);
       // Until the draft moved on: a newer edit, a revision, a merge or a review takes the owner's edit with it.
-      check(run && run.status === 'ready-for-review' && !run.revision && !run.merge && run.editedText === edit.text && newest?.id === edit.id, 'UNDO_TOO_LATE', 'Too late to undo: this draft moved on since your edit.');
+      check(run && inReview(run) && !run.revision && !run.merge && run.editedText === edit.text && newest?.id === edit.id, 'UNDO_TOO_LATE', 'Too late to undo: this draft moved on since your edit.');
       tx.replace({ ...edit, undoneAt: tx.now });
       tx.replace({ ...run, editedText: edit.prior ?? null, reopened: reopenMark(run, tx.now) });
       undoDecision(tx, rowId);
@@ -334,13 +335,14 @@ async function undoReject(deps: VentureDeps, ctx: Context, runId: string, rowId:
   await ventureAction(deps, ctx, 'approve', 'queue.undo', tx => {
     const run = tx.find('venture-delivery-run', runId);
     const from = run?.rejectedFrom;
-    check(run && from && run.status === 'rejected' && !run.revision, 'UNDO_TOO_LATE', ACTION_WORDS.rejectTooLate);
+    check(run && from && allows('undoReject', run), 'UNDO_TOO_LATE', ACTION_WORDS.rejectTooLate);
     const newer = tx.list('venture-delivery-run').some(item => item.orderId === run.orderId && item.id !== run.id && item.at >= run.at);
     const signal = tx.list('venture-signal').filter(item => item.runId === runId && item.source === 'owner-rejected' && !item.withdrawnAt).at(-1);
     const learned = signal !== undefined && (signal.scenarioId !== null || tx.list('venture-improvement-run').some(item => item.at >= signal.at));
     check(!newer && !learned, 'UNDO_TOO_LATE', ACTION_WORDS.rejectTooLate);
     if (signal) tx.replace({ ...signal, withdrawnAt: tx.now });
-    tx.replace({ ...run, status: 'ready-for-review', verdict: from.verdict, editedText: from.editedText, practice: from.practice, rejectedFrom: null, reopened: reopenMark(run, tx.now) });
+    // The draft is back where it was rejected from, with no verdict: the status and the verdict move together (run-machine.ts).
+    tx.replace({ ...undoRejectMove(run), reopened: reopenMark(run, tx.now) });
     undoDecision(tx, rowId);
     recordDecision(tx, { subject: `run:${runId}`, action: 'undo', who: 'owner', ruleId: null, reason: 'You took back the reject.', rowId });
     tx.emit('run.step', { runId });

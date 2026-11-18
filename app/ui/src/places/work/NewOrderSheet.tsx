@@ -17,6 +17,7 @@ import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from
 import { messageOf } from './PreviousRuns';
 import { clearPrefill, peekPrefill, prefillOrder } from './prefill';
 import { workChanged } from './refresh';
+import { OrderAiPermission, useAiServes } from './OrderAiPermission';
 import s from './Work.module.css';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
@@ -33,6 +34,10 @@ const never = () => false;
  * flagship playbook asks what the plan says it needs at intake: whose footage it is for one that cuts footage, and
  * what its checks read. The order is created first, then each file is added to it; the files are checked against
  * the engine's rules before anything is sent, so a refused file never leaves half an order behind.
+ *
+ * The client's AI permission is said here, up front (OrderAiPermission): for a client already chosen, beside the
+ * client; for a new client, one line, and once the order is added the sheet stays open to offer the same Allow for
+ * the client it just made. The order is added either way: the permission is its own press, never part of Add order.
  */
 export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
@@ -55,6 +60,9 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const [failures, setFailures] = useState<{ name: string; message: string }[] | null>(null);
+  /** The new client an order was just added for, while their AI permission is still to be given. */
+  const [added, setAdded] = useState<{ clientId: string; name: string } | null>(null);
+  const aiServes = useAiServes();
 
   const offers = plan.data?.blueprint.offers ?? [];
   const priced = offers.filter((o) => o.pricing.unitPriceMinor !== null);
@@ -110,6 +118,8 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
       }
       workChanged();
       if (refused.length > 0) setFailures(refused);
+      // A new client has no permission yet unless the owner allows every new client: the sheet stays to offer it.
+      else if (who === NEW_CLIENT && aiServes && (await engine.request('venture.client.aiConsent.get', { clientId: order.clientId }).then((view) => view.status !== 'agreed', () => false))) setAdded({ clientId: order.clientId, name: name.trim() });
       else onClose();
     } catch (failure) {
       // A refusal over the rights says so plainly; the engine's own sentence says what is missing.
@@ -121,7 +131,15 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   }
 
   let body;
-  if (failures) {
+  if (added) {
+    body = (
+      <div className={s.form} data-order-added="">
+        <p className={s.note} role="status">{t('work.form.added')}</p>
+        <OrderAiPermission clientId={added.clientId} name={added.name} />
+        <div className={s.submit}><Button onClick={onClose}>{t('work.form.done')}</Button></div>
+      </div>
+    );
+  } else if (failures) {
     body = (
       <div className={s.form}>
         <p className={s.note}>{t('work.form.partial')}</p>
@@ -145,6 +163,9 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
             <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>
           </Select>
         <Reveal open={who === NEW_CLIENT}><Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} /><Field label={t('work.form.clientPhone')} type="tel" inputMode="tel" value={newPhone} autoComplete="off" maxLength={40} onChange={(event) => setNewPhone(event.currentTarget.value)} /></Reveal>
+        {/* The client's AI permission, up front: Start would refuse without it (Windows, 16 Nov 2026). */}
+        {who !== '' && who !== NEW_CLIENT && <OrderAiPermission key={who} clientId={who} name={clients.data.find((c) => c.id === who)?.name ?? ''} />}
+        {who === NEW_CLIENT && aiServes && <p className={s.hint} data-order-ai="new">{t('work.form.aiNew')}</p>}
         <Select label={t('work.form.service')} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {offers.map((offer) => {

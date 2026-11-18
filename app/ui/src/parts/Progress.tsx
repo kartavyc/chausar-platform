@@ -104,10 +104,3 @@ export function WaitLine({ label, running = true, className }: { label: string; 
   if (!running) return null;
   return <p className={className ?? s.line} role="status" data-wait-line="">{elapsed ? `${label}, ${elapsed}` : label}</p>;
 }
-
-/** A label with its elapsed time, for a button that says what it is doing ("Backing up, 8 s"). */
-export function useWaitLabel(label: string, running: boolean): string {
-  const started = useStartedAt(running);
-  const elapsed = useElapsed(started, running);
-  return running && elapsed ? `${label}, ${elapsed}` : label;
-}

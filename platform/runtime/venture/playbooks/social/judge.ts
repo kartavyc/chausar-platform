@@ -7,7 +7,7 @@ import {socialD3Baseline} from './d3-baseline.ts';
 import { readFile } from 'node:fs/promises';
 import { check } from '../../../contracts.ts';
 import { loadBaseline, type BaselineFile, type CaseResult, type DraftMaker, type HeldBackCase, type SuiteResult } from '../../delivery/judge/baseline.ts';
-import type { JudgeRule, RulesInput } from '../../delivery/judge/rules.ts';
+import type { JudgeRule } from '../../delivery/judge/rules.ts';
 import type { JudgeTrace, TraceEvent } from '../../delivery/judge/trace.ts';
 import {socialD2Baseline} from './d2-baseline.ts';
 import { repurposeSource } from './repurpose.ts';
@@ -73,11 +73,6 @@ export function socialJudgeTrace(input: {
   add({ id: `checks.${input.draftId}`, kind: 'checks', summary: short(input.checks.passed ? `The code checks passed.${lines.length ? ` For the owner: ${lines.join(' ')}` : ''}` : `The code checks blocked the draft: ${lines.join(' ')}`) });
   add({ id: `draft.${input.draftId}`, kind: 'draft', summary: short(input.draft) });
   return { events };
-}
-
-/** The judge input for one draft. The draft is client data, so it goes only to a model the owner allowed for it. */
-export function socialJudgeInput(draft: string, trace: JudgeTrace, context?: string): RulesInput {
-  return { rules: SOCIAL_JUDGE_RULES, trace, draft, containsClientData: true, ...(context ? { context } : {}) };
 }
 
 // ---------------------------------------------------------------------------

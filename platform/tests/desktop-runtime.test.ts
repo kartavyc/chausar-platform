@@ -9,11 +9,11 @@ test('desktop running package version is explicit and invalid versions are refus
   assert.throws(() => new Engine({ directory: '.', version: '2.03.4' }), (error: any) => error.code === 'INVALID_VERSION');
 });
 
-test('isolated analytics and plugin processes preserve Electron Node mode without widening their environment', async () => {
+test('isolated analytics and sandbox processes preserve Electron Node mode without widening their environment', async () => {
   const analytics = await readFile(new URL('../runtime/analytics.ts', import.meta.url), 'utf8');
-  const plugins = await readFile(new URL('../runtime/plugins.ts', import.meta.url), 'utf8');
-  const analyticsEnv = analytics.match(/env: process\.platform === 'win32' \? (\{[^}]+\}) : (\{[^}]+\})/)!, pluginEnv = plugins.match(/env: (\{[^}]+\})/)![1];
-  for (const [source, keys] of [[analyticsEnv[1], ['ELECTRON_RUN_AS_NODE', 'SystemRoot', 'TEMP', 'TMP']], [analyticsEnv[2], ['ELECTRON_RUN_AS_NODE', 'TMPDIR']], [pluginEnv, ['ELECTRON_RUN_AS_NODE', 'SystemRoot']]] as Array<[string, string[]]>) {
+  const sandbox = await readFile(new URL('../runtime/venture/delivery/harness/sandbox.ts', import.meta.url), 'utf8');
+  const analyticsEnv = analytics.match(/env: process\.platform === 'win32' \? (\{[^}]+\}) : (\{[^}]+\})/)!, sandboxEnv = sandbox.match(/env: (\{[^}]+\})/)![1];
+  for (const [source, keys] of [[analyticsEnv[1], ['ELECTRON_RUN_AS_NODE', 'SystemRoot', 'TEMP', 'TMP']], [analyticsEnv[2], ['ELECTRON_RUN_AS_NODE', 'TMPDIR']], [sandboxEnv, ['ELECTRON_RUN_AS_NODE', 'SystemRoot']]] as Array<[string, string[]]>) {
     const environment = Function('process', 'directory', `return (${source})`)({ env: { SystemRoot: 'C:/Windows', SECRET_FIXTURE: 'must not pass' } }, '/owned/temporary');
     assert.equal(environment.ELECTRON_RUN_AS_NODE, '1'); assert.deepEqual(Object.keys(environment).sort(), keys.sort());
   }

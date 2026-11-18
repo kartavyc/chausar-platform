@@ -12,7 +12,8 @@ const DRY_RUN_ROWS = 5;
 
 /**
  * W4 4J19 (O18): "Sort Today by". The owner writes how they want Today ordered; their own AI maps the words to a rule
- * over fixed fields (venture.triage.preview), or, with no AI, the fixed choices are offered. The engine answers a dry run
+ * over fixed fields and the kinds of item that lead (venture.triage.preview), or, with no AI, the fixed choices are
+ * offered. The box says what that rule does in the engine's words, never the owner's words back. The engine answers a dry run
  * of today's rows in that order, which the box lists, and Save keeps the rule (venture.triage.set); Today's order uses
  * it from then on. A rule only orders: it never hides a row. The screen orders nothing itself.
  */
@@ -78,7 +79,8 @@ export function TriageBox({ onClose }: { onClose: () => void }) {
               ))}
             </fieldset>
           )}
-          {preview.rule && <p className={s.said} data-triage-rule="">{t('today.triage.rule', { words: preview.rule.words })}</p>}
+          {/* What the rule does, in the engine's words: the owner's own words may ask for more than a rule can hold. */}
+          {preview.rule && preview.does && <p className={s.said} data-triage-rule="">{t('today.triage.rule', { words: preview.does })}</p>}
           <div data-dry-run="">
             <p className={s.hint}>{preview.rule ? t('today.triage.dryRun') : t('today.triage.now')}</p>
             <ol className={s.dryRun}>

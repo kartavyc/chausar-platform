@@ -87,7 +87,6 @@ async function desktop() {
     state = 'ready'; options: any;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
     async start() {} async request(method: string) { return { method }; }
-    async updateJobLifecycle() { return { applied: true }; }
     async stop() { this.state = 'stopped'; return { graceful: true, forced: false }; }
   }
   class Tray extends EventEmitter { setToolTip() {} setContextMenu() {} destroy() {} }

@@ -2,6 +2,7 @@
 import type {InboundRecord,SupportTicketRecord} from '../../contracts.ts';
 import type {VentureTx} from '../../records.ts';
 import {stopIn} from '../../delivery/run-controls.ts';
+import {STOPPABLE} from '../../delivery/run-machine.ts';
 import {threadMessage} from './threading.ts';
 import {wakeTicket} from './due.ts';
 import {needsPerson,humanHandoff} from './handoff.ts';
@@ -15,7 +16,7 @@ export function ingestSupportMail(tx:VentureTx,mail:InboundRecord,signingKey:str
  let next:SupportTicketRecord={...wakeTicket(ticket,tx.now,true),messages:[...ticket.messages,message].slice(-100),draft:null,policyApproval:null,policyChangeApproved:false,revision:ticket.revision+1};
  if(needsPerson(mail.text)||ticket.blocked||mail.from.toLowerCase()!==ticket.customerEmail.toLowerCase()){
   next=humanHandoff(next,[],tx.now).ticket;
-  for(const run of tx.list('venture-delivery-run').filter(r=>r.orderId===ticket.serviceOrderId&&['waiting-for-you','needs-answer','brief-waiting'].includes(r.status)))stopIn(tx,run.id,!run.harness,tx.ctx.memberId);
+  for(const run of tx.list('venture-delivery-run').filter(r=>r.orderId===ticket.serviceOrderId&&STOPPABLE.includes(r.status)))stopIn(tx,run.id);
  }
  tx.put({...tx.base('venture-support-message'),...message});const system=next.messages.at(-1);if(system?.messageKind==='system'&&system!==ticket.messages.at(-1))tx.put({...tx.base('venture-support-message'),...system,ticketId:ticket.id});
  tx.replace(next);tx.emit('desk.changed',{playbook:'support-desk',kind:'ticket',id:ticket.id});tx.emit('queue.changed',{});return ticket.id;

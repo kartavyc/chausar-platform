@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useEngine, useResource } from '../../engine/context';
-import type { DeliveryLite, DraftChangesView, VentureRunEvent } from '../../engine/types';
+import { inReview, type DeliveryLite, type DraftChangesView, type VentureRunEvent } from '../../engine/types';
 
 /**
  * W4 4J19 review: Today's draft replies, read once for the whole page and shared by every card (the engine that wrote a
@@ -21,7 +21,7 @@ export function DraftsProvider({ children }: { children: ReactNode }) {
   const client = useEngine();
   const drafts = useResource('venture.delivery.list', {}, { refreshOn: DRAFT_EVENTS });
   const [changes, setChanges] = useState<ReadonlyMap<string, DraftChangesView>>(new Map());
-  const waiting = (drafts.data ?? []).filter((run) => run.status === 'ready-for-review');
+  const waiting = (drafts.data ?? []).filter(inReview);
   const key = waiting.map(versionOf).join(' ');
   useEffect(() => {
     let live = true;

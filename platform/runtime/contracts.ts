@@ -6,13 +6,6 @@ export {ChausarError,InternalError,asInternal,check,hash,internalCheck} from './
 
 export const newId = (prefix = 'item') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();
-export function minor(value: string | number): string {
-  const text = String(value).trim().replaceAll(',', '');
-  check(/^-?\d+(\.\d{1,2})?$/.test(text), 'INVALID_AMOUNT', 'Use an amount with at most two decimal places.');
-  const sign = text.startsWith('-') ? -1n : 1n;
-  const [whole, fraction = ''] = text.replace(/^-/, '').split('.');
-  return String(sign * (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))));
-}
 // One-shot B2: an amount in minor units in the owner form ("₹2,000", "$5,000"), the same as owner-format.ts formatMoney.
 export const money = (value: string | bigint, currency = 'INR') => formatMoney(value, currency);
 export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';

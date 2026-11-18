@@ -170,7 +170,7 @@ test('runs: each run says who wrote its draft, from its own model call; nothing 
   const answered = await seedCall({ answeredBy: 'claude-sonnet-5-5-20261001' });
   const pending = await seedCall({ status: 'dispatching', answeredBy: undefined });
   const drafted = await seedRun(env, order, { status: 'ready-for-review', servedBy: 'model', callId: answered.id });
-  const waiting = await seedRun(env, order, { status: 'waiting-for-you', servedBy: 'model', callId: pending.id });
+  const waiting = await seedRun(env, order, { status: 'working', servedBy: 'model', callId: pending.id });
   const byId = new Map((await runs(env, 'all')).map(run => [run.runId, run]));
   assert.equal(byId.get(drafted.id)!.writtenBy, 'Written by Claude Sonnet 5.5');
   assert.equal('writtenBy' in byId.get(waiting.id)!, false, 'nothing is claimed before the answer');
@@ -191,7 +191,7 @@ test('a run with a 6-minute owner wait reports worked 2 min and waited 6 min; th
     effect: null, tier: null, receiptIds: [], tableIds: [], startedAt: at(from), finishedAt: at(to),
   });
   const run = await seedRun(env, order, {
-    status: 'waiting-for-you',
+    status: 'working',
     harness: harness({ phase: 'act', toolCalls: [call('tc_read', 'files.read', 0, 1), call('tc_ask', 'handoff.owner', 1, 1), call('tc_sum', 'calc.totals', 7, 8)] }),
   }, ['run.started']);
   const emit = (name: 'run.waiting' | 'run.step' | 'run.done') => ventureAction(env.deps, owner, 'prepare', 'seed.event', tx => { tx.emit(name, { runId: run.id }); });

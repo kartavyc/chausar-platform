@@ -52,5 +52,10 @@
   "apps.remove.ask": "{name} और उसके नोट मिटाएँ? यह वापस नहीं होगा।",
   "apps.remove.yes": "मिटाएँ",
   "apps.remove.no": "रहने दें",
-  "apps.pinned.title": "पिन किए ऐप"
+  "apps.pinned.title": "पिन किए ऐप",
+  "apps.make.connect": "अपना AI जोड़ें",
+  "apps.preview.go": "नमूना डेटा के साथ देखें",
+  "apps.preview.banner": "नमूना डेटा, आपके रिकॉर्ड नहीं",
+  "apps.preview.back": "अपने डेटा पर लौटें",
+  "apps.view.allowFirst": "पहले इसकी अनुमति दें"
 }

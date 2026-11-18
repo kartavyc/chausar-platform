@@ -17,7 +17,7 @@ test('6F5: a Gmail send is the exact approval card on Today, worded as the send 
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A plain voice sheet.', intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });
   const consent = await getClientAiConsent(env.deps, owner, { clientId: env.client.id });
   await agreeClientAiConsent(env.deps, owner, { clientId: env.client.id, disclosureDigest: consent.disclosureDigest });
-  const run = await ventureAction(env.deps, owner, 'prepare', 'test.run', tx => tx.put({ ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: 'sample', playbookHash: 'sample', status: 'waiting-for-you', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null }));
+  const run = await ventureAction(env.deps, owner, 'prepare', 'test.run', tx => tx.put({ ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: 'sample', playbookHash: 'sample', status: 'working', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null }));
   const job = await createNativeJob(env.deps, owner, run.id, { agentId: 'writer', sections: ['Reply'], check: () => undefined });
   t.after(() => job.capability.close());
   const request: AgentApprovalRequest = { kind: 'connector-send', requestId: 'codex-elicitation:7', threadId: 'thread-one', turnId: 'turn-one', itemId: 'call-1', name: 'Gmail: send_email',

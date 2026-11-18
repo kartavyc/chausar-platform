@@ -88,8 +88,17 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
   /** What this pane sent before the engine's thread read lands (a new chat's first exchange). */
   const [sent, setSent] = useState<{ thread: ChiefThreadSummary; messages: ChiefMessageView[] } | null>(null);
   const [box, setBox] = useState<{ words: string; n: number }>({ words: '', n: 0 });
-  /** The consent as it was read at the refusal: its words and the digest Agree sends, and the message that waits. */
-  const [consent, setConsent] = useState<{ stale: boolean; text: string; digest: string | null; words: string; problem: string | null; busy: boolean } | null>(null);
+  /**
+   * The owner's words on their way: shown in the chat they were written in the moment they are sent, until the engine
+   * answers (its own copy of the message then takes their place), asks for the consent, or refuses them.
+   */
+  const [onWay, setOnWay] = useState<readonly { id: string; into: string | undefined; words: string; at: string }[]>([]);
+  const onWayCount = useRef(0);
+  /**
+   * The consent as it was read at the refusal: its words and the digest Agree sends, the message that waits, and the
+   * chat it was written in (into: left out, a new chat), so Agree sends it there and nowhere else.
+   */
+  const [consent, setConsent] = useState<{ stale: boolean; text: string; digest: string | null; words: string; problem: string | null; busy: boolean; into: string | undefined } | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pinning, setPinning] = useState(false);
   /** 6G1: the last change, in the engine's words, with the request that undoes it; whether the snooze choices show. */
@@ -136,6 +145,27 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
     return () => { live = false; cancelAnimationFrame(frame); };
   }, [loadedId]);
 
+  // One pane shows every chat in turn, so what belongs to one chat must not follow the owner into the next: the chat on
+  // screen now (for a send that answers later), and how many sends are still out.
+  const here = useRef(threadId);
+  here.current = threadId;
+  const sending = useRef(0);
+  const shownFor = useRef(threadId);
+  useEffect(() => {
+    if (shownFor.current === threadId) return;
+    shownFor.current = threadId;
+    setRefusal(null);
+    setSnoozing(false);
+    setLockedNote(false);
+    // A consent card left open belongs to the chat the owner came from: its words wait in the box, where they can be
+    // sent here or changed, and the card closes. A send still out leaves a read-only box behind: this chat gets a fresh one.
+    const waiting = consent && consent.into !== threadId ? consent.words : null;
+    if (waiting !== null) setConsent(null);
+    if (waiting !== null || sending.current > 0) setBox((was) => ({ words: waiting ?? '', n: was.n + 1 }));
+    // Only a change of chat runs this; it reads the pane as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId]);
+
   const shown = view.data && view.data.thread.id === threadId ? view.data : null;
   const fallback = sent && sent.thread.id === threadId ? sent : null;
   const thread = shown?.thread ?? fallback?.thread ?? null;
@@ -146,24 +176,35 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
     return agent ? { name: agent.name, dept: agent.department ? DEPT_OF[agent.department] : undefined } : undefined;
   };
 
-  async function send(words: string, newChat = false): Promise<void> {
+  const send = (words: string, newChat = false): Promise<void> => sendInto(words, newChat ? undefined : threadId, newChat);
+
+  /** Sends the words into one chat (into: left out, a new chat), whichever chat is on screen when the answer comes. */
+  async function sendInto(words: string, into: string | undefined, handedOver = false): Promise<void> {
     setRefusal(null);
-    const into = newChat ? undefined : threadId;
+    sending.current += 1;
+    onWayCount.current += 1;
+    const mark = { id: `on-way-${onWayCount.current}`, into, words, at: clock().toISOString() };
+    setOnWay((was) => [...was, mark]);
     try {
       const result = await engine.request('venture.chief.thread.send', into ? { threadId: into, text: words } : { text: words });
       setSent({ thread: result.thread, messages: [...(into ? messages : []), ...result.added] });
-      if (result.thread.id !== threadId) navigate({ place: 'chats', query: { thread: result.thread.id } });
+      // A new chat opens once it exists, but only while the owner is still where they wrote it: an answer that comes
+      // after they opened another chat never pulls them away from it.
+      if (result.thread.id !== into && here.current === into) navigate({ place: 'chats', query: { thread: result.thread.id } });
       onListChanged();
     } catch (error) {
       const code = codeOf(error);
-      if (code === 'CHAT_CONSENT_REQUIRED' || code === 'CHAT_CONSENT_STALE') { await askConsent(words, code === 'CHAT_CONSENT_STALE', messageOf(error), null); return; }
+      if (code === 'CHAT_CONSENT_REQUIRED' || code === 'CHAT_CONSENT_STALE') { await askConsent(words, code === 'CHAT_CONSENT_STALE', messageOf(error), null, into); return; }
       if (code === 'CHAT_KEY_REFUSED') {
         // Handed over from the bar, the words are nowhere else: they wait in the box, where the owner can change them.
-        if (newChat) setBox((was) => ({ words, n: was.n + 1 }));
+        if (handedOver) setBox((was) => ({ words, n: was.n + 1 }));
         setRefusal(messageOf(error));
         return;
       }
       throw new Error(messageOf(error));
+    } finally {
+      sending.current -= 1;
+      setOnWay((was) => was.filter((one) => one.id !== mark.id));
     }
   }
 
@@ -173,7 +214,7 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
    * Reads the consent once, as the thread list carries it, and shows it: its words and the digest Agree will send.
    * Where the list cannot be read, the refusal's own words show and Agree says why it cannot agree yet.
    */
-  async function askConsent(words: string, stale: boolean, refusedWith: string, problem: string | null) {
+  async function askConsent(words: string, stale: boolean, refusedWith: string, problem: string | null, into: string | undefined) {
     let text = refusedWith;
     let digest: string | null = null;
     try {
@@ -184,7 +225,8 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
     } catch {
       // The refusal's words stay; without the digest there is nothing to agree to yet.
     }
-    setConsent({ stale, text, digest, words, problem, busy: false });
+    // A second message written for the same chat while the card shows waits with the first; neither is dropped.
+    setConsent((open) => ({ stale, text, digest, words: open && open.into === into && open.words !== words ? `${open.words}\n${words}` : words, problem, busy: false, into }));
   }
 
   /** Agrees by the digest of the words on screen, then sends the words that waited. */
@@ -197,13 +239,13 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
       await engine.request('venture.chats.consent', { digest: consent.digest });
     } catch (error) {
       // The words changed since they were read: say so, and show the consent as it stands now.
-      if (codeOf(error) === 'APPROVAL_STALE') { await askConsent(words, consent.stale, consent.text, messageOf(error)); return; }
+      if (codeOf(error) === 'APPROVAL_STALE') { await askConsent(words, consent.stale, consent.text, messageOf(error), consent.into); return; }
       setConsent({ ...consent, busy: false, problem: t('chats.consent.failed', { message: messageOf(error) }) });
       return;
     }
     setConsent(null);
     try {
-      await send(words);
+      await sendInto(words, consent.into);
     } catch (error) {
       unsent.keep(words, error);
     }
@@ -255,7 +297,8 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
 
   const entries: ThreadEntry[] = [...messages.map((message): ThreadEntry => (message.from === 'owner'
     ? { kind: 'owner', id: message.id, at: message.at, text: plainOf(message.parts) }
-    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> })), ...unsent.entries];
+    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> })),
+  ...onWay.filter((one) => one.into === threadId).map((one): ThreadEntry => ({ kind: 'owner', id: one.id, at: one.at, text: one.words })), ...unsent.entries];
 
   return (
     <section ref={area} className={s.pane} aria-labelledby={titleId}>
@@ -322,6 +365,7 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
           label={t('chats.composer.label')}
           placeholder={t('chats.composer.placeholder')}
           onSend={unsent.sendKeeping}
+          shownInThread
           suggestions={SUGGESTIONS.map((key) => t(key))}
           hint={t('chats.composer.hint')}
         />
@@ -416,10 +460,15 @@ function Counted({ counted }: { counted: ChiefCounted }) {
   );
 }
 
-/** The parts in order, a space between them: words, receipted figures, and model-written numbers with their label. */
+const isWords = (part: ChatPart | undefined) => part?.kind === 'text' || part?.kind === 'estimate';
+
+/**
+ * The parts in order: words, receipted figures, and model-written numbers with their label. The AI's reply comes as one
+ * part for each paragraph, so words after words start a new paragraph; anything else follows after a space.
+ */
 function partsOf(parts: readonly ChatPart[], t: T): ReactNode[] {
   return parts.flatMap((part, index) => {
-    const gap = index > 0 ? [' '] : [];
+    const gap = index === 0 ? [] : isWords(part) && isWords(parts[index - 1]) ? [<span key={`break-${index}`} className={s.paraBreak} />] : [' '];
     if (part.kind === 'figure') return [...gap, <Figure key={index} value={part.display} receiptId={part.receiptId} />];
     if (part.kind === 'estimate') {
       return [...gap, <span key={index} className={s.estimate}><span data-estimate="">{part.text}</span> <ModelEstimate /></span>];

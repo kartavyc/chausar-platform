@@ -20,7 +20,7 @@ test('pause all: new runs are refused, Team reads Paused, routines skip; unpausi
   const plan = await seedBlueprint(env);
   const { order } = await seedOrder(env, plan);
   await setStage(env, 'approve-each');
-  const waiting = await seedRun(env, order, { status: 'waiting-for-you', callId: 'call_x', preview: { ...PREVIEW } }, ['run.waiting']);
+  const waiting = await seedRun(env, order, { status: 'working', callId: 'call_x', preview: { ...PREVIEW } }, ['run.waiting']);
   await assert.rejects(call(env, 'venture.business.pause', { paused: true }, phone), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(call(env, 'venture.business.pause', { paused: 'yes' }), code('INVALID_VENTURE_REQUEST'));
   assert.equal(pauseSkipLine(env.store.read()), null);
@@ -33,7 +33,7 @@ test('pause all: new runs are refused, Team reads Paused, routines skip; unpausi
   // Keeper is Chausar's own code, not an agent: its housekeeping jobs start no agent work.
   const agents = team.agents.filter(item => item.kind !== 'code');
   assert.ok(agents.length > 0 && agents.every(item => item.now === 'Paused'), JSON.stringify(team.agents.map(item => item.now)));
-  assert.equal(listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === waiting.id)!.status, 'waiting-for-you', 'pausing alone stops no run');
+  assert.equal(listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === waiting.id)!.status, 'working', 'pausing alone stops no run');
 
   const unpaused = await call(env, 'venture.business.pause', { paused: false });
   assert.deepEqual(unpaused, { paused: false, stopped: 0, line: 'Unpaused. Stopped jobs stay stopped until you resume them.' });

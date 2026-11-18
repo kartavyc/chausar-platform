@@ -10,13 +10,8 @@ export const DEVELOPER_TEXT_CODES: readonly string[] = Object.freeze([
   'UNLOCK_FAILED', 'VAULT_CLOSED', 'VAULT_EXISTS', 'REENTRANT_TRANSACTION', 'CUSTODY_SNAPSHOT_REQUIRED', 'BOOTSTRAP_STATE_CHANGED', 'UI_NOT_BUILT',
 ]);
 
-/** True when a refusal with this code is sent in words written for the owner. */
-export function ownerWords(code: unknown): boolean {
-  return typeof code === 'string' && !DEVELOPER_TEXT_CODES.includes(code);
-}
-
 /**
- * B1 fix round 2 (quality finding 2, spec finding 4): the vault, sync and storage internals throw InternalError
+ * B1 fix round 2 (quality finding 2, spec finding 4): the vault and storage internals throw InternalError
  * (owner: false, platform/runtime/portable.ts), never words for the owner. These are their codes an owner can meet in the
  * app (a wrong folder, a file already there, a business open in another window, a backup that is not one); the app says
  * each in its own words (text/en/errors.json). Any other internal refusal goes out as the general sentence.

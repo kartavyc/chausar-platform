@@ -13,7 +13,8 @@ export type FakeBackgroundStart = Partial<Omit<BackgroundStateLite, 'supported'>
 
 export function createFakeBackground(start: FakeBackgroundStart = {}) {
   const supported = start.supported ?? true;
-  const saved = { startAtLogin: start.startAtLogin ?? supported, keepRunning: start.keepRunning ?? supported, asked: start.asked ?? false };
+  // Round 5 (re-check 011): unasked, start at login is off; only the owner's own tick turns it on (background.cjs defaultsFor).
+  const saved = { startAtLogin: start.startAtLogin ?? false, keepRunning: start.keepRunning ?? supported, asked: start.asked ?? false };
   const computer = { registered: start.registered ?? false, systemOff: start.systemOff ?? false };
   const changes: { startAtLogin?: boolean; keepRunning?: boolean }[] = [];
   /** A5 fix round 3: the day the question was put aside, kept apart from the answer (background.cjs laterDay). */

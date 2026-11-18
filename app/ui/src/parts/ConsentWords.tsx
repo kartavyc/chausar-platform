@@ -9,13 +9,19 @@ import { cx } from './cx';
 import s from './ConsentWords.module.css';
 import { Fold } from './Fold';
 
-export function ConsentWords({ line, text, className }: { line?: string | undefined; text: string; className?: string | undefined }) {
+export function ConsentWords({ line, text, className }: {
+  line?: string | undefined;
+  /** The engine's consent, whole. A list when one line covers more than one consent (the first run's two sign-ins): each is its own paragraph in the one fold. */
+  text: string | readonly string[];
+  className?: string | undefined;
+}) {
   const t = useT();
+  const texts = typeof text === 'string' ? [text] : text;
   return (
     <div className={cx(s.consent, className)} data-consent-words="">
       {line && <p className={s.line}>{line}</p>}
       <Fold summary={t('consent.whatSent')} className={s.fold}>
-        <p className={s.text}>{text}</p>
+        {texts.map((each) => <p key={each} className={s.text}>{each}</p>)}
       </Fold>
     </div>
   );

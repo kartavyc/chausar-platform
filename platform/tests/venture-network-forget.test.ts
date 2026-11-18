@@ -45,7 +45,7 @@ async function seedAbout(env: Env, personId: string, otherId: string, email: str
     tx.put({ ...tx.base('venture-inbound'), ...inbound, from: email, matched: null } as InboundRecord);
     tx.put({ ...tx.base('venture-inbound'), ...inbound, messageId: '<m2@other.example>', from: 'assistant@dewdrop-office.example', matched: { opportunityId: card.id, confidenceBp: 7000 } } as InboundRecord);
     tx.put({
-      ...tx.base('venture-lead'), name: 'Asha', company: 'Dewdrop', email, emailDomain: 'dewdrop.example', sourceUrl: 'https://dewdrop.example/team',
+      ...tx.base('venture-lead'), name: 'Asha', company: 'Dewdrop', email, emailDomain: 'dewdrop.example', sourceUrl: 'https://dewdrop.example/team', sourceNote: null,
       emailCheck: { status: 'unverified', at: null, line: 'Not checked yet.' }, status: 'new', drafts: [], sends: [], moves: [], addedBy: 'owner', addedAt: tx.now,
     } as LeadRecord);
     const note = { rowKind: 'followup', readAt: null, alertedAt: null, digestOn: null, expiresAt: null };

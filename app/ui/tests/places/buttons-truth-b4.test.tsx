@@ -70,6 +70,8 @@ describe('Buttons that say why', () => {
 
   it('Keep: Done until the box is ticked', async () => {
     await start('#/business/keep');
+    // A new code stops the old one, so it asks once first.
+    await press(await screen.findByRole('button', { name: 'Make a new one' }));
     await press(await screen.findByRole('button', { name: 'Make a new one' }));
     await screen.findByRole('group', { name: 'Recovery code' });
     dim('Done', 'Tick the box first');

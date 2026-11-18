@@ -65,9 +65,10 @@ export function Books() {
           <Bento className={s.glance}>
             {data.figures.map((figure) => (
               <MoneyTile key={figure.operation} label={figure.label} icon={ICONS[figure.operation] ?? 'file-text'} span={4}>
-                <div className={s.tileValue}>
-                  <Figure value={figure.display} receiptId={figure.receiptId} size="stat" />
-                </div>
+                {/* A figure that counts nothing has no receipt: the tile says so in words, never a bare amount. */}
+                {figure.receiptId
+                  ? <div className={s.tileValue}><Figure value={figure.display} receiptId={figure.receiptId} size="stat" /></div>
+                  : <p className={s.tileSub} data-books-empty="">{t('money.across.total.nothing')}</p>}
                 {figure.stale && <p className={s.tileSub}><span className={s.stale}>{t('money.changed')}</span></p>}
               </MoneyTile>
             ))}

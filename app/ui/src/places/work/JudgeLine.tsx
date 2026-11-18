@@ -4,7 +4,7 @@ import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Tile, TileHead } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
-import type { CheckLite, DeliveryLite, JudgePreview } from '../../engine/types';
+import { inReview, type CheckLite, type DeliveryLite, type JudgePreview } from '../../engine/types';
 import s from './Work.module.css';
 
 /**
@@ -34,7 +34,7 @@ function codeChecksPassed(draft: DeliveryLite): boolean {
 
 function judgeShows(draft: DeliveryLite): boolean {
   if (draft.practice || draft.practiceNow || draft.servedBy === 'template' || !draft.deliverable) return false;
-  return !!verdictOf(draft) || (draft.status === 'ready-for-review' && codeChecksPassed(draft));
+  return !!verdictOf(draft) || (inReview(draft) && codeChecksPassed(draft));
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));

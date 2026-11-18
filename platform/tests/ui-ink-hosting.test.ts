@@ -81,7 +81,7 @@ async function desktop(args: string[], env: Record<string, string>, distFiles: R
     loadURL(url: string) { this.webContents.mainFrame.url = url; }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
-  class Harness extends EventEmitter { state = 'ready'; async start() {} async request() { return {}; } async updateJobLifecycle() { return { applied: true }; } async stop() { return { graceful: true }; } }
+  class Harness extends EventEmitter { state = 'ready'; async start() {} async request() { return {}; } async stop() { return { graceful: true }; } }
   const dirent = (name: string, dir: boolean) => ({ name, isDirectory: () => dir, isFile: () => !dir });
   const fs = {
     readFile: async (path: string) => { if (path.endsWith('package.json')) return JSON.stringify({ chausarPreview: true, version: '2.3.4' }); reads.push(path.replaceAll('\\', '/')); return Buffer.from('file'); },

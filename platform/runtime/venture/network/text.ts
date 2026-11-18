@@ -6,7 +6,7 @@ import { createHmac } from 'node:crypto';
 import type { IsoDate, Json, PersonFactKind } from '../contracts.ts';
 
 export {
-  cleanText, count, Drops, DROPPED, fold, foldCompany, MAX_COMPANY, MAX_GROUP, MAX_NAME, MAX_SUMMARY, MAX_TITLE, normalEmail, normalLinkedIn, normalPhone, plural,
+  cleanText, count, Drops, DROPPED, fold, foldCompany, MAX_COMPANY, MAX_NAME, MAX_SUMMARY, MAX_TITLE, normalEmail, normalLinkedIn, normalPhone, plural,
 } from './extract-core.ts';
 
 /** What one projected person says, as the engine builds facts from it: who they are, and what happened. */

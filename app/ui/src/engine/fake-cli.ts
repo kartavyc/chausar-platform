@@ -81,14 +81,16 @@ export function fakeRoles(host: W4DeskHost, p: Record<string, unknown>): { roles
   exact(p, []);
   const status = host.ask('venture.models.status', {}) as ModelStatusLite;
   const agents: AgentView[] = AGENTS[host.current()] ?? [];
-  const roles: RoleModelView[] = agents.filter((agent) => agent.kind !== 'code').map((agent) => ({
-    agent: agent.id, name: agent.name,
-    tiers: (TIERS[agent.id] ?? BOTH).map((tier) => {
-      const serving = status.tiers[tier];
-      const usable = serving.usable && serving.presetId !== 'built-in-templates';
-      return { tier, presetId: serving.presetId, model: serving.model, price: PRICES[serving.presetId] ?? 'No list price is recorded for this AI.', usable };
-    }),
-  }));
+  const tierView = (tier: ModelTier) => {
+    const serving = status.tiers[tier];
+    const usable = serving.usable && serving.presetId !== 'built-in-templates';
+    return { tier, presetId: serving.presetId, model: serving.model, price: PRICES[serving.presetId] ?? 'No list price is recorded for this AI.', usable };
+  };
+  const roles: RoleModelView[] = agents.filter((agent) => agent.kind !== 'code').map((agent) => ({ agent: agent.id, name: agent.name, tiers: (TIERS[agent.id] ?? BOTH).map(tierView) }));
+  // As models/roles.ts: an agent the owner hired answers its chat with the AI on the tier every chat uses.
+  let team: AgentView[] = [];
+  try { team = (host.ask('venture.team.list', {}) as { agents: AgentView[] }).agents; } catch { team = []; }
+  for (const agent of team) if (agent.hired) roles.push({ agent: agent.id, name: agent.name, tiers: [tierView('main')] });
   const waiting = roles.length > 0 && roles.every((role) => role.tiers.every((tier) => !tier.usable));
   return { roles, line: waiting ? `${ONE_AGENT} ${CONNECT}` : ONE_AGENT };
 }
@@ -114,5 +116,3 @@ export function fakePlan(host: W4DeskHost, p: Record<string, unknown>): PlanView
   } : UNKNOWN_PLAN('codex', 'Codex');
   return { tools: [UNKNOWN_PLAN('claude-code', 'Claude Code'), codex] };
 }
-/** Test seam: forget the fake's reading. */
-export function resetFakePlan() { fakePlanRead = false; }

@@ -121,12 +121,41 @@ export function ownerZone(countryCode: string | null | undefined, fallback: stri
   return (countryCode && countryCode !== 'XX' ? COUNTRY_TIME_ZONES[countryCode] : undefined) ?? fallback;
 }
 
+let pinnedZone: string | null = null;
+/** Tests pin the computer's zone, so words that say a place only when it differs read the same on every machine. */
+export function setComputerZone(zone: string | null): void { pinnedZone = zone; }
+
 /**
- * The computer's own zone. Only the app calls it, as the fallback when no business is open or the business is in
- * another country; the engine falls back to UTC instead.
+ * The computer's own zone. The app calls it as the fallback when no business is open or the business is in another
+ * country (the engine falls back to UTC for an instant instead). The engine reads it only to leave a place out of a
+ * schedule's words when the schedule is in the same place as this computer (chief/plan-view.ts reviewWhen).
  */
 export function computerZone(): string {
-  return new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  return pinnedZone ?? (new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+}
+
+/** Whether two zone names are the same place: a zone under its older name (Asia/Calcutta) is the one under its new name. */
+export function sameZone(a: string, b: string): boolean {
+  if (a === b) return true;
+  const known = (zone: string): string | null => { try { return new Intl.DateTimeFormat('en-US', { timeZone: zone }).resolvedOptions().timeZone; } catch { return null; } };
+  const first = known(a);
+  return first !== null && first === known(b);
+}
+
+/**
+ * The place a schedule's time is in, named only when it is not where this computer is: null in the same place, else
+ * 'UTC' or the zone's own place ('Kolkata', 'New York'). here: the computer's own zone, or null when that is not where
+ * the owner is (the hosted app runs on a server), so the place is always named.
+ */
+export function zonePlace(timeZone: string, here: string | null): string | null {
+  if (here !== null && sameZone(timeZone, here)) return null;
+  return timeZone === 'UTC' ? 'UTC' : (timeZone.split('/').at(-1) ?? timeZone).replace(/_/g, ' ');
+}
+
+/** That place as the tail of a schedule's words: '' in the same place, else ', UTC' or ', Kolkata time'. */
+export function placeWords(timeZone: string, here: string | null): string {
+  const place = zonePlace(timeZone, here);
+  return place === null ? '' : place === 'UTC' ? ', UTC' : `, ${place} time`;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -193,8 +222,11 @@ function inLocale(locale: string, options: Intl.DateTimeFormatOptions, ms: numbe
 const dayWords = (d: { year: number; month: number; day: number }, size: 'full' | 'short') => (dateLocale
   ? inLocale(dateLocale, { day: 'numeric', month: 'short', ...(size === 'full' ? { year: 'numeric' as const } : {}) }, Date.UTC(d.year, d.month - 1, d.day))
   : `${d.day} ${MONTHS[d.month - 1]}${size === 'full' ? ` ${d.year}` : ''}`);
+// Round 6 (re-check 036): the time of day in the owner's language. Hindi's own "am" and "pm" are the English letters, so
+// "8:00 am" stayed English under the Hindi pack; the part of the day in words ("सुबह 8:00", "रात 9:37") is Hindi's.
+const CLOCK_IN_LOCALE: Intl.DateTimeFormatOptions = Object.freeze({ hour: 'numeric', minute: '2-digit', dayPeriod: 'short' });
 const clockWords = (l: Local) => (dateLocale
-  ? inLocale(dateLocale, { hour: 'numeric', minute: '2-digit', hour12: true }, Date.UTC(2000, 0, 1, l.hour, l.minute))
+  ? inLocale(dateLocale, CLOCK_IN_LOCALE, Date.UTC(2000, 0, 1, l.hour, l.minute))
   : `${l.hour % 12 || 12}:${String(l.minute).padStart(2, '0')} ${l.hour < 12 ? 'am' : 'pm'}`);
 
 /**
@@ -306,7 +338,7 @@ export function formatClock(hhmm: string): string {
   const found = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
   if (!found) return hhmm;
   const hour = Number(found[1]);
-  if (dateLocale) return inLocale(dateLocale, { hour: 'numeric', minute: '2-digit', hour12: true }, Date.UTC(2000, 0, 1, hour, Number(found[2])));
+  if (dateLocale) return inLocale(dateLocale, CLOCK_IN_LOCALE, Date.UTC(2000, 0, 1, hour, Number(found[2])));
   return `${hour % 12 || 12}:${found[2]} ${hour < 12 ? 'am' : 'pm'}`;
 }
 

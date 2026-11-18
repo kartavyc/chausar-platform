@@ -12,8 +12,8 @@ export const HARD_STOP_PHRASES: Readonly<Record<string, readonly RegExp[]>> = Ob
     /\brecommend\w*\s+(?:\w+\s+){0,2}(?:stocks?|shares?|mutual\s+funds?|crypto\w*|equities)\b/, /\b\d+(?:\.\d+)?\s*x\s+returns?\b/, /\b(?:double|triple|multiply)\s+(?:your|their|my)\s+money\b/,
   ]),
   'advocate-solicit': Object.freeze([
-    /\badverti[sz]\w*\s+(?:my\s+|our\s+)?(?:legal|law|advocate|lawyer)\b/, /\b(?:solicit|canvass)\w*\s+(?:\w+\s+){0,2}(?:clients?|cases?|work)\b/,
-    /\b(?:find|get|bring)\s+(?:me\s+)?(?:new\s+)?(?:legal|law)\s+(?:clients?|cases?)\b/, /\bpromot\w*\s+(?:my\s+)?(?:legal|law)\s+(?:practice|services?|firm)\b/,
+    /\badverti[sz]\w*\s+(?:my\s+|our\s+|your\s+)?(?:legal|law|advocate|lawyer)\b/, /\b(?:solicit|canvass)\w*\s+(?:\w+\s+){0,2}(?:clients?|cases?|work)\b/,
+    /\b(?:find|get|bring)\s+(?:me\s+|you\s+)?(?:new\s+)?(?:legal|law)\s+(?:clients?|cases?)\b/, /\bpromot\w*\s+(?:my\s+|your\s+)?(?:legal|law)\s+(?:practice|services?|firm)\b/,
   ]),
   'medical-diagnosis': Object.freeze([
     /\bdiagnos(?:e|es|ed|ing|is|ises)\b/, /\bprescri(?:be|bes|bed|bing|ption|ptions)\b/, /\bdosages?\b/, /\bmedical\s+advice\b/, /\btreatment\s+(?:advice|plans?)\s+for\s+patients\b/, /\b(?:which|what)\s+(?:medicine|medicines|drugs?|dosage)\s+to\s+take\b/,
@@ -39,7 +39,7 @@ export const HARD_STOP_PHRASES: Readonly<Record<string, readonly RegExp[]>> = Ob
     /\bpretend\w*\s+to\s+be\s+(?:a\s+)?(?:\w+\s+)?(?:customers?|clients?|buyers?|guests?|patients?)\b/,
   ]),
   'undisclosed-ai': Object.freeze([
-    /\b(?:pretend\w*|pos(?:e|es|ing))\s+(?:to\s+be\s+|as\s+)(?:a\s+)?(?:human|real\s+person|person|me)\b/,
+    /\b(?:pretend\w*|pos(?:e|es|ing))\s+(?:to\s+be\s+|as\s+)(?:a\s+)?(?:human|real\s+person|person|me|you)\b/,
     /\bwithout\s+(?:disclos\w*|saying|mentioning|telling)\b.{0,30}\b(?:ai|bot|automated)\b/, /\b(?:hide|hides|hiding|conceal\w*)\b.{0,40}\b(?:ai|bot|automated)\b/, /\bundisclosed\s+ai\b/,
     /\bnever\s+(?:says|tells|mentions|discloses|admits)\b.{0,40}\b(?:ai|bot|automated)\b/,
   ]),

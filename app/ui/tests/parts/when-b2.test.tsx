@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 import { ClockProvider } from '../../src/shell/clock';
 import { LOCALE, setDateLanguage, useDay, useDayKey, useLocalToday, useMoment, useMonth, useOwnerHour, useTime, useWeekday } from '../../src/parts/when';
-import { formatCount, formatMoney, formatMoneyRange } from '../../../../platform/runtime/owner-format';
+import { formatClock, formatCount, formatMoney, formatMoneyRange } from '../../../../platform/runtime/owner-format';
 
 /*
  * One-shot B2 task 4: every day and time on a screen goes through parts/when.ts, which reads the owner zone and the
@@ -53,14 +53,24 @@ describe('parts/when.ts in Hindi', () => {
     expect(LOCALE).toEqual({ en: 'en-IN', hi: 'hi-IN-u-nu-latn' });
   });
 
+  // Round 6 (re-check 036): Hindi's own "am" and "pm" are the English letters, so a time said the part of the day in
+  // English ("8:00 am"); it says it in Hindi words ("रात 12:41"), with Latin digits.
   it('days, times and months read in Hindi with Latin digits; a calendar day does not move', () => {
     setDateLanguage('hi');
     expect(read('Asia/Kolkata')).toEqual({
-      day: '3 नव॰ 2026', calendar: '3 नव॰ 2026', blank: '', short: '3 नव॰', time: '12:41 am', moment: '3 नव॰ 2026, 12:41 am',
-      momentShort: '3 नव॰, 12:41 am', month: 'नवंबर 2026', monthShort: 'नव॰', weekday: 'मंगलवार, 3 नवंबर', today: '2026-11-03',
+      day: '3 नव॰ 2026', calendar: '3 नव॰ 2026', blank: '', short: '3 नव॰', time: 'रात 12:41', moment: '3 नव॰ 2026, रात 12:41',
+      momentShort: '3 नव॰, रात 12:41', month: 'नवंबर 2026', monthShort: 'नव॰', weekday: 'मंगलवार, 3 नवंबर', today: '2026-11-03',
       key: '2026-11-03', hour: '0',
     });
-    expect(read('America/New_York')).toMatchObject({ day: '2 नव॰ 2026', calendar: '3 नव॰ 2026', time: '2:11 pm', today: '2026-11-02' });
+    expect(read('America/New_York')).toMatchObject({ day: '2 नव॰ 2026', calendar: '3 नव॰ 2026', time: 'दोपहर 2:11', today: '2026-11-02' });
+  });
+
+  it('a time of day says the part of the day in Hindi, never am or pm', () => {
+    setDateLanguage('hi');
+    expect(['08:00', '13:30', '17:00', '21:37'].map(formatClock)).toEqual(['सुबह 8:00', 'दोपहर 1:30', 'शाम 5:00', 'रात 9:37']);
+    expect(['08:00', '21:37'].map(formatClock).join(' ')).not.toMatch(/\b(?:am|pm)\b/i);
+    setDateLanguage('en');
+    expect(formatClock('08:00')).toBe('8:00 am');
   });
 
   it('no Devanagari digit ever shows, and going back to English reads as before', () => {

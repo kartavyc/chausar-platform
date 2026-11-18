@@ -87,7 +87,6 @@ export const PLACES: PlaceAtRest[] = [
   { id: 'business/goals', hash: '#/business/goals' },
   { id: 'business/build', hash: '#/business/build' },
   { id: 'business/keep', hash: '#/business/keep' },
-  { id: 'onboarding', hash: '#/onboarding' },
   // W4 4G4: the approval page and Business > Notifications (their numbers are set at integration).
   { id: 'approve', hash: '#/approve/next' },
   { id: 'business/notifications', hash: '#/business/notifications' },

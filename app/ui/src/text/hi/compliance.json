@@ -11,5 +11,6 @@
   "compliance.off": "आपके नियामक ने बंद किया है",
   "compliance.stops": "कभी अनुमति नहीं",
   "compliance.continue": "आगे बढ़ें",
-  "compliance.answerFirst": "पहले सवाल का जवाब दें।"
+  "compliance.answerFirst": "पहले सवाल का जवाब दें।",
+  "compliance.answer.no-day-job": "मेरी कोई नौकरी नहीं है"
 }

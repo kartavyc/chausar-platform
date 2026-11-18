@@ -104,9 +104,7 @@ function installedWhisper() {
 type WhisperSetup = { srt?: string | null; exitCode?: number; configured?: boolean; removeModel?: boolean; spawn?: any };
 async function whisperHere(store: StateStore, setup: WhisperSetup = {}) {
   const calls: ProcessRequest[] = [];
-  let uploads = 0;
-  const http = async () => { uploads += 1; throw new Error('Nothing may go over the network.'); };
-  const speech = new SpeechService(store, setup.spawn ? { spawn: setup.spawn, closeWaitMs: 500, http } : {
+  const speech = new SpeechService(store, setup.spawn ? { spawn: setup.spawn, closeWaitMs: 500 } : {
     process: async (request: ProcessRequest): Promise<ProcessResult> => {
       calls.push(structuredClone(request));
       const exitCode = setup.exitCode ?? 0;
@@ -114,12 +112,11 @@ async function whisperHere(store: StateStore, setup: WhisperSetup = {}) {
       if (exitCode === 0 && setup.srt !== null) await writeFile(`${output}.srt`, setup.srt ?? whisperSrt());
       return { exitCode, stdout: '' };
     },
-    http,
   });
   const files = installedWhisper();
-  if (setup.configured !== false) await speech.configure(owner, { id: 'whisper', kind: 'local-command', command: files.command, model: files.model });
+  if (setup.configured !== false) speech.useLocal({ command: files.command, model: files.model });
   if (setup.removeModel) rmSync(files.model);
-  return { speech, calls, files, uploads: () => uploads };
+  return { speech, calls, files };
 }
 
 /** The finished cut, as a real file on this computer, named at intake. */
@@ -293,7 +290,6 @@ test('a transcript made here: ffmpeg takes mono 16 kHz sound from the cut, whisp
   for (const word of ['Client', 'Invoice', 'Revision round', env.offers[0].name.value]) assert.ok(prompt.includes(word), `${word} in ${prompt}`);
   assert.ok(prompt.length <= 600, prompt);
   assert.deepEqual(Object.keys(run.env).sort(), ['PATH', 'SystemRoot']);
-  assert.equal(whisper.uploads(), 0, 'nothing went over the network');
   assert.doesNotMatch(prompt, /_/, 'no snake_case names in the prompt');
   // Both temporary folders are gone.
   assert.equal(existsSync(sound), false);
@@ -320,7 +316,7 @@ test('a transcript made here: ffmpeg takes mono 16 kHz sound from the cut, whisp
   const rows = env.store.read().activity.filter(item => item.event === 'speech.file.transcribed');
   assert.equal(rows.length, 1);
   assert.equal(rows[0].details.uploadId, upload.id);
-  assert.equal(rows[0].details.providerId, 'whisper');
+  assert.equal(rows[0].details.providerId, 'whisper-local');
 
   // A second transcript for the same order is refused, and nothing runs again.
   await assert.rejects(env.call('venture.files.transcribe', { orderId: made.id }), code('TRANSCRIPT_EXISTS'));
@@ -530,7 +526,7 @@ test('the speech service turns a sound file into SRT with the local whisper.cpp 
   await assert.rejects(none.transcribeFile(owner, { path: join(tmpdir(), 'x.wav'), prompt: '' }), code('SPEECH_UNAVAILABLE'));
 
   const { speech, calls, files } = await whisperHere(store);
-  assert.deepEqual(speech.localTranscriber(), { ready: true, providerId: 'whisper' });
+  assert.deepEqual(speech.localTranscriber(), { ready: true, providerId: 'whisper-local' });
   const sound = join(folder('chausar-sound-test-'), 'sound.wav');
   writeFileSync(sound, 'RIFF synthetic sound');
   await assert.rejects(speech.transcribeFile(owner, { path: 'sound.wav', prompt: '' }), code('INVALID_AUDIO'));
@@ -538,7 +534,7 @@ test('the speech service turns a sound file into SRT with the local whisper.cpp 
   assert.equal(calls.length, 0);
   const made = await speech.transcribeFile(owner, { path: sound, prompt: 'Glossary: Budget.' });
   assert.equal(made.srt, whisperSrt());
-  assert.equal(made.providerId, 'whisper');
+  assert.equal(made.providerId, 'whisper-local');
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].args.slice(0, 4), ['-m', files.model, '-f', sound]);
   assert.equal(after(calls[0].args, '--prompt'), 'Glossary: Budget.');
@@ -546,9 +542,9 @@ test('the speech service turns a sound file into SRT with the local whisper.cpp 
   // The activity row is the venture's to write, with the upload it keeps (venture.files.transcribe).
   assert.equal(store.read().activity.some(item => item.event === 'speech.file.transcribed'), false);
 
-  // speech.configure (admin, over the desktop) takes no network share and no other program name either.
+  // Setting it up takes no network share and no other program name either, and leaves the earlier setup in place.
   for (const config of [{ command: '//nas/tools/whisper-cli.exe', model: files.model }, { command: files.command, model: '\\\\nas\\models\\ggml-base.bin' }, { command: join(files.folder, 'whisper.exe'), model: files.model }]) {
-    await assert.rejects(speech.configure(owner, { kind: 'local-command', ...config }), code('INVALID_SPEECH_PROVIDER'), config.command);
+    assert.throws(() => speech.useLocal(config), code('INVALID_SPEECH_PROVIDER'), config.command);
   }
   // A provider whose paths do not pass this computer's rules is skipped, never checked on disk or run.
   speech.options.platform = process.platform === 'win32' ? 'linux' : 'win32';
@@ -652,7 +648,7 @@ test('a whisper.cpp past its time is stopped and waited for until it closes; a b
       removeFolder: busy,
       process: async (run: ProcessRequest) => { if (exitCode === 0) await writeFile(`${run.args[run.args.indexOf('-of') + 1]}.srt`, whisperSrt()); return { exitCode, stdout: '' }; },
     });
-    await speech.configure(owner, { id: 'whisper', kind: 'local-command', command: files.command, model: files.model });
+    speech.useLocal({ command: files.command, model: files.model });
     if (exitCode === 1) await assert.rejects(speech.transcribeFile(owner, { path: sound }), code('SPEECH_FAILED'));
     else assert.equal((await speech.transcribeFile(owner, { path: sound })).srt, whisperSrt());
   }

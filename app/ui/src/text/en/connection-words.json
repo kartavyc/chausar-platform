@@ -1,7 +1,7 @@
 {
-  "connection-words.card.android-local.note": "Exact client APK operations on a clean emulator only. Owner setup and a named lawyer permission review are required; test manually meanwhile.",
+  "connection-words.card.android-local.note": "Runs only the steps you approve on a client's Android app in a clean emulator. Needs your setup and a named lawyer's permission review; test by hand meanwhile.",
   "connection-words.card.android-local.handoff": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
-  "connection-words.card.android-local.write": "Planned until owner SDK setup and a named lawyer permission review. Test the client build manually meanwhile.",
+  "connection-words.card.android-local.write": "Planned: it waits for you to set up the Android tools (the SDK) and for a named lawyer to review the client's permission. Until then, test the client's app by hand.",
   "connection-words.card.docker-local.note": "Only the supplied throwaway desktop image with fictional client test data. Build and qualify it yourself; prepare scripts meanwhile. No automatic pull or installation.",
   "connection-words.card.docker-local.handoff": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
   "connection-words.card.docker-local.write": "Planned until owner image qualification and a named lawyer permission review. Prepare the demo script meanwhile.",
@@ -26,6 +26,8 @@
   "connection-words.line.anthropic-ready": "Uses your Anthropic key. Not yet checked with a live key.",
   "connection-words.line.live-key": "Not yet checked with a live key.",
   "connection-words.line.live-task": "Not yet checked on a real task.",
+  "connection-words.line.task-worked": "Its last task worked.",
+  "connection-words.line.task-failed": "Its last task failed.",
   "connection-words.line.codex-setup": "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now.",
   "connection-words.line.cli-look": "Chausar ran only the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.",
   "connection-words.line.cli-can-look": "Chausar can only run the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.",
@@ -35,5 +37,5 @@
   "connection-words.line.books-write": "Issues invoices and records payments inside Chausar, each number with a receipt.",
   "connection-words.line.crm-write": "Adds clients and orders inside Chausar.",
   "connection-words.line.x-post": "Posts approved text through your signed-in X browser. Not yet checked against the live site.",
-  "connection-words.line.api-post": "Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection."
+  "connection-words.line.api-post": "Posts exactly the plain text you approved, through your account's official link. Each place asks and records separately. Check unclear results."
 }

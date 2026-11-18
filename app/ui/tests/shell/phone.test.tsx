@@ -105,7 +105,7 @@ describe('the phone frame', () => {
 
   it.each([
     ['#/chats', 'Chats'], ['#/team', 'More'], ['#/work?state=failed', 'Work'], ['#/clients', 'More'], ['#/clients/pipeline', 'More'],
-    ['#/money', 'Money'], ['#/money/invoices', 'Money'], ['#/connections', 'More'], ['#/business/plan', 'More'], ['#/onboarding', 'More'],
+    ['#/money', 'Money'], ['#/money/invoices', 'Money'], ['#/connections', 'More'], ['#/business/plan', 'More'],
   ])('at %s the current tab is %s', async (hash, tab) => {
     stubWidth(true);
     start(hash);
@@ -126,8 +126,11 @@ describe('the phone frame', () => {
     const list = within(sheet).getByRole('navigation', { name: 'More places' });
     const links = within(list).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Team', '#/team'], ['Clients', '#/clients'], ['Apps', '#/apps'], ['Connections', '#/connections'], ['Settings', '#/business'], ['Start a new business', '#/onboarding'],
+      ['Team', '#/team'], ['Clients', '#/clients'], ['Apps', '#/apps'], ['Connections', '#/connections'], ['Settings', '#/business'],
     ]);
+    // A new business is not a place: its row is a button, which closes this business and starts the first run steps.
+    const startNew = within(list).getByRole('button', { name: 'Start a new business' });
+    expect(startNew.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThan(0);
     for (const link of links) expect(link.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThan(0);
     await act(async () => { fireEvent.click(links[1]!); window.location.hash = '#/clients'; });
     await hashChanged();

@@ -17,6 +17,13 @@ export const SIDE_WORK_QUESTION = 'Does your employment contract allow side work
 export const SIDE_WORK_RESPONSIBILITY = 'Chausar does not read your contract. You decide, and you are responsible for it.';
 /** One-shot C4 task 3: the line for an owner with no day job; the contract question does not apply to them. */
 export const NO_DAY_JOB_LINE = "You don't have a day job, so no contract limits this business.";
+/**
+ * The lines for an owner whose contract does not allow side work, and for one who is not sure (found in the real app,
+ * 16 Nov 2026: "No, it does not" changed nothing on the page). What it means and what to do, in plain words. Neither
+ * blocks the owner: it is their call, and the answer is recorded as theirs (core/compliance.ts).
+ */
+export const NOT_ALLOWED_LINE = 'Your contract does not allow side work, so taking paid work could put your job at risk. Check with your employer first. You can still continue, and Chausar records this as your answer.';
+export const NOT_SURE_LINE = 'Read your contract or ask your employer before you take paid work. You can still continue, and Chausar records this as your answer.';
 /** C4 task 3: no-day-job first, as the screen lists it. */
 export const SIDE_WORK_ANSWERS = ['no-day-job', 'allowed', 'not-allowed', 'not-sure'] as const;
 export type SideWorkAnswer = typeof SIDE_WORK_ANSWERS[number];
@@ -72,9 +79,19 @@ export const PROFESSION_COMPLIANCE: readonly ProfessionCompliance[] = Object.fre
 
 const FAMILY_LABELS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(FAMILIES.map(family => [family.id, family.label])));
 
-/** A profession by id (or an id recorded before the map), else a family by id (with no profession-specific rules), else null. */
+/**
+ * Work outside the listed fields (About you kept with no field): the side-work question is still asked and recorded,
+ * under this id, with no profession-specific rules. The hard stops that hold for everyone are held by code elsewhere.
+ */
+export const OWN_WORK = Object.freeze({ id: 'own-work', label: 'Your own kind of work' });
+
+/**
+ * A profession by id (or an id recorded before the map), else a family by id (with no profession-specific rules), else
+ * work outside the listed fields, else null.
+ */
 export function professionCompliance(id: unknown): ProfessionCompliance | null {
   if (typeof id !== 'string') return null;
+  if (id === OWN_WORK.id) return p({ id: OWN_WORK.id, label: OWN_WORK.label, family: OWN_WORK.id, rules: [], switchedOff: [], hardStops: [] });
   const profession = professionOf(id);
   const found = profession ? PROFESSION_COMPLIANCE.find(item => item.id === profession.id) : undefined;
   if (found) return found;
@@ -94,6 +111,8 @@ export type CompliancePure = {
   question: string; responsibility: string;
   /** C4 task 3: the line shown when the owner has no day job. */
   noDayJob: string;
+  /** The lines shown when the owner answers that the contract does not allow side work, or that they are not sure. */
+  notAllowed: string; notSure: string;
   rules: ProfessionRule[];
   switchedOff: { tool: RegulatorTool; line: string }[];
   hardStops: HardStop[];
@@ -105,7 +124,7 @@ export function complianceOf(item: ProfessionCompliance): CompliancePure {
   const own = new Set(item.hardStops);
   const hardStops = HARD_STOPS.filter(stop => own.has(stop.id)).map(stop => ({ ...stop }));
   const body = {
-    profession: { id: item.id, label: item.label, family: item.family }, question: SIDE_WORK_QUESTION, responsibility: SIDE_WORK_RESPONSIBILITY, noDayJob: NO_DAY_JOB_LINE,
+    profession: { id: item.id, label: item.label, family: item.family }, question: SIDE_WORK_QUESTION, responsibility: SIDE_WORK_RESPONSIBILITY, noDayJob: NO_DAY_JOB_LINE, notAllowed: NOT_ALLOWED_LINE, notSure: NOT_SURE_LINE,
     rules: item.rules.map(entry => ({ ...entry })), switchedOff: item.switchedOff.map(entry => ({ ...entry })), hardStops,
   };
   return { ...body, digest: 'compliance-' + fnv(JSON.stringify(body)) };

@@ -3,14 +3,15 @@
 // copy; the keys leave only through moveKeys, and only after the vault write committed.
 import { MODEL_PRESET_IDS } from '../contracts.ts';
 import type { ModelCallRecord, ModelConnectionRecord, SecretShelf } from '../contracts.ts';
-import type { DraftAi, DraftCompose, DraftHandoverPort } from '../onboarding-contracts.ts';
+import type { DraftAi, DraftHandoverPort } from '../onboarding-contracts.ts';
+import type { AiSetupNote } from '../models/ai-setup.ts';
 import type { State, StateStore } from '../../contracts.ts';
-import type { ComposeSession } from './handlers.ts';
 
 export type HandoverSource = {
   /** The desk's store and shelf, or null when nothing was ever started (or after a clear). */
   parts(): { store: StateStore; shelf: SecretShelf } | null;
-  session(): ComposeSession | null;
+  /** The setup venture.ai.reuse connected in this draft, or null. */
+  reused(): AiSetupNote | null;
   clear(): void;
 };
 
@@ -27,14 +28,13 @@ export function createHandover(source: HandoverSource): DraftHandoverPort {
       const connections = records(state, 'venture-model-connection').filter(connection => connection.status === 'connected');
       const calls = records(state, 'venture-model-call');
       // Calls made before the vault go along even when every connection was disconnected since: they were sent and
-      // paid for, the kept plan names them, and "What was sent" in the vault must list them.
+      // paid for, and "What was sent" in the vault must list them.
       if (!connections.length && !calls.length) return null;
-      return structuredClone({ connections, calls });
-    },
-    compose(composeId: string): DraftCompose | null {
-      const session = source.session();
-      if (!session || session.decision.composeId !== composeId || !session.plan || !session.output) return null;
-      return structuredClone({ decision: session.decision, decideOutput: session.decideOutput, output: session.output, plan: session.plan });
+      // The reused setup counts only while one of its own connections is still connected (the owner may have
+      // disconnected it in the draft and connected something else).
+      const note = source.reused();
+      const reused = note && connections.some(connection => note.connections.some(item => item.presetId === connection.presetId && item.consentedAt === connection.consentedAt)) ? note : null;
+      return structuredClone({ connections, calls, ...(reused ? { reused } : {}) });
     },
     moveKeys(target: SecretShelf): void {
       const parts = source.parts();

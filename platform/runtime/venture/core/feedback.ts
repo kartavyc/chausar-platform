@@ -27,6 +27,7 @@ import { currencyMinorDigits } from '../../currency.ts';
 import { calendarMonth, todayLocal } from '../money/dates.ts';
 import { invoicedPlan } from '../money/goal-plans.ts';
 import { REPORT_ANSWERS, REPORT_MILESTONES, type ReportMilestone } from './telemetry.ts';
+import { drafted, handedOver } from '../delivery/run-machine.ts';
 import {
   ANSWER_LABELS, CRASH_QUEUE_LIMIT, CRASH_SOURCES, FEEDBACK_NOTICE_DIGEST, FEEDBACK_NOTICE_TEXT, FEEDBACK_WORDS, QUESTION_MILESTONES, QUESTION_TEXT,
   deletionEvent, deletionLine, earningRange, feedbackPreview, keptCrash, sendLine,
@@ -97,7 +98,6 @@ const channelOf = (deps: VentureDeps) => (['desktop', 'hosted-web', 'local-web']
 // ---------------------------------------------------------------------------
 
 const DAY = 86_400_000;
-const FINISHED = new Set(['ready-for-review', 'accepted', 'edited', 'rejected']);
 
 /** The milestones this business reached, in order. */
 function milestonesOf(state: State, venture: VentureRecord): ReportMilestone[] {
@@ -110,7 +110,7 @@ function milestonesOf(state: State, venture: VentureRecord): ReportMilestone[] {
       || listRecords(state, 'venture-delivery-run', id).some(row => !!row.agentJob),
     first_client: listRecords(state, 'venture-client', id).length > 0,
     first_order: listRecords(state, 'venture-order', id).length > 0,
-    first_job_done: listRecords(state, 'venture-delivery-run', id).some(row => row.status === 'accepted' || row.status === 'edited'),
+    first_job_done: listRecords(state, 'venture-delivery-run', id).some(row => handedOver(row)),
     first_invoice: listRecords(state, 'venture-invoice', id).some(row => row.number !== null && row.status !== 'void'),
     first_payment: listRecords(state, 'venture-payment', id).length > 0,
   };
@@ -156,7 +156,7 @@ async function reportOf(deps: VentureDeps, state: State, venture: VentureRecord)
     weeksSinceStart: Math.min(104, Math.max(0, Math.floor((now - Date.parse(started)) / (7 * DAY)))),
     aiRoute: aiRouteOf(state, venture),
     runsStarted30d: runs.length,
-    runsFinished30d: runs.filter(run => FINISHED.has(run.status)).length,
+    runsFinished30d: runs.filter(drafted).length,
     runsFailed30d: runs.filter(run => run.status === 'failed').length,
     runsStopped30d: runs.filter(run => run.status === 'stopped').length,
     aiCallsDone30d: calls.filter(call => call.status === 'completed').length,

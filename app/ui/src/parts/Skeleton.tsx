@@ -18,16 +18,6 @@ export function useDelayed(loading: boolean, delayMs = SKELETON_DELAY_MS): boole
   return loading && late;
 }
 
-/** Whether what just landed followed a skeleton: it then fades in once (data-arrived), and never at any other time. */
-export function useArrived(loading: boolean, delayMs = SKELETON_DELAY_MS): boolean {
-  const late = useDelayed(loading, delayMs);
-  const [arrived, setArrived] = useState(false);
-  useEffect(() => {
-    if (late) setArrived(true);
-  }, [late]);
-  return arrived && !loading;
-}
-
 const ROWS: Record<SkeletonShape, readonly string[]> = {
   today: ['title', 'card', 'card', 'card'],
   list: ['title', 'row', 'row', 'row', 'row', 'row'],

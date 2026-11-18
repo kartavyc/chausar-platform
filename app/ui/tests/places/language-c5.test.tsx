@@ -70,7 +70,8 @@ describe('the language preference', () => {
     const { calls } = start('#/business/app', engine, (client) => { (client as { transport: string }).transport = 'web'; });
     await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
     expect(calls.some((call) => call.method === 'app.preferences.get')).toBe(true);
-    await screen.findByRole('heading', { name: 'This app' });
+    // "This app" in Hindi, now that the page's name has Hindi (15 Nov 2026); before, the English words showed.
+    await screen.findByRole('heading', { name: '\u092f\u0939 \u0910\u092a' });
     expect(screen.queryByRole('region', { name: '\u092d\u093e\u0937\u093e' })).toBeNull();
   });
 

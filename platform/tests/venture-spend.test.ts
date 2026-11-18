@@ -291,8 +291,9 @@ test('venture.spend.list is a money read method with an empty payload, listed ev
     assert.ok((VENTURE_ERRORS as readonly string[]).includes(name), name);
   }
   const { deps } = await setup();
-  // 4Z3: the total as the owner's currency leads it, two decimals of dollars at most.
-  assert.deepEqual(await moneyHandlers['venture.spend.list']!(deps, owner, {}), { needsRate: true, rows: [], total: '$0.00 this month', totalLead: { currency: 'USD', figure: '$0.00 this month' } });
+  // 4Z3: the total as the business's currency leads it. Fix round 4 (problem 12): a rupee business with no rate of its own
+  // reads in rupees at the dated reference rate, and nothing asks it to set a rate first.
+  assert.deepEqual(await moneyHandlers['venture.spend.list']!(deps, owner, {}), { rows: [], total: '$0.00 this month', totalRupees: '₹0 at ₹94.40 per $1 (FBIL reference rate of 2026-11-05)', totalLead: { currency: 'INR', figure: '₹0 this month', beside: '$0.00 at ₹94.40 per $1', other: '$0.00' } });
   await assert.rejects(moneyHandlers['venture.spend.list']!(deps, owner, { limit: 5 }), code('INVALID_VENTURE_REQUEST'));
 });
 

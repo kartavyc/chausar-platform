@@ -5,9 +5,16 @@
 // the window's payload), and only on "Use this Codex" sends the confirmation. Cancel is the default and what Escape
 // does; it records nothing. A Codex already in use (the owner's earlier choice, or the bundled one) is not asked again.
 
+// The words are for an ordinary owner, who has never heard of Codex: what it is, that it is already on this computer,
+// what Chausar will do with it, and that Chausar never sees a password. The version and the program, which the engine's
+// review names and the yes records, stay on the dialog, last.
 const CODEX_CHOICE_WORDS = Object.freeze({
-  title: 'Use this Codex?',
-  detail: (version, path) => `Chausar will run Codex ${version} from ${path} for your AI work.`,
+  title: 'Use Codex with Chausar?',
+  detail: (version, path) => [
+    "Codex is OpenAI's tool that your ChatGPT plan runs through. It is already on this computer.",
+    'Chausar will use it for your AI work. Chausar never sees your password.',
+    `Version ${version}, at ${path}`,
+  ].join('\n\n'),
   buttons: Object.freeze(['Use this Codex', 'Cancel']),
   cancelled: "Nothing changed. Codex wasn't chosen.",
   busy: 'Answer the question Chausar is already asking first.',

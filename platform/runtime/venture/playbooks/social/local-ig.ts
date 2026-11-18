@@ -1,7 +1,7 @@
 // Original Chausar S6. instagram-agent-skill (MIT) supplies workflow ideas, no copied code.
 import { requireSocial, socialDay, socialNumber, socialText } from './d2-core.ts';
 import { projectPlan, SEQUENCE_STEPS } from '../../network/followups.ts';
-export {REPLY_BUCKETS,replyBuckets,type ReplyBucket} from './reply-buckets.ts';
+export {replyBuckets} from './reply-buckets.ts';
 /** The delivered resource comes first, with one short question afterwards. No DM API is called. */
 export function keywordDelivery(promise:string,question:string) { requireSocial(socialText(promise,2000)&&socialText(question,160)&&question.endsWith('?')&&(question.match(/\?/g)??[]).length===1);return {messages:[promise.trim(),question.trim()],capability:'handoff' as const}; }
 /** Use W4 C7's actual sends and allowed weekdays; the second date is a projection until the first is recorded. */

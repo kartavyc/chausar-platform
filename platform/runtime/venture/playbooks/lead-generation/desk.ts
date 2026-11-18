@@ -4,8 +4,9 @@ import type { Context } from '../../../contracts.ts';
 import type { VentureDeps, LeadSourceRecord, Json } from '../../contracts.ts';
 import type { DeskHandlers, DeskActPayload, DeskActView, DeskListPayload, DeskListView, DeskGetPayload, DeskItemView } from '../desk-types.ts';
 import { digest, exactPayload, listRecords, readVenture, requireAppChannel, singleLine, ventureAction } from '../../records.ts';
-import { leadsAdd, leadsDraft, leadsList } from '../../customers/lead-methods.ts';
-import { createLead, onBlocklist, verifyLeadEmail } from '../../customers/leads.ts';
+import { leadsDraft, leadsList } from '../../customers/lead-methods.ts';
+import { createLead, verifyLeadEmail } from '../../customers/leads.ts';
+import { contactAllowed, knownProspects, landProspect } from '../../customers/found-leads.ts';
 import { refuseNeverContact } from '../../network/outreach-checks.ts';
 import { blocklistOf, cardsOf, planOf } from '../../network/pipeline.ts';
 import { networkImport } from '../../network/import.ts';
@@ -13,9 +14,9 @@ import { removeRecords } from '../../network/people.ts';
 import { pipelineAdd } from '../../network/pipeline-methods.ts';
 import { localDayAt } from '../../local-day.ts';
 import { journalled } from '../../journal/journal.ts';
-import { osmLeads, type Prospect } from './osm.ts';
-import { citiesFor } from './nominatim.ts';
-import { enrichSite } from './enrich.ts';
+import { osmLeads } from '../../customers/sources/osm.ts';
+import { citiesFor } from '../../customers/sources/nominatim.ts';
+import { enrichSite } from '../../customers/sources/enrich.ts';
 import { buildDailyRun } from './daily-run.ts';
 import { communityReport, type CommunityInput } from './community.ts';
 import { happenstanceQuote, happenstanceSearch } from './happenstance.ts';
@@ -133,20 +134,19 @@ export async function leadDeskAct(deps: VentureDeps, ctx: Context, payload: Desk
   const ownOffer = singleLine(b.ownOffer, 'Your own offer', { min: 2, max: 300 }), postalAddress = singleLine(b.postalAddress, 'Business postal address', { min: 5, max: 300 });
   const count = b.count === undefined || b.count === '' ? 10 : typeof b.count === 'string' && /^[1-9]\d?$/.test(b.count) ? Number(b.count) : NaN;
   check(Number.isInteger(count) && count >= 1 && count <= 50, 'INVALID_VENTURE_REQUEST', 'Choose a daily count from one to fifty.');
-  const sources = listRecords(state, 'venture-lead-source', venture.id);
-  const existing: Prospect[] = sources.filter(s => s.leadId).map(s => ({ osmId: s.sourceId, name: '', address: '', website: s.domain ? `https://${s.domain}` : null, sourceUrl: s.url ?? '', licence: s.licence }));
+  // What the business already has, who it may write to and how a prospect becomes a lead are shared by every business (customers/found-leads.ts).
+  const existing = knownProspects(state, venture.id);
   const list = await rowsOf(deps, ctx);
   const box = await citiesFor(deps.net).find(city);
   const blocklist = blocklistOf(state, venture.id);
   const report = await buildDailyRun({ city, vertical, count, ownOffer, postalAddress, existing, followups: list.filter(r => r.type === 'followup').map(r => ({ id: r.id, name: r.name, due: r.due! })) }, {
     source: async () => osmLeads({ box, vertical, count: Math.min(50, count * 3) }, deps.net),
     enrich: url => enrichSite(url, deps.net),
-    allowed: async row => { const candidate = createLead({ name: row.name || 'Business', sourceUrl: row.sourceUrl, email: row.emails?.[0] ?? undefined }, { by: ctx.memberId, at: deps.clock().toISOString() }); if (onBlocklist(candidate, blocklist)) return false; try { await refuseNeverContact(deps, [candidate.email], row.name); return true; } catch { return false; } },
+    allowed: row => contactAllowed(deps, ctx, blocklist, row),
     verify: async email => (await verifyLeadEmail(createLead({ name: 'Business', email, sourceUrl: 'https://www.openstreetmap.org/' }, { by: ctx.memberId, at: deps.clock().toISOString() }), { resolver: deps.mx, now: deps.clock().toISOString() })).emailCheck.status === 'verified',
   });
   for (const prospect of report.prospects) {
-    const lead = await leadsAdd(deps, ctx, { name: prospect.name, company: prospect.name, sourceUrl: prospect.sourceUrl, email: prospect.emails?.[0] ?? null });
-    await ventureAction(deps, ctx, 'prepare', 'leads.source', tx => { tx.put<LeadSourceRecord>({ ...tx.base('venture-lead-source'), source: 'osm', url: prospect.sourceUrl, licence: prospect.licence, fetchedAt: tx.now, leadId: lead.id, personId: null, importId: null, sourceId: prospect.osmId, domain: prospect.website ? new URL(prospect.website).hostname : null }); tx.emit('desk.changed', { playbook: 'lead-generation' }); });
+    const lead = await landProspect(deps, ctx, { prospect, source: 'osm', emit: 'desk.changed' });
     const draft = report.drafts.find(d => d.sourceUrl === prospect.sourceUrl);
     if (draft && lead.emailCheck.status === 'verified') {
       // W4 writes the current business name/address/footer and checks the shared never-contact list again.

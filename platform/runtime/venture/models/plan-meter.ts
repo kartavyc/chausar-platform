@@ -75,7 +75,10 @@ export function fromClaudeLimit(info: unknown, readAt: IsoTime): PlanReading {
 
 /**
  * The meter kept per computer in engine memory. note() keeps the newest window of each kind per tool (a report names
- * one or two windows; the others stay as last read); read() turns a window whose reset has passed into unknown.
+ * one or two windows; the others stay as last read); read() turns a window whose reset has passed into unknown. A
+ * window the tool sent but that could not be read (unknown) fills a gap, so the page can say "not reported", but never
+ * takes the place of a window that was read: a report with nothing new in it changes nothing, and the last reading
+ * stays with its own time until a newer one comes.
  */
 export class PlanMeter {
   #kept = new Map<DelegateCli, { windows: PlanWindow[]; readAt: IsoTime }>();
@@ -83,7 +86,10 @@ export class PlanMeter {
   note(next: PlanReading): void {
     if (!next.readAt || !next.windows.length) return;
     const before = this.#kept.get(next.cli)?.windows ?? [];
-    const windows = [...before.filter(window => !next.windows.some(fresh => fresh.kind === window.kind)), ...next.windows.map(window => ({ ...window }))];
+    const readable = (window: PlanWindow) => window.resetsAt !== null;
+    const taken = next.windows.filter(fresh => readable(fresh) || !before.some(window => window.kind === fresh.kind && readable(window)));
+    if (!taken.length) return;
+    const windows = [...before.filter(window => !taken.some(fresh => fresh.kind === window.kind)), ...taken.map(window => ({ ...window }))];
     this.#kept.set(next.cli, { windows, readAt: next.readAt });
   }
 

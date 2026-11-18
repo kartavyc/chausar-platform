@@ -31,7 +31,7 @@ it.each([['INR','25000','₹250'],['JPY','25000','JPY 25,000'],['BHD','25000','B
     expect(() => act('revise', { quoteDigest: 'stale' })).toThrow(expect.objectContaining({ code: 'OFFER_EXTRA_ROUND' }));
     act('revise', { quoteDigest: quote.digest });
     expect(get().item.roundsUsed).toBe(3);
-    expect(run.status).toBe('waiting-for-you');
+    expect(run.status).toBe('working');
     run.status='accepted';desk.act!({id,action:'client-answer',digest:get().digest,payload:{runId:run.id,postId:id,decision:'approved',comment:'Asha Rao likes this.'}});
     desk.forgetPeople([{id:'person',clientId:null,names:['Asha Rao'],emails:[],phones:[]}],true);expect(get().item.clientDecision).toBe(null);expect(get().item.roundsUsed).toBe(3);
 });

@@ -50,10 +50,11 @@ const SAVED = join('C:/Users/owner/AppData/Roaming/Chausar', BACKGROUND_FILE);
 const ITEM = { openAtLogin: true, path: base().execPath, args: ['--background', '--hidden'], name: 'Chausar' };
 const OFF = { openAtLogin: false, path: base().execPath, args: ['--background', '--hidden'], name: 'Chausar' };
 
-test('the installed beta suggests start at login and keeps running in the tray, unasked; previews keep neither (6J1, A5)', async () => {
+// Round 5 (re-check 011): start at login is standing configuration, so unasked it reads off; only the owner's tick turns it on.
+test('the installed beta keeps running in the tray but suggests no start at login, unasked; previews keep neither (6J1, A5, round 5)', async () => {
   const fs = memoryFs(), app = fakeApp();
   const beta = createBackground({ ...base(), app, fs });
-  assert.deepEqual(await beta.settings(), { startAtLogin: true, keepRunning: true, asked: false });
+  assert.deepEqual(await beta.settings(), { startAtLogin: false, keepRunning: true, asked: false });
   const preview = createBackground({ ...base({ beta: false }), app, fs });
   assert.deepEqual(await preview.settings(), { startAtLogin: false, keepRunning: false, asked: false });
 });
@@ -62,7 +63,7 @@ test('a damaged or foreign settings file counts as not asked, with the defaults,
   for (const text of ['not json', '[]', '{"startAtLogin":"yes","keepRunning":true}', '{"startAtLogin":true}']) {
     const app = fakeApp();
     const background = createBackground({ ...base(), app, fs: memoryFs({ [SAVED]: text }) });
-    assert.deepEqual(await background.settings(), { startAtLogin: true, keepRunning: true, asked: false }, text);
+    assert.deepEqual(await background.settings(), { startAtLogin: false, keepRunning: true, asked: false }, text);
     await background.apply();
     assert.deepEqual(app.logins, [], `${text}: nothing registered`);
   }
@@ -75,7 +76,7 @@ test('A5 (S12, bug 8): the first start registers nothing; the owner\'s yes regis
   const background = createBackground({ ...base(), app, fs });
   await background.apply();
   assert.deepEqual(app.logins, [], 'no login item before the owner answers');
-  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: false, systemOff: false });
+  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: false, keepRunning: true, registered: false, systemOff: false });
   assert.deepEqual(LOGIN_ARGS, ['--background', '--hidden']);
   const yes = await background.change({ startAtLogin: true });
   assert.deepEqual(app.logins, [ITEM]);
@@ -128,10 +129,10 @@ test('A5 fix round 4: Keep running changed before start at login was answered is
   const background = createBackground({ ...base(), app, fs });
   const state = await background.change({ keepRunning: false });
   assert.deepEqual(app.logins, []);
-  assert.deepEqual(state, { supported: true, asked: false, startAtLogin: true, keepRunning: false, registered: false, systemOff: false });
+  assert.deepEqual(state, { supported: true, asked: false, startAtLogin: false, keepRunning: false, registered: false, systemOff: false });
   assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { keepRunning: false });
   const next = createBackground({ ...base(), app, fs });
-  assert.deepEqual(await next.settings(), { startAtLogin: true, keepRunning: false, asked: false });
+  assert.deepEqual(await next.settings(), { startAtLogin: false, keepRunning: false, asked: false });
   await next.apply();
   assert.deepEqual(app.logins, [], 'the start registers nothing before the answer');
   // The answer, when it comes, keeps the Keep running choice.
@@ -314,7 +315,7 @@ test('A5 fix round 1 (the founder): an older silent login item stays until the o
     const fs = memoryFs();
     const background = createBackground({ ...base(), app, fs });
     await background.apply();
-    assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+    assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: false, keepRunning: true, registered: true, systemOff: false });
     const after = await background.change({ startAtLogin: answer });
     assert.deepEqual([after.asked, after.registered, app.run.has('Chausar')], [true, answer, answer]);
     const next = createBackground({ ...base(), app, fs });
@@ -392,7 +393,7 @@ test('A5 fix round 3: putting the question aside keeps only the day: no answer, 
   assert.equal(await createBackground({ ...base(), app, fs }).laterDay(), '2026-11-04');
   assert.deepEqual(app.logins, []);
   assert.equal(fs.files.has(SAVED), false, 'no answer saved');
-  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: false, keepRunning: true, registered: true, systemOff: false });
   for (const bad of ['4 Nov', '2026-13-40', '', 20261104, null]) await assert.rejects(background.askLater(bad), { code: 'INVALID_REQUEST' }, String(bad));
   const preview = createBackground({ ...base({ beta: false }), app, fs: memoryFs() });
   assert.equal(await preview.laterDay(), null);

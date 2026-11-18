@@ -7,20 +7,17 @@ import { formatCount } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import { formatMicros, listRecords } from '../records.ts';
 import { presetSpec } from '../models/presets.ts';
+import { RECEIPT_WORDS, RUN_TEMPLATE_WORDS } from '../views/run-words.ts';
+import { fillWords } from '../views/card-words.ts';
 import { NOT_REPORTED } from '../models/types.ts';
-import { AGENT_ID } from '../views/shared.ts';
 import { deliveryRunSpends, planCall, planJob } from './spend-meter.ts';
-import { receiptAgentName } from './agent-meters.ts';
+import { receiptAgentName, runAgentId } from './agent-meters.ts';
 import { rupeesOf, spendLead } from './spend.ts';
 import type { DeliveryRunRecord, Display, ModelCallRecord, ModelPresetId, ModelReceiptView, ModelTier, SpendRecord, VentureRecord } from '../contracts.ts';
 import type { AgentUsage } from '../agent-runtime/driver-types.ts';
 
-export const RECEIPT_WORDS = Object.freeze({
-  templates: 'Built-in templates', ownCopy: 'Your own copy', noAi: 'No AI', noCost: 'No cost',
-  plan: 'On your plan', unknown: 'Not known yet', notReported: 'not reported', tokensNotReported: 'Tokens not reported',
-  someNotReported: ' (some not reported)', yourTool: 'Your AI tool', yourKey: 'Your AI key', estimate: ' (estimate)',
-  tier: { main: 'Main model', fast: 'Quick model' } as Readonly<Record<ModelTier, string>>,
-});
+// Fix round 7: the words live in views/run-words.ts, so the app says them in the owner's language from its pack.
+export { RECEIPT_WORDS };
 const SEPARATOR = ' · ';
 
 
@@ -39,7 +36,7 @@ export function usageWords(usage: Pick<AgentUsage, 'inputTokens' | 'outputTokens
   if (!usage) return RECEIPT_WORDS.tokensNotReported;
   // B2 fix round 1: grouped as the business's country groups a count ("441,000" in the US); India when none is known.
   const count = (value: number) => formatCount(value, country ?? 'IN');
-  return `${count(usage.inputTokens)} tokens in, ${count(usage.outputTokens)} out`;
+  return fillWords(RUN_TEMPLATE_WORDS.usage, { input: count(usage.inputTokens), output: count(usage.outputTokens) });
 }
 
 function finish(parts: Omit<ModelReceiptView, 'line'>): ModelReceiptView {
@@ -101,7 +98,7 @@ export function runModelReceipt(state: State, venture: VentureRecord, run: Deliv
     const presetId = job.route?.presetId;
     const plan = planJob(state, run);
     const tool = presetId ? toolWords(presetId) : plan ? RECEIPT_WORDS.yourTool : RECEIPT_WORDS.yourKey;
-    const base = { tool, model: job.model ?? job.route?.model ?? RECEIPT_WORDS.notReported, tier: RECEIPT_WORDS.tier[job.route?.tier ?? 'main'], usage: usageWords(job.usage, venture.country?.code), agent };
+    const base = { tool, model: job.model ?? job.route?.model ?? RECEIPT_WORDS.notReported, tier: RECEIPT_WORDS.job, usage: usageWords(job.usage, venture.country?.code), agent };
     if (plan) return finish({ ...base, cost: RECEIPT_WORDS.plan, state: 'plan' });
     if (job.cost?.state !== 'priced') return finish({ ...base, cost: RECEIPT_WORDS.unknown, state: 'unknown' });
     const total = settledTotal(deliveryRunSpends(state, run));
@@ -116,5 +113,6 @@ export function runModelReceipt(state: State, venture: VentureRecord, run: Deliv
   if (run.servedBy === 'owner') return none(RECEIPT_WORDS.ownCopy, undefined);
   const callIds = new Set([run.callId, ...(run.harness?.turns ?? []).map(turn => turn.callId)].filter((id): id is string => typeof id === 'string'));
   const calls = listRecords(state, 'venture-model-call', venture.id).filter(call => callIds.has(call.id));
-  return callsModelReceipt(state, venture, calls, { agent: AGENT_ID, ...(receiptId ? { receiptId } : {}) });
+  // The run's one agent (runAgentId), so the receipt and the run's own header never name two.
+  return callsModelReceipt(state, venture, calls, { agent: runAgentId(state, venture, run), ...(receiptId ? { receiptId } : {}) });
 }

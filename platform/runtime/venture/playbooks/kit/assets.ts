@@ -14,7 +14,7 @@
 import { ChausarError, check, type Context, type State } from '../../../contracts.ts';
 import { currentVenture, exactPayload, findRecord, identifier, listRecords, ventureAction, type VentureTx } from '../../records.ts';
 import { readAs } from '../../delivery/shared.ts';
-import type { AssetRecord, DelegateRunRecord, Json, ToolCallRecord, VentureDeps, VentureRecord } from '../../contracts.ts';
+import type { AssetRecord, DelegateRunRecord, ToolCallRecord, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { isStale, sourceDigest, staleLine } from './fingerprint.ts';
 import { madeWithConsentBlock, requireOrderPeopleConsent, todayOf } from './voice-consent.ts';
 import type {
@@ -290,5 +290,3 @@ export async function assetsReuseHandler(deps: VentureDeps, ctx: Context, payloa
   });
 }
 
-/** A JSON-safe copy of a note, for a tool's answer. */
-export const noteJson = (note: AssetNote): Json => structuredClone(note) as unknown as Json;

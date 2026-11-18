@@ -115,4 +115,12 @@ test('ranking: money from receipts only (change, then price), most first; then t
   // Rows with no primary action the owner can take give no step, though the briefing still lists them.
   const none = nextBestStep(state, venture, rows.slice(0, 2), null, IN_APP);
   assert.deepEqual(none, { next: null, briefing: { rowIds: ['read-first', 'later-only'], more: 0 } });
+  // A setup card (confirm tax, keep a recovery code, connect an AI) leads Today's own order, but it is housekeeping: it
+  // is the step only when no other row has an action the owner takes. The briefing keeps Today's order.
+  const setupRow = row('tax', { kind: 'setup', title: 'Confirm your tax', actions: [{ id: 'set-prices', label: 'Confirm tax', primary: true }] });
+  const search = row('search', { kind: 'proposal', title: 'Find possible customers: cafes in Pune' });
+  const housekeeping = nextBestStep(state, venture, [setupRow, search], null, IN_APP);
+  assert.equal(housekeeping.next?.rowId, 'search');
+  assert.deepEqual(housekeeping.briefing, { rowIds: ['tax', 'search'], more: 0 });
+  assert.equal(nextBestStep(state, venture, [setupRow, rows[0]!], null, IN_APP).next?.rowId, 'tax', 'alone with a row that is only read, the setup card is the step');
 });

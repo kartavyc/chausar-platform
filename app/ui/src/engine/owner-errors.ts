@@ -9,11 +9,9 @@
  * call this at their edge (client.ts, fake.ts).
  */
 
-import { DEVELOPER_WORDS, TABLE_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
+import { TABLE_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
 import { CATALOGUES } from '../text';
 import { EngineError } from './types';
-
-export { DEVELOPER_WORDS };
 
 // DEVELOPER_WORDS are looked for (bannedIn, the same helper every owner-words test uses) only on an error no transport
 // marked as the owner's: a desktop or network failure, a fault in this page.

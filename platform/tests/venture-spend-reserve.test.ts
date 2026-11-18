@@ -240,14 +240,16 @@ test('rupees: micro-dollars become paise in BigInt at the owner\'s rate, to the 
   assert.equal(microsToPaise('100', '500000'), 1n, 'exactly half a paisa rounds up');
   assert.equal(microsToPaise('99', '500000'), 0n, 'under half a paisa rounds down');
   assert.equal(rupeesBeside('250000', RUPEES), `₹20.88 ${LABEL}`);
-  assert.equal(rupeesBeside('20000000000', { ...RUPEES, rate: { perUsd: '12345012', setOn: '2026-10-23' } }), '₹2,46,90,024 at ₹1,234.5012 per $1 (your rate, set 23 Oct 2026)', 'Indian grouping; the rate keeps its four places');
+  assert.equal(rupeesBeside('20000000000', { ...RUPEES, rate: { perUsd: '12345012', setOn: '2026-10-23' } }), '₹2,46,90,024 at ₹1,234.50 per $1 (your rate, set 23 Oct 2026)', 'Indian grouping; the rate in words has two decimals, the owner form (the exact four places are typed back in the settings and kept in the receipt)');
   assert.equal(rupeesBeside('250000', null), null, 'no rate: dollars only');
 });
 
 test('rupees: spend settings take rupees per US dollar with the day it was set; the limits show rupees beside dollars', async () => {
   const env = await viewsSetup();
   const plain = await set(env, { capUsd: '20', askFirstUsd: '2.50' });
-  assert.deepEqual([plain.inrPerUsd, plain.rupeeRate, plain.capRupees, plain.askFirstRupees], [null, null, undefined, undefined], 'no rate: dollars only');
+  // Fix round 4 (real-app problem 12): no rate of the owner's own, so a rupee business reads at the dated reference rate.
+  const reference = '₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)';
+  assert.deepEqual([plain.inrPerUsd, plain.rupeeRate, plain.capRupees, plain.askFirstRupees], ['94.3996', reference, `₹1,887.99 at ${reference}`, `₹236 at ${reference}`]);
   const view = await set(env, { inrPerUsd: '83.5' });
   const label = 'at ₹83.50 per $1 (your rate, set 15 Oct 2026)';
   assert.deepEqual(
@@ -259,7 +261,7 @@ test('rupees: spend settings take rupees per US dollar with the day it was set; 
   assert.equal((await set(env, { inrPerUsd: '84' })).rupeeRate, '₹84.00 per $1 (your rate, set 17 Oct 2026)', 'a new rate is dated today');
   await assert.rejects(set(env, { inrPerUsd: '84.12345' }), code('INVALID_AMOUNT'));
   const cleared = await set(env, { inrPerUsd: null });
-  assert.deepEqual([cleared.inrPerUsd, cleared.rupeeRate, cleared.capRupees], [null, null, undefined]);
+  assert.deepEqual([cleared.inrPerUsd, cleared.rupeeRate, cleared.capRupees], ['94.3996', reference, `₹2,359.99 at ${reference}`], 'cleared, the reference rate stands in again');
 });
 
 test('rupees: spend rows, the month total and the AI spend line show rupees beside dollars at the owner\'s rate', async () => {
@@ -267,8 +269,9 @@ test('rupees: spend rows, the month total and the AI spend line show rupees besi
   const list = { item: 'connector:fal', unit: 'per-call' as const, inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: '1000000', source: 'test', checkedOn: '2026-10-15', confirmed: true, by: 'list' as const };
   await paidCall(env.deps, owner, { key: 'render-1', item: 'connector:fal', label: 'Render', payer: 'connector:fal', draftDigest: 'c'.repeat(64), list }, async () => ({ value: 'done', billedMicros: '250000' }));
   const before = await money['venture.spend.list']!(env.deps, owner, {}) as { rows: SpendRow[]; total: string; totalRupees?: string };
-  assert.equal(before.rows[0].reservedRupees, undefined, 'no rate: dollars only');
-  assert.equal(before.totalRupees, undefined);
+  // No rate of the owner's own: the reference rate (1000000 micros: 9440 paise; 250000: 2360).
+  assert.equal(before.rows[0].reservedRupees, '₹94.40 at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)');
+  assert.equal(before.totalRupees, '₹23.60 at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)');
   await set(env, { inrPerUsd: '83.50' });
   const label = 'at ₹83.50 per $1 (your rate, set 15 Oct 2026)';
   const after = await money['venture.spend.list']!(env.deps, owner, {}) as { rows: SpendRow[]; total: string; totalRupees?: string };

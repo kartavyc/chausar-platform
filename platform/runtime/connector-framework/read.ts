@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { digest as canonicalDigest } from '../actions.ts';
+import { digest as canonicalDigest } from '../portable.ts';
 import { check } from '../contracts.ts';
 import { validatePeriod } from '../memory.ts';
 import { connectorOperationKey } from './registry.ts';

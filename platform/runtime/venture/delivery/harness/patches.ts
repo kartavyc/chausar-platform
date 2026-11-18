@@ -147,7 +147,7 @@ export const OWNER_PATCH_OPS: readonly PlaybookPatchOp[] = Object.freeze(['guida
 
 /** Why chat cannot make a change: it would touch what always asks the owner, money, or the tools, checks and limits. */
 export const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, with every approval setting. Chat does not change that.';
-export const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Business, not by an agent's instructions.";
+export const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Settings, not by an agent's instructions.";
 export const CONTROLS_REASON = 'Tools, checks and limits are not changed from chat.';
 /**
  * Words that ask for more than guidance, matched on the words with format characters and soft hyphens taken out and

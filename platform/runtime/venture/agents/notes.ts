@@ -20,6 +20,7 @@ import { digest, exactPayload, identifier, listRecords, plainText, requireAppCha
 import { localDayAt } from '../local-day.ts';
 import { plainHindi, unsaidFigure } from '../delivery/harness/patches.ts';
 import { readAs } from '../delivery/shared.ts';
+import { erase } from '../delivery/run-machine.ts';
 import { listPeople } from '../network/store.ts';
 import { holdsIdNumber } from './answer.ts';
 import { chatAgent, type ChatAgent } from './roles.ts';
@@ -293,11 +294,9 @@ function eraseNote(tx: VentureTx, note: AgentNoteRecord): AgentNoteRecord {
     const pendingCopied = copied(run.agentJob.pendingApproval) || copied(run.agentJob.pendingFacts);
     // These are model-produced copies. The owner's independent steering messages and answers retain their words.
     const calculations = run.agentJob.calculations?.filter(call => !copied(call));
-    tx.replace({ ...run, ...(draftCopied ? { status: 'stopped' as const, deliverable: null, renderedText: null, editedText: null,
-      revision: null, merge: null, checks: [], playbookChecks: [], verdict: null } : pendingCopied ? { status: 'stopped' as const } : {}),
-      agentJob: { ...run.agentJob, messages, ...(calculations ? { calculations } : {}),
-        ...(draftCopied ? { draftDigest: null, proposal: null, reviewReady: false } : {}),
-        ...(pendingCopied ? { pendingApproval: undefined, pendingFacts: undefined } : {}) } });
+    const cleaned = { ...run, agentJob: { ...run.agentJob, messages, ...(calculations ? { calculations } : {}) } };
+    // A draft that copied the note is erased with its run stopped; a pending step or question that copied it is erased alone.
+    tx.replace(draftCopied ? erase(cleaned, tx.now) : pendingCopied ? erase(cleaned, tx.now, 'question') : cleaned);
     tx.emit('run.step', { runId: run.id });
     if (draftCopied || pendingCopied) tx.emit('queue.changed', {});
   }

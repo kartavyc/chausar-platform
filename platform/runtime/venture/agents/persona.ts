@@ -33,6 +33,8 @@ const REPLY_LENGTHS = ['short', 'medium', 'long'] as const;
 const FIELD_CHARS = { tone: 160, greeting: 80, handOffLine: 200, signOff: 80 } as const;
 const TOPICS = 12;
 const TOPIC_CHARS = 60;
+/** The limits, for a caller that tells an AI how long each field may be (agents/hire.ts). */
+export const PERSONA_LIMITS = Object.freeze({ ...FIELD_CHARS, topics: TOPICS, topic: TOPIC_CHARS });
 const FIELD_WORDS = { tone: 'tone', greeting: 'greeting', handOffLine: 'hand-off line', signOff: 'sign-off', blockedTopics: 'blocked topic' } as const;
 
 // ---------------------------------------------------------------------------

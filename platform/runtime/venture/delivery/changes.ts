@@ -11,6 +11,7 @@ import { recordDecision } from '../journal/decisions.ts';
 import { readAs } from './shared.ts';
 import { changeViews, joinParagraphs, mergedText, paragraphs } from './merge.ts';
 import { reopenMark, revisableRun } from './revise.ts';
+import { inReview } from './run-machine.ts';
 
 /** The words beside a merge, and the replacement's own words. */
 export const CHANGE_WORDS = Object.freeze({
@@ -71,7 +72,7 @@ export async function decideChangeHandler(deps: VentureDeps, ctx: Context, paylo
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'delivery.change', tx => {
     const run = revisableRun(tx.state, tx.venture!, runId);
-    check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft is not waiting for your review.');
+    check(inReview(run), 'DELIVERY_NOT_READY', 'This draft is not waiting for your review.');
     check(run.merge, 'INVALID_VENTURE_REQUEST', 'The agent has not revised this draft, so there is nothing to decide.');
     const merge: DraftMerge = structuredClone(run.merge);
     if (changeId === REPLACEMENT_ID) {

@@ -1,4 +1,4 @@
-// D1: the engine, the desktop shell and the companion run by type stripping, so their TypeScript must be erasable.
+// D1: the engine and the desktop shell run by type stripping, so their TypeScript must be erasable.
 // The root tsconfig says so with erasableSyntaxOnly, and tsc then refuses enum and constructor parameter properties.
 import test from 'node:test';
 import assert from 'node:assert/strict';

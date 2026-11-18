@@ -53,7 +53,7 @@ const httpStatus = (code: number, words: string) => `(?:(?:https?(?:/[\\d.]+)?|s
 /** Fixed phrases, in the order they are tried: a refused sign-in first, a dropped connection last. */
 const PHRASES: readonly [AiFailureKind, RegExp][] = [
   ['sign-in-refused', new RegExp(httpStatus(401, 'unauthori[sz]ed'), 'i')],
-  ['sign-in-refused', /\b(?:unauthori[sz]ed|not (?:logged|signed) in|please (?:run )?\/?login|(?:log|sign) ?in again|invalid (?:api[ _-]?key|x-api-key|bearer)|authentication (?:failed|error)|token (?:has )?expired|refresh token|oauth token)\b/i],
+  ['sign-in-refused', /\b(?:unauthori[sz]ed|not (?:logged|signed) in|please (?:run )?\/?login|(?:log|sign) ?in again|invalid (?:api[ _-]?key|x-api-key|bearer)|authentication (?:failed|error)|failed to authenticate|token (?:has )?expired|your session (?:has )?expired|refresh token|oauth (?:token|session))\b/i],
   ['model-missing', /\b(?:model_not_found|model not found|(?:does not|doesn't) (?:exist|have access)|model is not supported|not supported when using codex)\b/i],
   ['usage-limit', /\b(?:usage[ _]limit|insufficient_quota|quota (?:exceeded|reached)|exceeded your (?:current )?quota|credit balance is too low)\b/i],
   ['rate-limited', new RegExp(httpStatus(429, 'too many requests'), 'i')],

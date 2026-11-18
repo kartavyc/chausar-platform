@@ -1,4 +1,4 @@
-// C7 task 17: owner-made trackers. Make, change and remove one; a count cell or text cell with money refuses
+// C7 task 17: owner-made trackers. Make and change one; a count cell or text cell with money refuses
 // TRACKER_MONEY; a receipt from another business refuses; a receipt cell shows the receipt's figure; an estimate cell
 // always carries the label; limits hold; making one is app only.
 import test from 'node:test';
@@ -20,7 +20,7 @@ async function withTracker() {
 }
 const add = (env: any, trackerId: string, cells: unknown) => env.agents('venture.trackers.rows.add', { trackerId, cells });
 
-test('make, change and remove a tracker; rows go with it; app only', async () => {
+test('make and change a tracker; app only', async () => {
   const { env, tracker } = await withTracker();
   assert.equal(tracker.name, 'Work log');
   await add(env, tracker.id, { title: 'First cut', hours: 3, stage: 'Idea' });
@@ -30,9 +30,6 @@ test('make, change and remove a tracker; rows go with it; app only', async () =>
   assert.equal(changed.tracker.name, 'Log');
   await assert.rejects(env.agents('venture.trackers.set', { tracker: { name: 'No', columns: COLUMNS } }, phone), { code: 'APP_APPROVAL_REQUIRED' });
   await assert.rejects(env.agents('venture.trackers.set', { tracker: { name: 'Bad board', columns: COLUMNS, boardBy: 'title' } }), { code: 'INVALID_VENTURE_REQUEST' });
-  await env.agents('venture.trackers.remove', { id: tracker.id });
-  assert.deepEqual((await env.agents('venture.trackers.list', {})).trackers, []);
-  await assert.rejects(env.agents('venture.trackers.get', { id: tracker.id }), { code: 'TRACKER_NOT_FOUND' });
 });
 
 test('money gets in only by a receipt or an estimate', async () => {

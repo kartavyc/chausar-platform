@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError } from '../../src/engine/types';
+import { LEAD_SOURCE_WORDS } from '../../../../platform/runtime/venture/customers/lead-source';
 
 type Fake = ReturnType<typeof createFakeClient>;
 
@@ -31,6 +32,59 @@ async function draft(sheet: HTMLElement, subject: string, message: string) {
   type(within(sheet).getByLabelText('Message'), message);
   await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Draft it' })); });
 }
+
+// Found on Windows, 16 Nov 2026 (screen 211): "Where you found them" took only a web address, so a referral could
+// not be added. The owner's own words are now a source too, kept and shown as the owner's statement.
+describe('Clients: a lead the owner knows, added in their own words', () => {
+  it('the fake engine takes the page or the owner\'s words exactly as the engine does', async () => {
+    const client = createFakeClient(new FakeEngine());
+    const refusal = (promise: Promise<unknown>) => promise.then(() => 'no refusal', (error: EngineError) => `${error.code}: ${error.message}`);
+    const referred = await client.request('venture.leads.add', { name: 'Ravi Menon', sourceNote: '  Referred by Asha at the trade fair ' });
+    expect([referred.sourceUrl, referred.sourceNote]).toEqual([null, 'Referred by Asha at the trade fair']);
+    const paged = await client.request('venture.leads.add', { name: 'Asha Rao', sourceUrl: 'https://directory.example/pune/cafes' });
+    expect([paged.sourceUrl, paged.sourceNote]).toEqual(['https://directory.example/pune/cafes', null]);
+    expect(await refusal(client.request('venture.leads.add', { name: 'Kiran' }))).toBe(`LEADS_SOURCE_REQUIRED: ${LEAD_SOURCE_WORDS.either}`);
+    expect(await refusal(client.request('venture.leads.add', { name: 'Kiran', sourceUrl: 'a friend told me' }))).toBe(`LEADS_SOURCE_REQUIRED: ${LEAD_SOURCE_WORDS.either}`);
+    expect(await refusal(client.request('venture.leads.add', { name: 'Kiran', sourceNote: 'ab' }))).toBe(`LEADS_SOURCE_REQUIRED: ${LEAD_SOURCE_WORDS.either}`);
+    expect(await refusal(client.request('venture.leads.add', { name: 'Kiran', sourceNote: 'https://directory.example/pune' }))).toBe(`LEADS_SOURCE_REQUIRED: ${LEAD_SOURCE_WORDS.pageAsWords}`);
+    expect(await refusal(client.request('venture.leads.add', { name: 'Kiran', sourceUrl: 'https://directory.example/pune', sourceNote: 'Referred by Asha' }))).toBe(`INVALID_VENTURE_REQUEST: ${LEAD_SOURCE_WORDS.both}`);
+  });
+
+  it('Add a lead takes "referred by ..." in words, sends it as the owner\'s statement, and the lead says "You said"', async () => {
+    window.location.hash = '#/clients/leads?sheet=lead:new';
+    const client = createFakeClient(new FakeEngine());
+    const spy = vi.spyOn(client, 'request');
+    render(<App client={client} language="en" />);
+    const sheet = await screen.findByRole('complementary', { name: 'Add a lead' });
+    const source = within(sheet).getByRole('textbox', { name: 'Where you found them' });
+    expect(source.getAttribute('type')).toBe('text');
+    expect(within(sheet).getByText('A web page, or your own words, like "referred by Asha".')).toBeTruthy();
+    fireEvent.change(within(sheet).getByRole('textbox', { name: 'Name' }), { target: { value: 'Ravi Menon' } });
+    fireEvent.change(source, { target: { value: 'Referred by Asha at the trade fair' } });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add lead' })); });
+    await waitFor(() => expect(spy.mock.calls.filter((call) => call[0] === 'venture.leads.add').map((call) => call[1])).toEqual([{ name: 'Ravi Menon', sourceNote: 'Referred by Asha at the trade fair' }]));
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    const added = await screen.findByRole('complementary', { name: 'Ravi Menon' });
+    await waitFor(() => expect(added.querySelector('[data-lead-source]')?.textContent).toBe('Referred by Asha at the trade fair'));
+    expect(within(added).getByText('You said')).toBeTruthy();
+    expect(added.querySelector('[data-lead-source]')?.hasAttribute('data-code')).toBe(false);
+  });
+
+  it('a web address typed there still goes in as the page, with or without https', async () => {
+    for (const [typed, sent] of [['https://example.in/team', 'https://example.in/team'], ['www.example.in/team', 'https://www.example.in/team']] as const) {
+      window.location.hash = '#/clients/leads?sheet=lead:new';
+      const client = createFakeClient(new FakeEngine());
+      const spy = vi.spyOn(client, 'request');
+      const view = render(<App client={client} language="en" />);
+      const sheet = await screen.findByRole('complementary', { name: 'Add a lead' });
+      fireEvent.change(within(sheet).getByRole('textbox', { name: 'Name' }), { target: { value: 'Asha Rao' } });
+      fireEvent.change(within(sheet).getByRole('textbox', { name: 'Where you found them' }), { target: { value: typed } });
+      await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add lead' })); });
+      await waitFor(() => expect(spy.mock.calls.filter((call) => call[0] === 'venture.leads.add').map((call) => call[1])).toEqual([{ name: 'Asha Rao', sourceUrl: sent }]));
+      view.unmount();
+    }
+  });
+});
 
 describe('Clients: leads', () => {
   // Ink v2 (3E2): the leads live on the Pipeline tab, as cards on a board of the engine's stages; the tabs are
@@ -69,17 +123,17 @@ describe('Clients: leads', () => {
     expect(sheet.textContent).toContain('asha@pocketaudio.in');
   });
 
-  it('adds a lead only with the page it was found on, and says the engine\'s words when the page is wrong', async () => {
+  it('adds a lead only once it says where it came from, and says the engine\'s words when that says nothing', async () => {
     const { spy } = await start();
     await click(await screen.findByRole('button', { name: 'Add a lead' }));
     const sheet = await screen.findByRole('complementary', { name: 'Add a lead' });
     const add = within(sheet).getByRole('button', { name: 'Add lead' }) as HTMLButtonElement;
     type(within(sheet).getByLabelText('Name'), 'Ravi Menon');
     expect(add.disabled).toBe(true);
-    expect(within(sheet).getByText('The web page, like https://example.in/team. A lead needs one.')).toBeTruthy();
-    type(within(sheet).getByLabelText('Where you found them'), 'a friend told me');
+    expect(within(sheet).getByText('A web page, or your own words, like "referred by Asha".')).toBeTruthy();
+    type(within(sheet).getByLabelText('Where you found them'), '??');
     await act(async () => { fireEvent.click(add); });
-    await waitFor(() => expect(within(sheet).getByText(/A lead needs the web page you found them on/)).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText(LEAD_SOURCE_WORDS.either)).toBeTruthy());
     expect(within(sheet).getByLabelText('Where you found them').getAttribute('aria-invalid')).toBe('true');
     type(within(sheet).getByLabelText('Where you found them'), 'https://example.in/team');
     type(within(sheet).getByLabelText('Email'), 'ravi@example.in');
@@ -157,6 +211,7 @@ describe('Clients: leads', () => {
     const client = createFakeClient(new FakeEngine());
     const refusal = (promise: Promise<unknown>) => promise.then(() => 'answered', (error: { code?: string }) => error.code);
     expect(await refusal(client.request('venture.leads.add', { name: 'Ravi Menon', sourceUrl: 'a friend told me' }))).toBe('LEADS_SOURCE_REQUIRED');
+    expect(await refusal(client.request('venture.leads.add', { name: 'Ravi Menon' }))).toBe('LEADS_SOURCE_REQUIRED');
     expect(await refusal(client.request('venture.leads.draft', { leadId: 'lead-missing', subject: 'Hello there', body: 'A short note about our mic tests.' }))).toBe('LEADS_NOT_FOUND');
     expect(await refusal(client.request('venture.leads.draft', { leadId: 'lead-kite', subject: 'Hello there', body: 'A short note about our mic tests.' }))).toBe('LEADS_EMAIL_UNVERIFIED');
     await client.request('workspace.open', { folder: 'ledgerline' });

@@ -11,19 +11,16 @@ import { findRecord, ventureAction } from '../../records.ts';
 import type { Context } from '../../../contracts.ts';
 import type { HarnessState, IsoTime, Json, RoundGate, RoundGateReason, VentureDeps } from '../../contracts.ts';
 import { TURN_CHOICES } from './patches.ts';
+import { STOP_LINES } from '../run-machine.ts';
 
 /** The line on a call the owner's stop kept from starting. */
 export const STOPPED_CALL = 'You stopped the run, so this call did not run.';
-/** The run's line once the owner's stop took effect. */
-export const STOPPED_BY_YOU = 'Stopped by you. Finished steps are kept.';
+/** The run's line once the owner's stop took effect (the machine's own words, run-machine.ts STOP_LINES). */
+export const STOPPED_BY_YOU = STOP_LINES.owner;
 /** A2: what a run says when the idle-run watchdog stopped a quiet AI job (agent-runtime/runner.ts). */
-export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
+export const QUIET_LINE = STOP_LINES.quiet;
 /** A2 second review: what a run says when an AI job ran past the watchdog's time limit (agent-runtime/runner.ts). */
-export const TIME_LINE = 'The AI ran past its time limit, so Chausar stopped it. Its work so far is kept.';
-/** The watchdog's line for a native AI job it stopped, or null when it did not stop it. */
-export const watchdogLine = (job: { quiet?: boolean; overtime?: boolean } | undefined | null): string | null => (job?.quiet ? (job.overtime ? TIME_LINE : QUIET_LINE) : null);
-/** The run's line once the owner's force stop cut the step in progress. */
-export const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
+export const TIME_LINE = STOP_LINES.overtime;
 /** Why the gate stopped a run that kept ending the same way. */
 export const SAME_WAY_LINE = 'Stopped: three rounds ended the same way.';
 /** Chausar's words to the agent when the owner's notes ride along. The notes themselves are the owner's words. */
@@ -34,11 +31,6 @@ export const GATE_EVERY: readonly RoundGate['every'][] = Object.freeze([1, 2, 3,
 const MAX_TURNS = Math.max(...TURN_CHOICES.map(Number));
 /** Refusals before a call ran: a round made only of these is blocked, not failing. */
 const REFUSED = new Set(['TOOL_DENIED', 'POLICY_DENIED', 'TIER_UNAVAILABLE']);
-
-/** True while a stop the owner asked for has not taken effect yet (the run is stopping). */
-export function stopAsked(state: Pick<HarnessState, 'control'> | null | undefined): boolean {
-  return !!state?.control?.stop && !state.control.stoppedAt;
-}
 
 // ---------------------------------------------------------------------------
 // The owner's words for the next turn
@@ -72,16 +64,6 @@ export function takeOwnerWords(state: HarnessState, turn: number, callId: string
 }
 
 const noteKey = (note: { at: string; text: string }) => `${note.at}\u0000${note.text}`;
-
-/**
- * Stamps the waiting notes a preview carried with that preview's call, on the loop state stored with it: previewed is
- * the state the preview's text was built from, so a note that arrived after the text was built is not stamped.
- */
-export function stampOwnerWords(stored: HarnessState, previewed: Pick<HarnessState, 'steer'>, callId: string): HarnessState {
-  const carried = new Set((previewed.steer ?? []).filter(note => note.pickedUpTurn === null).map(noteKey));
-  if (!carried.size || !stored.steer?.length) return stored;
-  return { ...stored, steer: stored.steer.map(note => (note.pickedUpTurn === null && carried.has(noteKey(note)) ? { ...note, callId } : note)) };
-}
 
 // ---------------------------------------------------------------------------
 // The round gate
@@ -141,85 +123,9 @@ export function gateAfterRound(state: HarnessState, at: IsoTime): HarnessState {
   return state;
 }
 
-/** True while the gate holds the run for the owner after a round, even if the owner turned it off meanwhile. */
-export function gateWaits(state: Pick<HarnessState, 'gate'> | null | undefined): boolean {
-  return !!state?.gate?.waiting;
-}
-
 /** The cap the run is held to now: the playbook's limit plus the windows the owner allowed. */
 function capMicros(state: HarnessState): bigint {
   return (state.capWindows ?? []).reduce((total, window) => total + BigInt(window.micros), BigInt(state.limits.maxCostMicros));
-}
-
-/**
- * Whether Continue at a limit may give the run 2 more turns: once per run, only for a turn or tool call limit (more
- * spend has its own window on Today), and never past the largest turn choice.
- */
-export function canAddTurns(state: HarnessState): boolean {
-  const gate = state.gate;
-  if (!gate || gate.extraTurns > 0 || gate.waiting?.reason !== 'limit') return false;
-  const out = state.used.turns >= state.limits.maxTurns || state.used.toolCalls >= state.limits.maxToolCalls;
-  return out && BigInt(state.used.costMicros) < capMicros(state) && state.limits.maxTurns + 2 <= MAX_TURNS;
-}
-
-/**
- * The owner's Continue at the gate: it opens, their words (if any) wait for the next turn, and at a limit the run gets
- * 2 more turns once (two more turns' worth of tool calls too); otherwise a limit goes on to write what was found.
- */
-export function continueGate(state: HarnessState, words: string | null): HarnessState {
-  const next: HarnessState = structuredClone(state);
-  const gate = next.gate!;
-  const more = canAddTurns(next);
-  next.gate = { ...gate, waiting: null, ownerNote: words ?? gate.ownerNote ?? null, extraTurns: more ? gate.extraTurns + 2 : gate.extraTurns };
-  if (more) {
-    const limits = next.limits;
-    next.limits = { ...limits, maxTurns: limits.maxTurns + 2, maxToolCalls: limits.maxToolCalls + 2 * limits.maxCallsPerTurn };
-    next.stopReason = null;
-    next.phase = 'act';
-  }
-  return next;
-}
-
-/** The gate as the owner set it: on or off, how often; turning it off lets a waiting run go on. */
-export function setGate(state: HarnessState, on: boolean, every: RoundGate['every']): HarnessState {
-  const next: HarnessState = structuredClone(state);
-  const gate = next.gate ?? { on, every, waiting: null, ownerNote: null, extraTurns: 0 };
-  next.gate = { ...gate, on, every, waiting: on ? gate.waiting : null };
-  return next;
-}
-
-// ---------------------------------------------------------------------------
-// Carrying the owner's changes across a turn in flight
-// ---------------------------------------------------------------------------
-
-/**
- * The controls the owner changed while a turn ran, carried onto the state that turn made (next) from the stored run
- * (live): a stop asked for meanwhile; the notes, each as the turn left it and new ones as sent; and the gate's switch
- * and pace. A stop the gate itself made wins.
- */
-export function carryControls(next: HarnessState, live: HarnessState | null | undefined): HarnessState {
-  if (!live) return next;
-  const merged: HarnessState = structuredClone(next);
-  if (!merged.control?.stoppedAt && live.control) merged.control = structuredClone(live.control);
-  if (live.steer?.length) {
-    const made = new Map((merged.steer ?? []).map(note => [noteKey(note), note]));
-    merged.steer = live.steer.map(note => made.get(noteKey(note)) ?? structuredClone(note));
-  }
-  // The gate's switch and pace as the owner left them; a hold the turn made stays, so a run never waits with no way on.
-  if (live.gate) {
-    const gate = merged.gate ?? { ...live.gate, waiting: null };
-    merged.gate = { ...gate, on: live.gate.on, every: live.gate.every };
-  }
-  return merged;
-}
-
-/** The stop taking effect now: the run's line says who stopped it and what was kept. */
-export function stoppedNow(state: HarnessState, at: IsoTime, line: string): HarnessState {
-  const next: HarnessState = structuredClone(state);
-  const stop = next.control?.stop ?? { at, by: 'chausar', force: false };
-  next.control = { stop, stoppedAt: next.control?.stoppedAt ?? at, line: next.control?.line ?? line };
-  if (next.gate) next.gate = { ...next.gate, waiting: null };
-  return next;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +133,7 @@ export function stoppedNow(state: HarnessState, at: IsoTime, line: string): Harn
 // ---------------------------------------------------------------------------
 
 /**
- * stopRequested: read from the vault between calls, true once the owner asked to stop this run, stopped it, or the run
+ * stopRequested: read from the vault between calls, true once the run is stopped, or the run
  * no longer waits on this turn's call (turnCallId): a turn the run moved on from never runs another tool.
  * callProgress: one run.call event per call as it starts and ends, with ids only (the run, the tool call and the turn's
  * model call) and its state; it never fails a call.
@@ -239,7 +145,7 @@ export function runControlHooks(deps: VentureDeps, ctx: Context, ventureId: stri
     stopRequested: () => {
       const run = findRecord(deps.store.read(), 'venture-delivery-run', runId);
       if (!run || run.ventureId !== ventureId) return true;
-      return run.status === 'stopped' || stopAsked(run.harness) || (turnCallId !== null && run.callId !== turnCallId);
+      return run.status === 'stopped' || (turnCallId !== null && run.callId !== turnCallId);
     },
     callProgress: async (callId, state) => {
       const data = { runId, callId, state, ...(turnCallId ? { modelCallId: turnCallId } : {}) };

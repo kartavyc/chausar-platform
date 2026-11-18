@@ -10,7 +10,7 @@ type LeadGenerationToolName = Extract<ToolName, 'leads.osm' | 'leads.enrich' | '
 export const LEAD_GENERATION_TOOLS: Readonly<Record<LeadGenerationToolName, Spec>> = Object.freeze({
   'leads.osm': { name: 'leads.osm', effect: 'read', tier: 'code', endsTurn: false, summary: 'Reads bounded local businesses from OpenStreetMap with attribution, for the city and OSM business tag at intake. Never scrapes Maps or directories.', input: { city: textField('The city named at intake.'), vertical: textField('An OSM tag, such as shop=bakery.'), count: textField('Prospect limit; defaults to ten.', 2, false) }, async run(env, input) {
     for (const key of ['city', 'vertical']) if (typeof env.intake?.fields?.[key] === 'string') check(input[key] === env.intake.fields[key], 'LEAD_INTAKE_CHANGED', 'Research only the city and business kind the owner approved at intake.');
-    const [{ osmLeads }, { citiesFor }] = await Promise.all([import('../../playbooks/lead-generation/osm.ts'), import('../../playbooks/lead-generation/nominatim.ts')]);
+    const [{ osmLeads }, { citiesFor }] = await Promise.all([import('../../customers/sources/osm.ts'), import('../../customers/sources/nominatim.ts')]);
     const [{ findRecord, requireVenture }, { pipelineSettings }, { coldEmailMonthPlan }, { acceptedBlueprintOrNull }] = await Promise.all([import('../../records.ts'), import('../../network/pipeline.ts'), import('../../playbooks/lead-generation/daily-run.ts'), import('../shared.ts')]);
     const state = env.deps.store.read();
     const run = env.runRef.kind === 'delivery' ? findRecord(state, 'venture-delivery-run', env.runRef.runId) : undefined;
@@ -27,11 +27,11 @@ export const LEAD_GENERATION_TOOLS: Readonly<Record<LeadGenerationToolName, Spec
     const box = await citiesFor(env.deps.net).find(input.city);
     return { result: { offerPlan, prospects: await osmLeads({ box, vertical: input.vertical, count }, env.deps.net), note: 'OSM has gaps for small Indian shops; a missing listing is not proof a shop does not exist.' } };
   } },
-  'leads.enrich': { name: 'leads.enrich', effect: 'read', tier: 'code', endsTurn: false, summary: 'Reads the business own homepage and a few same-host contact pages, respects robots, and returns at most three useful emails. Never reads directories or LinkedIn.', input: { url: textField('The business own website.', 1000) }, async run(env, input) { const { enrichSite } = await import('../../playbooks/lead-generation/enrich.ts'); return { result: await enrichSite(input.url, env.deps.net) }; } },
+  'leads.enrich': { name: 'leads.enrich', effect: 'read', tier: 'code', endsTurn: false, summary: 'Reads the business own homepage and a few same-host contact pages, respects robots, and returns at most three useful emails. Never reads directories or LinkedIn.', input: { url: textField('The business own website.', 1000) }, async run(env, input) { const { enrichSite } = await import('../../customers/sources/enrich.ts'); return { result: await enrichSite(input.url, env.deps.net) }; } },
   'leads.dedupe': { name: 'leads.dedupe', effect: 'compute', tier: 'code', endsTurn: false, summary: 'Deduplicates sourced prospects by stable place id, domain, then normalised name and address.', input: { prospects: textField('JSON array of sourced prospect records.', 11000) }, async run(_env, input) {
     const rows = parsed(input.prospects);
     check(Array.isArray(rows) && rows.length <= 100 && rows.every(row => row && typeof row.name === 'string' && typeof row.address === 'string' && typeof row.sourceUrl === 'string' && typeof row.licence === 'string' && (row.website === null || typeof row.website === 'string') && (row.osmId === null || typeof row.osmId === 'string')), 'INVALID_VENTURE_REQUEST', 'Send a bounded array of sourced prospects.');
-    const { dedupeProspects } = await import('../../playbooks/lead-generation/dedupe.ts'); return { result: { prospects: dedupeProspects(rows) } };
+    const { dedupeProspects } = await import('../../customers/sources/dedupe.ts'); return { result: { prospects: dedupeProspects(rows) } };
   } },
   'community.vote': { name: 'community.vote', effect: 'compute', tier: 'code', endsTurn: false, summary: 'Reads the exact community evidence and product confirmed by the owner in the community desk. Never accepts model assertions of owner permission or invented posts.', input: { sourceId: textField('An owner-confirmed source id; omit to list up to twenty recent approved sources.', 100, false) }, async run(env, input) {
     if (input.sourceId === undefined) {

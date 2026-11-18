@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { useT, type T } from '../../text';
+import { fixedWords } from '../today/plan-words';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { refusalWords } from '../../parts/custody';
@@ -145,7 +146,7 @@ function StoppedRun({ run, detail, business, row, noRetry, onChanged }: StoppedR
               type="button" className={s.titleButton} data-open=""
               onClick={(event) => { again.opened(); openSheet('run', run.runId, event.currentTarget); }}
             >
-              {run.purpose}
+              {fixedWords(t)(run.purpose)}
             </button>
           </h3>
           <p className={s.stopMeta}>{meta}</p>

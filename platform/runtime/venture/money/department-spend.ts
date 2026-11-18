@@ -27,9 +27,9 @@ import { countedMicros, dollarsLead, rupeeFigure, rupeeRateWords, spendRow, type
 import type { Addend, SumPlan } from './sums.ts';
 import { playbookInUse, teamFlagship } from '../views/team-shape.ts';
 import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
+import { drafted } from '../delivery/run-machine.ts';
 
 /** Delivery run statuses that reached ready-for-review or later: a job done. */
-const DONE_STATUSES: readonly DeliveryRunRecord['status'][] = ['ready-for-review', 'accepted', 'edited', 'rejected'];
 
 export type SpendWhere = DepartmentId | 'shared';
 type Job = { recordId: string; at: string; label: string; department: DepartmentId };
@@ -221,7 +221,7 @@ function jobsOf(ledger: TeamLedger): Job[] {
   const clientOf = new Map(listRecords(state, 'venture-order', venture.id).map(order => [order.id, clients.get(order.clientId) ?? 'a client']));
   const jobs: Job[] = [];
   for (const run of listRecords(state, 'venture-delivery-run', venture.id)) {
-    if (!DONE_STATUSES.includes(run.status)) continue;
+    if (!drafted(run)) continue;
     const at = run.verdict?.at ?? events.get(run.id) ?? run.at;
     jobs.push({ recordId: run.id, at, label: `Draft for ${clientOf.get(run.orderId) ?? 'a client'}, ${day(at)}`, department: draftingDepartment(ledger, run) });
   }

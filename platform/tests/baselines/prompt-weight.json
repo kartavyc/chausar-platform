@@ -1,8 +1,8 @@
 {
   "about": {
-    "instructionChars": 1575,
-    "inputChars": 6224,
-    "schemaChars": 1784
+    "instructionChars": 4454,
+    "inputChars": 7017,
+    "schemaChars": 2879
   },
   "country-suggestion": {
     "instructionChars": 643,
@@ -13,26 +13,6 @@
     "instructionChars": 294,
     "inputChars": 240,
     "schemaChars": 721
-  },
-  "decide": {
-    "instructionChars": 799,
-    "inputChars": 1295,
-    "schemaChars": 761
-  },
-  "decide-repair": {
-    "instructionChars": 912,
-    "inputChars": 1367,
-    "schemaChars": 761
-  },
-  "compose": {
-    "instructionChars": 667,
-    "inputChars": 7637,
-    "schemaChars": 4147
-  },
-  "compose-repair": {
-    "instructionChars": 780,
-    "inputChars": 7709,
-    "schemaChars": 4147
   },
   "plan-suggest": {
     "instructionChars": 822,
@@ -86,9 +66,9 @@
     "schemaChars": 282
   },
   "triage-rule": {
-    "instructionChars": 493,
+    "instructionChars": 575,
     "inputChars": 119,
-    "schemaChars": 328
+    "schemaChars": 541
   },
   "app-make": {
     "instructionChars": 2138,
@@ -99,6 +79,11 @@
     "instructionChars": 287,
     "inputChars": 112,
     "schemaChars": 193
+  },
+  "chief-review": {
+    "instructionChars": 1880,
+    "inputChars": 568,
+    "schemaChars": 1224
   },
   "outreach-draft": {
     "instructionChars": 795,

@@ -3,7 +3,8 @@
 // currency (its change, then its price, then its paper preview): never from a model, an estimate or text on the row.
 // Rows rank by that money, most first; then by the nearest real deadline; then in Today's own order. Rows without money
 // come after rows with money. The step is the first ranked row whose primary action the owner takes (never Not now,
-// Read or Watch in its place), said as that action inside the app; Chausar does nothing on its own here. "Goal after"
+// Read or Watch in its place), a setup card only when no other row has one, said as that action inside the app; Chausar
+// does nothing on its own here. "Goal after"
 // is code: what the month's goal reads once that draft invoice is issued.
 import { formatMoney } from '../../owner-format.ts';
 import { type State } from '../../contracts.ts';
@@ -11,6 +12,8 @@ import { listRecords } from '../records.ts';
 import type { MoneyFigureView, NextBestStep, QueueAction, QueueRow, VentureRecord } from '../contracts.ts';
 import { beforeTax } from './goal-plans.ts';
 
+/** The kind of Today's housekeeping cards (views/queue.ts setupRows), as the chief's plan reads it too (chief/plan-view.ts). */
+export const SETUP_KIND = 'setup';
 /** The most rows the briefing names before it says how many more there are. */
 export const BRIEFING_MAX = 6;
 
@@ -96,7 +99,7 @@ function goalAfterPercent(state: State, venture: VentureRecord, row: QueueRow, p
 }
 
 /**
- * The next best step (the first ranked row whose primary action the owner takes) and the briefing (the first six
+ * The next best step (the first ranked row whose primary action the owner takes, housekeeping last) and the briefing (the first six
  * ranked rows, with how many more there are). No rows gives neither; rows with no such action give a briefing only.
  */
 export function nextBestStep(
@@ -104,7 +107,10 @@ export function nextBestStep(
 ): { next: NextBestStep | null; briefing: { rowIds: string[]; more: number } | null } {
   const ranked = rankedRows(state, venture, rows);
   if (!ranked.length) return { next: null, briefing: null };
-  const chosen = ranked.find(item => stepAction(item.row) !== null);
+  // A setup card (confirm tax, keep a recovery code, connect an AI) is housekeeping: it blocks no earning, so it is the
+  // step only when no other row has one (found live, 15 Nov 2026: "Confirm your tax" led three owners' weeks).
+  const takes = ranked.filter(item => stepAction(item.row) !== null);
+  const chosen = takes.find(item => item.row.kind !== SETUP_KIND) ?? takes[0];
   const after = chosen ? goalAfterPercent(state, venture, chosen.row, progress) : null;
   const next: NextBestStep | null = chosen ? {
     rowId: chosen.row.id, title: chosen.row.title, agent: chosen.row.agent ?? null, line: actionLine(chosen.row, stepAction(chosen.row)!, options.inApp),

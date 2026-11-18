@@ -75,7 +75,6 @@ const CASES: { name: string; hash: string }[] = [
   { name: 'Money, invoices', hash: '#/money/invoices' },
   { name: 'Connections', hash: '#/connections' },
   { name: 'Connections, your AI', hash: '#/connections/ai' },
-  { name: 'Start', hash: '#/onboarding' },
 ];
 
 describe('every place in English shows no key and no unfilled value', () => {

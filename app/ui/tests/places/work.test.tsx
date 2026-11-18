@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type MethodName, type OrderLite } from '../../src/engine/types';
@@ -56,7 +56,8 @@ describe('Work: runs', () => {
   });
 
   it('folds previous runs to one line: agent, result, receipt, time; a model number is labelled and has no receipt', async () => {
-    await start();
+    // Work lists the open business's runs, as the engine does: the Bookkeeper's run is Ledgerline's.
+    await start('#/work', { folder: 'ledgerline' });
     // Ink v2 (3E1): "Previous" is D's "Finished", one list row per run with its receipt chip and time at the end.
     const previous = await screen.findByRole('region', { name: 'Finished' });
     const books = await rowOf('Matched September bank lines to invoices', previous);
@@ -65,7 +66,9 @@ describe('Work: runs', () => {
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     expect(within(books).getByText('Took 4 min')).toBeTruthy();
-    const reach = await rowOf('Estimated reach for episode 14', previous);
+    cleanup();
+    await start();
+    const reach = await rowOf('Estimated reach for episode 14', await screen.findByRole('region', { name: 'Finished' }));
     expect(reach.textContent).toContain('Researcher');
     expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
     expect(within(reach).getByText('model estimate')).toBeTruthy();
@@ -126,17 +129,17 @@ describe('Work: filter in the address', () => {
     expect(window.location.hash).toBe('#/work?state=done');
     await go('#/work?state=failed');
     expect(await screen.findByText('Rendering the thumbnail set')).toBeTruthy();
-    expect(screen.queryByText('Matched September bank lines to invoices')).toBeNull();
+    expect(screen.queryByText('Estimated reach for episode 14')).toBeNull();
     expect(screen.queryByRole('region', { name: 'Running now' })).toBeNull();
     expect(screen.queryByText('Two mentions in episode 14')).toBeNull();
 
     await go('#/work?state=done');
-    expect(await screen.findByText('Matched September bank lines to invoices')).toBeTruthy();
+    expect(await screen.findByText('Estimated reach for episode 14')).toBeTruthy();
     expect(screen.queryByText('Rendering the thumbnail set')).toBeNull();
 
     await go('#/work?state=orders');
     expect(await screen.findByText('Two mentions in episode 14')).toBeTruthy();
-    expect(screen.queryByText('Matched September bank lines to invoices')).toBeNull();
+    expect(screen.queryByText('Estimated reach for episode 14')).toBeNull();
 
     await go('#/work?state=active');
     expect(await screen.findByRole('region', { name: 'Running now' })).toBeTruthy();
@@ -256,7 +259,7 @@ describe('Work: one order from the address', () => {
     await act(async () => { fireEvent.click(within(nav).getByRole('button', { name: 'Done' })); });
     expect(window.location.hash).toBe('#/work?state=done');
     await go('#/work?state=done');
-    expect(await screen.findByText('Matched September bank lines to invoices')).toBeTruthy();
+    expect(await screen.findByText('Estimated reach for episode 14')).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Jobs' })).toBeNull();
   });
 

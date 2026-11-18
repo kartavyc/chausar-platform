@@ -6,8 +6,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { BlueprintModelOutput, BlueprintView, Json, ModelHttpRequest, ModelProcessRequest, ModelReplayFixture, PlanSuggestionView } from '../runtime/venture/contracts.ts';
-import { DOG_COMPOSE, DOG_DECIDE, DOG_TEXT, MODELS, planEntries, replay } from './fixtures/venture/compose-unit/plans.ts';
-import { PASSPHRASE, compose, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
+import { DOG_COMPOSE, DOG_PLAN_WORDS, DOG_TEXT, MODELS, anthropicEntry, replay } from './fixtures/venture/compose-unit/plans.ts';
+import { PASSPHRASE, business as keptBusiness, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 const ASK = 'Add night walks for vets who work night shifts.';
@@ -25,7 +25,8 @@ function entry(purpose: 'plan-suggest' | 'blueprint', value: unknown, mustInclud
 }
 
 /** The AI's words for "Rewrite with AI" on the dog walking plan: its own two offers and four steps, no added offer. */
-const REWRITE: Omit<BlueprintModelOutput, 'approvals'> = {
+const REWRITE: BlueprintModelOutput = {
+  approvals: DOG_PLAN_WORDS.approvals,
   name: 'Shift Paws Leeds', oneLiner: 'Dog walks around the shifts nurses work in Leeds.', customer: 'Nurses in Leeds on long or late shifts.',
   offers: [
     { id: 'offer_1', name: 'Weekly walks', description: 'Regular walks on the days you work.' },
@@ -38,13 +39,12 @@ const REWRITE: Omit<BlueprintModelOutput, 'approvals'> = {
 };
 
 async function business(t: any, extra: ModelReplayFixture['responses']) {
-  const inner = replay([...planEntries(DOG_TEXT, DOG_DECIDE, DOG_COMPOSE), ...extra]);
+  const inner = replay([anthropicEntry('blueprint', DOG_PLAN_WORDS, ['Dog walking for']), ...extra]);
   const transport = { replay: true, http: (request: ModelHttpRequest) => inner.http(request), process: (request: ModelProcessRequest) => inner.process(request) };
   const { engine } = await engineFor(t, { transport });
   await connectPair(engine);
-  const { plan } = await compose(engine, DOG_TEXT, 'GB');
-  await engine.request('workspace.create', { name: 'Shift Paws Leeds', passphrase: PASSPHRASE, pack: 'services' });
-  await engine.request('venture.create', { idea: DOG_TEXT, countryCode: 'GB', workingName: 'Shift Paws Leeds', composeId: plan.composeId, composedDigest: plan.digest });
+  // Shift Paws Leeds, made as the first run makes it, its first plan in the AI's words.
+  await keptBusiness(engine, { name: 'Shift Paws Leeds', idea: DOG_TEXT, countryCode: 'GB', draft: {} });
   return engine;
 }
 

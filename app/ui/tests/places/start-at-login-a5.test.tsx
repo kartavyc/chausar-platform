@@ -4,11 +4,12 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { createFakeBackground } from '../../src/engine/fake-background';
 import type { EngineClient } from '../../src/engine/types';
-import { answerSideWork } from './first-run-steps';
+import { answerSideWork, skipAi } from './first-run-steps';
 
 /**
- * One-shot A5 (founder answer 5; hands-on rows 4, 88, 114, S12, bug 8): start at login is asked in onboarding, ticked by
- * default, and nothing is registered until the owner goes on. Business > Notifications shows it and Keep running as
+ * One-shot A5 (founder answer 5; hands-on rows 4, 88, 114, S12, bug 8): start at login is asked in onboarding, and
+ * nothing is registered until the owner goes on. Round 5 (re-check 011): it is standing configuration on the owner's
+ * computer, so it starts unticked everywhere it is asked and only the owner's own tick turns it on. Business > Notifications shows it and Keep running as
  * switches, with the computer's own state. Only the installed app has them; elsewhere nothing shows.
  */
 const TICK = 'Start Chausar when you sign in to this computer';
@@ -32,7 +33,7 @@ function start(options: { fresh?: boolean; hash?: string; computer?: ReturnType<
 async function press(name: string | RegExp) { const button = await screen.findByRole('button', { name }, { timeout: 4000 }); await act(async () => { fireEvent.click(button); }); }
 async function toServices() {
   timeZone('Asia/Kolkata');
-  await press('Skip for now: use templates');
+  await skipAi();
   await press(/^Teaching and coaching/);
   await press('Keep this plan');
   await answerSideWork();
@@ -42,27 +43,34 @@ async function toServices() {
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('first run: start at login (A5)', () => {
-  it('asks on the services step, ticked, and registers it only when the owner goes on', async () => {
+  it('asks on the services step, unticked: going on without a tick saves the no and registers nothing', async () => {
     const { computer } = start();
     await toServices();
     const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
-    expect(tick.checked).toBe(true);
-    expect(screen.getByText('It opens quietly in the tray, so scheduled work keeps going. Change it any time in Business, Notifications.')).toBeTruthy();
+    expect(tick.checked).toBe(false);
+    expect(screen.getByText('It opens quietly in the tray, so scheduled work keeps going. Change it any time in Settings, Notifications.')).toBeTruthy();
+    expect(computer!.changes).toEqual([]);
+    await press('Go to Today');
+    await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
+    expect(computer!.computer.registered).toBe(false);
+  }, 20000);
+
+  it('ticked by the owner, it registers only when the owner goes on', async () => {
+    const { computer } = start();
+    await toServices();
+    const box = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+    await act(async () => { fireEvent.click(box); });
+    expect((box as HTMLInputElement).checked).toBe(true);
     expect(computer!.changes).toEqual([]);
     await press('Go to Today');
     await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
     expect(computer!.computer.registered).toBe(true);
   }, 20000);
 
-  it('unticked, it saves the no and registers nothing', async () => {
-    const { computer } = start();
-    await toServices();
-    const box = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
-    await act(async () => { fireEvent.click(box); });
-    await press('Go to Today');
-    await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
-    expect(computer!.computer.registered).toBe(false);
-  }, 20000);
+  it('an owner who never saw the step is not opted in: the computer suggests nothing, and nothing is registered', async () => {
+    const computer = createFakeBackground();
+    expect(await computer.getBackground()).toEqual({ supported: true, asked: false, startAtLogin: false, keepRunning: true, registered: false, systemOff: false });
+  });
 
   it('is not asked again on a computer that answered, nor where there is no installed app', async () => {
     start({ computer: createFakeBackground({ asked: true, startAtLogin: false }) });
@@ -139,7 +147,7 @@ describe('start at login is always asked once (A5 fix round 1)', () => {
     const list = screen.getByRole('list', { name: 'Services for Teaching and coaching' });
     expect(tick.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await press('Go to Today');
-    await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
+    await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
     await screen.findByRole('navigation', {}, { timeout: 4000 });
     expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
   }, 20000);
@@ -156,7 +164,8 @@ describe('start at login is always asked once (A5 fix round 1)', () => {
     await press('Go to Today');
     expect(computer.changes).toEqual([]);
     const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
-    expect(tick.checked).toBe(true);
+    expect(tick.checked).toBe(false);
+    await act(async () => { fireEvent.click(tick); });
     await press('Save');
     await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
     await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
@@ -165,9 +174,8 @@ describe('start at login is always asked once (A5 fix round 1)', () => {
   it('Today asks a business that never answered (the app closed on the services step), and a no is saved too', async () => {
     const { computer } = start({ fresh: false });
     const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
-    expect(tick.checked).toBe(true);
-    expect(screen.getByText('It opens quietly in the tray, so scheduled work keeps going. Change it any time in Business, Notifications.')).toBeTruthy();
-    await act(async () => { fireEvent.click(tick); });
+    expect(tick.checked).toBe(false);
+    expect(screen.getByText('It opens quietly in the tray, so scheduled work keeps going. Change it any time in Settings, Notifications.')).toBeTruthy();
     await press('Save');
     await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
     await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
@@ -185,16 +193,17 @@ describe('start at login is always asked once (A5 fix round 1)', () => {
 });
 
 // The founder (A5 fix round 1): an install that registered start at login silently before A5 (no answer saved) is asked
-// once on Today like everyone else, ticked; its login item stays as it is until then, and the answer sticks.
+// once on Today like everyone else; its login item stays as it is until then, and the answer sticks. Round 5: the
+// silent item was never the owner's answer, so the tick starts unticked here too and only a tick keeps it.
 describe('an older install with a silent login item is asked once on Today (founder, A5 fix round 1)', () => {
   for (const [answer, registered] of [[true, true], [false, false]] as const) {
-    it(`ticked, it shows once; ${answer ? 'yes keeps the login item' : 'no removes it'}, and it never shows again`, async () => {
+    it(`unticked, it shows once; ${answer ? 'a tick keeps the login item' : 'Save as it is removes it'}, and it never shows again`, async () => {
       const computer = createFakeBackground({ registered: true });
       start({ fresh: false, computer });
       const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
-      expect(tick.checked).toBe(true);
+      expect(tick.checked).toBe(false);
       expect(computer.computer.registered).toBe(true);
-      if (!answer) await act(async () => { fireEvent.click(tick); });
+      if (answer) await act(async () => { fireEvent.click(tick); });
       await press('Save');
       await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: answer }]), { timeout: 4000 });
       expect(computer.computer.registered).toBe(registered);
@@ -226,8 +235,8 @@ describe('Not now on Today puts the question aside until tomorrow (A5 fix round 
   // The hour in India, the fake business's zone (UTC+5:30), as one instant, so the test reads the same on any computer.
   const at = (day: number, hour: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Date.UTC(2026, 10, day, hour, 0, 0) - 330 * 60_000); };
   for (const [name, first, ticked] of [
-    ['a silent login item that is on', { registered: true }, true],
-    ['no login item', {}, true],
+    ['a silent login item that is on', { registered: true }, false],
+    ['no login item', {}, false],
     ['a login item the computer switched off', { systemOff: true }, false],
   ] as const) {
     it(`${name}: nothing changes, it is gone for today and back tomorrow, ${ticked ? 'ticked' : 'unticked'}`, async () => {
@@ -264,7 +273,7 @@ describe('Not now on Today puts the question aside until tomorrow (A5 fix round 
     cleanup();
     at(5, 9);
     start({ fresh: false, computer });
-    await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+    await act(async () => { fireEvent.click(await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 })); });
     await press('Save');
     await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
     cleanup();

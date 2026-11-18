@@ -72,6 +72,16 @@ describe('Clients place', () => {
     expect(await screen.findByRole('complementary', { name: 'Add a client' })).toBeTruthy();
   });
 
+  // A business looks for its first customers before it has a client, so the empty list offers that as a second, quiet way.
+  it('with no clients, Find customers sits under Add client and opens the search sheet', async () => {
+    start('#/clients', { override: withNoClients });
+    expect(await screen.findByText('No clients yet.')).toBeTruthy();
+    const find = screen.getByRole('button', { name: 'Find customers' });
+    expect(find.dataset.variant).not.toBe('primary');
+    await click(find);
+    expect(await screen.findByRole('complementary', { name: 'Find customers' })).toBeTruthy();
+  });
+
   it('adds a client through venture.client.add, sending only what was typed, then shows the new client', async () => {
     const { spy } = start();
     await click(await screen.findByRole('button', { name: 'Add client' }));

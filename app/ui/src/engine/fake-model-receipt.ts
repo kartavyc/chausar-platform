@@ -12,7 +12,7 @@ const finish = (parts: Omit<ModelReceiptView, 'line'>): ModelReceiptView => ({ .
 
 const SAMPLE: Readonly<Record<string, Omit<ModelReceiptView, 'line'>>> = {
   '31': { tool: 'Claude Sonnet 5.5, your key', model: 'claude-sonnet-5-5', tier: 'Main model', usage: '18,240 tokens in, 2,310 out', cost: 'Not known yet', state: 'unknown', agent: 'Editor' },
-  '30': { tool: 'Claude Code', model: 'claude-sonnet-5-5', tier: 'Quick model', usage: 'Tokens not reported', cost: 'On your plan', state: 'plan', agent: 'Researcher' },
+  '30': { tool: 'Claude Code', model: 'claude-sonnet-5-5', tier: 'Quick work', usage: 'Tokens not reported', cost: 'On your plan', state: 'plan', agent: 'Researcher' },
   '29': { tool: 'Claude Sonnet 5.5, your key', model: 'claude-sonnet-5-5', tier: 'Main model', usage: '6,020 tokens in, 880 out', cost: 'Not known yet', state: 'unknown', agent: 'Producer' },
   '28': { tool: 'Claude Sonnet 5.5, your key', model: 'claude-sonnet-5-5', tier: 'Main model', usage: 'Tokens not reported', cost: 'Not known yet', state: 'unknown', agent: 'Editor' },
   '27': { tool: 'Codex', model: 'gpt-6-astra', tier: 'Main model', usage: '9,800 tokens in, 1,120 out', cost: 'On your plan', state: 'plan', agent: 'Bookkeeper' },

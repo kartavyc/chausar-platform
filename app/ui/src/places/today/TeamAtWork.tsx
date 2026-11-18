@@ -1,16 +1,19 @@
 import { useId } from 'react';
 import { useT } from '../../text';
-import type { AgentView, RunDetail, RunSummary } from '../../engine/types';
-import { goTo, openSheet } from '../../shell/navigation';
+import type { AgentView, OpenSearchView, RunDetail, RunSummary } from '../../engine/types';
+import { openSheet } from '../../shell/navigation';
 import { Avatar, type DeptId } from '../../parts/Avatar';
 import { Inner } from '../../parts/Card';
 import { ProgressRing } from '../../parts/ProgressRing';
 import { StoriesRow, type Story } from '../../parts/StoriesRow';
 import { Tile, TileHead } from '../../parts/Tile';
 import { DEPT_OF } from '../team/departments';
+import { ADD_AGENT_HREF } from '../team/DepartmentPanel';
 import { ChausarStory } from './ChausarStory';
 import { STATE_ORDER, agentStateOf, currentStepOf, liveRunOf } from './runs';
 import s from './TeamAtWork.module.css';
+import { deptKey } from '../../text/dept';
+import { fixedWords } from './plan-words';
 
 /** At most this many live tiles; every run is also a row in Working now. */
 const LIVE_TILES = 4;
@@ -18,6 +21,8 @@ const LIVE_TILES = 4;
 export interface TeamAtWorkProps {
   agents: readonly AgentView[];
   runs: readonly RunSummary[];
+  /** Round 5: the searches for customers open now; one Chausar runs makes Chausar working, one an agent's card named, that agent. */
+  searches: readonly OpenSearchView[];
   /** Each listed run's detail, read once for the page (useRunDetails). */
   details: ReadonlyMap<string, RunDetail>;
   /** The card that answers a waiting run, when one is listed. */
@@ -39,11 +44,16 @@ export interface TeamAtWorkProps {
  * its team. Chausar leads the stories and opens Chats (W4 4C2, ChausarStory.tsx); with no agents yet the tile still
  * shows Chausar and Add agent, with no counts.
  */
-export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = false, title }: TeamAtWorkProps) {
+export function TeamAtWork({ agents, runs, searches, details, rowForRun, goToRow, phone = false, title }: TeamAtWorkProps) {
   const t = useT();
   const headingId = useId();
 
-  const states = agents.map((agent, index) => ({ agent, index, state: agent.state ?? agentStateOf(agent.name, runs) }));
+  // Round 5 (re-check 028): a search an agent's card named is that agent's work, unless a run of theirs says more.
+  const searching = (name: string) => searches.some((search) => search.agent === name);
+  const stateOf = (name: string) => { const state = agentStateOf(name, runs); return state === 'idle' && searching(name) ? 'working' : state; };
+  const states = agents.map((agent, index) => ({ agent, index, state: agent.state ?? stateOf(agent.name) }));
+  // A search Chausar runs itself makes Chausar working: its story says so, and it counts with the working agents.
+  const chausarWorking = searches.some((search) => search.agent === null);
   const deptOf = (name: string): DeptId | undefined => {
     const department = agents.find((agent) => agent.name === name)?.department;
     return department ? DEPT_OF[department] : undefined;
@@ -51,7 +61,7 @@ export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = 
   const count = (state: string) => states.filter((entry) => entry.state === state).length;
   const failed = count('failed');
   const meta = agents.length === 0 ? undefined : [
-    t('today.team.working', { count: count('working') }),
+    t('today.team.working', { count: count('working') + (chausarWorking ? 1 : 0) }),
     t('today.team.waiting', { count: count('waiting') }),
     ...(failed > 0 ? [t('today.team.failed', { count: failed })] : []),
     t('today.team.idle', { count: count('idle') }),
@@ -67,7 +77,7 @@ export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = 
   return (
     <Tile as="section" labelledBy={headingId} className={s.team}>
       <TileHead id={headingId} title={title ?? t('today.team.title')} meta={meta} more={{ href: '#/team', label: t('today.team.see') }} />
-      <StoriesRow stories={stories} lead={<ChausarStory />} onOpen={(id) => openSheet('agent', id)} onAdd={() => goTo('onboarding')} scroll={phone} className={s.stories} />
+      <StoriesRow stories={stories} lead={<ChausarStory working={chausarWorking} />} onOpen={(id) => openSheet('agent', id)} onAdd={() => { window.location.hash = ADD_AGENT_HREF; }} scroll={phone} className={s.stories} />
       {live.length > 0 && (
         // On a phone the tiles are one row that scrolls sideways, so the row itself takes focus (arrow keys scroll it)
         // and is named, as the Board does: a tile may hold no button at all (w3 3I, axe in Chrome).
@@ -88,7 +98,10 @@ interface LiveTileProps { run: RunSummary; detail: RunDetail | undefined; role: 
 function LiveTile({ run, detail, role, dept, rowId, goToRow }: LiveTileProps) {
   const t = useT();
   const waiting = run.state === 'waiting';
-  const step = detail ? currentStepOf(detail)?.purpose : undefined;
+  // Round 6: code's own purpose and step words in the owner's language (plan-words.ts); the plan's and the AI's stay.
+  const words = fixedWords(t);
+  const purpose = detail ? currentStepOf(detail)?.purpose : undefined;
+  const step = purpose && words(purpose);
   return (
     <Inner as="article" label={t(waiting ? 'today.live.waiting' : 'today.live.working', { agent: run.agent })} className={s.tile}>
       <div className={s.top}>
@@ -96,14 +109,14 @@ function LiveTile({ run, detail, role, dept, rowId, goToRow }: LiveTileProps) {
         <div className={s.id}>
           <p className={s.name}>{run.agent}</p>
           {dept
-            ? <p className={s.role} data-tile-dept="" data-dept={dept}>{t(`dept.${dept}`)}</p>
+            ? <p className={s.role} data-tile-dept="" data-dept={dept}>{t(deptKey(dept))}</p>
             : role && <p className={s.role}>{role}</p>}
         </div>
         <ProgressRing progress={run.progress ?? 'indeterminate'} tone={waiting ? 'waiting' : 'working'} />
       </div>
       <p className={s.now}>
         {waiting && <span className={s.wait}>{t('today.live.waitingNow')} </span>}
-        {run.purpose}
+        {words(run.purpose)}
       </p>
       <p className={s.step}>
         {waiting && rowId ? (

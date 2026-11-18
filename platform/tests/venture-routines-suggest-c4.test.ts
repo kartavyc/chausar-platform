@@ -2,6 +2,7 @@
 // business's accepted plan already names (a step whose title says its rhythm), code-written, with the agent and the
 // schedule; none when the plan names none; asking writes nothing. A monthly step runs on the 1st of each month.
 import test from 'node:test';
+import { setComputerZone } from '../runtime/owner-format.ts';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
 import type { BlueprintRecord, RoutineSuggestionsView } from '../runtime/venture/contracts.ts';
@@ -9,6 +10,9 @@ import { handlers as agents } from '../runtime/venture/agents/index.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { nextOccurrence, occurrencesBetween, whenWords } from '../runtime/venture/agents/routines.ts';
 import { owner, seedBlueprint, setup, type Env } from './venture-views-env.ts';
+
+// A schedule says where its time is only when that is not where this computer is: the tests' computer is in India.
+setComputerZone('Asia/Kolkata');
 
 const suggestions = (env: Env, payload: unknown = {}) =>
   (agents['venture.routines.suggestions'] as (deps: unknown, ctx: Context, payload: unknown) => Promise<RoutineSuggestionsView>)(env.deps, owner, payload);
@@ -33,7 +37,7 @@ test('a plan with a monthly step gives that routine, on the 1st of each month, f
   assert.equal(one.step, 'Draft the monthly report for review');
   assert.equal(one.agent, 'delivery');
   assert.deepEqual(one.schedule, { kind: 'monthly', day: 1, time: '09:00', timeZone: 'Asia/Kolkata' });
-  assert.equal(one.when, 'On the 1st of each month, 9:00 am, Asia/Kolkata');
+  assert.equal(one.when, 'On the 1st of each month at 9:00 am');
   assert.equal(one.prompt, 'Draft the monthly report for review for this business, from its own records and plan. Keep it as a draft for my approval.');
   assert.equal(env.store.read().conversations.length, before, 'asking stores nothing');
   assert.equal(listRecords(env.store.read(), 'venture-routine').length, 0);
@@ -62,5 +66,6 @@ test('a monthly schedule runs on its day each month, at its time where the busin
   assert.equal(nextOccurrence(schedule, Date.parse('2026-10-15T10:00:00.000Z')), '2026-11-01T03:30:00.000Z');
   const between = occurrencesBetween(schedule, Date.parse('2026-10-15T10:00:00.000Z'), Date.parse('2027-01-15T10:00:00.000Z'));
   assert.deepEqual([between.count, between.latest, between.previous], [3, '2027-01-01T03:30:00.000Z', '2026-12-01T03:30:00.000Z']);
-  assert.equal(whenWords({ ...schedule, day: 22 }, { country: { code: 'IN' } as never }), 'On the 22nd of each month, 9:00 am, Asia/Kolkata');
+  assert.equal(whenWords({ ...schedule, day: 22 }, { country: { code: 'IN' } as never }, 'Asia/Kolkata'), 'On the 22nd of each month at 9:00 am');
+  assert.equal(whenWords({ ...schedule, day: 22 }, { country: { code: 'IN' } as never }, 'Europe/London'), 'On the 22nd of each month at 9:00 am, Kolkata time');
 });

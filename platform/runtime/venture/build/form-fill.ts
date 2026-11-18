@@ -8,10 +8,10 @@ import {formArtifact} from '../playbooks/data-entry-desk/checks.ts';
 import {mapFormRecord} from '../playbooks/data-entry-desk/mapping.ts';
 export function formWorkEntry(deps:VentureDeps,ctx:Context,ventureId:string,runId:string,entryId:string){
  const state=deps.store.read(),run=findRecord(state,'venture-delivery-run',runId),row=findRecord(state,'venture-entry-record',entryId);
- check(run&&run.ventureId===ventureId&&run.status==='waiting-for-you'&&row&&row.ventureId===ventureId&&row.orderId===run.orderId,'FORM_ORDER_REQUIRED','Choose a current entry from this exact active data-entry run.');
+ check(run&&run.ventureId===ventureId&&run.status==='working'&&row&&row.ventureId===ventureId&&row.orderId===run.orderId,'FORM_ORDER_REQUIRED','Choose a current entry from this exact active data-entry run.');
  formsRunCurrent(state,ventureId,run);const source=currentSource(deps,ctx,row);return {row,source,capture:formsTransient(deps,row).capture};
 }
-export function formWorkRows(deps:VentureDeps,ctx:Context,ventureId:string,runId:string){const state=deps.store.read(),run=findRecord(state,'venture-delivery-run',runId);check(run&&run.ventureId===ventureId&&run.status==='waiting-for-you','FORM_ORDER_REQUIRED','Use an active data-entry run.');return listRecords(state,'venture-entry-record',ventureId).filter(row=>row.orderId===run.orderId).map(row=>{const source=currentSource(deps,ctx,row);return {id:row.id,sourceRecordId:row.sourceRecordId,state:row.state,columns:source.columns};});}
+export function formWorkRows(deps:VentureDeps,ctx:Context,ventureId:string,runId:string){const state=deps.store.read(),run=findRecord(state,'venture-delivery-run',runId);check(run&&run.ventureId===ventureId&&run.status==='working','FORM_ORDER_REQUIRED','Use an active data-entry run.');return listRecords(state,'venture-entry-record',ventureId).filter(row=>row.orderId===run.orderId).map(row=>{const source=currentSource(deps,ctx,row);return {id:row.id,sourceRecordId:row.sourceRecordId,state:row.state,columns:source.columns};});}
 export async function proposeFormMapping(deps:VentureDeps,ctx:Context,ventureId:string,runId:string,entryId:string,mapping:unknown){
  const current=formWorkEntry(deps,ctx,ventureId,runId,entryId);check(current.row.state==='captured'&&current.capture,'FORM_TARGET_CHANGED','Capture the current client form before proposing its mapping.');
  const values=mapFormRecord({pageHash:current.capture.pageHash,source:current.source.values,fields:current.capture.targets,mapping});

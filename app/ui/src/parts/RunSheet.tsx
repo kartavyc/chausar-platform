@@ -13,7 +13,7 @@ import { ModelReceipt } from './ModelReceipt';
 import { Receipt } from './Receipt';
 import { Sheet } from './Sheet';
 import { Steps } from './Steps';
-import { evidenceLabel } from './evidence';
+import { evidenceLabel, evidenceSheet } from './evidence';
 import { tookWords, useWaitingWords, workedWords } from './run-time';
 // W4 4F3: the scope line, a stop's note, the calls in flight and the steer box.
 import { LiveCalls, RunScope, RunStopNote, SteerBox } from './RunSheetControls';
@@ -27,6 +27,7 @@ import { QuestionExpiry, RunQuality } from './RunQuality';
 import type { QueueActionId, QueueRow, RunDetail, RunState, RunStep } from '../engine/types';
 import s from './RunSheet.module.css';
 import { Fold } from './Fold';
+import { fixedWords } from '../places/today/plan-words';
 
 type Evidence = NonNullable<RunStep['evidence']>[number];
 
@@ -90,7 +91,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
     <Sheet
       label={t('sheet.run')}
       eyebrow={t('run.header', { agent: run.agent })}
-      title={run.purpose}
+      title={fixedWords(t)(run.purpose)}
       avatar={<Avatar name={run.agent} state={RING[run.state] ?? 'idle'} size={40} />}
       name={run.agent}
       line={finished ? undefined : (
@@ -194,9 +195,10 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
           {evidence.map((item, i) => (
             <Fragment key={`${item.kind}:${item.id}`}>
               {i > 0 && ', '}
-              {item.kind === 'check'
-                ? <span>{evidenceLabel(item, (detail) => t('run.notChecked', { detail }))}</span>
-                : <Button variant="quiet" className={s.link} onClick={() => onEvidence?.(item)}>{item.label}</Button>}
+              {/* A link only where there is something to open (evidence.ts): a check, and what the engine cannot read back yet, are words. */}
+              {!evidenceSheet(item)
+                ? <span>{fixedWords(t)(evidenceLabel(item, (detail) => t('run.notChecked', { detail })))}</span>
+                : <Button variant="quiet" className={s.link} onClick={() => onEvidence?.(item)}>{fixedWords(t)(item.label)}</Button>}
             </Fragment>
           ))}
         </p>
@@ -205,7 +207,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       {/* What the untrusted screen noted in outside content, as the engine words it; never the words it found. */}
       {run.screen && <p className={s.evidence} data-screen>{run.screen}</p>}
       {/* W4 4H2 (U17): which engine wrote the run's draft, in the engine's words; nothing before an answer. */}
-      {run.writtenBy && <p className={s.evidence} data-written-by="">{run.writtenBy}</p>}
+      {run.writtenBy && <p className={s.evidence} data-written-by="">{fixedWords(t)(run.writtenBy)}</p>}
     </Sheet>
   );
 }
@@ -244,7 +246,7 @@ export function RunSheet({ runId, onClose, returnFocus }: { runId: string; onClo
       run={run.data}
       onClose={onClose}
       returnFocus={returnFocus}
-      onEvidence={(item) => openSheet(item.kind, item.id)}
+      onEvidence={(item) => { const opens = evidenceSheet(item); if (opens) openSheet(opens.kind, opens.id); }}
       onAnswer={answerRow ? (text) => decide(answerRow, 'answer', text) : undefined}
       onRunAgain={againRow ? () => decide(againRow, 'run-again') : undefined}
       onSteer={async (text) => { await client.request('venture.runs.steer', { runId, text }); run.reload(); }}

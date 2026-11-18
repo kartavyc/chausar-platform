@@ -590,6 +590,13 @@
   color: var(--mute);
 }
 
+/* Before the plan is accepted: the engine's one line beside the hired agents, with the way to the plan. */
+.waits {
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+}
+
 /* The agent panel: the state in its head line, and the tabs' contents (the tabs are the Tabs part, C1). */
 
 .panelState {

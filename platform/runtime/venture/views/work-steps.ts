@@ -22,7 +22,3 @@ export const WORK_STEPS: Readonly<Record<WorkKind, readonly { id: string; label:
 /** The kinds that can run long enough for the owner to leave: the page says where the result lands. */
 export const LONG_WORK: ReadonlySet<WorkKind> = new Set<WorkKind>(['rehearse', 'improve']);
 
-/** The words for one step of a job. A step named by the job itself (a tool, a practice client) is its own label. */
-export function workStepLabel(kind: WorkKind, step: string): string {
-  return WORK_STEPS[kind]?.find((item) => item.id === step)?.label ?? step;
-}

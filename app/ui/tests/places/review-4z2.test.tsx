@@ -80,25 +80,6 @@ describe('3. Money: cash ahead names no lowest week above the bank balance', () 
   });
 });
 
-describe('4. Start: the country, the hours and Start', () => {
-  it('starts from the open business\'s country, so an Indian owner on an en-US browser reads "India · INR"', async () => {
-    expect(navigator.language).toBe('en-US');
-    start('#/onboarding');
-    expect(await screen.findByText('India · INR')).toBeTruthy();
-  });
-
-
-
-  it('hours read as body text, not code; every way\'s button reads Start (the running one says "another" to a screen reader)', async () => {
-    start('#/onboarding');
-    const region = await screen.findByRole('region', { name: 'All ways to earn' });
-    const yours = await within(region).findByRole('article', { name: 'YouTube channel' });
-    const hours = within(yours).getByText(/h a week$/);
-    expect(hours.classList.contains('mono')).toBe(false);
-    expect(within(yours).getByRole('button', { name: 'Start another YouTube channel' }).textContent).toBe('Start');
-    for (const button of within(region).getAllByRole('button', { name: /^Start / })) expect(button.textContent).toBe('Start');
-  });
-});
 
 describe('5. Team and Work agree on a waiting run', () => {
   it('the Producer card says Waiting on you once, with no "paused" beside it', async () => {

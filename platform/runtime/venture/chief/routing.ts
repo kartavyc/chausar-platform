@@ -13,6 +13,7 @@ import { flagshipDelivery } from '../playbooks/steps.ts';
 import { chatAgent, type ChatAgent } from '../agents/roles.ts';
 import { isRetired } from '../agents/retired.ts';
 import { AGENT_ID } from '../views/shared.ts';
+import { orderAgentsFor } from '../agents/order-agents.ts';
 
 export type TeamAgent = { id: string; name: string; job: string };
 export type Routing =
@@ -47,6 +48,24 @@ export function teamAgents(state: State, venture: VentureRecord): TeamAgent[] {
   // C7: the agents the owner hired, while they are on the team.
   for (const hired of hiredRecords(state, venture.id)) if (hired.role && !isRetired(state, venture.id, hired.id)) agents.push({ id: hired.id, name: hired.role.name, job: hired.role.job });
   return agents;
+}
+
+/**
+ * Every name an agent of this business has or will have, so no two ever show the same one (found in the real app, 16 Nov
+ * 2026: Team listed two Readers). The agents on the team now (teamAgents); the playbook's own roles, its code roles
+ * among them (Billing is on Team, though nobody chats with it); and, while the plan is not accepted, the agents that
+ * will do each order once it is (agents/order-agents.ts), named from the owner's own idea. Keeper's name is kept by the
+ * hire check itself. A hired agent may take none of these (agents/hire.ts).
+ */
+export function teamNames(state: State, venture: VentureRecord): string[] {
+  const plan = acceptedBlueprintOrNull(state, venture);
+  const flagship = flagshipDelivery(currentPlaybook(state, venture)?.flagship ?? (plan ? deliveryFlagship(venture, plan) : null));
+  const coming = plan ? null : orderAgentsFor(venture.idea);
+  return [...new Set([
+    ...teamAgents(state, venture).map(agent => agent.name),
+    ...(flagship?.roles.map(role => role.name) ?? []),
+    ...(coming ? [...coming.agents.map(agent => agent.name), ...(coming.code ?? [])] : []),
+  ])];
 }
 
 /** A name as a pattern: escaped, any case, and a Devanagari letter matching with or without its nukta. */

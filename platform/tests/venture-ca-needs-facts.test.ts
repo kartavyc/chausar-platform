@@ -4,6 +4,7 @@
 // TAX_INPUT_INVALID. Through the harness, the refusal ends the agent's turn as a hand-off to the client in plain words
 // that Chausar writes from the list (never the model's words), the rest of the turn does not run, and no receipt is
 // made. Once the client answers, the same call may run again. The words exist in English and Hindi (machine-drafted).
+import { expireQuestions } from '../runtime/venture/delivery/timed-questions.ts';
 import test from 'node:test';
 import { calculatorAgent, calculatorRun } from './fixtures/venture/calculator-agent.ts';
 import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
@@ -19,9 +20,8 @@ import { tdsWorking, type TdsWorkingInput } from '../runtime/venture/playbooks/c
 import { REHEARSAL } from '../runtime/venture/playbooks/ca-firm/rates.ts';
 import { FACT_FIELDS, factsQuestion, needsFactsHandoff, type MissingFact } from '../runtime/venture/playbooks/ca-firm/needs-facts.ts';
 import { callTool, type ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';
-import { answerHandoff, applyTurn, DEFAULT_LIMITS, expireHandoff, newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';
+import { answerHandoff, applyTurn, DEFAULT_LIMITS, newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';
 import type { FileLike } from '../runtime/venture/delivery/harness/files.ts';
-import { expireQuestions, withQuestionExpiry } from '../runtime/venture/delivery/timed-questions.ts';
 import { CA_IDEA, business, owner } from './venture-judge-helpers.ts';
 
 const R = (rupees: number) => String(BigInt(rupees) * 100n);
@@ -193,11 +193,11 @@ test('a question for facts that ran out is not an answer: the facts it asked for
   const env = toolEnv();
   const state = newHarnessState(['tax.income', 'handoff.client'], DEFAULT_LIMITS, ['upload_savings']);
   const next = await applyTurn(env, state, { note: 'Work the tax', calls: [{ tool: 'tax.income', input: JSON.stringify(SHORT_CALL) }], finished: false }, { by: 'model', callId: 'call_1', costMicros: '10' });
-  // The timed questions skip it: withQuestionExpiry leaves it never expiring.
-  const timed = withQuestionExpiry(next, '2026-10-21T10:00:00.000Z', 60_000);
-  assert.equal(timed.handoffs.at(-1)!.expiresAt, null);
-  // Even closed as a timeout (an older run, or by hand), the agent may not fill the facts in on its own.
-  const closed = expireHandoff(next, 'No answer by 22 Oct 2026, 10:00. Go on without it, or stop.');
+  // A question for facts never runs out: it is made with no expiry.
+  assert.equal(next.handoffs.at(-1)!.expiresAt, null);
+  // Even closed with a timeout's words (an older run, or by hand), the agent may not fill the facts in on its own.
+  const closed = structuredClone(next);
+  Object.assign(closed.handoffs.at(-1)!, { answer: 'No answer by 22 Oct 2026, 10:00. Go on without it, or stop.', answeredBy: 'timeout' });
   env.calls = closed.toolCalls;
   env.handoffs = closed.handoffs;
   const guessed = await callTool(env, closed.grant, 2, 0, { tool: 'tax.income', input: JSON.stringify({ ...SHORT_CALL, residency: 'resident', ageBand: 'below-60' }) });
@@ -234,7 +234,7 @@ test('a real CA order: NEEDS_FACTS reaches Today as the question row, in Hindi f
   calculatorAgent(env.deps,[{calls:[{tool:'tax.income',input:JSON.stringify(SHORT_CALL)}]}],null);
   await env.deps.services.trust.updatePolicy(owner,{send:'shape'});await consentForOrder(env.deps,owner,order.id);
   const waiting = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(waiting.status, 'waiting-for-you', JSON.stringify(waiting));
+  assert.equal(waiting.status, 'working', JSON.stringify(waiting));
   await waitForAgentWork(env.store,waiting.id);
   const asked=calculatorRun(env.deps,waiting.id);
   assert.equal(asked.status, 'needs-answer', JSON.stringify(asked.agentJob?.calculations?.map(item=>item.envelope)));

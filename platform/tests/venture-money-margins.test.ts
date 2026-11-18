@@ -1,7 +1,7 @@
 // Ink v2 wave 4, package 4J4 (M8, M13, M14): cost and margin per client. Each client's invoices issued in the month,
 // before tax and less credit notes, against the AI and tool spend of their orders (a paid call to its run, the run to
 // its order, the order to its client), in one currency only: the spend at the owner's rupee rate, labelled with it, or
-// "Not counted: no rupee rate set". Each figure has its own receipt; calls no order can claim are left out and the total
+// the dated reference rate until the owner types their own. Each figure has its own receipt; calls no order can claim are left out and the total
 // says how many. Every amount is worked out by hand in a comment.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -59,14 +59,20 @@ test('margins: per client, invoiced before tax less the spend of their orders at
   assert.equal(view.line, 'October 2026: invoiced before tax, less the AI and tool spend of each client\'s orders at ₹83.50 per $1 (your rate, set 23 Oct 2026).');
 });
 
-test('margins without a rupee rate keep one currency: the spend and margin are not counted, and say so', async () => {
+// Fix round 4 (real-app problem 12): a rupee business with no rate of its own counts its spend in rupees at the dated
+// reference rate shipped with the release, named in the words. At 94.3996 per $1: 1500000 x 943996 = 1,415,994,000,000,
+// + 50,000,000, / 100,000,000 = 14160; 500000 x 943996 -> 4720; spend 18880 (₹188.80); margin 1975000 - 18880 = 1956120.
+// Lotus: 1000000 x 943996 -> 9440 (₹94.40).
+test('margins of a rupee business with no rate of its own count at the reference rate, and name it', async () => {
   const { env } = await margins();
   const view = await env.money<MarginsView>('venture.money.margins', { month: '2026-10' });
-  assert.deepEqual(view.rows.map(row => [row.invoiced.display, row.spend, row.margin, row.note]), [
-    ['₹19,750', null, null, 'Not counted: no rupee rate set'],
-    ['₹0', null, null, 'Not counted: no rupee rate set'],
+  assert.deepEqual(view.rows.map(row => [row.invoiced.display, row.spend?.display, row.margin?.display, row.note]), [
+    ['₹19,750', '₹188.80', '₹19,561.20', null],
+    ['₹0', '₹94.40', '-₹94.40', null],
   ]);
-  assert.deepEqual(view.basis.notCounted, { count: 4, line: '4 not counted: 4 paid calls with no rupee rate set' });
+  assert.deepEqual(view.rows[0].spend?.uses, ['₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)']);
+  assert.deepEqual(view.basis.notCounted, { count: 1, line: '1 not counted: 1 paid call no order can claim' });
+  assert.equal('needsRate' in view, false);
   const empty = await env.money<MarginsView>('venture.money.margins', { month: '2026-08' });
   assert.deepEqual(empty.rows, []);
   await assert.rejects(env.money('venture.money.margins', {}), code('INVALID_VENTURE_REQUEST'));
@@ -78,5 +84,5 @@ test('margins at the reference rate name its source and date', async () => {
   const { env } = await margins();
   await env.money('venture.spend.policy.set', { useReference: true });
   const view = await env.money<MarginsView>('venture.money.margins', { month: '2026-10' });
-  assert.match(view.line, /\u20b994\.3996 per \$1 \(FBIL reference rate of 5 Nov 2026\)/);
+  assert.match(view.line, /\u20b994\.40 per \$1 \(FBIL reference rate of 5 Nov 2026\)/);
 });

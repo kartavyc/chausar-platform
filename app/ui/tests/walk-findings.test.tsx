@@ -244,4 +244,40 @@ describe('found by the wave 4 walk', () => {
     // beside the longer count. The title now starts at its own width, and the count wraps below when they don't fit.
     expect(rule('../places/chats/Chats.module.css', '.planTitle')).toMatch(/flex:\s*1 0 auto/);
   });
+
+  it("the Clients toolbar's buttons wrap on a phone, so a fourth button never widens the place", () => {
+    // Chrome, Clients > Pipeline at 390 (the walk of 15 Nov 2026): with Find customers added beside Import contacts,
+    // Add a lead and Lists, the row of buttons could not wrap and the place was wider than its column.
+    const tools = rule('../places/clients/Clients.module.css', '.tools');
+    expect(tools).toMatch(/flex-wrap:\s*wrap/);
+    expect(tools).toMatch(/flex:\s*0 1 auto/);
+  });
+
+  it('a row that can leave never grows wider than its list: long words inside it cut off instead of widening the place', () => {
+    // Chrome, Chats at 390 (the walk of 15 Nov 2026): each chat sits in a leave row, a grid whose one column was as
+    // wide as its longest line ("How much have we billed this month?" and the last line under it, 760 px in a 309 px
+    // list), so the title and the line never cut off and the place was wider than its column.
+    expect(rule('Leave.module.css', '.row')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  });
+
+  it("the goal's percent is the accent only on the dark card; on the page's own ground it is the accent for words", () => {
+    // Chrome, Today in the light theme (the walk of 15 Nov 2026): Today's tiles are plain, so the goal card sits on the
+    // page ground, where the accent green (#2fb67c) under "74%" had a contrast of 2.5. --accent-text holds on the
+    // page ground in both themes (tests/contrast.test.ts).
+    const css = '../places/today/GoalCard.module.css';
+    expect(rule(css, '.goal')).toMatch(/--gc-accent:\s*var\(--accent\)/);
+    expect(rule(css, '.goal[data-plain]')).toMatch(/--gc-accent:\s*var\(--accent-text\)/);
+    expect(rule(css, '.percent')).toMatch(/color:\s*var\(--gc-accent\)/);
+  });
+
+  it('on a wide window the About you chat keeps its own height and stays in view beside the long plan card', () => {
+    // The Mac app at 1380 by 940, first real run (14 Nov 2026): the plan card (offers, the way to earn, the team) was
+    // 2,000 px tall, the chat tile stretched with it, and the reply box sat 1,930 px down, two screens under the AI's
+    // question. The chat now takes its own height, sticks while the card scrolls, and scrolls inside when it is long.
+    const wide = rule('../places/onboarding/AboutYou.module.css', '.chat', '(min-width: 760px)');
+    expect(wide).toMatch(/position:\s*sticky/);
+    expect(wide).toMatch(/align-self:\s*start/);
+    expect(wide).toMatch(/max-height:\s*calc\(100dvh - var\(--sp-8\)\)/);
+    expect(wide).toMatch(/overflow-y:\s*auto/);
+  });
 });

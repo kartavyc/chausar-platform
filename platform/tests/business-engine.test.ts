@@ -1,12 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, type Context, type State, type StateStore } from '../runtime/contracts.ts';
+import { hash, initialState, type Context, type State, type StateStore } from '../runtime/contracts.ts';
 import { CalculatorService, numberGuard } from '../runtime/calculator.ts';
 import { defaultRecipe, demoCsv, demoRecipe, ImportService, matchGstPurchases, parseBankCsv, parseCsv, parseGstJson, parseIndianMoney, parseShopifyJson, parseTallyXml, parseZohoJson, seedDemo } from '../runtime/ingest.ts';
-import { gstinValid, MemoryService, type FactInput } from '../runtime/memory.ts';
+import { gstinValid, MemoryService, selectFacts, type FactInput } from '../runtime/memory.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
-import { ReportService } from '../runtime/reports.ts';
-import { TrustService } from '../runtime/trust.ts';
 
 class TestStore implements StateStore {
   state: State;
@@ -17,7 +15,7 @@ class TestStore implements StateStore {
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1 };
 const september = { from: '2026-09-01', to: '2026-09-30' };
 const input = () => ({ sourceId: 'sheet', format: 'csv' as const, content: demoCsv, recipe: structuredClone(demoRecipe), expectedTotals: { rowCount: 10, amountMinor: '1230000' } });
-async function setup(demo = true) { const store = new TestStore(demo); await new OntologyService(store).publish(owner, 'ecommerce'); return { store, calculator: new CalculatorService(store), imports: new ImportService(store), memory: new MemoryService(store), reports: new ReportService(store) }; }
+async function setup(demo = true) { const store = new TestStore(demo); await new OntologyService(store).publish(owner, 'ecommerce'); return { store, calculator: new CalculatorService(store), imports: new ImportService(store), memory: new MemoryService(store) }; }
 function fact(entityId: string, amountMinor: string, overrides: Partial<FactInput> = {}): FactInput { return { entityId, sourceId: 'books', sourceRow: 2, kind: 'sale', validFrom: '2026-03-12', branch: 'main', fields: { amountMinor, currency: 'INR', customerId: 'customer-a', invoiceId: entityId, dueDate: '2026-03-20', status: 'settled' }, ...overrides }; }
 
 // Values below were computed directly from the fixture, independently of the compiler:
@@ -33,11 +31,11 @@ test('published six starter packs and hand-worked billed / received / earned / m
   const before = JSON.stringify(store.read().facts); const scenario = await calculator.calculate(owner, { operation: 'scenario', period: september, assumptions: { priceChangeBps: '1000' } }); assert.equal(scenario.totalMinor, '275000'); assert.equal(JSON.stringify(store.read().facts), before);
 });
 test('dictionary publication is atomic, immutable, generated and rejects executable fields', async () => {
-  const { store, calculator } = await setup(); const ontology = new OntologyService(store); const old = ontology.current(owner)!;
+  const { store } = await setup(); const ontology = new OntologyService(store); const old = ontology.current(owner)!;
   const draft: any = structuredClone(starterPacks[0]); draft.definitions[1].field = 'missing'; await assert.rejects(ontology.publish(owner, draft), { code: 'INVALID_DEFINITION' }); assert.equal(ontology.current(owner)!.hash, old.hash);
   draft.definitions[1].field = 'amountMinor'; draft.execute = 'globalThis.process.exit()'; await assert.rejects(ontology.publish(owner, draft), { code: 'INVALID_DICTIONARY' });
-  assert.ok(calculator.catalog(owner).some(o => o.id === 'net_sales')); assert.equal(ontology.history(owner).length, 1);
-  const custom = structuredClone(starterPacks[0]); custom.definitions.push({ name: 'bank_revenue', label: 'Revenue as receipts', meaning: 'A custom owner measure counting settled payments as revenue.', kind: 'payment', field: 'amountMinor', currency: 'INR', nulls: 'reject' }); await ontology.publish(owner, custom); assert.equal(ontology.current(owner)!.version, 2); assert.ok(calculator.catalog(owner).some(o => o.id === 'bank_revenue'));
+  assert.ok(ontology.current(owner)!.operations.some(o => o.id === 'net_sales')); assert.equal(store.read().ontology.history.length, 1);
+  const custom = structuredClone(starterPacks[0]); custom.definitions.push({ name: 'bank_revenue', label: 'Revenue as receipts', meaning: 'A custom owner measure counting settled payments as revenue.', kind: 'payment', field: 'amountMinor', currency: 'INR', nulls: 'reject' }); await ontology.publish(owner, custom); assert.equal(ontology.current(owner)!.version, 2); assert.ok(ontology.current(owner)!.operations.some(o => o.id === 'bank_revenue'));
 });
 test('CSV quoted delimiters, newlines and instruction-like cells remain data', async () => {
   assert.deepEqual(parseCsv('id,note\r\n1,"hello, ""world""\nnext line"\r\n'), [{ id: '1', note: 'hello, "world"\nnext line' }]);
@@ -70,25 +68,29 @@ test('immutable correction has two clocks and earlier known-on views remain reco
   await assert.rejects(memory.correct(owner, original[0].id, { amountMinor: '110000' }, { testLearnedAt: '2026-04-09T00:00:00Z' }), { code: 'SYSTEM_CLOCK_REGRESSION' });
   const production = await setup(false); await assert.rejects(production.memory.append(owner, [fact('f', '100')], { testLearnedAt: '2020-01-01T00:00:00Z' }), { code: 'TEST_CLOCK_FORBIDDEN' });
 });
+// Nothing in the app writes a source rule, a customer merge or a source grant now; a vault may still hold them, and the
+// calculator and the read checks still honour them. These tests write the stored records directly.
+const rule = (kind: string, sourceIds: string[]) => (state: State) => { state.sourceRules.push({ id: `rule_${state.sourceRules.length + 1}`, kind, sourceIds, at: new Date().toISOString(), by: 'owner' }); };
+const grant = (input: Record<string, unknown> & { sourceId: string }) => (state: State) => { state.sourceRules = state.sourceRules.filter(r => r.sourceId !== input.sourceId); state.sourceRules.push({ ...input, id: `grant_${state.revision}`, updatedAt: new Date().toISOString() }); };
 test('independent source claims conflict until a published whole-record precedence rule selects one', async () => {
-  const { memory, calculator } = await setup(); await memory.append(owner, [fact('receipt-1', '10000', { kind: 'payment', sourceId: 'books' }), fact('receipt-1', '9000', { kind: 'payment', sourceId: 'bank' })]);
+  const { store, memory, calculator } = await setup(); await memory.append(owner, [fact('receipt-1', '10000', { kind: 'payment', sourceId: 'books' }), fact('receipt-1', '9000', { kind: 'payment', sourceId: 'bank' })]);
   const conflict = await calculator.calculate(owner, { operation: 'received' }); assert.equal(conflict.totalMinor, '0'); assert.equal(conflict.coverage.unresolvedConflicts, 1); assert.equal(conflict.coverage.completeness, 'partial');
-  await memory.setSourcePrecedence(owner, 'payment', ['bank', 'books']); assert.equal((await calculator.calculate(owner, { operation: 'received' })).totalMinor, '9000'); await memory.setSourcePrecedence(owner, 'payment', []); assert.equal((await calculator.calculate(owner, { operation: 'received' })).totalMinor, '0');
+  await store.update(rule('payment', ['bank', 'books'])); assert.equal((await calculator.calculate(owner, { operation: 'received' })).totalMinor, '9000'); await store.update(rule('payment', [])); assert.equal((await calculator.calculate(owner, { operation: 'received' })).totalMinor, '0');
 });
-test('customer merge is reversible and marks dependent answers stale', async () => {
-  const { memory, calculator } = await setup(); await memory.append(owner, [fact('a', '10000'), fact('b', '20000', { fields: { amountMinor: '20000', currency: 'INR', customerId: 'customer-b', status: 'delivered' } })]);
-  const before = await calculator.calculate(owner, { operation: 'earned', customerId: 'customer-a' }); assert.equal(before.totalMinor, '10000'); const merge = await memory.merge(owner, ['customer-a', 'customer-b'], 'customer-a'); assert.equal((await calculator.calculate(owner, { operation: 'earned', customerId: 'customer-a' })).totalMinor, '30000'); assert.equal(calculator.receipt(owner, before.id).stale, true); await memory.undoMerge(owner, merge.id); assert.equal((await calculator.calculate(owner, { operation: 'earned', customerId: 'customer-a' })).totalMinor, '10000');
+test('a stored customer merge joins the customers, and a stored undo parts them again', async () => {
+  const { store, memory, calculator } = await setup(); await memory.append(owner, [fact('a', '10000'), fact('b', '20000', { fields: { amountMinor: '20000', currency: 'INR', customerId: 'customer-b', status: 'delivered' } })]);
+  const before = await calculator.calculate(owner, { operation: 'earned', customerId: 'customer-a' }); assert.equal(before.totalMinor, '10000'); await store.update(state => { state.merges.push({ id: 'merge_1', type: 'merge', entityIds: ['customer-a', 'customer-b'], targetId: 'customer-a', at: new Date().toISOString(), by: 'owner' }); }); assert.equal((await calculator.calculate(owner, { operation: 'earned', customerId: 'customer-a' })).totalMinor, '30000'); await store.update(state => { state.merges.push({ id: 'merge_undo_1', type: 'undo', mergeId: 'merge_1', at: new Date().toISOString(), by: 'owner' }); }); assert.equal((await calculator.calculate(owner, { operation: 'earned', customerId: 'customer-a' })).totalMinor, '10000');
 });
 test('read paths and saved receipts apply current branch, source and epoch permissions', async () => {
   const { store, memory, calculator } = await setup(); await memory.append(owner, [fact('a', '10000'), fact('b', '20000', { branch: 'west' })]); const receipt = await calculator.calculate(owner, { operation: 'earned' });
   await store.update(s => { s.members.push({ id: 'reader', name: 'Branch viewer', role: 'viewer', active: true, epoch: 1, branches: ['main'] }); }); const viewer: Context = { memberId: 'reader', role: 'viewer', epoch: 1 };
   assert.equal((await calculator.calculate(viewer, { operation: 'earned' })).totalMinor, '10000'); assert.throws(() => calculator.receipt(viewer, receipt.id), { code: 'RECEIPT_FORBIDDEN' }); await assert.rejects(calculator.calculate(viewer, { operation: 'earned', branch: 'west' }), { code: 'FORBIDDEN_BRANCH' });
-  await new TrustService(store).grantSource(owner, { sourceId: 'books', memberIds: ['owner'] }); assert.equal((await calculator.calculate(viewer, { operation: 'earned' })).totalMinor, '0'); assert.throws(() => memory.query({ ...viewer, epoch: 0 }), { code: 'ACCESS_REVOKED' });
-  await new TrustService(store).grantSource(owner, { sourceId: 'books', revoked: true }); assert.throws(() => calculator.receipt(owner, receipt.id), { code: 'RECEIPT_FORBIDDEN' });
+  await store.update(grant({ sourceId: 'books', memberIds: ['owner'] })); assert.equal((await calculator.calculate(viewer, { operation: 'earned' })).totalMinor, '0'); assert.throws(() => selectFacts(store, { ...viewer, epoch: 0 }), { code: 'ACCESS_REVOKED' });
+  await store.update(grant({ sourceId: 'books', revoked: true })); assert.throws(() => calculator.receipt(owner, receipt.id), { code: 'RECEIPT_FORBIDDEN' });
 });
-test('number guard rejects unsupported numbers and unknown questions abstain', async () => {
+test('number guard rejects unsupported numbers and an unknown calculation is refused', async () => {
   const { store, calculator } = await setup(); await seedDemo(store, owner); const receipt = await calculator.calculate(owner, { operation: 'earned', period: september }); assert.equal(numberGuard(receipt.explanation, receipt).accepted, true); assert.throws(() => numberGuard('Revenue was INR 99,999.00', receipt), { code: 'UNGROUNDED_NUMBER' }); assert.throws(() => numberGuard('Expected growth is 8675309 percent', receipt), { code: 'UNGROUNDED_NUMBER' });
-  const response = await calculator.ask(owner, 'What is my TAM and why did my competitor win?'); assert.equal(response.supported, false); assert.equal(response.receipt, null); assert.equal(store.read().unsupported.length, 1); await assert.rejects(calculator.calculate(owner, { operation: 'made-up' }), { code: 'UNKNOWN_CALCULATION' });
+  await assert.rejects(calculator.calculate(owner, { operation: 'made-up' }), { code: 'UNKNOWN_CALCULATION' });
 });
 test('credit notes are events while corrected claims replace versions; cancelled invoices never count', async () => {
   const { memory, calculator } = await setup(); await memory.append(owner, [fact('sale', '10000'), fact('return', '1000', { kind: 'refund' }), fact('cancel', '900000', { kind: 'invoice', fields: { amountMinor: '900000', currency: 'INR', status: 'cancelled' } })]); const receipt = await calculator.calculate(owner, { operation: 'net_sales' }); assert.equal(receipt.totalMinor, '9000'); const invoices = await calculator.calculate(owner, { operation: 'billed' }); assert.equal(invoices.totalMinor, '0'); assert.ok(invoices.exclusions.some(e => e.reason.includes('cancelled')));
@@ -96,19 +98,6 @@ test('credit notes are events while corrected claims replace versions; cancelled
 test('Tally XML uses explicitly classified ledger values and refuses unsafe or incomplete input', () => {
   const xml = '<ENVELOPE><VOUCHER><GUID>v1</GUID><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><DATE>20260901</DATE><VOUCHERNUMBER>A1</VOUCHERNUMBER><PARTYLEDGERNAME>Buyer</PARTYLEDGERNAME><ALLLEDGERENTRIES.LIST><LEDGERNAME>Buyer</LEDGERNAME><AMOUNT>-1180.00</AMOUNT></ALLLEDGERENTRIES.LIST><ALLLEDGERENTRIES.LIST><LEDGERNAME>Goods sales</LEDGERNAME><AMOUNT>1000.00</AMOUNT></ALLLEDGERENTRIES.LIST><ALLLEDGERENTRIES.LIST><LEDGERNAME>Output GST</LEDGERNAME><AMOUNT>180.00</AMOUNT></ALLLEDGERENTRIES.LIST></VOUCHER></ENVELOPE>';
   const recipe = { ...structuredClone(demoRecipe), tallyLedgerClasses: { Buyer: 'other', 'Goods sales': 'sales', 'Output GST': 'tax' } } as any; const parsed = parseTallyXml(xml, recipe); assert.equal(parsed[0].amount, '100000'); assert.equal(parsed[0].tax, '18000'); assert.equal(parsed[0].kind, 'invoice'); assert.throws(() => parseTallyXml(xml.slice(0, -11), recipe), { code: 'TRUNCATED_XML' }); assert.throws(() => parseTallyXml('<!DOCTYPE x [<!ENTITY attack SYSTEM "file:///secret">]><x/>', recipe), { code: 'UNSAFE_XML' }); assert.throws(() => parseTallyXml(xml, demoRecipe), { code: 'UNCLASSIFIED_ACCOUNTS' });
-});
-test('reports carry receipt lineage, decisions use review dates and briefing sends nothing', async () => {
-  const { store, reports, calculator } = await setup(); await seedDemo(store, owner); const r = await calculator.calculate(owner, { operation: 'earned', period: september }); const d = await reports.decision(owner, { text: 'Review distributor collection terms.', reviewDate: '2026-10-01', receiptIds: [r.id], hypotheses: ['A payment delay is possible; it is not a measured cause.'] }); assert.equal(reports.decisions(owner, { dueOn: '2026-10-01' }).length, 1); await reports.reviewDecision(owner, d.id, { outcome: 'completed', notes: 'Human follow-up completed.' }); assert.equal(reports.decisions(owner, { dueOn: '2026-10-01' }).length, 0);
-  const brief = await reports.brief(owner, { period: september, onDate: '2026-10-01' }); assert.equal(brief.delivery.state, 'draft'); assert.equal(store.read().actions.length, 0); assert.equal(brief.compliance.entries.length, 0); assert.ok(brief.compliance.status.includes('No dates were guessed')); assert.ok(brief.report.sections.every(s => s.receiptId)); assert.ok(brief.report.html.includes('Coverage and missing information'));
-});
-test('forecasts must beat a naive held-out baseline; constant history refuses candidate', async () => {
-  for (const constant of [false, true]) {
-    const { imports, calculator, reports } = await setup(); const receiptIds: string[] = [];
-    for (let month = 1; month <= 8; month++) { const from = `2026-${String(month).padStart(2, '0')}-01`, to = new Date(Date.UTC(2026, month, 0)).toISOString().slice(0, 10); const amount = constant ? 100 : month * 100; const content = 'id,kind,date,amount,currency,customerId,invoiceId,orderId,dueDate,status,description,branch\n' + `month-${month},sale,${from},${amount}.00,INR,c1,i1,o1,,delivered,Monthly revenue,main\n`; await imports.commit(owner, { ...input(), content, expectedTotals: { rowCount: 1, amountMinor: String(amount * 100) } }); }
-    // Receipts are rebuilt only after all imports, so none is stale.
-    for (let month = 1; month <= 8; month++) { const from = `2026-${String(month).padStart(2, '0')}-01`, to = new Date(Date.UTC(2026, month, 0)).toISOString().slice(0, 10); receiptIds.push((await calculator.calculate(owner, { operation: 'earned', period: { from, to } })).id); }
-    const forecast = await reports.forecast(owner, { receiptIds }); assert.equal(forecast.status, constant ? 'refused' : 'passed-local-baseline-gate'); assert.equal(forecast.forecastMinor, constant ? null : '90000'); assert.equal(forecast.qualification, 'experimental');
-  }
 });
 test('native bank export checks every running balance and independent closing balance', async () => {
   const recipe = defaultRecipe('bank-csv'); recipe.bankLayout = { idField: 'Reference', dateField: 'Date', descriptionField: 'Narration', debitField: 'Debit', creditField: 'Credit', balanceField: 'Balance', dateFormat: 'DMY', openingMinor: '100000', closingMinor: '137500', currency: 'INR' };
@@ -124,18 +113,18 @@ test('Zoho/Shopify/GST exports keep exact decimal lexemes, explicit net amounts 
   const shopify = parseShopifyJson('{"orders":[{"id":1,"processed_at":"2026-09-05T10:00:00Z","subtotal_price":"2000.50","taxes_included":false,"currency":"INR","financial_status":"paid","customer":{"id":2}}]}'); assert.equal(shopify[0].kind, 'invoice', 'order invoices do not imply fulfillment'); assert.equal(shopify[0].amount, '2000.50');
   const gst = parseGstJson('{"data":{"docdata":{"b2b":[{"ctin":"27ABCDE1234F1Z5","inv":[{"inum":"P1","idt":"02-09-2026","items":[{"txval":1000.25},{"txval":500.75}]}]}]}}}'); assert.equal(gst[0].amount, '150100'); const invoice = fact('gst', '150100', { kind: 'purchase', validFrom: '2026-09-02', fields: { customerId: '27ABCDE1234F1Z5', invoiceId: 'P1', amountMinor: '150100', currency: 'INR' } }); assert.equal(matchGstPurchases([invoice], [invoice])[0].status, 'matched');
 });
-test('source deletion tombstones refuse the same file under a renamed source', async () => {
-  const { store, imports } = await setup(); await imports.commit(owner, input()); await new TrustService(store).deleteSource(owner, 'sheet'); assert.equal(store.read().facts.length, 0); assert.throws(() => imports.preview(owner, { ...input(), sourceId: 'new-name' }), { code: 'SOURCE_DELETED' });
+test('a stored content tombstone refuses the same file under a renamed source', async () => {
+  const { store, imports } = await setup(); await imports.commit(owner, input());
+  // Nothing in the app deletes a source now; a vault may still hold the tombstone a deletion left, and import still honours it.
+  await store.update(state => { state.tombstones.push({ id: 'tombstone_1', kind: 'content', contentHash: hash(input().content), sourceId: 'sheet', deletedAt: new Date().toISOString() }); }); assert.throws(() => imports.preview(owner, { ...input(), sourceId: 'new-name' }), { code: 'SOURCE_DELETED' });
 });
 test('currency conversion records the exact rate and cannot silently mix currency bindings', async () => {
   const { imports, calculator } = await setup(); const recipe = structuredClone(demoRecipe); const binding = recipe.bindings.find(b => b.target === 'amountMinor')!; binding.currency = 'USD'; binding.fx = { numerator: '83', denominator: '1', rounding: 'exact' };
   const content = 'id,kind,date,amount,currency,customerId,invoiceId,orderId,dueDate,status,description,branch\nUSD1,sale,2026-09-01,10.25,USD,c1,i1,o1,,delivered,Dollar sale,main\n'; await imports.commit(owner, { sourceId: 'usd', format: 'csv', content, recipe, expectedTotals: { rowCount: 1, amountMinor: '85075' } }); const receipt = await calculator.calculate(owner, { operation: 'earned' }); assert.equal(receipt.totalMinor, '85075'); assert.deepEqual(receipt.rows[0].normalization, { sourceCurrency: 'USD', targetCurrency: 'INR', rate: { numerator: '83', denominator: '1', rounding: 'exact' } });
   const mismatch = imports.preview(owner, { sourceId: 'wrong-currency', format: 'csv', content: content.replace(',USD,', ',INR,'), recipe, expectedTotals: { rowCount: 1, amountMinor: '85075' } }); assert.ok(mismatch.errors.some(e => e.code === 'BINDING_CURRENCY_MISMATCH'));
 });
-test('reviewed tax identities support a suggestion; missing or conflicting identities never auto-merge', async () => {
+test('a GSTIN is checked by its check character', () => {
   assert.equal(gstinValid('27AAPFU0939F1ZV'), true); assert.equal(gstinValid('27AAPFU0939F1ZX'), false);
-  const { store, memory } = await setup(); const identity = { currency: 'INR', amountMinor: '100', status: 'settled', gstin: '27AAPFU0939F1ZV' };
-  await memory.append(owner, [fact('a', '100', { fields: { ...identity, customerId: 'a' } }), fact('b', '100', { fields: { ...identity, customerId: 'b' } }), fact('c', '100', { fields: { amountMinor: '100', currency: 'INR', customerId: 'c', pan: 'ABCDE1234F' } }), fact('d', '100', { fields: { amountMinor: '100', currency: 'INR', customerId: 'd' } })]); assert.equal(memory.suggestCustomerMatch(owner, 'a', 'b').relation, 'same-tax-registration'); assert.equal(memory.suggestCustomerMatch(owner, 'a', 'c').relation, 'cannot-match-tax-identities'); assert.equal(memory.suggestCustomerMatch(owner, 'a', 'd').relation, 'abstain'); assert.equal(store.read().merges.length, 0);
 });
 test('production verifier runs before persistence and concurrent source correction forces recalculation', async () => {
   const { store, memory } = await setup(); await memory.append(owner, [fact('a', '10000')]);

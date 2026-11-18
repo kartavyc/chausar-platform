@@ -38,7 +38,6 @@ export const RUN_OUTCOME_WORDS: Readonly<Record<RunOutcome, string>> = Object.fr
 
 /** A finding: a hard error (a code check failed), a content issue (a judged rule), or creative judgement left to the owner. */
 export const FINDING_CLASSES = frozen(['hard-error', 'content', 'creative'] as const);
-export type FindingClass = typeof FINDING_CLASSES[number];
 
 /** What coverage counts (coverage.ts), and what was done to it. The screen words each for itself. */
 export const COVERAGE_UNITS = frozen(['rows', 'lines', 'pages', 'items', 'bank-lines'] as const);

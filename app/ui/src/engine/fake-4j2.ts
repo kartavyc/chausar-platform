@@ -9,6 +9,7 @@
 
 import { EngineError, type DeliveryLite, type QueueDecision, type QueueRow, type QueueSetPreview } from './types';
 import type { W4DeskHost } from './fake-w4';
+import { PRACTICE_REASON } from '../../../../platform/runtime/venture/core/launch-stage';
 
 export const FAKE_4J2_METHODS: readonly string[] = ['venture.queue.setPreview', 'venture.queue.set', 'venture.delivery.copy'];
 
@@ -20,7 +21,7 @@ const WORDS = {
   partPost: 'Part of what this post sends is not shown, so approve it on its own.',
   paid: 'This one starts paid work, so it needs its own approval.',
   notSent: 'Only a draft that went out can be copied. This one still waits for your review.',
-  practice: 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.',
+  practice: PRACTICE_REASON,
   viewFirst: 'Open it and read it first.',
   secondAsk: 'One of these asks twice. Confirm the set again to approve it.',
 } as const;

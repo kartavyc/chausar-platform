@@ -4,6 +4,7 @@ import {socialLegalBlock} from '../playbooks/social/legal-confirmation.ts';
 import {OPEN_PLATFORMS,isOpenPlatform,connectedOpenAccount,openAccountIdentity} from './open-posting-accounts.ts';
 import {sendOpenPost} from './open-posting.ts';
 import { actualSocialPosts } from '../playbooks/social/post-label.ts';
+import { handedOver } from '../delivery/run-machine.ts';
 // Chausar venture launcher: posting to social and video platforms (package P2-connectors).
 // Three modes per platform, each labelled with what the code does today:
 // - 'api' needs the platform's app review and a posting client. No client ships in this build, so it stays planned.
@@ -222,7 +223,6 @@ export type DraftPostReason = {
  */
 export type DraftPostGate = { allowed: boolean; reasons: DraftPostReason[]; text: string; channel: SocialChannel; draftDigest: string };
 
-const POSTABLE: readonly DeliveryRunRecord['status'][] = ['accepted', 'edited'];
 type DraftPost = { channel: SocialChannel; text: string };
 
 /** The posts a draft's text holds for one connector, in order, read with the social checks' own line parser. */
@@ -351,7 +351,7 @@ export function draftPostGate(state: State, input: { draftId: string; connectorI
   const current = shown.digest;
   const reasons: DraftPostReason[] = [];
   if (run.practice) reasons.push({ code: 'PRACTICE_DRAFT', line: 'A practice draft never goes out.' });
-  if (!POSTABLE.includes(run.status)) reasons.push({ code: 'DELIVERY_NOT_READY', line: 'Accept the draft first. Only a draft you accepted or edited is posted.' });
+  if (!handedOver(run)) reasons.push({ code: 'DELIVERY_NOT_READY', line: 'Accept the draft first. Only a draft you accepted or edited is posted.' });
   for (const line of uncheckedLines(state, run, post)) reasons.push({ code: 'POST_DRAFT_UNCHECKED', line });
   if (input.draftDigest && input.draftDigest !== current) {
     reasons.push({ code: 'POST_DRAFT_CHANGED', line: 'The draft changed after this post was proposed. Propose it again from the draft as it is now.' });

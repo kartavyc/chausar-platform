@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { MCP_PROTOCOL_VERSION } from '../runtime/mcp.ts';
 import { formatMinor } from '../runtime/currency.ts';
 import { JobCapability } from '../runtime/venture/agent-runtime/scope.ts';
+import { jobPrompt } from '../runtime/venture/agent-runtime/runner.ts';
+import { HARNESS_WRITE_INSTRUCTIONS } from '../runtime/venture/delivery/harness/loop.ts';
 import { createJobMCP, type JobToolPorts, type JobSnapshot, type JobDraft, type JobProposal } from '../runtime/venture/agent-runtime/job-tools.ts';
 import { kitBusiness, installKitFixture, owner } from './fixtures/venture/kit-business.ts';
 import { listRecords, findRecord } from '../runtime/venture/records.ts';
@@ -23,7 +25,8 @@ async function setup(t: {after:(fn:()=>void)=>void}) {
  await mcp.handle(owner,{jsonrpc:'2.0',method:'notifications/initialized'});
  const call=async(name:string,args:Record<string,unknown>={})=>mcp.handle(owner,{jsonrpc:'2.0',id:2,method:'tools/call',params:{name,arguments:args}});
  const data=(answer:any)=>{assert.equal(answer?.error,undefined,JSON.stringify(answer));return answer.result.structuredContent.data;};
- return {...env,call,data,snapshot,ports,price,get saved(){return saved;},get proposed(){return proposed;},get reads(){return reads;},revoke:()=>{active=false;},stale:()=>{stale=true;}};
+ const list=async()=>mcp.handle(owner,{jsonrpc:'2.0',id:3,method:'tools/list',params:{}}) as Promise<any>;
+ return {...env,call,data,list,snapshot,ports,price,get saved(){return saved;},get proposed(){return proposed;},get reads(){return reads;},revoke:()=>{active=false;},stale:()=>{stale=true;}};
 }
 function draft(ref:string){return {title:'A reply',sections:[{heading:'Reply',parts:[{kind:'text',text:'Here is the agreed price for the requested work.',ref:''},{kind:'figure',text:'',ref}]}],questionsForClient:[]};}
 
@@ -115,4 +118,28 @@ test('a held calculation cannot authorize source labels or receipt references in
  const total=env.price.figures.find(f=>f.key==='total')!;
  assert.ok((await env.call('draft_document',{draft:draft(`${env.price.id}.${total.key}`)}))?.error);
  assert.equal(env.saved,undefined);
+});
+
+// Seen in the real app on Windows (17 Nov 2026, re-check 073 and 075): the order said "One 2 kg chocolate cake ...
+// Friday 20 November, delivered to the office by 4 pm" and the draft asked the client to confirm the cake size and the
+// delivery date and deadline. The job was told "Numbers without receipts are refused" and the draft shape said "no
+// digits", so it left out what the order said and asked for it. A count, size, date or time copied exactly from the
+// order is the client's own and passes the provenance check (agent-runtime/draft-provenance.ts); the job is now told so,
+// and to ask only for what the order leaves open. Money still comes only from receipts.
+test('the job may say back what the order says, and is told to ask only for what it leaves open',async t=>{
+ const env=await setup(t);
+ env.snapshot.order.request='One 2 kg chocolate cake for a team birthday on Friday 20 November, delivered to the office by 4 pm.';
+ assert.match(jobPrompt({} as never),/Use what the order already says/);
+ assert.match(HARNESS_WRITE_INSTRUCTIONS,/only about what their request and the work leave open/);
+ const tools=(await env.list()).result.tools as {name:string;description:string}[];
+ const save=tools.find(tool=>tool.name==='draft_document')!.description;
+ assert.doesNotMatch(save,/Numbers without receipts are refused/);
+ assert.match(save,/copied exactly from the order/);
+ const shape=env.data(await env.call('read_business')).draftSchema.properties.sections.items.properties.parts.items.properties.text.description as string;
+ assert.doesNotMatch(shape,/no digits/i);
+ const calculation=env.data(await env.call('calculate',{operation:'order_price',arguments:{}}));const total=calculation.refs.figures.find((r:any)=>r.figureKey==='total');
+ const said=(text:string)=>({title:'Your birthday cake',sections:[{heading:'Reply',parts:[{kind:'text',text,ref:''},{kind:'figure',text:'',ref:total.ref}]}],questionsForClient:['What is the office address and who should receive the cake?']});
+ env.data(await env.call('draft_document',{draft:said('One 2 kg chocolate cake for Friday 20 November, delivered to the office by 4 pm. The total is')}));
+ assert.ok(env.saved?.renderedText.includes('2 kg'));
+ for(const text of ['One 3 kg chocolate cake. The total is','Delivered by 5 pm. The total is'])assert.ok((await env.call('draft_document',{draft:said(text)}))?.error,text);
 });

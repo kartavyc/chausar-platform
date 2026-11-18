@@ -20,6 +20,8 @@ const base = (view: SpendPolicyView) => {
   return rest;
 };
 const call = (key: string, item: string, list: SpendRate | null = null) => ({ key, item, label: `Call ${key}`, payer: 'connector:fal', draftDigest: 'c'.repeat(64), list });
+/** Fix round 4 (real-app problem 12): a rupee business with no rate of its own uses the dated reference rate, named so. */
+const REFERENCE = '94.3996', REFERENCE_WORDS = '₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)';
 
 test('spend policy methods: listed, owned by money, and set is an owner action inside the app', () => {
   for (const method of ['venture.spend.policy.get', 'venture.spend.policy.set'] as const) {
@@ -33,13 +35,13 @@ test('spend policy methods: listed, owned by money, and set is an owner action i
 test('spend policy: nothing set reads as no limit and no ask-first; set keeps what it leaves out and marks rates confirmed', async () => {
   const env = await setup();
   assert.deepEqual(base(await get(env)), {
-    capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
+    capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: REFERENCE, rupeeRate: REFERENCE_WORDS,
   });
 
   const view = await set(env, { cap: '5000000', askFirst: '1000000', rates: [FAL_LINE] });
   assert.deepEqual({ ...base(view), rates: undefined }, {
     capMicros: '5000000', askFirstMicros: '1000000', capUsd: '5.00', askFirstUsd: '1.00', cap: '$5.00 a month', askFirst: 'Asks you first above $1.00', rates: undefined, setAt: env.now(),
-    inrPerUsd: null, rupeeRate: null,
+    inrPerUsd: REFERENCE, rupeeRate: REFERENCE_WORDS, capRupees: `₹472 at ${REFERENCE_WORDS}`, askFirstRupees: `₹94.40 at ${REFERENCE_WORDS}`,
   });
   assert.deepEqual(view.rates, [{
     item: 'connector:fal', unit: 'per-call', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: '150000',
@@ -90,20 +92,36 @@ test('spend rows: heavy work and the delivery agent\'s model calls name the team
   assert.equal(agentOf.get('Call model:call_2'), null);
 });
 
-// C5 task 15: Use the reference rate. The owner's choice, once: it stores the exact figure, its date and its source, and
-// the view offers it with those words. Margins then count, and their basis names the date.
-test('spend policy: using the reference rate stores its figure, day and source; a typed rate replaces it', async () => {
+// C5 task 15 and fix round 4 (real-app problem 12): the reference rate. A rupee business uses it from its first day,
+// named with its source and day, so its spend reads in rupees; the owner's own rate replaces it. Taking it by choice
+// stores the exact figure, its date and its source.
+test('spend policy: a rupee business uses the reference rate until the owner types their own; taking it stores its figure, day and source', async () => {
   const env = await setup();
   const { REFERENCE_RATE } = await import('../runtime/venture/money/reference-rate.ts');
+  const { listRecords } = await import('../runtime/venture/records.ts');
+  const kept = () => listRecords(env.store.read(), 'venture-spend-policy').at(-1)!.rupeeRate;
+  // Nothing set: the reference rate is in use and rupees lead, so the rate is not offered again.
   const before = await get(env);
-  assert.equal(before.reference?.line, 'Use the reference rate of 5 Nov 2026: ₹94.3996 per US dollar');
+  assert.deepEqual([before.inrPerUsd, before.rupeeRate, before.reference, before.leads], [REFERENCE, REFERENCE_WORDS, undefined, 'INR']);
+  // The settings form sends the rate field as it stands: the rate in use sent back is not made the owner's own.
+  const same = await set(env, { inrPerUsd: REFERENCE });
+  assert.equal(same.rupeeRate, REFERENCE_WORDS);
+  assert.equal(kept(), null);
+  // The owner's own rate replaces it, and the reference rate is offered again.
+  const typed = await set(env, { inrPerUsd: '90.00' });
+  assert.match(typed.rupeeRate!, /^₹90\.00 per \$1 \(your rate, set /);
+  assert.equal(typed.reference?.line, 'Use the reference rate of 5 Nov 2026: ₹94.3996 per US dollar');
   const view = await set(env, { useReference: true });
   assert.equal(view.inrPerUsd, REFERENCE_RATE.perUsd);
-  assert.equal(view.rupeeRate, '₹94.3996 per $1 (FBIL reference rate of 5 Nov 2026)');
-  const { listRecords } = await import('../runtime/venture/records.ts');
-  assert.deepEqual(listRecords(env.store.read(), 'venture-spend-policy').at(-1)!.rupeeRate, { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' });
+  assert.equal(view.rupeeRate, REFERENCE_WORDS);
+  assert.equal(view.reference, undefined);
+  assert.deepEqual(kept(), { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' });
+  // A kept reference rate sent back unchanged stays one; it is not relabelled as the owner's rate of today.
+  assert.equal((await set(env, { inrPerUsd: REFERENCE })).rupeeRate, REFERENCE_WORDS);
+  assert.deepEqual(kept(), { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' });
   await assert.rejects(set(env, { useReference: true, inrPerUsd: '90' }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
   await assert.rejects(set(env, { useReference: false }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
-  const typed = await set(env, { inrPerUsd: '90.00' });
-  assert.match(typed.rupeeRate!, /your rate, set/);
+  // Cleared, the reference rate stands in again.
+  const cleared = await set(env, { inrPerUsd: null });
+  assert.deepEqual([cleared.rupeeRate, kept()], [REFERENCE_WORDS, null]);
 });

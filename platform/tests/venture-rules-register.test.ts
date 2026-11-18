@@ -291,7 +291,7 @@ async function deliver(env: Awaited<ReturnType<typeof business>>, orderId: strin
     return stage<stages.length?draft(stage===1?'Voice sheet':'Calendar',Object.fromEntries((stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>[heading,['Clear, useful guidance for the studio.']]))):final;
   })});
   let waiting = await env.call('venture.delivery.run', { orderId });
-  assert.equal(waiting.status, 'waiting-for-you');
+  assert.equal(waiting.status, 'working');
   while((waiting.chainStage??1)<stages.length){
       await waitForAgentWork(env.deps.store,waiting.id);
       const ready=(await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);

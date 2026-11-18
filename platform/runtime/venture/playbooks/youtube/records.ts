@@ -17,5 +17,4 @@ export type YoutubeEditBody = {
 export type YoutubeDictionaryBody = { terms: string[] };
 /** The measured style card belongs to 5B2. */
 export type YoutubeStyleBody = { references: { editId: string; editDigest: string; sourceDigest: string; path: string }[]; card: ReturnType<typeof styleCard> };
-export type YoutubeStyleView = YoutubeStyleBody & { id: string; digest: string };
 export type YoutubeEditView = YoutubeEditBody & { id: string; digest: string };

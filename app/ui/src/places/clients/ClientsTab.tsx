@@ -40,6 +40,7 @@ export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
       <EmptyState
         title={t('clients.empty')}
         action={<Button variant="primary" data-add-client="" onClick={(event) => openSheet('client', 'new', event.currentTarget)}>{t('clients.add')}</Button>}
+        actions={[{ label: t('clients.find.open'), onSelect: () => openSheet('find', 'new') }]}
       />
     );
   }

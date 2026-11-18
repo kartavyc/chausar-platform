@@ -86,3 +86,26 @@ test('C4: no-day-job is recorded and read back, with its line; an unknown answer
   assert.equal(recorded.recorded?.sideWork, 'no-day-job');
   assert.equal((await get({ profession: 'teaching' })).recorded?.sideWork, 'no-day-job');
 });
+
+// Fix round 4 (the real-app tour of 16 Nov 2026, problem 14): answering that the contract does not allow side work
+// changed nothing on the page. The engine recorded the answer and had no line for it. The view now carries a plain
+// line for that answer and one for "I am not sure": what it means and what to do. Neither blocks the owner: it is
+// their call, and the answer is recorded as theirs.
+test('fix 4: a contract that forbids side work, or an owner not sure of it, gets a plain line, and is never blocked', async () => {
+  const env = await kitBusiness({ now: new Date('2026-10-27T10:00:00Z') }, { idea: 'Tuition classes for school students' });
+  const get = (payload: unknown) => coreHandlers['venture.compliance.get']!(env.deps, owner, payload) as Promise<ComplianceView>;
+  const set = (payload: unknown) => coreHandlers['venture.compliance.set']!(env.deps, owner, payload) as Promise<ComplianceView>;
+  const view = await get({ profession: 'teaching' });
+  assert.equal(view.notAllowed, 'Your contract does not allow side work, so taking paid work could put your job at risk. Check with your employer first. You can still continue, and Chausar records this as your answer.');
+  assert.equal(view.notSure, 'Read your contract or ask your employer before you take paid work. You can still continue, and Chausar records this as your answer.');
+  for (const line of [view.notAllowed, view.notSure]) assert.ok(!/[\u2014\u2013]/.test(line) && line.length <= 200, line);
+  // The same lines before any business exists, where the first run shows them.
+  assert.equal(complianceBeforeVault({ profession: 'teaching' }).notAllowed, view.notAllowed);
+  assert.equal(complianceBeforeVault({ profession: 'teaching' }).notSure, view.notSure);
+  // The words are part of what the owner reads, so they are in the digest the answer is recorded against.
+  assert.equal(view.digest, complianceBeforeVault({ profession: 'teaching' }).digest);
+  // Not blocked: the answer is recorded as the owner's, with the day.
+  const recorded = await set({ profession: 'teaching', sideWork: 'not-allowed', digest: view.digest });
+  assert.deepEqual([recorded.recorded?.sideWork, recorded.recorded?.acknowledgedOn], ['not-allowed', '2026-10-27']);
+  assert.equal((await get({ profession: 'teaching' })).recorded?.sideWork, 'not-allowed');
+});

@@ -1,7 +1,7 @@
 // Chausar seller economics: independent implementation of commerce.md; sealeap ideas (MIT), no copied code.
 import { ChausarError } from '../../../contracts.ts';
 import { computeUnitEconomics, computeBreakEven, type EconomicsResult, type SellerUse, type SalesBasis } from './model.ts';
-export type { EconomicsInput, EconomicsResult, SellerEvidence, SellerRate, SellerUse, SalesBasis } from './model.ts';
+export type { EconomicsResult, SellerUse, SalesBasis } from './model.ts';
 /** Adapts browser-safe domain refusals to the engine's common error contract. */
 export function sellerCall<T>(call: () => T): T {
   try { return call(); } catch (error) {

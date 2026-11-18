@@ -110,10 +110,12 @@ describe('Team v2: the stats tiles', () => {
     expect(working.querySelectorAll('[data-dept][aria-hidden="true"]')).toHaveLength(2);
 
     const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
-    // B3: the count is what Today counts for this business (7 rows wait in Lumen); the line names the agent who waits.
+    // B3: the count is what Today counts for this business (7 rows wait in Lumen). Fix round 4 (sample item 8): one agent
+    // waits and six rows hold no agent, so the line says Today's count; naming Producer under a 7 read as a wrong count.
     await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('7'));
     expect(waiting.getAttribute('data-tone')).toBe('wait');
-    expect(waiting.textContent).toContain('Producer: Pricing the sponsor slot');
+    expect(waiting.textContent).toContain('7 need you');
+    expect(waiting.textContent).not.toContain('Producer: Pricing the sponsor slot');
     expect(waiting.querySelector('[data-state="waiting"]')).not.toBeNull();
 
     // "Includes estimates" means calls not settled yet, a cost code worked out, not a number a model wrote: the spend
@@ -330,9 +332,9 @@ describe('Team v2: a department panel', () => {
     expect(wait.getAttribute('data-tone')).toBe('wait');
     expect(panel.textContent).toContain('2 jobs failed');
     expect(panel.textContent).toContain('3 idle');
-    // A department with nobody in it says so and points to the ways to earn (spec section 8).
+    // A department with nobody in it says so and points to the hire sheet, where one is added.
     expect(within(panel).getByText('No agents in Sales and clients yet.')).toBeTruthy();
-    expect(within(panel).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=sales');
+    expect(within(panel).getByRole('link', { name: 'Add agent' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     const css = readFileSync(join(import.meta.dirname, '../../src/places/team/Team.module.css'), 'utf8');
     expect(css).toMatch(/\[data-tone='wait'\][^{]*\{[^}]*color: var\(--wait-strong\)/);
   });
@@ -352,7 +354,7 @@ describe('Team v2: with departments from the engine', () => {
     const money = within(main()).getByRole('article', { name: 'Money' });
     expect(within(money).queryByRole('list', { name: 'Money agents' })).toBeNull();
     expect(within(money).getByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(money).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
+    expect(within(money).getByRole('link', { name: 'Add agent' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     expect(screen.queryByRole('region', { name: 'Your agents' })).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Team' }).nextElementSibling!.textContent).toBe('4 agents in 3 departments.');
     assertInkRules(document.body);
@@ -371,10 +373,10 @@ describe('Team v2: with departments from the engine', () => {
     expect(window.location.hash).toBe('#/team');
   });
 
-  it('an address with a department opens on it; one with no agents says so and offers ways to earn', async () => {
+  it('an address with a department opens on it; one with no agents says so and offers to add one', async () => {
     start('#/team?dept=money', { intercept: withDepartments });
     expect(await within(main()).findByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(main()).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
+    expect(within(main()).getByRole('link', { name: 'Add agent' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
   });
 
   for (const hash of ['#/team', '#/team?dept=prod']) {
@@ -440,10 +442,10 @@ describe('Team v2: one department', () => {
     expect(flow.textContent).toContain('An instruction change makes version 5. You can undo it.');
   });
 
-  it('with no agents: one sentence and a link to the ways to earn', () => {
+  it('with no agents: one sentence and a link to the hire sheet', () => {
     renderWithEngine(<OneDepartment data={{ dept: 'ops', counts: { working: 0, waiting: 0, stopped: 0, idle: 0 }, members: [] }} />);
     expect(screen.getByText('No agents in Operations yet.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=ops');
+    expect(screen.getByRole('link', { name: 'Add agent' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     expect(screen.queryByRole('region', { name: 'How Operations runs' })).toBeNull();
   });
 

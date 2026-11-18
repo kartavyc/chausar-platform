@@ -66,7 +66,7 @@ export function forwardModels(port: () => ModelPort): ModelPort {
       return real.codexVerifiedProgram();
     },
     toolSaid(callId: string) { const real = port(); return real.toolSaid ? real.toolSaid(callId) : null; },
-    async codexModels() { const real = port(); return real.codexModels ? real.codexModels() : pickCodexModels(null); },
+    async codexModels(options?: { once?: boolean }) { const real = port(); return real.codexModels ? real.codexModels(options) : pickCodexModels(null); },
     async codexPlan() { const real = port(); return real.codexPlan ? real.codexPlan() : null; },
   });
 }
@@ -107,9 +107,16 @@ function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMeth
   return !!table && typeof table === 'object' && Object.hasOwn(table, method) && typeof (table as Record<string, unknown>)[method] === 'function';
 }
 
-/** Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. */
+/**
+ * Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. The
+ * side-work question is answered by the engine before a vault exists (onboarding shows it then), and by core once a
+ * business is open, where it also reads the recorded answer (Business, Your profession): it was refused here, so that
+ * page and a repeated question failed in the real app.
+ */
 export function outsideTables(method: string): boolean {
-  if (method === 'venture.country.suggest') return false;
+  if (method === 'venture.country.suggest' || method === 'venture.compliance.get') return false;
+  // About you's fields: the draft desk's before a business exists, core's after (Settings, About you reads them).
+  if (method === 'venture.about.families') return false;
   // A2: the engine answers the owner's Codex choice itself, with or without a vault (engine.ts).
   if ((ENGINE_METHODS as readonly string[]).includes(method)) return true;
   return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
@@ -251,6 +258,7 @@ export class VentureHost {
       // A transcript made on this computer: the ffmpeg port, and how the engine stops it when the workspace closes.
       ...(options.ffmpeg && options.host !== 'hosted-web' ? { ffmpeg: options.ffmpeg } : {}),
       ...(options.closing ? { closing: options.closing } : {}),
+      ...(options.planKey ? { planKey: options.planKey } : {}),
       // Ink v2 wave 4 (4G1): when the owner last had Chausar open, for the alert rules of notify/centre.ts.
       ...(options.watching ? { watching: options.watching } : {}),
       // Ink v2 wave 4 (4G3): the web push key for phone alerts, only on the hosted web server.
@@ -270,8 +278,6 @@ export class VentureHost {
       ...(options.formsBrowser && options.host === 'desktop' ? { formsBrowser: options.formsBrowser } : {}),
       // Wave 6 (6F3): the desktop's hidden reading window for pages that need JavaScript; never elsewhere.
       ...(options.webRender && options.host === 'desktop' ? { webRender: options.webRender } : {}),
-      // Wave 6 (6H2): the desktop's browser window for recorded flows; never elsewhere.
-      ...(options.flowBrowser && options.host === 'desktop' ? { flowBrowser: options.flowBrowser } : {}),
       // Wave 6 (6J2): the report services' keys from the build's environment; used only after the owner opts in.
       ...(options.feedback ? { feedback: options.feedback } : {}),
     });
@@ -465,6 +471,18 @@ export class VentureHost {
    * opens (nothing of this process is in flight then, so any claim counts) and on its scheduler tick. Never throws:
    * answers how many entries moved, 0 for a vault without a business, or null when the sweep could not run.
    */
+  /**
+   * Fix round 7: whether a routine's time came since its last look, so the engine's tick sweeps now, not at its next
+   * five-minute sweep (agents/routine-runner.ts routineDue). Reads only; never throws.
+   */
+  async routineDue(): Promise<boolean> {
+    if (this.#closed) return false;
+    try {
+      const { routineDue } = await import('./agents/routine-runner.ts');
+      return routineDue(this.#store.read(), this.#deps.clock().getTime());
+    } catch { return false; }
+  }
+
   async sweepJournal(ctx: Context, claimLimitMs?: number): Promise<number | null> {
     if (this.#closed) return null;
     try {

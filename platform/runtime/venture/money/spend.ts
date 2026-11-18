@@ -14,7 +14,7 @@
 // Spend is counted and capped in US dollars. With the owner's own rupee rate set, every figure also shows in rupees
 // beside the dollars (paise worked out in BigInt, to the nearest paisa, a half paisa up), labelled with that rate.
 import { REFERENCE_RATE, REFERENCE_SOURCE } from './reference-rate.ts';
-import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
+import { formatCost, formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
 import { ESTIMATE_WORDS, microsAsUsd, recordedCallMicros, usdToMicros } from '../models/cost.ts';
 import { NOT_REPORTED } from '../models/types.ts';
@@ -36,6 +36,7 @@ import { WRITE_CAP_KINDS, writeCapsToday } from '../delivery/harness/write-caps.
 import { resetDay, shortDay } from '../delivery/failure-words.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { presetSpec } from '../models/presets.ts';
+import { ownPlanLead } from '../models/own-plan.ts';
 import { articleReservation } from '../playbooks/seo-visibility/article-budget.ts';
 import type { ModelPresetId, ModelTier, RateCardLine } from '../contracts.ts';
 // 4Z3: which currency leads spend.
@@ -438,9 +439,12 @@ export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: u
     if (limits.routineCaps) requireRoutinesExist(tx.state, tx.venture!.id, limits.routineCaps);
     const current = latestPolicy(tx.list('venture-spend-policy'));
     const held = current?.rupeeRate ?? null;
-    const rupeeRate = referenceRate ?? (perUsd === undefined ? held
+    // The settings form sends the rate field as it stands. The rate in use sent back unchanged keeps what is held: the
+    // owner's own rate keeps its day, and a reference rate (kept, or standing in for a rupee business) stays one.
+    const inUse = rupeeRateFor(current, tx.venture!.country);
+    const rupeeRate = referenceRate ?? (perUsd === undefined || (inUse !== null && inUse.perUsd === perUsd) ? held
       : perUsd === null ? null
-        : { perUsd, setOn: held && held.perUsd === perUsd && !held.source ? held.setOn : localDayAt(tx.now, tx.venture!.country) });
+        : { perUsd, setOn: localDayAt(tx.now, tx.venture!.country) });
     return tx.put({
       ...tx.base('venture-spend-policy'),
       capMicros: cap !== undefined ? cap : current?.capMicros ?? null,
@@ -520,23 +524,30 @@ export function microsToPaise(micros: MicroString, perUsd: string): bigint {
   return (BigInt(micros) * BigInt(perUsd) + 50_000_000n) / 100_000_000n;
 }
 
-/** The rate's whole rupees and its decimals, two places at least and more only when it has them. */
+/** The rate's whole rupees and its decimals as typed back in the settings field: two places at least and more only when it has them. */
 function rateParts(perUsd: string): { whole: bigint; decimals: string } {
   const value = BigInt(perUsd);
   return { whole: value / 10_000n, decimals: String(value % 10_000n).padStart(4, '0').replace(/0+$/, '').padEnd(2, '0') };
 }
 
+/**
+ * The rate as the owner reads it in words: rupees to two decimals, a half paisa up ('₹94.40' for 94.3996), the owner
+ * form every screen keeps. The exact figure is the one typed back in the settings field and kept in each receipt.
+ */
+export function rupeeRateShown(perUsd: string): Display {
+  const paise = (BigInt(perUsd) + 50n) / 100n;
+  return `₹${formatCount(paise / 100n, 'IN')}.${String(paise % 100n).padStart(2, '0')}`;
+}
+
 /** '₹83.50 per $1 (your rate, set 23 Oct 2026)': the owner's rate in words, with the day it was set. C5 task 15: a rate taken from the reference figure names its source and day. */
 export function rupeeRateWords(rupees: Rupees): Display {
-  const { whole, decimals } = rateParts(rupees.rate.perUsd);
-  if (rupees.rate.source) return `₹${formatCount(whole, 'IN')}.${decimals} per $1 (${rupees.rate.source} of ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
-  return `₹${formatCount(whole, 'IN')}.${decimals} per $1 (your rate, set ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
+  if (rupees.rate.source) return `${rupeeRateShown(rupees.rate.perUsd)} per $1 (${rupees.rate.source} of ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
+  return `${rupeeRateShown(rupees.rate.perUsd)} per $1 (your rate, set ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
 }
 
 /** 4Z3: '₹83.50 per $1', the owner's rate without the day it was set, for a line that says it beside a figure. */
 export function rupeeRateShort(rupees: Rupees): Display {
-  const { whole, decimals } = rateParts(rupees.rate.perUsd);
-  return `₹${formatCount(whole, 'IN')}.${decimals} per $1`;
+  return `${rupeeRateShown(rupees.rate.perUsd)} per $1`;
 }
 
 /** '₹20.88', a dollar figure in rupees at the owner's rate. */
@@ -549,15 +560,32 @@ export function rupeesBeside(micros: MicroString, rupees: Rupees | null): Displa
   return rupees ? `${rupeeFigure(micros, rupees)} at ${rupeeRateWords(rupees)}` : null;
 }
 
-/** The owner's rupee rate for a business, read from a state snapshot; null when none is set. */
-/** C4 (T23): a rupee business with no rate set. Elsewhere a rupee rate would not help, so nothing offers one. */
-export function needsRupeeRate(rupees: Rupees | null, venture: Pick<VentureRecord, 'country'>): boolean {
-  return rupees === null && venture.country.currency === 'INR';
+/**
+ * A month of AI spend in one line, as the business's currency leads it (Your AI's "This month"): rupees first with the
+ * dollars and the rate beside for a rupee business, else as providers bill it. The money is worked here, never on screen.
+ */
+export function monthSpendLine(micros: MicroString, rupees: Rupees | null, estimate: boolean): Display {
+  const usd = formatCost(micros, { paidCalls: true });
+  if (!rupees) return formatCost(micros, { paidCalls: true, estimate });
+  const tail = estimate ? ' (estimate)' : '', inr = rupeeFigure(micros, rupees), rate = rupeeRateShort(rupees);
+  return rupees.leads ? `${inr}${tail} (${usd} at ${rate})` : `${usd}${tail} (${inr} at ${rate})`;
 }
 
+/**
+ * The rate a business's rupee figures use: the owner's own, and for a business that bills in rupees with none set, the
+ * dated reference rate shipped with this release, named with its source and day wherever a figure rests on it. So a
+ * rupee business reads its AI spend in rupees from its first day, and the owner's own rate replaces it once typed.
+ * Elsewhere, and for a business still in its interview (no country yet), there is no rate until the owner sets one.
+ */
+export function rupeeRateFor(policy: Pick<SpendPolicyRecord, 'rupeeRate'> | null, country: Pick<CountryProfile, 'currency'> | null | undefined): RupeeRate | null {
+  if (policy?.rupeeRate) return policy.rupeeRate;
+  return country?.currency === 'INR' ? { perUsd: rupeeRateOf(REFERENCE_RATE.perUsd), setOn: REFERENCE_RATE.on, source: REFERENCE_SOURCE } : null;
+}
+
+/** The rupee rate for a business (rupeeRateFor), read from a state snapshot; null when it has none. */
 export function rupeesOf(state: State, venture: Pick<VentureRecord, 'id' | 'country'>): Rupees | null {
   const policy = latestPolicy(listRecords(state, 'venture-spend-policy', venture.id));
-  const rate = policy?.rupeeRate ?? null;
+  const rate = rupeeRateFor(policy, venture.country);
   return rate ? { rate, dateOrder: venture.country.dateOrder, leads: rupeesLead(policy?.currencyLead ?? 'auto', venture.country) } : null;
 }
 
@@ -579,11 +607,13 @@ export function ratePrice(rate: SpendRate): Display {
   return rate.unit === 'per-call' ? `${figure} per call` : `Up to ${figure} a run`;
 }
 
-function policyView(policy: SpendPolicyRecord | null, dateOrder: DateOrder, country: Pick<CountryProfile, 'code'>): SpendPolicyView {
+function policyView(policy: SpendPolicyRecord | null, dateOrder: DateOrder, country: Pick<CountryProfile, 'code' | 'currency'>): SpendPolicyView {
   const currencyLead = policy?.currencyLead ?? 'auto';
   const cap = policy?.capMicros ?? null, askFirst = policy?.askAboveMicros ?? null;
   const usd = (micros: MicroString | null) => (micros === null ? null : microsAsUsd(micros));
-  const rupees: Rupees | null = policy?.rupeeRate ? { rate: policy.rupeeRate, dateOrder, leads: rupeesLead(currencyLead, country) } : null;
+  // The rate in use (rupeeRateFor): the owner's own, or a rupee business's reference rate until they type one.
+  const rate = rupeeRateFor(policy, country);
+  const rupees: Rupees | null = rate ? { rate, dateOrder, leads: rupeesLead(currencyLead, country) } : null;
   const typed = rupees ? rateParts(rupees.rate.perUsd) : null;
   return {
     // 4Z3: the limit lines as the owner's currency leads them, the dollars to two decimals; absent with no limit.
@@ -798,7 +828,7 @@ function refusalReason(record: SpendRecord): Display {
  * owner's rupee rate, every figure and the total come in rupees too, beside the dollars. A model call's row says who
  * answered it (by) once it has.
  */
-export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead: SpendLead; needsRate?: boolean }> {
+export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead: SpendLead }> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
   const records = newestFirst(listRecords(state, 'venture-spend', venture.id));
@@ -812,6 +842,9 @@ export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknow
     if (amount > 0n && rowKind(record) === 'estimate') estimated = true;
   }
   const rupees = rupeesOf(state, venture);
+  // On the owner's own AI plan nothing is priced: a month that came to nothing says so in words, and no rupee rate is
+  // asked for (models/own-plan.ts, the rule Team and Money at a glance follow). total keeps the exact words.
+  const ownPlan = ownPlanLead(deps, ctx, total, estimated);
   // The business's model calls by id, read once, for who answered each model row.
   const calls = new Map(listRecords(state, 'venture-model-call', venture.id).map(call => [call.id, call]));
   return {
@@ -819,8 +852,7 @@ export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknow
     total: formatUsd(String(total)) + SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : ''),
     ...(rupees ? { totalRupees: rupeesBeside(String(total), rupees)! } : {}),
     // 4Z3: the month's total as the owner's currency leads it.
-    totalLead: spendLead(String(total), rupees, SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : '')),
-    ...(needsRupeeRate(rupees, venture) ? { needsRate: true } : {}),
+    totalLead: ownPlan ?? spendLead(String(total), rupees, SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : '')),
   };
 }
 

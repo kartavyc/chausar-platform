@@ -8,7 +8,7 @@ import type { Language } from '../../src/text';
 import { assertInkRules } from '../helpers/ink-rules';
 
 /**
- * The owner's name and the setup checklist (W4 4J21, from 4J9 and 4J8): Business > About you keeps the owner's first
+ * The owner's name and this week's moves (W4 4J21, from 4J9; the chief's standing plan): Business > About you keeps the owner's first
  * name (only for Today's greeting) and the services the business does not sell (drafts never offer them), through
  * venture.owner.set; unsent edits are kept in the vault with venture.settings.draft ("Saved"), and a draft left
  * behind is offered back (W3's O22), never kept in browser storage. Business > Plan lists the setup steps by name, each
@@ -68,12 +68,24 @@ describe('Business > About you', () => {
     expect(calls.filter(([method]) => method === 'venture.owner.set')).toHaveLength(1);
   });
 
-  it('"Take my name back" removes it and says backups still hold it, as Forget does', async () => {
+  // Found on the real app, 16 November 2026: "Take my name back" erased the name on one press, worded like an undo.
+  it('"Erase my name" says what it does, asks once, then removes it and says backups still hold it, as Forget does', async () => {
     const engine = new FakeEngine({ now: () => NOW });
     await engine.request('venture.owner.set', { firstName: 'Kartavy' });
     const { calls } = await start('#/business/owner', { engine });
     await waitFor(() => expect((screen.getByRole('textbox', { name: 'Your first name' }) as HTMLInputElement).value).toBe('Kartavy'));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Take my name back' })); });
+    expect(screen.queryByRole('button', { name: 'Take my name back' })).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Erase my name' })); });
+    const words = 'This erases your first name, Kartavy, from this business. Today will greet you without it.';
+    const ask = screen.getByText(words).closest('[data-second-ask]') as HTMLElement;
+    expect(calls.filter(([method]) => method === 'venture.owner.set')).toEqual([]);
+    // Cancel keeps the name and gives the button back.
+    await act(async () => { fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' })); });
+    expect(screen.queryByText(words)).toBeNull();
+    expect(calls.filter(([method]) => method === 'venture.owner.set')).toEqual([]);
+    expect((screen.getByRole('textbox', { name: 'Your first name' }) as HTMLInputElement).value).toBe('Kartavy');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Erase my name' })); });
+    await act(async () => { fireEvent.click(within(screen.getByText(words).closest('[data-second-ask]') as HTMLElement).getByRole('button', { name: 'Erase my name' })); });
     expect(calls.find(([method]) => method === 'venture.owner.set')?.[1]).toEqual({ firstName: null });
     expect(await screen.findByText('Backups made before now still hold this person until those backups are deleted.')).toBeTruthy();
     expect((screen.getByRole('textbox', { name: 'Your first name' }) as HTMLInputElement).value).toBe('');
@@ -96,25 +108,20 @@ describe('Business > About you', () => {
   });
 });
 
-describe('Business > Plan: the setup steps by name', () => {
-  it('the steps left, each linking where it is done, and every step one fold away', async () => {
+describe("Business > Plan: this week, from the chief's standing plan", () => {
+  it("lists the week's moves in order with their states in the engine's words, and points to Today", async () => {
     await start('#/business/plan');
-    const heading = await screen.findByText('Setup', { selector: 'h2' });
-    const setup = heading.closest('section')!;
-    const left = await within(setup).findByRole('list', { name: 'Next steps' });
-    const links = within(left).getAllByRole('link');
-    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Build your website', '#/business/build'],
-      ['Follow the build on GitHub', '#/business/build'],
-      ['Rehearse with practice clients', '#/business/practice'],
-    ]);
-    const fold = setup.querySelector('details') as HTMLDetailsElement;
-    expect(fold.querySelector('summary')?.textContent).toBe('All 12 steps');
-    const all = within(fold).getAllByRole('listitem');
-    expect(all).toHaveLength(12);
-    expect(all[0]!.textContent).toContain('Connect your AI');
-    expect(all[0]!.querySelector('[data-done]')).not.toBeNull();
-    expect(all[11]!.querySelector('[data-done]')).toBeNull();
+    const heading = await screen.findByText('This week', { selector: 'h2' });
+    const week = heading.closest('section')!;
+    const moves = within(week).getAllByRole('listitem');
+    // It is Monday 26 October here, a new week: the move finished last week was set aside, and what is open carried over.
+    expect(moves.map((move) => move.textContent)).toEqual(['Set your pricesWaiting on you', 'Reply to the sponsors who wrote back.Waiting on you', "Plan next month's episodes.Planned"]);
+    expect(week.querySelector('[data-done]')).toBeNull();
+    // Here each state is said aloud only; Today shows them in words.
+    expect(within(moves[2]!).getByText('Planned').className).toBe('sr-only');
+    expect(within(moves[0]!).getByText('Waiting on you').className).toBe('sr-only');
+    expect(within(week).getByRole('link', { name: /Open Today/ }).getAttribute('href')).toBe('#/today');
+    expect(screen.queryByText('Setup', { selector: 'h2' })).toBeNull();
   });
 });
 

@@ -21,7 +21,7 @@ import { agentRunHistory, waitingOn } from './answer.ts';
 import { chatRoute } from './consent.ts';
 import { agentNotes } from './notes.ts';
 import { chatAgent } from './roles.ts';
-import { liveRoutines, whenWords } from './routines.ts';
+import { liveRoutines, routineZoneHere, whenWords } from './routines.ts';
 import { standingOrders } from './versions.ts';
 import { OWNER_HANDOVER, RETIRE_KEPT_LINE, RETIRED_LINE, retirementOf, retiredView } from './retired.ts';
 import {
@@ -56,7 +56,7 @@ function checkView(deps: VentureDeps, state: State, venture: VentureRecord, agen
   const agent = chatAgent(state, venture, agentId);
   check(!retirementOf(state, venture.id, agentId), 'AGENT_RETIRED', RETIRED_LINE);
   const routines = liveRoutines(state, venture.id).filter(routine => routine.agent === agentId && routine.on)
-    .map(routine => ({ id: routine.id, name: routine.name, when: whenWords(routine.schedule, venture) }));
+    .map(routine => ({ id: routine.id, name: routine.name, when: whenWords(routine.schedule, venture, routineZoneHere(deps)) }));
   const to = teamAgents(state, venture).filter(item => item.id !== agentId).map(item => ({ id: item.id, name: item.name }));
   const holds = {
     steps: agent.steps.map(step => step.title),

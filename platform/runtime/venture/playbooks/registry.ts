@@ -10,6 +10,7 @@ import { CA_FIRM_REGISTRATION } from './ca-firm/registration.ts';
 import { YOUTUBE_REGISTRATION } from './youtube/registration.ts';
 import { SOCIAL_AGENCY_REGISTRATION } from './social/registration.ts';
 import { PLAYBOOK_REGISTRATIONS } from './registrations.ts';
+import { pickedBy } from '../core/service-keywords.ts';
 
 export type PlaybookRegistration = {
   /** The folder name: short and lowercase. */
@@ -94,20 +95,13 @@ export function validateRegistry(registry: readonly PlaybookRegistration[] = cur
 }
 
 /**
- * The playbook an idea picks: every registration with a phrase inside the lower-cased idea is a candidate, the
- * longest phrase found wins, and a tie goes to the playbook registered first. No phrase found gives null, and the
- * plain service type serves the business.
+ * The playbook an idea picks (core/service-keywords.ts pickedBy, which the app's fake engine shares): the longest of the
+ * registrations' phrases that names the owner's work wins, and a tie goes to the playbook registered first. A phrase
+ * that names a trade does not pick where it names who the owner sells to. No phrase found gives null, and the plain
+ * service type serves the business.
  */
 export function pickPlaybook(idea: string, registry: readonly PlaybookRegistration[] = currentRegistry()): PlaybookRegistration | null {
-  const text = idea.toLowerCase().replace(/\s+/g, ' ');
-  let best: PlaybookRegistration | null = null;
-  let bestLength = 0;
-  for (const entry of registry) {
-    for (const phrase of entry.picks) {
-      if (phrase.length > bestLength && text.includes(phrase)) { best = entry; bestLength = phrase.length; }
-    }
-  }
-  return best;
+  return pickedBy(idea, registry);
 }
 
 export function findPlaybook(id: string, registry: readonly PlaybookRegistration[] = currentRegistry()): PlaybookRegistration | null {

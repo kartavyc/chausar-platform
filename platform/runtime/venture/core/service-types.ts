@@ -4,8 +4,8 @@
 // doneClaimFindings.
 import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, SERVICE_TYPE_LABELS } from '../contracts.ts';
 import type { InterviewModelOutput, PricingModel, ServiceType } from '../contracts.ts';
-import { pickPlaybook } from '../playbooks/registry.ts';
-import { SERVICE_KEYWORDS } from './service-keywords.ts';
+import { currentRegistry } from '../playbooks/registry.ts';
+import { SERVICE_KEYWORDS, classifiedBy } from './service-keywords.ts';
 
 /** Substring keywords per type, matched against the lower-cased idea (pure, shared with the fake engine). */
 export { SERVICE_KEYWORDS };
@@ -17,17 +17,7 @@ export { SERVICE_KEYWORDS };
  * for its type, the highest count wins, a tie goes to the type listed first in SERVICE_TYPES, and no hit is 'other'.
  */
 export function classifyIdea(idea: string): ServiceType {
-  const picked = pickPlaybook(idea);
-  if (picked) return picked.serviceType;
-  const text = idea.toLowerCase();
-  let best: ServiceType = 'other';
-  let bestHits = 0;
-  for (const type of SERVICE_TYPES) {
-    if (type === 'other') continue;
-    const hits = SERVICE_KEYWORDS[type].filter(keyword => text.includes(keyword)).length;
-    if (hits > bestHits) { best = type; bestHits = hits; }
-  }
-  return best;
+  return classifiedBy(idea, currentRegistry());
 }
 
 export type OfferWords = { name: string; description: string };

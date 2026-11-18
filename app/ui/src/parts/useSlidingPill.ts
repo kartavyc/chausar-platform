@@ -10,8 +10,11 @@ const CURRENT = '[aria-pressed="true"], [aria-current="page"], [data-current]';
  * offsets only, never a figure. The first placement has no transition: `data-pill-ready` goes on the row only after it,
  * so nothing moves at first paint, and the row's own CSS keeps the current item's fill until then. C1's Tabs part adopts
  * it with `data-tabs` and `data-current`.
+ * It is placed again after every draw of its row, not only when the choice moves: the current item changes width when
+ * its own words do (a count, a version badge read later), and an item before it moving it along does the same. A font
+ * that loads late changes every width with no draw at all, so it is placed then too.
  */
-export function useSlidingPill(value: unknown) {
+export function useSlidingPill() {
   const pill = useRef<HTMLSpanElement>(null);
   const place = () => {
     const element = pill.current;
@@ -26,15 +29,17 @@ export function useSlidingPill(value: unknown) {
     element.style.height = `${current.offsetHeight}px`;
     element.style.transform = `translate(${current.offsetLeft}px, ${current.offsetTop}px)`;
   };
-  useLayoutEffect(place, [value]);
+  useLayoutEffect(place);
   useEffect(() => {
     const row = pill.current?.parentElement;
     if (!row) return undefined;
+    let live = true;
+    void document.fonts?.ready?.then(() => { if (live) place(); });
     const frame = requestAnimationFrame(() => row.setAttribute('data-pill-ready', ''));
-    if (typeof ResizeObserver === 'undefined') return () => cancelAnimationFrame(frame);
+    if (typeof ResizeObserver === 'undefined') return () => { live = false; cancelAnimationFrame(frame); };
     const observer = new ResizeObserver(place);
     observer.observe(row);
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+    return () => { live = false; cancelAnimationFrame(frame); observer.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return pill;

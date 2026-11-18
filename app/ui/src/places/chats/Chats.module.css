@@ -381,6 +381,12 @@
   white-space: normal;
 }
 
+/* Between two paragraphs of one reply. */
+.paraBreak {
+  display: block;
+  height: var(--sp-2);
+}
+
 .dropped {
   margin: 0;
   font-size: var(--text-read);

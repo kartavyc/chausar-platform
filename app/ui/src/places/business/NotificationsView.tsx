@@ -17,6 +17,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Confirm, useSecondAsk } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { useLocalToday } from '../../parts/when';
 import { dayKeyPlus, formatClock } from '../../../../../platform/runtime/owner-format';
@@ -220,6 +221,7 @@ function Relay({ view }: { view: { relay: string | null; line: string } }) {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const remove = useSecondAsk();
   const shown = said ?? view;
 
   async function send(next: string | null) {
@@ -244,8 +246,14 @@ function Relay({ view }: { view: { relay: string | null; line: string } }) {
       <Field label={t('business.notify.relay')} hint={t('business.notify.relayHint')} type="url" inputMode="url" autoComplete="off" spellCheck={false} value={url} disabled={busy} onChange={(event) => setUrl(event.currentTarget.value)} />
       <div className={s.buttons}>
         <Button type="submit" variant="secondary" disabled={busy} disabledReason={url.trim() ? undefined : t('business.notify.relayFirst')}>{t('business.notify.relaySave')}</Button>
-        {shown?.relay && <Button variant="quiet" disabled={busy} onClick={() => void send(null)}>{t('business.notify.relayRemove')}</Button>}
+        {shown?.relay && !remove.asking && <Button ref={remove.button} variant="quiet" disabled={busy} onClick={remove.ask}>{t('business.notify.relayRemove')}</Button>}
       </div>
+      {/* Removing forgets the saved address: it asks once first. */}
+      {shown?.relay && remove.asking && (
+        <Confirm action={t('business.notify.relayRemove')} tone="danger" busy={busy} onCancel={remove.cancel} onConfirm={() => { void send(null).finally(remove.done); }}>
+          <p className={s.line}>{t('business.notify.relayRemoveAsk')}</p>
+        </Confirm>
+      )}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </form>
   );

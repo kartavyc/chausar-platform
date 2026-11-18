@@ -27,6 +27,7 @@ import { RING, Result, agentRow, currentRun, elapsedOf, refreshOn, stateWords, t
 import s from './Team.module.css';
 import { Fold } from '../../parts/Fold';
 import c from './AgentChat.module.css';
+import { fixedWords } from '../today/plan-words';
 
 /** A role whose steps are code has no chat and keeps no notes (engine 4B1 AGENT_IS_CODE): its instructions and runs. */
 const CODE_TABS: readonly AgentTab[] = ['instructions', 'runs'];
@@ -210,7 +211,7 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
       <span className={s.runRing}>{run.progress && <ProgressRing progress={run.progress} tone={toneOf(run)} />}</span>
       <div className={s.runBody}>
         <button type="button" className={s.runOpen} data-open="" onClick={(event) => openSheet('run', run.runId, agentRow(agentId) ?? event.currentTarget)}>
-          {run.purpose}
+          {fixedWords(t)(run.purpose)}
         </button>
         <p className={s.runMeta}>
           <StateChip kind="run" value={run.state} />
@@ -220,7 +221,7 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
         {run.state === 'done' && run.result !== undefined && (
           <p className={s.result}><Result line={run.result} receiptId={run.receiptId} estimate={run.estimate} /></p>
         )}
-        {run.writtenBy && <p className={s.quiet} data-written-by="">{run.writtenBy}</p>}
+        {run.writtenBy && <p className={s.quiet} data-written-by="">{fixedWords(t)(run.writtenBy)}</p>}
       </div>
     </li>
   );

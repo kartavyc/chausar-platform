@@ -1,25 +1,23 @@
-# Native Codex host activation
+# Trusting a Codex on this computer
 
-The normal HTTP server and desktop worker now construct their Gateway options from
-operator-owned, pinned CLI interface evidence before creating the Engine. This is
-an opt-in host setting. No renderer, route payload, workspace file or RPC can
-install the profile. Unconfigured installations retain the existing
-`CLI_CAPABILITY_REQUIRED` refusal.
+Chausar runs a Codex only through a pinned manifest of its reviewed setup: the program's digest and version, and its own `--version`, `exec --help` and `features list` answers, each pinned. `loadCodexCliHostGateway` in `platform/runtime/codex-cli-host.ts` checks the manifest in full when the engine starts, and the program's digest is checked again before every call.
 
-Set both host environment variables before launching Chausar:
+Three parties can record a manifest (`platform/runtime/codex-trust.ts`):
 
-- `CHAUSAR_CODEX_CLI_EVIDENCE_FILE`: the absolute path to `codex-cli-host.json`.
-- `CHAUSAR_CODEX_CLI_EVIDENCE_SHA256`: its exact lowercase SHA256, calculated over
-  the recorded raw bytes, including any BOM or CRLF.
+- **The operator**, with two environment variables set before Chausar starts. They win over the other two. This page describes that path.
+- **The build**, for the Codex shipped inside the beta. The engine checks the bundle's recorded digests at start and writes the manifest into the trust folder.
+- **The owner**, for a Codex found on this computer. The app shows its path, version and digest first, and keeps the manifest only when the owner confirms that exact digest.
 
-The desktop main process already copies its environment into EngineHarness, which
-passes it into the worker. The server's direct entrypoint and worker's direct
-entrypoint await the same verified constructors used by the focused tests. A
-partial or invalid setting fails startup before HTTP listening or worker readiness.
-No desktop, renderer, preload or harness changes are needed.
+No window, request payload, business file or method can install a manifest.
 
-The manifest has this structure; placeholders must be replaced with real reviewed
-operator evidence, never synthetic test contents:
+## The operator's two variables
+
+- `CHAUSAR_CODEX_CLI_EVIDENCE_FILE`: the absolute path to a file named `codex-cli-host.json`.
+- `CHAUSAR_CODEX_CLI_EVIDENCE_SHA256`: its exact lowercase SHA-256, over the raw bytes, including any BOM or CRLF.
+
+Set both or neither. A half-set or invalid pair stops the local server before it listens, and the desktop worker before it is ready.
+
+The manifest has this shape. Replace each placeholder with real, reviewed evidence, never with test contents:
 
 ```json
 {
@@ -59,59 +57,26 @@ operator evidence, never synthetic test contents:
 }
 ```
 
-Artifact files must stay beneath the manifest directory, including their physical
-resolved locations, and snapshots must be regular files rather than links. Accepted role names are
-`version.stdout.txt`, `cli-version.txt`, `desktop-cli-version.txt`;
-`exec-help.stdout.txt`, `cli-exec-help.txt`, `desktop-cli-exec-help.txt`; and
-`features.stdout.txt`, `cli-features.txt`, `desktop-cli-features.txt`. The manifest
-and each artifact have a 256 KiB limit. The selected native binary has a 512 MiB
-limit. PowerShell/npm wrapper paths are refused; Chausar spawns without a shell.
+## What the loader checks
 
-The loader checks the manifest pin before parsing it, checks each recorded artifact
-pin before decoding it, requires successful records from the exact selected binary
-and version, and checks its current native executable hash. Flags, stdin prompt and
-read-only sandbox support are derived from the exec help. Required feature keys
-are derived from that version's feature listing; a removed or absent feature is
-refused. Ordinary TOML keys need an explicit review against the
-[official configuration reference](https://developers.openai.com/codex/config-reference)
-or its [current documentation location](https://learn.chatgpt.com/docs/config-file/config-reference).
-Generic `--config` help alone does not establish support for those keys.
+- The manifest's pin, before it is parsed. Each recorded file's pin, before it is decoded.
+- Each recorded file stays under the manifest's folder, by its real location, and is a regular file, not a link.
+- The accepted file names are `version.stdout.txt`, `cli-version.txt`, `desktop-cli-version.txt`; `exec-help.stdout.txt`, `cli-exec-help.txt`, `desktop-cli-exec-help.txt`; and `features.stdout.txt`, `cli-features.txt`, `desktop-cli-features.txt`.
+- The manifest and each file are at most 256 KiB. The program is at most 512 MiB.
+- Every record comes from the same program and version, with exit code 0, and the version answer reads `codex-cli <version>`.
+- The program's digest now equals the recorded one.
+- The flags, the stdin prompt and the read-only sandbox are read from the exec help. The feature settings the adapter needs must be in that version's feature list and not marked removed.
+- The ordinary settings need an explicit review against the [official configuration reference](https://developers.openai.com/codex/config-reference) or its [current location](https://learn.chatgpt.com/docs/config-file/config-reference), named in `configReview`.
 
-Configure the existing Codex route with the **exact absolute native path** in the
-manifest and the explicit requested model identifier. A bare `codex` route is not
-silently rewritten. The trusted host process port checks the executable hash again
-immediately before each dispatch; the existing adapter then requires its bounded
-arguments, schema/stdin boundary and successful `turn.completed`. It makes one
-application invocation, without a fallback route or model substitution. Startup
-verification executes no Codex command and opens no credentials, user config or
-model cache.
+Checking a manifest runs no Codex command and opens no sign-in file, user configuration or model cache.
 
-An `installed-help` profile is local interface evidence. It does not establish
-ChatGPT sign-in, current account entitlement, model access, successful inference,
-or commercial/hosted eligibility. Synthetic in-memory snapshots and process ports
-in the tests establish source behavior only. Recorded evidence for one CLI version
-must not be reused for another binary. Refresh and repin the manifest when the
-executable or snapshots change.
+## Limits
 
-The recorded 0.159.2 Luna invocation is separate inference evidence supplied by
-the diagnosis lane; this implementation does not run another inference. The adapter
-uses the version-matched `features.view_image` control instead of the ignored
-`tools.view_image` key, and disables the supported image-generation, sleep,
-tool-suggestion and permission-request features. It preserves execution rules,
-uses the read-only sandbox, bounds project instructions to zero bytes and disables
-CLI transcript history. Authentication remains CLI-owned.
+- The evidence is about the interface of one program on this computer. It does not prove a ChatGPT sign-in, an account's plan, access to a model or a successful answer.
+- Evidence for one Codex version must not be reused for another program. Record and pin a new manifest when the program or its answers change.
+- The adapter turns the shell tool off with `features.shell_tool=false`. It does not rely on `unified_exec` being off, because managed policy can force that on ([codex-cli-adapter.md](codex-cli-adapter.md)). A tool item in the output still refuses the answer.
+- Chausar changes no operating system policy and no managed requirement.
 
-Public `features list` output from the exact reviewed 0.159.2 binary confirmed
-these controls and the parent `shell_tool` control false under transient overrides,
-with no stderr. The same output retained `unified_exec=true` despite a false
-override. The adapter therefore does not claim that override disables execution.
-The [pinned current OpenAI source](https://github.com/openai/codex/blob/cda82a2c6853b484e0ba56d38f13902adfb2a6a1/codex-rs/core/src/tools/spec_plan.rs)
-gates registration of both shell implementations on `shell_tool`, before selecting
-an implementation. This source interpretation and public feature metadata are
-interface evidence, not an attestation of a native turn's complete tool registry.
-Unexpected tool items still refuse plan release. No OS policy or managed
-requirements are changed.
+## Tests
 
-Package and pin the successful version-matched listing with matching version/help
-artifacts. Older feature evidence cannot qualify the newer executable. Personal
-installation manifests remain host-local; no account/model grant is created.
+`node --test platform/tests/codex-cli-host.test.ts platform/tests/codex-cli-host-entrypoints.test.ts platform/tests/codex-trust.test.ts`. They use made-up snapshots and stand-in processes, so they show how the code behaves, not that any real Codex is trusted.

@@ -3,30 +3,23 @@ import { prepareAdoptedCredentials } from '../models/credential-adoption.ts';
 // Chausar venture launcher, core (P1): venture.create and venture.get.
 // One business per vault. Create sets the books up for the country (retention, dictionary currency) in their own
 // writes first, then makes the venture record and its empty interview in one venture action. Never nested.
-// Onboarding v2: when the owner composed a plan or connected an AI before the vault, the same one action adopts the
-// draft (the composition, an answered interview, blueprint version 1, the AI connections and their calls); the keys
-// move to the vault's memory-only shelf only after that commit, and the draft is then wiped.
-import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
+// Onboarding v2: when the owner connected an AI before the vault, the same one action adopts the draft (the AI
+// connections and their calls); the keys move to the vault's memory-only shelf only after that commit, and the draft
+// is then wiped.
+import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import { starterPacks, type DictionaryDraft } from '../../ontology.ts';
-import { bpsPercent, currentVenture, digest, exactPayload, listRecords, plainText, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
-import { INTERVIEW_IDS } from '../contracts.ts';
-import type { CountryProfile, InterviewRecord, ModelCallRecord, ModelConnectionRecord, VentureDeps, VentureRecord, VentureView } from '../contracts.ts';
-import type { ComposedPlan, CompositionRecord, DraftAi, DraftCompose } from '../onboarding-contracts.ts';
-import { assembleComposedBlueprint, structureOf } from './blueprint.ts';
-import { checklistFor } from './checklist.ts';
-import { revalidateComposed } from './compose.ts';
+import { currentVenture, digest, exactPayload, findRecord, listRecords, plainText, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
+import type { InterviewRecord, ModelCallRecord, ModelConnectionRecord, VentureDeps, VentureRecord, VentureView } from '../contracts.ts';
+import type { DraftAi } from '../onboarding-contracts.ts';
 import { playbookField } from './lookups.ts';
+import { familyOf, isFamilyId } from './families.ts';
+import { offerReadiness } from './way-ready.ts';
+import { setupProgress } from '../chief/plan-core.ts';
 import { countryProfile } from './countries.ts';
-import { engineQuestions, storedQuestion, taxRateQuestion } from './interview.ts';
 import { classifyIdea } from './service-types.ts';
-import { DEFAULT_WORKING_NAME, labelled } from './words.ts';
-import { recordPlanEvidence } from '../evidence/ledger.ts';
-import { readAiSetup, rememberAiSetup, settingsFrom, type AiSetupNote } from '../models/ai-setup.ts';
-import { cliGates, presetTiers } from '../models/gates.ts';
-import { endpointFor, presetSpec } from '../models/presets.ts';
+import { DEFAULT_WORKING_NAME } from './words.ts';
+import { rememberAiSetup, settingsFrom } from '../models/ai-setup.ts';
 import { recordDecision } from '../journal/decisions.ts';
-/** A4 fix round: a reused connection's monthly cap, as venture.models.connect sets one by default (USD 5). */
-const DEFAULT_CAP_MICROS = '5000000';
 
 /** Records are kept for ten years, as tax rules expect; the owner is told under More of your plan and in Trust. */
 export const VENTURE_RETENTION_DAYS = 3650;
@@ -34,7 +27,32 @@ export const VENTURE_RETENTION_DAYS = 3650;
 export function buildView(state: State): VentureView | null {
   const venture = currentVenture(state);
   if (!venture) return null;
-  return { venture, ...checklistFor(state, venture), terms: listRecords(state, 'venture-term', venture.id), ...playbookField(venture.idea), ...pausedField(state, venture.id) };
+  return { venture, ...setupOf(state, venture), terms: listRecords(state, 'venture-term', venture.id), ...playbookField(venture.idea), ...sellsOf(state, venture), ...fieldOf(state, venture.id), ...pausedField(state, venture.id) };
+}
+
+/**
+ * What the accepted plan sells, by its first offer's own name ("Custom cakes"); nothing before a plan is accepted.
+ * Re-check 082 (17 Nov 2026): a home baker read "Local services", the field of salons and home visits, under the name.
+ */
+function sellsOf(state: State, venture: VentureRecord): Pick<VentureView, 'sells'> {
+  const plan = venture.acceptedBlueprintId ? findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId) : null;
+  const name = plan && plan.ventureId === venture.id && plan.status === 'accepted' ? plan.offers[0]?.name.value.trim() : '';
+  return name ? { sells: name } : {};
+}
+
+/** The field the owner kept (the newest owner profile's familyId), by its own label; nothing until one is kept. */
+function fieldOf(state: State, ventureId: string): Pick<VentureView, 'field'> {
+  const id = listRecords(state, 'venture-owner-profile', ventureId).at(-1)?.familyId;
+  return id && isFamilyId(id) ? { field: { id, label: familyOf(id).label } } : {};
+}
+
+/** How far what is sold is from ready, as the chief's standing plan counts its setup (chief/plan-core.ts). */
+function setupOf(state: State, venture: VentureRecord): Pick<VentureView, 'done' | 'total'> {
+  const found = venture.acceptedBlueprintId ? findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId) : null;
+  const accepted = !!found && found.ventureId === venture.id && found.status === 'accepted';
+  let ready = false;
+  try { ready = offerReadiness(state, venture).ready; } catch { ready = false; }
+  return setupProgress({ accepted, ready });
 }
 
 /** The line the business menu shows while the owner has paused the business (4F3). */
@@ -63,105 +81,30 @@ export function servicesDictionary(currency: string): DictionaryDraft {
   return draft;
 }
 
-const COMPOSE_ID = /^compose_[A-Za-z0-9_-]{1,80}$/;
-const DIGEST = /^[a-f0-9]{64}$/;
-
-/** Minor units as decimal text for the interview's stored amount: '1850' with two digits is '18.50'. Digits only, no arithmetic. */
-export function minorText(minor: string, digits: number): string {
-  if (digits <= 0) return minor;
-  const padded = minor.padStart(digits + 1, '0');
-  return `${padded.slice(0, -digits)}.${padded.slice(-digits)}`;
-}
-
-/** The held plan venture.create may adopt: the engine's own copy, checked again; never anything the renderer sent. */
-function heldPlan(deps: VentureDeps, body: Record<string, unknown>, idea: string, countryCode: unknown): { held: DraftCompose; plan: ComposedPlan } | null {
-  const hasId = Object.hasOwn(body, 'composeId'), hasDigest = Object.hasOwn(body, 'composedDigest');
-  internalCheck(hasId === hasDigest, 'INVALID_VENTURE_REQUEST', 'Send the plan id and its digest together.');
-  if (!hasId) return null;
-  check(typeof body.composeId === 'string' && COMPOSE_ID.test(body.composeId), 'INVALID_VENTURE_REQUEST', 'Send the id of the plan you kept.');
-  internalCheck(typeof body.composedDigest === 'string' && DIGEST.test(body.composedDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you kept.');
-  const held = deps.draft?.compose(body.composeId) ?? null;
-  check(held, 'COMPOSE_NOT_FOUND', 'Your plan was only kept in memory, and it is gone. Make it again.');
-  check(held.plan.digest === body.composedDigest, 'APPROVAL_STALE', 'Your plan changed since you read it. Read it again, then keep it.');
-  check(held.plan.text === idea && held.plan.country.code === countryCode, 'INVALID_VENTURE_REQUEST', 'This is not the plan you made. Keep the plan from what you wrote.');
-  return { held, plan: revalidateComposed(held) };
-}
-
-/** The interview a composed plan arrives with, every question answered, so the interview needs no model call. */
-function composedInterview(tx: VentureTx, plan: ComposedPlan, callIds: string[], country: CountryProfile): InterviewRecord {
-  const first = plan.offers[0];
-  const model = first.pricing.model;
-  const at = tx.now;
-  const answered = (question: ReturnType<typeof storedQuestion>, answer: InterviewRecord['questions'][number]['answer'], minor: string | null = null, bps: string | null = null) =>
-    ({ ...question, answer, answerMinor: minor, answerBps: bps, answeredAt: at });
-  const [pricing, price, tax] = engineQuestions(country, model);
-  // The stored pricing question offers only offer_1's allowed pricing, so a later answer can't pick another.
-  const pricingQuestion = { ...pricing, choices: pricing.choices.filter(choice => first.allowedPricing.includes(choice.id as typeof model)) };
-  const registered = plan.backOffice.taxRegistered.value;
-  // A plan whose tax line is still the engine's assumption arrives with an assumed answer, never as the owner's.
-  const ownerTax = registered || plan.backOffice.taxRegistered.label === 'told-by-you';
-  const questions: InterviewRecord['questions'] = [
-    ...plan.questions.map(q => {
-      const { block: _block, answer, ...question } = q;
-      return answered(storedQuestion(question), answer ?? { skipped: true });
-    }),
-    answered(storedQuestion(pricingQuestion), { choiceId: model }),
-    first.pricing.unitPriceMinor === null
-      ? answered(storedQuestion(price), { skipped: true })
-      : answered(storedQuestion(price), { amount: minorText(first.pricing.unitPriceMinor, country.minorDigits) }, first.pricing.unitPriceMinor),
-    answered(storedQuestion(tax), ownerTax ? { yes: registered } : { yes: false, assumed: true }),
-  ];
-  if (registered) {
-    const bps = plan.backOffice.taxRateBps;
-    questions.push(answered(storedQuestion(taxRateQuestion(country)), { rate: bpsPercent(bps) }, null, bps));
-  }
-  check(questions.some(q => q.id === INTERVIEW_IDS.pricingModel), 'INVALID_VENTURE_REQUEST', 'The plan has no pricing question.');
-  return {
-    ...tx.base('venture-interview'),
-    serviceType: labelled(plan.family.value, 'assumption', 'model'),
-    questions,
-    modelCallIds: [...callIds],
-    source: 'model',
-  };
-}
-
 /** Adopted draft records keep their id, time and every other field; only who and which venture are re-based. */
 function rebased<R extends ModelConnectionRecord | ModelCallRecord>(record: R, tx: VentureTx): R {
   return { ...structuredClone(record), ventureId: (tx.venture as VentureRecord).id, memberId: tx.ctx.memberId, epoch: tx.ctx.epoch };
 }
 
-/** A4 review rounds 2 and 3: the newest setup of another business, when every AI in it passes connect's gates and asks only jobs its preset suggests; else none. */
-async function reusableSetup(deps: VentureDeps, workspaceId: string): Promise<AiSetupNote | null> {
-  const note = deps.aiSetup ? readAiSetup(await deps.aiSetup.read().catch(() => null)) : null;
-  if (!note || note.from.workspaceId === workspaceId) return null;
-  try {
-    const connections = [];
-    for (const item of note.connections) { await cliGates(deps, item.presetId, item.consentDigest); connections.push({ ...item, tiers: presetTiers(item.presetId, item.tiers) }); }
-    return { ...note, connections };
-  } catch { return null; }
-}
-
 /**
- * venture.create { idea, countryCode, workingName?, composeId?, composedDigest?, reuseAi? } (admin, inside the app).
- * reuseAi (A4 fix round, the Start gallery): with no AI from the first run, the newest AI setup of another business on
- * this computer comes along (models/ai-setup.ts): its Codex or Claude Code connection and the agents' models only.
+ * venture.create { idea, countryCode, workingName? } (admin, inside the app).
+ * The AI comes along from the draft only (onboarding v2). When the draft's AI was the one already set up in another
+ * business on this computer (venture.ai.reuse, models/ai-setup.ts), the agents' models come with it and the new
+ * business notes where its AI came from.
  */
 export function createVenture(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
   return credentialChange(deps, () => createVentureUnlocked(deps, ctx, payload));
 }
 async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
   requireAppChannel(ctx, 'venture.create');
-  const body = exactPayload(payload, ['idea', 'countryCode', 'workingName', 'composeId', 'composedDigest', 'reuseAi'], ['idea', 'countryCode']);
-  check(body.reuseAi === undefined || body.reuseAi === true, 'INVALID_VENTURE_REQUEST', 'Send reuseAi as true, or leave it out.');
+  const body = exactPayload(payload, ['idea', 'countryCode', 'workingName'], ['idea', 'countryCode']);
   const idea = plainText(body.idea, 'Your idea', { min: 10, max: 2000 });
   const named = Object.hasOwn(body, 'workingName') ? singleLine(body.workingName, 'The working name', { min: 2, max: 80 }) : null;
   authorize(deps.store, ctx, 'admin');
 
-  // 0. The plan composed before the vault, when the owner kept one. On hosted there is no draft desk.
-  const composed = heldPlan(deps, body, idea, body.countryCode);
-  const plan = composed?.plan ?? null;
+  // 0. The AI connected before the vault, when there is one. On hosted there is no draft desk.
   const ai: DraftAi | null = deps.draft?.ai() ?? null;
-  const workingName = named ?? (plan ? plan.name.value : DEFAULT_WORKING_NAME);
+  const workingName = named ?? DEFAULT_WORKING_NAME;
 
   // 1. One business per vault, from a known country.
   const state = deps.store.read();
@@ -182,12 +125,12 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
   // 4. Books in the country's currency. Its own write too.
   if (!dictionary || dictionary.currency !== country.currency) await deps.services.ontology.publish(ctx, servicesDictionary(country.currency));
 
-  // 5. The venture record and its interview, in one action; with a composed plan also the composition and blueprint
-  // version 1; with an AI connected before the vault also its connections and calls (they count toward the cap).
+  // 5. The venture record and its interview, in one action; with an AI connected before the vault also its connections
+  // and calls (they count toward the cap).
   const connections = ai ? ai.connections.filter(connection => connection.status === 'connected') : [];
-  // The setup to reuse: only when asked, only when the first run brought no AI, only another business's, and only when
-  // each of its AIs passes every gate venture.models.connect runs, with the words the owner agreed to there.
-  const reused = body.reuseAi === true && !connections.length ? await reusableSetup(deps, state.workspace.id) : null;
+  // The setup the draft reused from another business (it passed every gate venture.models.connect runs there), while
+  // one of its connections is still connected.
+  const reused = ai?.reused && ai.reused.from.workspaceId !== state.workspace.id ? ai.reused : null;
   const keys = await prepareAdoptedCredentials(deps, ctx, connections);
   let view: VentureView;
   try { view = await ventureAction(deps, ctx, 'admin', 'create', tx => {
@@ -199,7 +142,7 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
       ideaDigest: digest(idea),
       workingName,
       country,
-      serviceType: plan ? plan.family.value : null,
+      serviceType: null,
       status: 'interview',
       launchStage: 'rehearsal',
       blueprintId: null,
@@ -210,62 +153,25 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
     };
     tx.put(record);
     tx.emit('venture-created', { countryCode: country.code, currency: country.currency });
-    if (plan && composed) {
-      const callIds = [...plan.calls.decide, ...plan.calls.compose];
-      const composition: CompositionRecord = {
-        ...tx.base('venture-composition'),
-        composeId: plan.composeId,
-        text: plan.text,
-        textDigest: digest(plan.text),
-        planKind: plan.kind,
-        family: plan.family.value,
-        reading: plan.reading.value,
-        views: structuredClone(plan.views),
-        output: structuredClone(composed.held.output),
-        pricing: plan.offers.map(offer => ({ id: offer.id as CompositionRecord['pricing'][number]['id'], model: offer.pricing.model, unitPriceMinor: offer.pricing.unitPriceMinor })),
-        answers: plan.questions.filter(q => q.answer !== null).map(q => ({ questionId: q.id as CompositionRecord['answers'][number]['questionId'], answer: structuredClone(q.answer!) })),
-        decideCallIds: [...plan.calls.decide],
-        composeCallIds: [...plan.calls.compose],
-        writtenBy: { ...plan.writtenBy },
-        planDigest: plan.digest,
-      };
-      tx.put(composition);
-      tx.emit('plan-composed', { composeId: plan.composeId, kind: plan.kind, views: plan.views.map(view => view.id) });
-      const interview = composedInterview(tx, plan, callIds, country);
-      tx.put(interview);
-      tx.emit('interview-updated', { source: 'model', questions: interview.questions.length });
-      const structure = structureOf(record, interview, composition);
-      const blueprint = assembleComposedBlueprint(tx, structure, interview, composition, plan);
-      tx.put(blueprint);
-      // The evidence ledger: the AI wrote these business fields at compose fill, and the owner kept them.
-      recordPlanEvidence(tx, blueprint);
-      tx.touch({ blueprintId: blueprint.id, status: 'blueprint' });
-      tx.emit('blueprint-drafted', { blueprintId: blueprint.id, version: blueprint.version, source: 'model' });
-    } else {
-      const interview: InterviewRecord = {
-        ...tx.base('venture-interview'),
-        serviceType: { value: classifyIdea(idea), label: 'assumption', by: 'template' },
-        questions: [],
-        modelCallIds: [],
-        source: 'template',
-      };
-      tx.put(interview);
-    }
-    // Every call made before the vault is adopted, even when no connection is left: the plan's records name them,
-    // and they count toward this month's cap. Only connected connections come along and announce themselves.
+    const interview: InterviewRecord = {
+      ...tx.base('venture-interview'),
+      serviceType: { value: classifyIdea(idea), label: 'assumption', by: 'template' },
+      questions: [],
+      modelCallIds: [],
+      source: 'template',
+    };
+    tx.put(interview);
+    // Every call made before the vault is adopted, even when no connection is left: they count toward this month's
+    // cap. Only connected connections come along and announce themselves.
     if (ai) {
       for (const connection of connections) tx.put(rebased(connection, tx));
       for (const call of ai.calls) tx.put(rebased(call, tx));
       for (const connection of connections) tx.emit('model-connected', { presetId: connection.presetId, tiers: [...connection.tiers] });
     }
     if (reused) {
-      // A4 fix round: the AI setup only, each connection with the agreement the owner gave there and when; the
-      // agents' models; and the decision, so the owner sees where it came from. No call, consent or record of the other
-      // business comes along.
-      for (const item of reused.connections) {
-        tx.put<ModelConnectionRecord>({ ...tx.base('venture-model-connection'), presetId: item.presetId, routeKind: item.routeKind, model: item.model, endpoint: endpointFor(presetSpec(item.presetId)), tiers: [...item.tiers], consentDigest: item.consentDigest, consentedAt: item.consentedAt, monthlyCapMicros: DEFAULT_CAP_MICROS, status: 'connected' });
-        tx.emit('model-connected', { presetId: item.presetId, tiers: [...item.tiers] });
-      }
+      // A4 fix round: the AI setup only. Its connections came along with the draft above, each with the agreement the
+      // owner gave in the other business and when; here the agents' models, and the decision, so the owner sees where
+      // it came from. No call, consent or record of the other business comes along.
       tx.touch({ aiSettings: settingsFrom(reused) });
       recordDecision(tx, { subject: `ai-setup:${reused.from.workspaceId}`, action: 'reuse-ai', ruleId: null, reason: `This business uses the same AI as ${reused.from.name}.`, rowId: null, who: 'chausar' });
     }
@@ -284,7 +190,7 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
   // Connecting changes send nothing to send question shapes, as the consent text says (venture.models.connect does the same).
   // A4 fix round: this business's AI setup is now the newest on this computer.
   await rememberAiSetup(deps);
-  if ((reused || connections.some(connection => connection.presetId !== 'built-in-templates')) && deps.store.read().policy.send === 'nothing') {
+  if (connections.some(connection => connection.presetId !== 'built-in-templates') && deps.store.read().policy.send === 'nothing') {
     await deps.services.trust.updatePolicy(ctx, { send: 'shape' });
     await ventureAction(deps, ctx, 'admin', 'models.send-policy', tx => { tx.emit('send-policy-changed', { from: 'nothing', to: 'shape' }); });
     return buildView(deps.store.read()) ?? view;
@@ -292,7 +198,7 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
   return view;
 }
 
-/** venture.get {} (read): the venture with its checklist and terms, or null before one exists. */
+/** venture.get {} (read): the venture with its terms, or null before one exists. */
 export async function getVenture(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView | null> {
   exactPayload(payload, []);
   authorize(deps.store, ctx);

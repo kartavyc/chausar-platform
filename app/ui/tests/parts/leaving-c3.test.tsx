@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { act, render, renderHook, screen } from '@testing-library/react';
 import { useRef } from 'react';
-import { staggerClass, useAfterLeave, useLeaveEnd, useLeavingList } from '../../src/parts/useLeaving';
+import { staggerClass, useLeaveEnd, useLeavingList } from '../../src/parts/useLeaving';
 import { flipFrom, measureRows } from '../../src/parts/flip';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -63,17 +63,9 @@ describe('useLeavingList', () => {
   });
 });
 
-describe('the stagger and the held count', () => {
+describe('the stagger', () => {
   it('the first five get a place class, and none past the fifth', () => {
     expect([0, 1, 2, 3, 4, 5, 6].map(staggerClass)).toEqual(['i0', 'i1', 'i2', 'i3', 'i4', undefined, undefined]);
-  });
-
-  it('useAfterLeave keeps the count until the leave ends', () => {
-    const { result, rerender } = renderHook(({ value, holding }) => useAfterLeave(value, holding), { initialProps: { value: 5, holding: false } });
-    rerender({ value: 4, holding: true });
-    expect(result.current).toBe(5);
-    rerender({ value: 4, holding: false });
-    expect(result.current).toBe(4);
   });
 
   it('the CSS leaves on the exit time, closes on the settle time, rises on the sheet time, and staggers on --t-stagger', () => {

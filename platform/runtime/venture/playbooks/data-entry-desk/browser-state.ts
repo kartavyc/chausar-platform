@@ -6,7 +6,7 @@ import {digest,listRecords,readVenture,ventureAction} from '../../records.ts';
 import type {EntryRecordRecord,VentureDeps} from '../../contracts.ts';
 import type {FormCapture,SavedCapture} from './browser-types.ts';
 export type {FormCapture,SavedCapture} from './browser-types.ts';
-import type {FormSiteApproval,FormSubmitReview} from './records.ts';
+import type {FormSubmitReview} from './records.ts';
 import {requireFormsClientRule} from './rules.ts';
 import {loadFormsSource} from './source.ts';
 export type BrowserSession={runId:string;ventureId:string;entryId:string;abort:AbortController;capture:FormCapture|null;saved:SavedCapture|null;busy:boolean};
@@ -23,4 +23,4 @@ export async function newSession(deps:VentureDeps,row:EntryRecordRecord){await e
 export async function replaceEntry(deps:VentureDeps,ctx:Context,row:EntryRecordRecord,patch:Partial<EntryRecordRecord>,settled=false){return ventureAction(deps,ctx,'approve','forms.state',tx=>{const live=tx.find('venture-entry-record',row.id);check(live&&digest(live)===digest(row),'APPROVAL_STALE','This client entry changed. Review the current record.');if(settled)check(['response','sign-in-response','outcome-unknown','not-sent'].includes(String(patch.state)),'FORM_ACTION_HELD','Only a settled submit outcome can bypass source availability.');else currentSource(deps,ctx,live);const next={...live,...patch};tx.replace(next);tx.emit('desk.changed',{playbook:'data-entry-desk',kind:'entries',id:next.id});return next;});}
 export function formsTransient(deps:VentureDeps,row:EntryRecordRecord){const session=pool(deps).get(row.id);return {capture:session&&session.runId===row.browserRunId&&!session.abort.signal.aborted?session.capture:null,readback:session&&session.runId===row.browserRunId&&!session.abort.signal.aborted?session.saved:null};}
 export function formsPort(deps:VentureDeps){check(deps.host==='desktop'&&deps.formsBrowser,'FORM_DESKTOP_REQUIRED','Use the desktop app for the approved client browser. The phone can review source and results.');return deps.formsBrowser;}
-export type {FormSiteApproval,FormSubmitReview};
+export type {FormSubmitReview};

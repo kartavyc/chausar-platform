@@ -38,15 +38,39 @@ export function TileSection({ title, meta, end, more, className, children }: {
   );
 }
 
-/** Who said a line, in small grey words; a number a model wrote says "model estimate". */
-export function LabelTag({ line }: { line: Pick<LabelledLite<unknown>, 'label' | 'estimate'> }) {
+/**
+ * Who said a line, in small grey words; a number a model wrote says "model estimate".
+ * accepted: the line is part of a plan the owner accepted. Words Chausar assumed are then no assumption any more (the
+ * owner read the plan and accepted it), so that word is not said beside them; every other label still is.
+ */
+export function LabelTag({ line, accepted = false }: { line: Pick<LabelledLite<unknown>, 'label' | 'estimate'>; accepted?: boolean }) {
   const t = useT();
   return (
     <>
-      <span className={s.tag}>{t(`business.label.${line.label}`)}</span>
+      {!(accepted && line.label === 'assumption') && <span className={s.tag}>{t(`business.label.${line.label}`)}</span>}
       {line.estimate && <> <ModelEstimate /></>}
     </>
   );
+}
+
+/** Set by Read on a page that does not show the plan: the plan page takes focus to the plan's name once it is there. */
+let planFocusAsked = false;
+/** Whether Read asked for the plan's name to take focus; asking is used up by the answer. */
+export function takePlanFocus(): boolean {
+  const asked = planFocusAsked;
+  planFocusAsked = false;
+  return asked;
+}
+/**
+ * Read on a plan row: focus goes to the plan's name where the plan is on this page; from any other settings page
+ * (Prices) the owner is taken to the plan itself, which then takes focus (seen on Windows, 15 Nov 2026: Read did
+ * nothing on Prices).
+ */
+function readPlan(): void {
+  const name = document.getElementById('business-plan-name');
+  if (name) { name.focus(); return; }
+  planFocusAsked = true;
+  window.location.hash = '#/business/plan';
 }
 
 /**
@@ -94,7 +118,10 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
   const ours = (row: QueueRow) => plan(row) && !liveIds.has(row.id) && !locked.has(row.businessId);
   const held = session.heldRows().filter(ours);
   const heldIds = new Set(held.map((row) => row.id));
-  const kept = session.lines().map((line) => line.row).filter((row) => ours(row) && !heldIds.has(row.id));
+  const decided = session.lines().filter((line) => ours(line.row) && !heldIds.has(line.row.id));
+  // The same words for an earlier version and a later one ("Plan accepted." twice) are one line: the newest. A line
+  // that still carries an Undo stays, since each Undo takes back its own decision.
+  const kept = decided.filter((line, at) => line.undo || !decided.slice(at + 1).some((later) => later.line === line.line)).map((line) => line.row);
   const rows = [...live, ...held, ...kept];
   function after(decision: QueueDecision): QueueDecision {
     if (decision.outcome === 'done') onDecided();
@@ -112,7 +139,7 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
             said={session.said(row.id)}
             showBusiness={false}
             viewed
-            onView={() => document.getElementById('business-plan-name')?.focus()}
+            onView={readPlan}
             onDecide={async (r, action, extra) => after(await decideRow(client, r, action.id, extra, t))}
             onReread={async (r) => after(await rereadRow(client, r, 'current', t))}
           />

@@ -12,6 +12,7 @@ import {papersDigestOf} from '../kit/signoff-core.ts';
 import {deskBlock,deskStage,decisionOf,papersReady,noteInput,professionalInput,professionalOf,requestsOf,sentOf,signerMatches,type SignoffRow} from './core.ts';
 import {PROFESSION_SPECS,SIGNOFF_RULES,professionSpec,type ProfessionSpec} from './professions.ts';
 import {signoffDeskSpec} from './gate.ts';
+import { HALTED } from '../../delivery/run-machine.ts';
 
 export type SignoffDeskDeskTypes={professional:DeskKindTypes;paper:DeskKindTypes};
 const P='signoff-desk';
@@ -40,7 +41,7 @@ function paperView(state:State,venture:VentureRecord,rows:readonly SignoffRow[],
   request:current?{id:current.id,at:current.at,sent:sent?{name:sent.name,at:sent.at}:null,decision:decision?{decision:decision.decision,name:decision.name,at:decision.at,note:decision.note}:null}:null};
 }
 function regulatedRuns(state:State,venture:VentureRecord){
- return listRecords(state,'venture-delivery-run',venture.id).filter(run=>!['rejected','failed','stopped','cancelled'].includes(run.status)&&!run.practice).flatMap(run=>{const spec=signoffDeskSpec(state,venture,run.orderId);return spec?[{run,spec}]:[];});
+ return listRecords(state,'venture-delivery-run',venture.id).filter(run=>!HALTED.includes(run.status)&&run.status!=='rejected'&&!run.practice).flatMap(run=>{const spec=signoffDeskSpec(state,venture,run.orderId);return spec?[{run,spec}]:[];});
 }
 function paperOf(state:State,venture:VentureRecord,runId:string){
  const found=regulatedRuns(state,venture).find(item=>item.run.id===runId);

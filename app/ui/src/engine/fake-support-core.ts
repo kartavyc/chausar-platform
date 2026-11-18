@@ -11,7 +11,6 @@ export type SupportTicketBody = {
   draft: SupportDraft | null; sentAt: string | null; messages: SupportMessageBody[]; policyChangeApproved: boolean;
 };
 export type SupportMessageBody = { ticketId: string; messageId: string | null; sender: string; text: string; at: string; messageKind: 'customer' | 'owner' | 'system'; references: string[]; untrusted: boolean };
-export type SupportRequestBody = { ticketId: string; requestKind: 'refund' | 'replacement'; amountText: string; currency: string; state: 'requested, not done' };
 export type SupportRatingBody = { ticketId: string; score: number; at: string };
 
 

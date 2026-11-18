@@ -1,29 +1,54 @@
-# Desktop runtime and background process
+# The desktop shell and its engine process
 
-The desktop keeps the renderer isolated and sends business requests through one main-owned worker. `app/desktop/ipc-contract.cjs` declares the installed RPC methods, checks the owned window and exact main-frame document, accepts bounded plain JSON, and rejects cycles, accessors, prototype keys and serialization hooks. A syntax-shaped method name is no longer sufficient. The engine still owns domain validation, authorization, consent and effect reconciliation. The matching TypeScript declarations and `types.ts` describe the bridge for renderer clients; adding an engine method requires an explicit desktop contract update.
+The desktop app is three parts: the Electron main process (`app/desktop/main.cjs`), a sandboxed window that shows Ink ([frontend.md](frontend.md)), and the engine, a separate Node process (`platform/runtime/worker.ts`). The window never touches a file, a key or the engine directly.
 
-Main returns a result/error envelope; the sandbox preload exposes only `request` and a removable engine-status listener. It does not expose Electron objects, raw IPC, worker paths, filesystem APIs, process options or an external URL launcher. Existing context isolation, sandboxing, navigation restrictions, CSP and denied permissions remain enforced. See [Electron's IPC sender validation guidance](https://www.electronjs.org/docs/latest/tutorial/security#17-validate-the-sender-of-all-ipc-messages).
+## The window's bridge
 
-Main passes the actual package version into the worker's `EngineOptions.version`; workspace/update status and updater compatibility checks use that running value. Other Engine hosts can supply their own trusted running version through the same option. The analytics and plugin children preserve `ELECTRON_RUN_AS_NODE=1` in their existing minimal environments so Electron's executable can run their Node entrypoints. `node scripts/desktop-electron-smoke.mjs` provides the native CI check of Electron's Node embedding; it has not been executed locally because Electron is absent.
+The sandboxed preload (`app/desktop/preload.cjs`) gives the page one object, `window.chausar`. It holds `request(method, payload)` for engine methods and a short list of named actions the shell does itself with a system dialog, such as picking a file or saving an export. It exposes no Electron object, no raw IPC, no file API and no process option.
 
-`EngineHarness` owns startup, bounded pending requests, correlation, error replies, process disconnects and shutdown. Startup rejects promptly when the worker exits; deadline expiry terminates a stalled worker. A lost request is never replayed automatically. Quit disconnects IPC so the worker can reconcile/complete work, then waits for its exit before closing bundled PostgreSQL. A stalled shutdown is forcibly terminated after its deadline, with an explicit reconciliation warning. A fresh harness is required for restart.
+Main checks every request in `app/desktop/ipc-contract.cjs`:
 
-Run `node scripts/desktop-smoke.mjs` to launch the actual synthetic worker, request its closed-vault status and shut it down without an Electron window or HTTP listener. This checks worker plumbing on the current host. It does not qualify an installer, a GUI, a database, a background service, or a live connector. No vault or production signing identity is created by this smoke script.
+- the method is on the allowlist (`METHODS`); a name that merely looks like a method is refused;
+- the sender is the app's own window and its main frame, at `chausar://app/index.html`;
+- the payload is plain JSON of at most 2,000,000 bytes, with no cycles, accessors or prototype keys.
 
-`node scripts/desktop-launch.mjs --demo --check` checks local pinned Electron prerequisites without starting it. An explicitly permitted GUI session can use `node scripts/desktop-launch.mjs --demo` (optionally `--background`). The launcher invokes the installed package's local CLI with `shell: false`, checks the native executable architecture, and accepts only documented modes; arbitrary Electron command-line switches are refused. It performs no downloads or dependency installation. Production launch must be selected explicitly with `--production` and requires the genuine runtime distributions or an explicitly configured PostgreSQL service.
+The engine still does its own checks of what is asked, who asks, consent and approvals. Adding an engine method means adding it to the allowlist too. The types for the bridge are in `app/desktop/ipc-contract.d.cts` and `app/desktop/types.ts`.
 
-## Background use and service integration
+The page loads from `chausar://app/`, served from the built `app/ui/dist` only. Any other request from the page is cancelled. Context isolation, the sandbox, navigation limits and a strict content security policy stay on. See [Electron's guidance on validating IPC senders](https://www.electronjs.org/docs/latest/tutorial/security#17-validate-the-sender-of-all-ipc-messages).
 
-The optional `--background` launch argument keeps the existing process and scheduler alive after its last window closes. It creates a tray menu with Open and Quit; Quit stops the worker and database. It installs no service, login item, registry entry, scheduled task or OS startup persistence. Without this argument, closing the last window quits. An unsigned packaged preview always uses synthetic mode, a separate application identity and a clearly labelled title; `--production` is refused in that package.
+## The engine process
 
-The actual tray and native process behavior still require interactive validation on each OS. A machine that sleeps cannot run local jobs; catch-up policy remains the job engine's responsibility. The worker can run jobs only while the process is alive, the vault is unlocked and the job engine authorizes autonomy. This process mode does not satisfy the full plan's installed service requirement.
+Main starts the engine through `EngineHarness` (`app/desktop/engine-harness.cjs`) and hands it its settings as environment variables: the app version, the vault folder inside the app's user data folder, demo mode, the Codex trust folder and the built Ink folder ([configuration.md](configuration.md)). The engine always opens file storage; the desktop starts no database.
 
-The service boundary must reuse `Engine` and the same durable job reservations/fences. A future native service host should expose a private authenticated local control channel instead of accepting arbitrary methods/paths from a renderer, acquire a single engine/vault owner lease before starting the scheduler, provide readiness and graceful drain controls, and reconcile effects after an interrupted drain. The foreground desktop must connect to that one owner instead of starting a second worker against the same vault. On upgrades, the service must drain and release the vault before migration; a failure keeps the previous package and backup available.
+- `EngineHarness` owns startup, pending requests, error replies and shutdown. Startup fails at once when the worker exits, and fails when the worker is not ready in time. A request that passes its time limit answers `REQUEST_TIMEOUT`.
+- A request that was lost is never sent again by itself, so an approval can never run twice.
+- When the worker dies, main starts a fresh one after 1, 5 and then 30 seconds (`app/desktop/worker-restart.cjs`). After three failed restarts it shows one error box and quits. Ten minutes of steady running earns the three tries back.
+- On quit, main lets the worker finish and waits for it to exit. A worker that does not stop in time is ended.
 
-Platform installation is a separate operator-approved step: Windows service manager, macOS LaunchAgent/LaunchDaemon and Linux systemd user service each need native installation, permission, sleep/resume, shutdown, uninstall and crash-recovery tests. Secret storage and unlock policy must be settled before enabling unattended access to real vaults. The implementation here provides the process lifecycle foundation and opt-in tray mode; it never configures these OS facilities on the user's machine.
+## Running in the background
 
-## Current evidence and prerequisites
+Work runs only while Chausar runs. The installed beta can start when the owner signs in to the computer, hidden in the tray, and can keep running in the tray after its window closes. Both are the owner's settings: asked in onboarding and changeable in Settings and the tray menu (`app/desktop/background.cjs`).
 
-Windows x64 with Node 24.13.1 is the only host used for the headless worker and unit tests. macOS/Linux commands and CI are defined but not executed locally. Electron, the real PostgreSQL/Python distributions, root lockfile and publisher signing prerequisites are absent in this workspace. Direct installed npm invocation works with `node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js'`; the PowerShell shim points at a missing roaming-prefix CLI. Global tooling was left unchanged. A permitted environment with local pinned dependencies is required for Electron launch and packaging; prior networking/browser policy denials were not retried.
+- Only the installed beta registers a login item. A preview build and a run from source never do.
+- Windows and macOS use Electron's login items. Linux uses an XDG autostart file.
+- A run from source keeps running in the tray only when started with `--background`.
+- Chausar installs no system service, scheduled task or daemon. A computer that is asleep or off runs nothing.
 
-Requirements were checked against consumer-local `chausar-private/docs/specs/CHAUSAR-ARCHITECTURE.md`, `CHAUSAR-LIVE-BUILD-PLAN.md` and `CHAUSAR-LIVE-QUESTLOG.html`. The supplied Library IDs resolve to these exact names and byte sizes; complete Library reads match local text after read-normalized line endings/final newline. The Library byte-transfer helper could not run because Python is unavailable. Native-byte materialization and Library metadata persistence are therefore not claimed.
+## Commands
+
+| Command | What it does |
+|---|---|
+| `npm run desktop` | Builds Ink, then opens the window in demo mode (`node scripts/desktop-launch.mjs --demo`). |
+| `npm run desktop:production` | The same without demo mode. |
+| `npm run desktop:check` | Checks the installed Electron (its exact version and this computer's chip) and opens nothing. |
+| `npm run desktop:smoke` | Starts the real worker without a window, asks its status and stops it (`scripts/desktop-smoke.mjs`). |
+| `node scripts/desktop-electron-smoke.mjs` | The same worker check under Electron's own Node. |
+
+The launcher starts the installed Electron program directly, without a shell. It takes only `--demo` or `--production`, with `--background` and `--check`; any other switch is refused. It downloads and installs nothing. A packaged preview build always runs in demo mode and refuses `--production`.
+
+## What has been run
+
+- The worker, the harness, the IPC contract and the packaging scripts have tests (`platform/tests/desktop-*.test.ts`). CI runs them on Windows and Linux.
+- The Windows and Linux beta are built by the tag workflow (`.github/workflows/release.yml`).
+- One unsigned Mac beta build was made and run on an Apple silicon Mac on 14 November 2026 ([desktop-releases.md](desktop-releases.md), "The Mac beta build").
+- Start at login and the tray have not been checked by a person on macOS.

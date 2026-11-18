@@ -4,11 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { resolve, join } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Engine } from './engine.ts';
-import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { CodexTrust } from './codex-trust.ts';
 import { check } from './contracts.ts';
 import { ventureHostEnv } from './venture/host-env.ts';
+import { addToolFolders } from './venture/models/cli-look.ts';
 import { SSE_HEADERS, SSE_HEARTBEAT, SSE_PREAMBLE, sseFrame } from './venture/views/events.ts';
 import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
@@ -20,10 +20,11 @@ import { serverDataDirectory } from './data-home.ts';
 export { serverDataDirectory };
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
-export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
-  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
+  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status',
   'venture.country.suggest',
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.ai.setup.trust', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.ai.reuse',
   // One-shot C3: the app's preference on this computer is the computer owner's to change.
   'app.preferences.set',
   // C5 task 31: only the owner on this computer changes how it updates.
@@ -39,8 +40,8 @@ export type InkBuild = { folder: string; files: Record<string, string> };
  */
 export type PhoneListener = { bind: string; hosts(port: number): string[]; pair(code: unknown): Promise<{ token: string; expiresAt: string }>; accepts(token: string): boolean };
 /**
- * Methods a phone never sends, on top of the bootstrap-only ones: sessions, invitations, members, the companion's pairing,
- * the trust settings and the workspace itself (it may read the workspace status).
+ * Methods a phone never sends, on top of the bootstrap-only ones: sessions, invitations, members, anything named
+ * phone., the trust settings and the workspace itself (it may read the workspace status).
  */
 const PHONE_REFUSED = /^(auth|phone|members|trust)\.|^workspace\.(?!status$)/;
 const validToken = (actual: string, expected: string) => Buffer.byteLength(actual) === Buffer.byteLength(expected) && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
@@ -98,18 +99,14 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
       // Client share links open only on the hosted web server (hosted/server.ts); this computer serves none, and no
       // client's file request page (/share/<token>/upload, 4J7) either.
       check(url.pathname !== '/share' && !url.pathname.startsWith('/share/'), 'NOT_FOUND', 'Share links open only on the hosted Chausar.');
-      // The phone listener never serves the desktop's own routes: the companion protocol, the bootstrap session or MCP.
-      check(!phone || !['/api/companion/rpc', '/api/session', '/mcp'].includes(url.pathname), 'NOT_FOUND', 'This address is not served to phones.');
+      // The phone listener never serves the desktop's own bootstrap session.
+      check(!phone || url.pathname !== '/api/session', 'NOT_FOUND', 'This address is not served to phones.');
       if (phone && url.pathname === '/api/phone/pair') {
         check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use POST to pair a phone.');
         check((req.headers['content-type'] ?? '').startsWith('application/json'), 'INVALID_CONTENT_TYPE', 'Use a JSON request.');
         const data = await body(req);
         check(data && typeof data === 'object' && typeof data.code === 'string' && Object.keys(data).length === 1, 'INVALID_REQUEST', 'Send the pairing code from the link.');
         return send(200, await phone.pair(data.code));
-      }
-      if (url.pathname === '/api/companion/rpc') {
-        check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
-        return await engine.handleCompanionHttp(req, res);
       }
       if (url.pathname === '/api/session' && req.method === 'GET') {
         const bearer = req.headers.authorization ?? '';
@@ -140,7 +137,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         req.on('close', done); res.on('close', done);
         return;
       }
-      if (url.pathname === '/api/rpc' || url.pathname === '/mcp') {
+      if (url.pathname === '/api/rpc') {
         check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use POST for named requests.');
         const auth = req.headers.authorization ?? '';
         check(auth.startsWith('Bearer '), 'UNAUTHENTICATED', 'This request needs a current local session.');
@@ -154,7 +151,6 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         }
         check((req.headers['content-type'] ?? '').startsWith('application/json'), 'INVALID_CONTENT_TYPE', 'Use a JSON request.');
         const data = await body(req);
-        if (url.pathname === '/mcp') return send(200, await engine.requestAs(context, 'mcp.handle', data));
         if (BOOTSTRAP_ONLY_METHODS.includes(data.method)) check(bootstrap, 'FORBIDDEN', 'This operation requires the trusted local owner bootstrap session.');
         check(!phone || !PHONE_REFUSED.test(String(data.method)), 'FORBIDDEN', 'Do this in the Chausar app on your computer.');
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
@@ -197,7 +193,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         timer = setTimeout(() => { server.closeAllConnections(); reject(new Error('Local HTTP shutdown exceeded its deadline.')); }, timeoutMs);
         server.close(error => error ? reject(error) : resolveClose());
       });
-      // Interrupt/drain active jobs while HTTP connections are finishing, not after.
+      // The engine drains its active requests while HTTP connections are finishing, not after.
       try { await Promise.all([drain, engine.shutdown(timeoutMs)]); }
       finally { if (timer) clearTimeout(timer); }
     },
@@ -214,13 +210,15 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
   // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
   let engine: Engine | null = null;
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }) });
-  return engine = new Engine({ directory: serverDataDirectory(environment, args), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true, phoneAccess } });
+  return engine = new Engine({ directory: serverDataDirectory(environment, args), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true, phoneAccess } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // The host settings are checked first (a refused Codex CLI host stops here, CLI_HOST_EVIDENCE_INVALID), then the Ink
   // build is listed, both before anything listens: an unbuilt Ink app stops the start with its own plain reason
   // (UI_NOT_BUILT). Making the engine opens no vault.
+  // A server started by a launcher has a short search path too: add the usual install folders first (cli-look.ts).
+  addToolFolders();
   const engine = await createServerEngine(); const demo = engine.options.demo;
   let ink: InkBuild;
   try { ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }; }

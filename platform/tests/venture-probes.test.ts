@@ -85,7 +85,7 @@ async function calendarOrder(env: Env, calendar: typeof CALENDAR = CALENDAR): Pr
 /** A draft for the order with n LinkedIn posts under Drafts. */
 async function calendarDraft(env: Env, order: OrderRecord, posts: number): Promise<DeliveryRunRecord> {
   return ventureAction(env.deps, owner, 'prepare', 'seed.run', tx => tx.put<DeliveryRunRecord>({
-    ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: 'playbook_social', playbookHash: 'hash', status: 'waiting-for-you', servedBy: 'model',
+    ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: 'playbook_social', playbookHash: 'hash', status: 'working', servedBy: 'model',
     practice: false, callId: null, preview: null, renderedText: null, checks: [], verdict: null, editedText: null,
     deliverable: {
       title: 'October posts', questionsForClient: [],

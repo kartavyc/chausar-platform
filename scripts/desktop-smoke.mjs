@@ -1,7 +1,7 @@
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EngineHarness } from '../app/desktop/engine-harness.cjs';
 
@@ -19,11 +19,14 @@ export function packagedFolder(folder, platform = process.platform) {
   let info;
   try { info = statSync(directory); } catch { info = null; }
   if (!info?.isDirectory()) throw new Error(`${directory} is not a folder.`);
-  const name = PROGRAM[platform] ?? 'chausar';
-  const program = join(directory, name);
+  // The Mac build (14 Nov 2026): a Mac build is the app itself (mac-arm64/Chausar.app); its program is inside it,
+  // named after the app.
+  const mac = platform === 'darwin';
+  const name = mac ? `Contents/MacOS/${basename(directory).replace(/\.app$/i, '')}` : PROGRAM[platform] ?? 'chausar';
+  const program = join(directory, ...name.split('/'));
   let found;
   try { found = statSync(program).isFile(); } catch { found = false; }
-  if (!found) throw new Error(`${directory} has no ${name}; point --packaged at the unpacked build folder.`);
+  if (!found) throw new Error(`${directory} has no ${name}; point --packaged at ${mac ? 'the app (release/beta/mac-arm64/Chausar.app, say)' : 'the unpacked build folder'}.`);
   return { folder: directory, program };
 }
 
@@ -32,7 +35,7 @@ export function parseSmokeArguments(args, { platform = process.platform } = {}) 
   if (args.length === 0) return { packaged: null, worker: join(root, 'platform/runtime/worker.ts'), packageJson: join(root, 'package.json') };
   if (args[0] !== '--packaged' || args.length > 2) throw new Error('Use only the optional --packaged <unpacked build folder> argument.');
   const { folder } = packagedFolder(args[1], platform);
-  const unpacked = join(folder, 'resources', 'app.asar.unpacked');
+  const unpacked = platform === 'darwin' ? join(folder, 'Contents', 'Resources', 'app.asar.unpacked') : join(folder, 'resources', 'app.asar.unpacked');
   return { packaged: folder, worker: join(unpacked, 'platform', 'runtime', 'worker.ts'), packageJson: join(unpacked, 'package.json') };
 }
 

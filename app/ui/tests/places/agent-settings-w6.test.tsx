@@ -18,7 +18,7 @@ describe('AI settings', () => {
     fireEvent.change(screen.getByLabelText('Server URL'), { target: { value: 'http://127.0.0.1:1234/mcp' } });
     expect(screen.getByRole('button', { name: 'Save AI settings' }).getAttribute('aria-disabled')).toBe('true');
     expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.mcpServers).toEqual([]);
-    fireEvent.click(screen.getByLabelText('Allow these exact server connections for future jobs. Calls that can change things still ask.'));
+    fireEvent.click(screen.getByLabelText('Let your agents use exactly what is shown here in future jobs. Anything that can change something still asks you first.'));
     fireEvent.click(screen.getByRole('button', { name: 'Save AI settings' }));
     await screen.findByText('AI settings saved.');
     expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.mcpServers[0]).toMatchObject({ name: 'Local sample', url: 'http://127.0.0.1:1234/mcp' });

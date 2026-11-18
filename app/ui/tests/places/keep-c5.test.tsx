@@ -160,13 +160,15 @@ describe('task 22: the readable-copy row', () => {
     const buttons = screen.getAllByRole('button', { name: /^(Delete|Yes.*|Confirm.*)$/ });
     await press(buttons[buttons.length - 1]!);
     expect(calls.find(([method]) => method === 'venture.queue.decide')![1]).toMatchObject({ action: 'approve' });
-    expect(await screen.findByText(/The readable copy is deleted\./)).toBeTruthy();
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    expect(await within(screen.getByRole('region', { name: 'Needs you' })).findByText(/The readable copy is deleted\./)).toBeTruthy();
   });
   it('Keep it decides at once, in the engine\'s words', async () => {
     start('#/today', new FakeEngine({ queue: [row] }));
     await screen.findByText(row.title);
     await press(screen.getByRole('button', { name: 'Keep it' }));
-    expect(await screen.findByText(/Kept\. Chausar won't ask about this copy again\./)).toBeTruthy();
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    expect(await within(screen.getByRole('region', { name: 'Needs you' })).findByText(/Kept\. Chausar won't ask about this copy again\./)).toBeTruthy();
   });
 });
 
@@ -185,6 +187,10 @@ describe('task 23: keep a copy on a drive', () => {
     const section = await screen.findByRole('region', { name: 'Keep a copy on a drive' });
     expect(within(section).getByText("The drive isn't plugged in. The next copy goes when it is.")).toBeTruthy();
     expect(within(section).getByText(/USB/)).toBeTruthy();
+    // Stopping the copy asks once first, and says the copies already there stay.
+    await press(within(section).getByRole('button', { name: 'Stop copying' }));
+    expect(within(section).getByText('New backups stop going to that folder. Copies already there are not deleted.')).toBeTruthy();
+    expect(setBackupFolder).not.toHaveBeenCalled();
     await press(within(section).getByRole('button', { name: 'Stop copying' }));
     expect(setBackupFolder).toHaveBeenCalledWith('clear');
   });
@@ -193,6 +199,12 @@ describe('task 23: keep a copy on a drive', () => {
     const section = await screen.findByRole('region', { name: 'Keep a copy on a drive' });
     expect(within(section).getByText('This copy opens on another computer only with your recovery code. Make one first.')).toBeTruthy();
     expect(within(section).getByRole('button', { name: 'Make a recovery code' })).toBeTruthy();
+    // The button asks once first, here as on the Recovery code tile.
+    await press(within(section).getByRole('button', { name: 'Make a recovery code' }));
+    expect(within(section).getByText('Chausar shows the recovery code once and keeps no copy. Be ready to save it somewhere safe.')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Recovery code' })).toBeNull();
+    await press(within(section).getByRole('button', { name: 'Make a recovery code' }));
+    expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
   });
   it('where the app can\'t pick a folder, no such section', async () => {
     start('#/business/keep', new FakeEngine());
@@ -225,5 +237,28 @@ describe('task 24: Google Drive', () => {
     expect(openExternal).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1');
     expect(await screen.findByText('Finish in your browser, then come back.')).toBeTruthy();
     delete (window as unknown as { chausar?: unknown }).chausar;
+  });
+  // Found on the real app's tour, 16 November 2026: a disconnect acted on one press. This one asks once first.
+  it('connected: Disconnect asks once, says the copies stay, and only then disconnects', async () => {
+    let state = 'connected';
+    const sent: string[] = [];
+    window.location.hash = '#/business/keep';
+    const fake = createFakeClient(new FakeEngine());
+    render(<App language="en" client={{ ...fake, setBackupFolder: vi.fn(), request: (async (method: string, params?: unknown) => {
+      if (method === 'workspace.backups.drive.status') return { state, lastCopiedAt: null, problem: null };
+      if (method === 'workspace.backups.drive.disconnect') { sent.push(method); state = 'not-connected'; return { state, lastCopiedAt: null, problem: null }; }
+      return fake.request(method as never, params as never);
+    }) as EngineClient['request'] }} />);
+    await press(await screen.findByRole('button', { name: 'Disconnect Google Drive' }));
+    const words = 'New backups stop going to your Google Drive. Copies already there are not deleted. Connecting again means signing in to Google again.';
+    expect(screen.getByText(words)).toBeTruthy();
+    expect(sent).toEqual([]);
+    await press(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText(words)).toBeNull();
+    expect(sent).toEqual([]);
+    await press(screen.getByRole('button', { name: 'Disconnect Google Drive' }));
+    await press(screen.getByRole('button', { name: 'Disconnect Google Drive' }));
+    expect(sent).toEqual(['workspace.backups.drive.disconnect']);
+    expect(await screen.findByRole('button', { name: 'Connect Google Drive' })).toBeTruthy();
   });
 });

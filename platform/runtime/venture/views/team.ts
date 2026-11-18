@@ -12,8 +12,11 @@
 // venture.team.clearQuarantine lets the owner clear a quarantined agent, or the team ('team'), with the health digest
 // they saw; this file installs the quarantine check delivery runs before work moves on (delivery/quarantine-gate.ts).
 // Keeper has no steps or posture to change. The team's flagship comes from views/team-shape.ts, shared with Money.
+import { RUN_FIXED_WORDS } from './run-words.ts';
+import { DELIVERY_JOB } from '../agents/order-agents-core.ts';
 import { hiredRecord, hiredRecords } from '../agents/hire-store.ts';
 import { HIRE_POSTURE_LINE } from '../agents/hired-facts.ts';
+import { TEAM_WAITS_FOR_PLAN } from '../agents/team-proposal.ts';
 import { formatDay, ownerZone } from '../../owner-format.ts';
 import { isRetired } from '../agents/retired.ts';
 import { formatUsd } from '../../owner-format.ts';
@@ -50,8 +53,9 @@ function aiWaitFor(deps: VentureDeps, ctx: Context): string | null {
   try { return aiWaitLine(deps.models.status(ctx)); } catch { return null; }
 }
 
-const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
+const ROLE = DELIVERY_JOB;
 const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
+export { TEAM_WAITS_FOR_PLAN };
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 
 /** Why a step is in the always-ask floor, or null. Code decides from the step's kind and its tools' effects. */
@@ -105,12 +109,17 @@ function agentViews(deps: VentureDeps, state: State, venture: VentureRecord, led
 }
 
 /**
- * The team as it stands: its agents (Keeper last) and the team's own health; no agents and no team health before a plan.
+ * The team as it stands: its agents (Keeper last) and the team's own health. Before a plan is accepted the team is the
+ * agents the owner hired (the team built at setup, founder 14 Nov 2026): the plan's own agents and Keeper join with
+ * the plan, and there is no team health yet. waitsForPlan: hired agents stand here while the plan's agents still wait.
  * aiWait: the words an idle agent that needs an AI shows instead of Idle while none can run (aiWaitFor).
  */
-function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger: TeamLedger, aiWait: string | null = null): { agents: AgentView[]; teamHealth: AgentHealth | null } {
+function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger: TeamLedger, aiWait: string | null = null): { agents: AgentView[]; teamHealth: AgentHealth | null; waitsForPlan?: true } {
   const steps = agentSteps(state, venture);
-  if (!steps) return { agents: [], teamHealth: null };
+  if (!steps) {
+    const hiredOnly = hiredAgentViews(state, venture, pausedNow(state, venture.id) ? RUN_FIXED_WORDS.paused : aiWait ?? RUN_FIXED_WORDS.idle);
+    return { agents: hiredOnly, teamHealth: null, ...(hiredOnly.length ? { waitsForPlan: true as const } : {}) };
+  }
   const flagship = ledger.flagship;
   const posture = effectivePosture(state, venture);
   const gates = new Map<string, 'auto' | 'hold'>();
@@ -120,9 +129,9 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
   const step = busy?.steps.find(item => item.state === 'waiting' || item.state === 'current');
   const nowFor = (owns: (stepId: string) => boolean, needsAi = true): string => {
     // Ink v2 wave 4 (4F1): while the owner has paused the business, every agent reads Paused.
-    if (pausedNow(state, venture.id)) return 'Paused';
+    if (pausedNow(state, venture.id)) return RUN_FIXED_WORDS.paused;
     // An idle agent that needs an AI waits for one while none can run (spec 8); a code role never does.
-    if (!busy || (step && !owns(step.id))) return (needsAi ? aiWait : null) ?? 'Idle';
+    if (!busy || (step && !owns(step.id))) return (needsAi ? aiWait : null) ?? RUN_FIXED_WORDS.idle;
     return busy.state === 'active' ? `Working: ${step?.purpose ?? busy.purpose}` : `Waiting on you: ${step?.purpose ?? busy.purpose}`;
   };
   const reviewed = listRecords(state, 'venture-delivery-run', venture.id).filter(run => run.verdict !== null)
@@ -154,7 +163,7 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
   const keeper = keeperAgent(state, venture, posture);
   const teamHealth = teamHealthOf(known);
   // C7: the agents the owner hired, after the playbook's: chat, routines and trackers only, always approve each.
-  const hiredNow = hiredAgentViews(state, venture, pausedNow(state, venture.id) ? 'Paused' : aiWait ?? 'Idle');
+  const hiredNow = hiredAgentViews(state, venture, pausedNow(state, venture.id) ? RUN_FIXED_WORDS.paused : aiWait ?? RUN_FIXED_WORDS.idle);
   if (!flagship) {
     return { agents: [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView), ...facts(members[0]) }), ...hiredNow, keeper], teamHealth };
   }
@@ -176,7 +185,8 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
 }
 
 /**
- * venture.team.list (read): the agents of this business, Keeper last; none, and no Keeper, until a plan is accepted.
+ * venture.team.list (read): the agents of this business, Keeper last. Until a plan is accepted: only the agents the
+ * owner hired, with waitsForPlan (one line for the plan's own agents), and no Keeper.
  * With a business, the five departments too (counts, jobs this week, spend this month, the six-week series), the spend
  * no single role can claim, the team's totals (Money's own spend figure among them) and the team's own health, each
  * figure with its sum receipt (reading may write a receipt for a sum not seen before). One ledger serves the request.
@@ -188,12 +198,12 @@ export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: 
   const venture = currentVenture(state);
   if (!venture) return { agents: [] };
   const ledger = teamLedger(state, venture);
-  const { agents, teamHealth } = teamNow(deps, state, venture, ledger, aiWaitFor(deps, ctx));
+  const { agents, teamHealth, waitsForPlan } = teamNow(deps, state, venture, ledger, aiWaitFor(deps, ctx));
   // W6 6G2: the Retired shelf, sent only when someone is on it.
   const shelf = retiredShelf(state, venture.id, ledger.flagship);
   // C5 task 1: the agents this member has not met yet, with their code-written lines.
   const introduce = introductions(state, venture.id, ctx.memberId, agents);
-  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}), introduce };
+  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}), introduce, ...(waitsForPlan ? { waitsForPlan: TEAM_WAITS_FOR_PLAN } : {}) };
 }
 
 /**

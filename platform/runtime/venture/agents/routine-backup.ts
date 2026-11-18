@@ -8,10 +8,9 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import { MODEL_PRESET_IDS } from '../contracts.ts';
 import type { ChatConsentRecord, IsoTime, ModelPresetId, ModelStatusView, VentureDeps, VentureRecord } from '../contracts.ts';
-import { currentVenture, digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
-import { planBookOf, planCliOf } from '../models/plan-book.ts';
+import { digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
+import { planBookFor, planCliOf } from '../models/plan-book.ts';
 import { backupConsentHolds, chatConsentText, chatRoute, routeFor, type ChatRoute } from './consent.ts';
-export { backupConsentHolds, routeFor } from './consent.ts';
 
 export type RoutineBackup = { on: boolean; order: ModelPresetId[]; at: IsoTime | null };
 export const BACKUP_LIMIT = 2;
@@ -103,11 +102,8 @@ export function routineRoutes(status: ModelStatusView, venture: VentureRecord): 
 export function usableBackup(deps: VentureDeps, state: State, venture: VentureRecord, route: ChatRoute): boolean {
   if (!backupConsentHolds(state, venture, route)) return false;
   const cli = planCliOf(route.presetId);
-  return !cli || planBookOf(deps.store).read(cli, deps.clock().toISOString()).state !== 'used-up';
+  return !cli || planBookFor(deps).read(cli, deps.clock().toISOString()).state !== 'used-up';
 }
-
-/** The open business, for the routine runner. */
-export const ventureOf = (deps: VentureDeps) => currentVenture(deps.store.read());
 
 /** Whether a client's data may go to this backup: their AI consent holds and was given at or after it was connected. */
 export function clientAllowsBackup(state: State, venture: VentureRecord, clientId: string, status: ModelStatusView, presetId: ModelPresetId): boolean {

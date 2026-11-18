@@ -80,7 +80,7 @@
   "pb-translation.makeClientLink": "क्लाइंट समीक्षा लिंक बनाएं",
   "pb-translation.checkClient": "क्लाइंट की मंज़ूरी देखें",
   "pb-translation.shareId": "समीक्षा लिंक का संदर्भ",
-  "pb-translation.error.SHARE_NOT_HOSTED": "क्लाइंट समीक्षा लिंक के लिए सार्वजनिक पते वाला होस्ट किया गया चौसर चाहिए।",
+  "pb-translation.error.SHARE_NOT_HOSTED": "क्लाइंट समीक्षा लिंक के लिए सार्वजनिक पते वाला होस्ट किया गया Chausar चाहिए।",
   "pb-translation.error.TRANSLATION_CLIENT_APPROVAL_REQUIRED": "क्लाइंट को इस सटीक अनुवाद की मंज़ूरी उसके समीक्षा लिंक से देनी होगी।",
   "pb-translation.error.NO_MODEL_CONNECTED": "पहले आपकी AI में AI सेवा जोड़ें।",
   "pb-translation.check.TRANSLATION_SOURCE_INVALID": "मूल पाठ में सुधार चाहिए। अनुवाद से पहले क्लाइंट से पूछें।",

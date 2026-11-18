@@ -3,11 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DeliveryRunView, QueueDecision, QueueList, QueueRow } from '../runtime/venture/contracts.ts';
-import { listRecords } from '../runtime/venture/records.ts';
+import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { correctionCases } from '../runtime/venture/delivery/corrections.ts';
 import { listScenarios } from '../runtime/venture/delivery/scenarios.ts';
 import { liveSignals } from '../runtime/venture/delivery/check-signals.ts';
-import { call, code, record, seedOrder, setup, startNativeDraft, type Env } from './venture-run-controls-env.ts';
+import { call, code, owner, record, seedOrder, setup, startNativeDraft, type Env } from './venture-run-controls-env.ts';
 
 const part = (text: string) => ({ kind: 'text', text, ref: '' });
 const report = (first: string) => ({
@@ -88,7 +88,8 @@ test('reject, then the signal becomes a practice case: too late, since something
   const { env, row } = await ready();
   await reject(env, row);
   const [signal] = liveSignals(env.store.read(), ventureId(env)).filter(item => item.source === 'owner-rejected');
-  await call(env, 'venture.simulation.fromSignal', { signalId: signal!.id });
+  // The signal as a vault holds it once it was made a practice case, written straight in.
+  await ventureAction(env.deps, owner, 'prepare', 'seed.signal-case', tx => { tx.replace({ ...tx.find('venture-signal', signal!.id)!, scenarioId: `signal-${signal!.id}` }); });
   await assert.rejects(() => undo(env, row.id), code('UNDO_TOO_LATE'));
 });
 

@@ -54,7 +54,7 @@
   "pb-seller-connectors.state.unknown": "नतीजा अनजान है",
   "pb-seller-connectors.unknown": "आगे कुछ करने से पहले 'Shopify' जाँचें। यह बदलाव दोबारा नहीं भेजा जा सकता।",
   "pb-seller-connectors.disconnect": "यह सत्र अलग करें",
-  "pb-seller-connectors.providerDisclosure": "मंज़ूरी के बाद ही खरीदार का सवाल और सार्वजनिक उत्पाद चुने मॉडल को भेजे जाते हैं। सेवा की डेटा रखने की नीति आपके खाते की शर्तों पर है। सत्र खत्म होने पर चौसर खरीदार का टेक्स्ट हटा देता है।",
+  "pb-seller-connectors.providerDisclosure": "मंज़ूरी के बाद ही खरीदार का सवाल और सार्वजनिक उत्पाद चुने मॉडल को भेजे जाते हैं। सेवा की डेटा रखने की नीति आपके खाते की शर्तों पर है। सत्र खत्म होने पर Chausar खरीदार का टेक्स्ट हटा देता है।",
   "pb-seller-connectors.publicToken": "सार्वजनिक स्टोर टोकन",
   "pb-seller-connectors.model": "जुड़ा हुआ API मॉडल",
   "pb-seller-connectors.chooseModel": "अपना API मॉडल चुनें",

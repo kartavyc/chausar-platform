@@ -55,7 +55,6 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DAY_MS = 86_400_000;
 const WEEKS = 13;
 const NEXT_DAYS = 21;
-const NO_RATE = 'no rupee rate set';
 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const monthWords = (month: string) => `${MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
@@ -119,7 +118,7 @@ export class FakeMoneyViews {
 
   private country() { const view = this.host.ask('venture.get', {}) as VentureViewLite | null; return countryProfile(view?.venture.country?.code ?? 'IN'); }
   private money(minor: number) { return this.country().currency === 'INR' ? inr(minor) : formatMoney(String(minor), this.country().currency); }
-  private noRate() { return this.country().currency === 'INR' ? NO_RATE : `no rate from US dollars to ${this.country().currency}`; }
+  private noRate() { return `no rate from US dollars to ${this.country().currency}`; }
   private ledger(): MoneyLedger {
     const all = this.host.ledger(), currency = this.country().currency;
     const invoices = all.invoices.filter(row => row.currency === currency), ids = new Set(invoices.map(row => row.id));
@@ -162,14 +161,15 @@ export class FakeMoneyViews {
 
   booksPeriod(period: { from: string; to: string }, label = `${period.from} to ${period.to}`): BooksFigureLite[] {
     const ledger = this.ledger();
-    const billed = this.sum(`Billed in ${label}`, ledger.invoices.filter((i) => this.issuedIn(i, period)).map((i) => ({ label: `${i.number} for ${i.client}`, minor: i.subtotal })), 'Nothing was billed.');
-    const received = this.sum(`Received in ${label}`, this.receivedIn(ledger, period), 'Nothing came in.');
-    const figures: BooksFigureLite[] = [
-      { operation: 'billed', label: 'Billed', receiptId: billed.receiptId, display: billed.display, stale: false },
-      { operation: 'received', label: 'Received', receiptId: received.receiptId, display: received.display, stale: false },
-      { operation: 'earned', label: 'Earned', receiptId: billed.receiptId, display: billed.display, stale: false },
-    ];
-    return figures;
+    const billedOf = ledger.invoices.filter((i) => this.issuedIn(i, period)).map((i) => ({ label: `${i.number} for ${i.client}`, minor: i.subtotal }));
+    const receivedOf = this.receivedIn(ledger, period);
+    // money/books.ts: a figure that counts nothing is zero with no receipt, and nothing is kept for it (a read writes nothing).
+    const figureOf = (operation: BooksFigureLite['operation'], name: string, addends: Addend[]): BooksFigureLite => {
+      if (!addends.length) return { operation, label: name, receiptId: null, display: this.money(0), stale: false };
+      const sum = this.sum(`${operation === 'received' ? 'Received' : 'Billed'} in ${label}`, addends, '');
+      return { operation, label: name, receiptId: sum.receiptId, display: sum.display, stale: false };
+    };
+    return [figureOf('billed', 'Billed', billedOf), figureOf('received', 'Received', receivedOf), figureOf('earned', 'Earned', billedOf)];
   }
 
   /** Today on the owner's calendar in Kolkata (UTC+05:30). */
@@ -449,7 +449,6 @@ export class FakeMoneyViews {
     const leftOut = rate === null ? { count: calls, one: `paid call with ${this.noRate()}`, many: `paid calls with ${this.noRate()}` } : { count: calls, one: 'paid call no order can claim', many: 'paid calls no order can claim' };
     return {
       month, rows,
-      ...(rate === null && this.country().currency === 'INR' ? { needsRate: true } : {}),
       line: rate === null ? `${words}: invoiced before tax. The AI and tool spend is not counted: ${this.noRate()}.` : `${words}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`,
       basis: this.basis(
         [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its run and order"],

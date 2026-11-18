@@ -33,7 +33,8 @@ describe('shell', () => {
     expect(brand!.getAttribute('href')).toBe('#/today');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections', '#/business']);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
-    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today12, 12 need you$/));
+    await waitFor(() => expect(links[0]!.getAttribute('aria-label')).toBe('Today, 12 need you'));
+    expect(links[0]!.textContent).toBe('Today12');
     expect(screen.getByRole('status').textContent).toBe('Sample data. Nothing here is real.');
   });
 
@@ -89,7 +90,8 @@ describe('shell', () => {
     await act(async () => { fireEvent.click(more); });
     const row = (await screen.findByText('Which title for episode 15?')).closest<HTMLElement>('[data-row]')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Later' })); });
-    await waitFor(() => expect(screen.getByText(/Moved to later/)).toBeTruthy());
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Needs you' })).getByText(/Moved to later/)).toBeTruthy());
   });
 
 });

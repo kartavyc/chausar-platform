@@ -5,7 +5,6 @@ import {dayKeyIn,ownerZone} from '../../../owner-format.ts';
 import type {CountryProfile} from '../../core/country-types.ts';
 export const LEDGER_COLUMNS=['name','role','stage','recommendation','source','noticeShownOn','lastTouch','nextStep'] as const;
 export function ledgerEntry(candidate:{id:string;name:string;stage:string;recommendation:string|null;source:{kind:string;url:string|null};noticeShownOn:string|null;skipReason:string|null},role:{brief:{title:string}|null},touches:readonly {candidateId:string;state:string;sentOn:string|null}[]){const lastTouch=touches.filter(t=>t.candidateId===candidate.id&&t.state==='recorded'&&t.sentOn).map(t=>t.sentOn!).sort().at(-1)??null;return {name:candidate.name,role:role.brief?.title??'',stage:candidate.stage,recommendation:candidate.recommendation,source:candidate.source.url??candidate.source.kind,noticeShownOn:candidate.noticeShownOn,lastTouch,nextStep:candidate.skipReason?'waiting':candidate.stage==='sourced'?'screen':candidate.stage==='screened'?'greet':['joined','rejected','withdrawn'].includes(candidate.stage)?'closed':'follow-up'};}
-export type CandidateStage='sourced'|'screened'|'contacted'|'replied'|`interview-${number}`|'offer'|'joined'|'rejected'|'withdrawn';
 export type StageEvidence={stage:string;evidenceRef:string;on:string};
 const TERMINAL=new Set(['joined','rejected','withdrawn']);
 const ranks:Record<string,number>={sourced:0,screened:1,contacted:2,replied:3,offer:100,joined:101,rejected:102,withdrawn:102};

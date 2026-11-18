@@ -12,6 +12,7 @@
 // Template words only: no digits, no prices, no done claims.
 
 import type { FamilyId, FamilyOffer } from './first-run-types.ts';
+import { namesTheWork } from './service-keywords.ts';
 
 /** The service types of contracts.ts SERVICE_TYPES, named here so this file needs no engine import. */
 type ServiceType = 'agency' | 'studio' | 'consulting' | 'bookkeeping' | 'research' | 'content' | 'support' | 'teaching' | 'local-services' | 'licensed' | 'other';
@@ -36,6 +37,14 @@ export type Family = {
   keywords: readonly string[];
 };
 
+/**
+ * A starting offer names the unit it is priced in (core/offer-units.ts), the one that fits how such work is charged;
+ * one with none is per project. Found in the real app (16 Nov 2026): "Weekly classes", "One to one sessions" and
+ * "Progress reports" were each "per project". Only one piece of work with a start and an end is a project: a tender
+ * response, a website, a research report. Classes and upkeep are charged per month, a one to one session or IT help
+ * per hour, an article or an edit per piece, a consultation per visit, translation per word, a yearly return per year.
+ * The engine has no unit for a class or a session; the owner changes any unit on the card.
+ */
 const f = (family: Family) => Object.freeze({ ...family, offers: Object.freeze(family.offers.map(offer => Object.freeze(offer))), keywords: Object.freeze([...family.keywords]) });
 
 export const FAMILIES: readonly Family[] = Object.freeze([
@@ -43,9 +52,9 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'money-tax', label: 'Money and tax', line: 'CA, accountant, payroll, company secretary', serviceType: 'bookkeeping',
     planIdea: 'Monthly bookkeeping, GST and tax filing for small businesses',
     offers: [
-      { name: 'Monthly books', line: 'Bank matching, bills and a short report' },
-      { name: 'GST returns', line: 'A filing pack for each return' },
-      { name: 'Income tax returns', line: 'Papers gathered and the return prepared for your review' },
+      { name: 'Monthly books', line: 'Bank matching, bills and a short report', unit: 'month' },
+      { name: 'GST returns', line: 'A filing pack for each return', unit: 'month' },
+      { name: 'Income tax returns', line: 'Papers gathered and the return prepared for your review', unit: 'year' },
     ],
     keywords: ['chartered accountant', ' ca ', 'accountant', 'accounting', 'bookkeep', 'gst', 'income tax', 'itr', 'payroll', 'company secretary', 'audit'],
   }),
@@ -53,9 +62,9 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'teaching', label: 'Teaching and coaching', line: 'Teacher, tutor, trainer, yoga, music, mentor', serviceType: 'teaching',
     planIdea: 'Tuition classes and lessons for students and adult learners',
     offers: [
-      { name: 'Weekly classes', line: 'Small batches with notes and practice work' },
-      { name: 'One to one sessions', line: 'Focused help on what the learner needs' },
-      { name: 'Progress reports', line: 'A short update for learners or parents' },
+      { name: 'Weekly classes', line: 'Small batches with notes and practice work', unit: 'month' },
+      { name: 'One to one sessions', line: 'Focused help on what the learner needs', unit: 'hour' },
+      { name: 'Progress reports', line: 'A short update for learners or parents', unit: 'month' },
     ],
     keywords: ['teacher', 'teach', 'tutor', 'tuition', 'trainer', 'training', 'coach', 'yoga', 'fitness', 'music', 'dance', 'mentor', 'spoken english', 'dietitian', 'language'],
   }),
@@ -63,9 +72,9 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'creative', label: 'Creative work', line: 'Designer, photographer, video editor, voice artist', serviceType: 'studio',
     planIdea: 'Photo, video and design work for small brands and creators',
     offers: [
-      { name: 'Video edits', line: 'Raw footage cut into clean, ready videos' },
-      { name: 'Design work', line: 'Posters, posts and brand pieces to a brief' },
-      { name: 'Monthly creative plan', line: 'Regular edits and designs, planned with the client' },
+      { name: 'Video edits', line: 'Raw footage cut into clean, ready videos', unit: 'piece' },
+      { name: 'Design work', line: 'Posters, posts and brand pieces to a brief', unit: 'piece' },
+      { name: 'Monthly creative plan', line: 'Regular edits and designs, planned with the client', unit: 'month' },
     ],
     keywords: ['video edit', 'editor', 'photographer', 'photo', 'graphic design', 'designer', 'voice artist', 'voice over', 'interior', 'architect', 'tailor', 'fashion', 'animation'],
   }),
@@ -73,9 +82,9 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'writing', label: 'Writing and content', line: 'Copywriter, journalist, translator, ghostwriter', serviceType: 'content',
     planIdea: 'Blog articles, newsletters and copywriting for small brands',
     offers: [
-      { name: 'Blog articles', line: 'Researched posts written for search' },
-      { name: 'Newsletter issues', line: 'A regular issue drafted for review' },
-      { name: 'Translation', line: 'Documents translated and checked' },
+      { name: 'Blog articles', line: 'Researched posts written for search', unit: 'piece' },
+      { name: 'Newsletter issues', line: 'A regular issue drafted for review', unit: 'piece' },
+      { name: 'Translation', line: 'Documents translated and checked', unit: 'word' },
     ],
     keywords: ['copywrit', 'journalist', 'writer', 'writing', 'blog', 'newsletter', 'translator', 'translation', 'ghostwrit', 'podcast', 'seo', 'content'],
   }),
@@ -83,8 +92,8 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'local-services', label: 'Local services', line: 'Salon, electrician, home chef, travel, events', serviceType: 'local-services',
     planIdea: 'Home visits, repairs and salon bookings for families nearby',
     offers: [
-      { name: 'Booked visits', line: 'Slots, reminders and a quote before each visit' },
-      { name: 'Packages', line: 'A set of visits or services sold together' },
+      { name: 'Booked visits', line: 'Slots, reminders and a quote before each visit', unit: 'visit' },
+      { name: 'Packages', line: 'A set of visits or services sold together', unit: 'set' },
       { name: 'Event planning', line: 'A plan, vendors and a checklist for the day' },
     ],
     keywords: ['salon', 'beautician', 'electrician', 'plumber', ' ac ', 'technician', 'home chef', 'tiffin', 'real estate', 'broker', 'travel agent', 'wedding', 'event planner', 'physiotherap'],
@@ -104,7 +113,7 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     planIdea: 'Market research and data analysis reports for small companies',
     offers: [
       { name: 'Research reports', line: 'A question answered with sources' },
-      { name: 'Monthly MIS', line: 'The numbers a business watches, put in one pack' },
+      { name: 'Monthly MIS', line: 'The numbers a business watches, put in one pack', unit: 'month' },
       { name: 'Lead lists', line: 'Companies that fit, found from public sources' },
     ],
     keywords: ['market research', 'research', 'analyst', 'analysis', 'mis', 'data analys', 'procurement', 'sales executive', 'lead list'],
@@ -114,7 +123,7 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     planIdea: 'Career coaching and resume advice for job seekers',
     offers: [
       { name: 'Resume rewrite', line: 'A clear resume aimed at one kind of role' },
-      { name: 'Job search help', line: 'Roles found and applications prepared' },
+      { name: 'Job search help', line: 'Roles found and applications prepared', unit: 'month' },
       { name: 'Hiring support', line: 'Candidates found and screened for a role' },
     ],
     keywords: ['recruit', 'hiring', 'placement', 'resume', 'career', 'job seeker', 'hr executive', 'talent'],
@@ -123,9 +132,9 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'shop-office', label: 'Shop and back office', line: 'Online selling, support desk, assistant', serviceType: 'support',
     planIdea: 'Customer support and inbox help for online shops',
     offers: [
-      { name: 'Support desk', line: 'Customer questions answered from your rules' },
-      { name: 'Marketplace listings', line: 'Products listed and kept up to date' },
-      { name: 'Assistant hours', line: 'Inbox, calendar and data entry help' },
+      { name: 'Support desk', line: 'Customer questions answered from your rules', unit: 'month' },
+      { name: 'Marketplace listings', line: 'Products listed and kept up to date', unit: 'month' },
+      { name: 'Assistant hours', line: 'Inbox, calendar and data entry help', unit: 'hour' },
     ],
     keywords: ['customer service', 'customer support', 'support desk', 'online shop', 'seller', 'marketplace', 'amazon', 'flipkart', 'data entry', 'executive assistant', 'virtual assistant', 'retail'],
   }),
@@ -135,7 +144,7 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     offers: [
       { name: 'Small websites', line: 'A site built, checked and handed over' },
       { name: 'App testing', line: 'Test runs with a clear report of what broke' },
-      { name: 'IT help', line: 'Problems sorted and written up' },
+      { name: 'IT help', line: 'Problems sorted and written up', unit: 'hour' },
     ],
     keywords: ['software', 'developer', 'website', 'web design', 'app test', 'qa tester', 'tester', 'it support', 'call centre', 'receptionist', 'programmer'],
   }),
@@ -143,8 +152,8 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     id: 'licensed', label: 'Licensed work', line: 'Advocate, doctor, financial planner', serviceType: 'licensed',
     planIdea: 'Client follow ups and review packs for a licensed professional to sign off',
     offers: [
-      { name: 'Consultations', line: 'Booked sessions with notes for the client' },
-      { name: 'Follow ups', line: 'Reminders and next steps after each session' },
+      { name: 'Consultations', line: 'Booked sessions with notes for the client', unit: 'visit' },
+      { name: 'Follow ups', line: 'Reminders and next steps after each session', unit: 'month' },
       { name: 'Review packs', line: 'Papers put in order for you to sign off' },
     ],
     keywords: ['advocate', 'lawyer', 'legal', 'doctor', 'clinic', 'physician', 'financial planner', 'mutual fund', ' mfd ', 'sebi'],
@@ -172,7 +181,8 @@ export function familyTiles(): { id: FamilyId; label: string; line: string }[] {
 export type Classify = (idea: string) => string;
 
 /**
- * The no-AI guess: the family whose words appear most in the text (padded so ' ca ' finds a lone "CA"), a tie to the
+ * The no-AI guess: the family whose words name the work most often in the text (padded so ' ca ' finds a lone "CA"; a
+ * trade named as the customer, "orders from event planners", is no word for the family), a tie to the
  * family listed first; with no family word, the family of the classifier's service type when exactly one family plans as
  * it; else null, and the owner picks a tile. family-plan.ts binds the engine's classifier.
  */
@@ -181,7 +191,8 @@ export function keywordFamilyWith(text: string, classify?: Classify): FamilyId |
   let best: FamilyId | null = null;
   let bestHits = 0;
   for (const family of FAMILIES) {
-    const hits = family.keywords.filter(word => padded.includes(word)).length;
+    // A word that names a trade counts where it names the owner's work, not who they sell to (core/service-keywords.ts).
+    const hits = family.keywords.filter(word => namesTheWork(padded, word)).length;
     if (hits > bestHits) { best = family.id; bestHits = hits; }
   }
   if (best || !classify) return best;

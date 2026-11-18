@@ -1,6 +1,6 @@
 # Working on Chausar (for coding agents)
 
-Chausar is a desktop app for ordinary professionals (India first, global too) who want to earn more with an AI-run service business built around their skills. An owner picks a way to earn (a playbook), and an AI team runs it; the owner approves every outside effect. The engine is TypeScript under `platform/`, the app is React (Ink) under `app/ui/`, the desktop shell is Electron under `app/desktop/`. The beta is a free download for Windows and Linux; there is no Chausar-hosted server.
+Chausar is a desktop app for ordinary professionals (India first, global too) who want to earn more with an AI-run service business built around their skills. An owner picks a way to earn (a playbook), and an AI team runs it; the owner approves every outside effect. The engine is TypeScript under `platform/`, the app is React (Ink) under `app/ui/`, the desktop shell is Electron under `app/desktop/`. The beta is a free download for Windows and Linux. Since 14 November 2026 the beta is set up to be built for Mac too (Apple chips and Intel, with the bundled Codex): a Mac build is unsigned until an Apple Developer ID is configured. One unsigned build was made and run on a real Apple silicon Mac on 14 November 2026; none is signed or published yet (`docs/desktop-releases.md`, "The Mac beta build"). There is no Chausar-hosted server.
 
 ## Where the plan lives
 
@@ -45,6 +45,7 @@ What the app does and its known limits stays public, in this repository: `docs/v
 ## Traps already hit (read before you lose an hour)
 
 - Engine tests need the default temp folder on C:. Many assert C-drive scratch, so never point TMP at another drive for `node --test` or the bench.
+- On a Mac the default temp folder is reached through a link (`/var` to `/private/var`), and the vault refuses linked paths. Run engine tests there with the real path: `export TMPDIR="$(python3 -c "import os;print(os.path.realpath(os.environ['TMPDIR']))")/"`. `phone-wifi-w6.test.ts` and `process-tree.test.ts` hang on macOS; leave them out until someone finds why.
 - Outputs (bench and UI receipts, the screenshot walk) go to the run root: `CHAUSAR_RUN_ROOT`, else the OS temp folder under `chausar-runs`. Servers keep data in the data home: `CHAUSAR_HOME`, else your user data folder. Neither is ever inside the code folder; `npm run guard:data` checks.
 - A shard that times out at the same test number every run is a hang, not slowness: run that file alone with a time limit.
 - `check.mjs` checks the whole tree in one process; a `.ts` file must still be erasable syntax (`erasableSyntaxOnly`), as the worker runs it by type stripping.

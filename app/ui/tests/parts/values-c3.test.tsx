@@ -1,17 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Count, Figure } from '../../src/parts/Figure';
 import { ProgressBar } from '../../src/parts/ProgressBar';
-import { useChanged } from '../../src/parts/useChanged';
 import { TextProvider } from '../../src/text';
 import { cssOf, rule } from '../helpers/css';
 
 /**
  * One-shot C3 task 14: values that change. A count rolls one step, once; money cross-fades and never rolls; a bar's fill
- * moves through a CSS transition on its own width, with the engine's counts staying attributes; a value the owner just
- * changed gets one tint. With animations off, only the new value.
+ * moves through a CSS transition on its own width, with the engine's counts staying attributes. With animations off,
+ * only the new value.
  */
 const real = window.getComputedStyle.bind(window);
 beforeEach(() => {
@@ -80,31 +79,5 @@ describe('bars', () => {
     expect(cssOf('charts/Charts.module.css')).toMatch(/\.goalFill\s*\{[^}]*transition:\s*width var\(--t-settle\)/);
     expect(cssOf('charts/Charts.module.css')).toMatch(/\.bar\s*\{[^}]*transition:\s*height var\(--t-settle\)/);
     expect(rule('ProgressRing.module.css', '.arc')).toMatch(/transition:\s*stroke-dasharray var\(--t-settle\)/);
-  });
-});
-
-describe('useChanged', () => {
-  it('marks only a change after mount, once, and nothing with animations off', () => {
-    vi.useFakeTimers();
-    try {
-      const { result, rerender } = renderHook(({ value }) => useChanged(value), { initialProps: { value: 'a' } });
-      expect(result.current).toBeUndefined();
-      rerender({ value: 'a' });
-      expect(result.current).toBeUndefined();
-      rerender({ value: 'b' });
-      expect(result.current).toBe('');
-      act(() => { vi.advanceTimersByTime(600); });
-      expect(result.current).toBeUndefined();
-      document.documentElement.dataset.motion = 'off';
-      rerender({ value: 'c' });
-      expect(result.current).toBeUndefined();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('the tint fades on the settle time', () => {
-    const motion = readFileSync(join(import.meta.dirname, '../../src/tokens/motion.css'), 'utf8');
-    expect(motion).toMatch(/\[data-changed\]\s*\{[^}]*ink-changed var\(--t-settle\)/);
   });
 });

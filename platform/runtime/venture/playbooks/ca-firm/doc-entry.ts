@@ -4,7 +4,7 @@ import {check} from '../../../portable.ts';
 import {paise,signedPaise,isoDate} from './money.ts';
 import {ReceiptBuilder} from './receipt.ts';
 import type {DocumentEntryInput,DocumentEntryWorking} from './doc-entry-types.ts';
-export type {DocumentEntryInput,DocumentEntryWorking} from './doc-entry-types.ts';
+export type {DocumentEntryInput} from './doc-entry-types.ts';
 const words=(value:unknown,label:string,max=200):string=>{check(typeof value==='string'&&value.trim().length>0&&value.length<=max&&!/[\r\n\0]/.test(value),'TAX_INPUT_INVALID',`Give a bounded ${label} from the source document.`);return value;};
 /** Prepare bank, purchase or sales vouchers only after every required code tie passes. */
 export function documentEntries(input:DocumentEntryInput){

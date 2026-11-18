@@ -67,7 +67,7 @@ export function openProblem(error: unknown, t: (key: string) => string): string 
 }
 
 /** A link to a partner site: a quiet button through the preload on the desktop, a plain new-tab link on the web. */
-export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+export function ExternalLink({ href, children, label }: { href: string; children: ReactNode; label?: string | undefined }) {
   const t = useT();
   const [problem, setProblem] = useState<string | null>(null);
   const url = safeUrl(href);
@@ -75,10 +75,10 @@ export function ExternalLink({ href, children }: { href: string; children: React
   if (onDesktop()) {
     return (
       <>
-        <Button variant="quiet" onClick={() => { setProblem(null); openExternal(url).catch((error: unknown) => setProblem(openProblem(error, t))); }}>{children}</Button>
+        <Button variant="quiet" aria-label={label} onClick={() => { setProblem(null); openExternal(url).catch((error: unknown) => setProblem(openProblem(error, t))); }}>{children}</Button>
         {problem && <span className={s.problem} role="status">{problem}</span>}
       </>
     );
   }
-  return <a className={s.link} href={url} target="_blank" rel="noopener noreferrer">{children}</a>;
+  return <a className={s.link} href={url} target="_blank" rel="noopener noreferrer" aria-label={label}>{children}</a>;
 }

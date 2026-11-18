@@ -1,6 +1,5 @@
 // Original Chausar S3/S6/S7/S8/S11/S14 offers. All prices are set by the owner.
 import type { SocialOffer } from './playbook.ts';
-export {SOCIAL_D2_KEYS} from './d2-core.ts';
 export const SOCIAL_D2_OFFERS:SocialOffer[]=[
  {id:'reel-from-clips',name:'Reel from your clips',description:'An upright, clean reel on your beat grid, with captions and a contact end card. Desktop editing only.',charge:'project',price:'owner-sets',steps:['intake','creative-briefs','check','approve-drafts','publish'],includes:['Client clip rights and people consent','Owner-reviewed cut ranges','Contact end card and captions'],disclosure:[]},
  {id:'hook-variations',name:'Opening variations',description:'Text-only openings for the same approved cut.',charge:'project',price:'owner-sets',steps:['intake','drafts','check','approve-drafts','publish'],includes:['Each opening approved','The cut stays the same'],disclosure:[]},

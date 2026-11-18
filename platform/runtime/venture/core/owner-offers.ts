@@ -10,7 +10,8 @@
 import { check, ChausarError, type State } from '../../contracts.ts';
 import type { BlueprintRecord, Offer, OwnerOfferRecord, PricingModel } from '../contracts.ts';
 import { exactPayload, listRecords, singleLine, type VentureTx } from '../records.ts';
-import { isPricingModel, UNIT_OF } from './interview.ts';
+import { isPricingModel } from './interview.ts';
+import { UNIT_CHOICE_LINE, UNIT_WORDS, isOfferUnit, modelOfUnit, unitOfModel, type OfferUnit } from './offer-units.ts';
 import { noNumberWords, toldByYou } from './words.ts';
 import {youtubeService,type YoutubeServiceId} from '../playbooks/youtube/offers2.ts';
 import {pickPlaybook} from '../playbooks/registry.ts';
@@ -18,7 +19,7 @@ import {pickPlaybook} from '../playbooks/registry.ts';
 export const OWNER_OFFER_PREFIX = 'offer_own_';
 /** How many offers the owner may have added at once. */
 export const OWNER_OFFERS_MAX = 5;
-export type OwnerOfferInput = { name: string; description: string; pricingModel: PricingModel; youtubeService?:YoutubeServiceId };
+export type OwnerOfferInput = { name: string; description: string; pricingModel: PricingModel; unit?: OfferUnit; youtubeService?:YoutubeServiceId };
 
 /** The offers the owner added and has not taken out, oldest first. */
 export function liveOwnerOffers(state: State, ventureId: string): OwnerOfferRecord[] {
@@ -43,18 +44,22 @@ export function ownerOfferInput(value: unknown): OwnerOfferInput {
     const body=exactPayload(value,['youtubeService'],['youtubeService']),service=youtubeService(body.youtubeService);
     return {name:service.name,description:service.description,pricingModel:service.pricing,youtubeService:service.id};
   }
-  const body = exactPayload(value, ['name', 'description', 'pricingModel'], ['name', 'description', 'pricingModel']);
+  const body = exactPayload(value, ['name', 'description', 'pricingModel', 'unit'], ['name', 'description', 'pricingModel']);
   const name = ownerOfferWords(body.name, 'The offer name', 60);
   const description = ownerOfferWords(body.description, 'The offer description', 200);
   check(isPricingModel(body.pricingModel), 'INVALID_VENTURE_REQUEST', 'Choose per month, per project or per hour.');
-  return { name, description, pricingModel: body.pricingModel };
+  // The unit it is priced in (core/offer-units.ts), when the owner names one: a unit of that way of charging.
+  if (body.unit === undefined) return { name, description, pricingModel: body.pricingModel };
+  check(isOfferUnit(body.unit), 'INVALID_VENTURE_REQUEST', UNIT_CHOICE_LINE);
+  check(modelOfUnit(body.unit) === body.pricingModel, 'INVALID_VENTURE_REQUEST', `A price ${UNIT_WORDS[body.unit]} is charged ${UNIT_WORDS[unitOfModel(modelOfUnit(body.unit))]}.`);
+  return { name, description, pricingModel: body.pricingModel, unit: body.unit };
 }
 
 /** A plan offer for an owner's offer record: the owner's words, its pricing, and no price. */
-export function ownerOfferOn(record: Pick<OwnerOfferRecord, 'offerId' | 'name' | 'description' | 'pricingModel' | 'youtubeService'>): Offer {
+export function ownerOfferOn(record: Pick<OwnerOfferRecord, 'offerId' | 'name' | 'description' | 'pricingModel' | 'youtubeService' | 'unit'>): Offer {
   return {
     id: record.offerId, addedByOwner: true, name: toldByYou(record.name), description: toldByYou(record.description), ...(record.youtubeService?{playbookOffer:record.youtubeService}:{}),
-    pricing: { model: record.pricingModel, quantityUnit: UNIT_OF[record.pricingModel], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
+    pricing: { model: record.pricingModel, quantityUnit: record.unit && modelOfUnit(record.unit) === record.pricingModel ? record.unit : unitOfModel(record.pricingModel), unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
   };
 }
 
@@ -68,7 +73,7 @@ export function addOwnerOffer(tx: VentureTx, next: BlueprintRecord, input: Owner
   check(next.offers.filter(offer => offer.addedByOwner).length < OWNER_OFFERS_MAX, 'INVALID_VENTURE_REQUEST', 'Your plan holds five offers you added. Take one out first.');
   const offerId = `${OWNER_OFFER_PREFIX}${tx.list('venture-owner-offer').length + 1}`;
   check(!next.offers.some(offer => offer.id === offerId), 'INVALID_VENTURE_REQUEST', 'Your plan has that offer already.');
-  const record: OwnerOfferRecord = { ...tx.base('venture-owner-offer'), offerId, name: input.name, description: input.description, pricingModel: input.pricingModel, removedAt: null, ...(input.youtubeService?{youtubeService:input.youtubeService}:{}) };
+  const record: OwnerOfferRecord = { ...tx.base('venture-owner-offer'), offerId, name: input.name, description: input.description, pricingModel: input.pricingModel, removedAt: null, ...(input.unit ? { unit: input.unit } : {}), ...(input.youtubeService?{youtubeService:input.youtubeService}:{}) };
   tx.put(record);
   next.offers.push(ownerOfferOn(record));
   return offerId;
@@ -91,7 +96,10 @@ export function syncOwnerOffers(tx: VentureTx, next: BlueprintRecord): void {
     if (!offer.addedByOwner) continue;
     const record = tx.list('venture-owner-offer').find(item => item.offerId === offer.id && item.removedAt === null);
     if (!record) continue;
-    if (record.name === offer.name.value && record.description === offer.description.value && record.pricingModel === offer.pricing.model) continue;
-    tx.replace<OwnerOfferRecord>({ ...record, name: offer.name.value, description: offer.description.value, pricingModel: offer.pricing.model });
+    // The record's unit follows the plan's: absent while it is the model's own, as on every record made before units.
+    const { unit: _was, ...rest } = record;
+    const unit = offer.pricing.quantityUnit === unitOfModel(offer.pricing.model) ? undefined : offer.pricing.quantityUnit;
+    if (record.name === offer.name.value && record.description === offer.description.value && record.pricingModel === offer.pricing.model && record.unit === unit) continue;
+    tx.replace<OwnerOfferRecord>({ ...rest, name: offer.name.value, description: offer.description.value, pricingModel: offer.pricing.model, ...(unit ? { unit } : {}) });
   }
 }

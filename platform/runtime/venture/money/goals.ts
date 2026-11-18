@@ -13,7 +13,7 @@ import { currencyMinorDigits, decimalMinor } from '../../currency.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { PURPOSE_TIER } from '../contracts.ts';
 import type {
-  BlueprintRecord, GoalFigureView, GoalRecord, GoalSuggestion, GoalView, Json, ModelTask, MoneyFigureView, VentureDeps, VentureRecord,
+  BlueprintRecord, GoalFigureView, GoalRecord, GoalSuggestion, GoalView, Json, ModelTask, MoneyFigureView, QueueRow, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { localDayAt } from '../local-day.ts';
 import { queueListHandler } from '../views/queue.ts';
@@ -103,8 +103,9 @@ function goalLine(month: string, goal: GoalRecord | null, invoicedMinor: bigint,
 /**
  * The month against its goal, every money figure with its sum receipt (none for an empty sum); today's pace, the next
  * step and the briefing for the current month only. A month from 24 back to 12 ahead of this one on the owner's calendar.
+ * given.rows: Today's rows when the caller has just read them.
  */
-export async function goalView(deps: VentureDeps, ctx: Context, month: string | null): Promise<GoalView> {
+export async function goalView(deps: VentureDeps, ctx: Context, month: string | null, given: { rows?: readonly QueueRow[] } = {}): Promise<GoalView> {
   const { state, venture } = readVenture(deps, ctx);
   const currency = venture.country.currency;
   const today = todayLocal(deps.clock, venture.country);
@@ -160,7 +161,8 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
 
   let ahead: Pick<GoalView, 'next' | 'briefing'> = { next: null, briefing: null };
   if (isCurrent) {
-    const rows = (await queueListHandler(deps, ctx, {})).rows;
+    // The chief's plan (chief/plan.ts) reads Today's rows once and hands them over, so they are not built twice.
+    const rows = given.rows ?? (await queueListHandler(deps, ctx, {})).rows;
     const progress = goal ? { month: chosen, goalMinor: BigInt(goal.amountMinor), invoicedMinor } : null;
     ahead = nextBestStep(deps.store.read(), venture, rows, progress, { inApp: isAppChannel(ctx) });
   }

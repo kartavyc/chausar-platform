@@ -1,62 +1,47 @@
-# Model routes and speech
+# Command-line AI tools and local speech
 
-The engine offers official installed Codex first, official Claude Code second, then API-key Responses, compatible Chat Completions, localhost Ollama, and a configured managed allowance. It selects one route and makes one dispatch attempt. It never changes routes after an error. Every external route is **experimental / not live verified** until exercised against that operator's installed version or endpoint. An entry in the route list does not certify installation, account entitlement, provider availability, or model support.
+The venture launcher connects the owner's AI through its own model port; see [venture/models.md](venture/models.md) and [venture/README.md](venture/README.md). This page covers two shared pieces under it: how an official command-line tool is started for one text answer (`platform/runtime/gateway.ts`, `platform/runtime/providers/codex-cli.ts`), and speech to text on this computer (`platform/runtime/speech.ts`).
 
-## Privacy and exact receipts
+The agent runs that do an owner's jobs are a different path. They are in `platform/runtime/venture/agent-runtime/`.
 
-`TrustService` checks the current member role and epoch, branch scope, allowed sources and individual source grants. `nothing` denies model dispatch. `shape` sends field names and a question reduced to a fixed business vocabulary; amounts, customer selectors and arbitrary question text are omitted. `samples` adds at most five visible fact rows; callers select existing fact identifiers and fields, never supply their own unrestricted sample blob. Outside text remains data. Cloud requests that read source data require an owner or cofounder to approve the exact payload digest, endpoint and preview. That approval expires, can be consumed once, and cannot survive permission revocation. Local Ollama remains subject to the send policy.
+## One text answer from Codex
 
-The encrypted authority holds the exact application payload before dispatch, its SHA-256 digest, destination, member epoch, source lineage, one-attempt status, budget reservation and response digest. HTTP receipts contain the exact provider JSON body. Authorization headers are deliberately absent. Official CLI receipts cover the exact stdin submitted to the executable: `receiptBoundary=application-to-official-cli`, `providerPayloadObserved=false`. The CLI may add its own unpublished system prompt and authentication protocol; Chausar does not claim to observe those words or its internal destination. This is a material boundary on full provider-payload certification for subscription CLI routes.
+`buildCodexCliArguments` builds the whole command. Codex runs `exec` with `--ignore-user-config`, `--ephemeral`, `--skip-git-repo-check`, `--sandbox read-only`, `--json`, an explicit `--model`, an `--output-schema` file, and the prompt on stdin. Every setting in `CODEX_CLI_CONFIG` is passed with `--config`. Those settings:
 
-Revocation is checked immediately before the call and after completion. A revoked result is withheld even though an already-started remote request cannot be recalled. Deletion removes the source and derived local records, leaving hashes and no-resend tombstones. Deleting a source requires a current administrator source grant and access to every affected branch; a source mixing allowed and restricted branches is refused. Retention cleanup removes expired facts and dependent records and requires a current owner with every branch and source grant. Remote providers' independent retention is outside local deletion authority.
+- never ask for approval, sign in with ChatGPT only, and use the OpenAI provider;
+- turn web search off, read no project instructions (`project_doc_max_bytes=0`) and keep no history;
+- turn off the shell tool, apps, multi-agent, hooks, memories, goals, plugins, image viewing and image generation, browser and computer use, and the other features listed in the file.
 
-## Official CLI configuration
+Features that Codex turns on by default and that the route leaves on are listed in `CODEX_FEATURES_LEFT_ON`, each with its reason. A feature a newer Codex turns on that neither list covers is switched off for the call (`unreviewedCodexFeatures`). The provider retry keys are never overridden.
 
-Codex starts in a fresh temporary directory, using `exec`, `--ignore-user-config`, `--ignore-rules`, `--ephemeral`, `--skip-git-repo-check`, read-only sandbox, JSON events and a JSON output schema. Config disables shell, unified execution, apps, multi-agent, hooks, memories, plugins, goals, web search and image viewing. Provider request and stream retry counts are zero. An unsupported installed version fails; there is no permissive fallback.
+Chausar runs Codex `0.166.0` or a newer version in the same major (`codexVersionAccepted`). The version is a floor, not proof: what a Codex accepts is read from its own help and feature list ([codex-cli-host.md](codex-cli-host.md)). A Codex that lacks a needed flag or setting is refused. There is no fallback to a looser command.
 
-Claude Code uses print mode, `--restricted`, `--safe-mode`, no built-in tools, denied MCP tools, a strict empty MCP configuration, disabled commands, no browser and no session persistence. It uses one turn and an explicit schema. The subprocess environment disables network and structured-output retries, nonstreaming fallback, nonessential traffic, marketplace auto-install and title generation. Managed administrator policy remains outside application control. Live version qualification must inspect that policy as well as tool denial.
+## One text answer from Claude Code
 
-Use native official executables. Windows shell wrappers are intentionally refused. The subprocess inherits only the environment needed to find the official executable and its own login. Chausar never opens, copies, saves, converts or exports subscription token files. A CLI configuration cannot accept an API secret.
+`cliArguments` in `gateway.ts` builds the command: `--print`, `--restricted`, `--safe-mode`, no built-in tools (`--tools ''`), MCP tools disallowed, a strict and empty MCP configuration, `--disable-slash-commands`, `--no-chrome`, `--no-session-persistence`, JSON output, an explicit `--model`, one turn (`--max-turns 1`), a JSON schema and a system prompt.
 
-Official references checked during implementation:
+## What both keep
 
-- [OpenAI CLI reference](https://developers.openai.com/codex/cli/reference)
-- [OpenAI configuration reference](https://developers.openai.com/codex/config-reference)
-- [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference)
-- [Claude Code environment variables](https://code.claude.com/docs/en/env-vars)
+- The tool is started without a shell. Its output is capped at 1 MiB and it has a time limit. When either is passed, the tool and what it started are ended (`defaultProcess`).
+- The tool gets only the environment names it needs to find itself and its own sign-in (`CLI_BASE_ENV_NAMES`, plus `CODEX_HOME` for Codex).
+- Chausar never opens, copies or saves a sign-in file or token of either tool.
 
-## HTTP routes and credentials
+Official references: the [Codex CLI reference](https://developers.openai.com/codex/cli/reference), the [Codex configuration reference](https://developers.openai.com/codex/config-reference), and the [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference).
 
-`openai-responses` posts tools-disabled JSON to the configured HTTPS Responses endpoint. `openai-compatible` posts one tools-disabled Chat Completions request. `ollama` posts a schema-constrained chat request only to loopback. All redirects are refused. `managed` requires an explicitly configured real HTTPS service and credential; there is no included allowance service bundled in this repository.
+## Local speech
 
-`ModelGateway.configureRoute(context, config, secret?)` retains an API key in engine memory only. Alternatively supply `credentialEnv: 'CHAUSAR_PROVIDER_KEY'` or inject a credential broker. Keys never enter workspace snapshots, receipts, route metadata or renderer storage. In-memory keys must be supplied again after restart. The broker may implement an encrypted engine-owned secret service; plugin code must not receive it.
+Speech to text runs on this computer only, through the owner's own [whisper.cpp](https://github.com/ggml-org/whisper.cpp). The owner sets it up in the app (`venture.transcription.set`) with two full paths: the `whisper-cli` program and a model file. Chausar never installs the program and never downloads a model. A path on a network share is refused, and so is a program not named `whisper-cli`.
 
-The explicit model identifier comes from the operator. The code does not advertise an invented live model or hardcode account entitlements. Configuration supports integer paise strings for `budgetMinor`, `maxCostMinor`, `inputPerMillionMinor` and `outputPerMillionMinor`. Each dispatch reserves its configured maximum using BigInt. Failed calls keep that conservative reservation, and a non-sensitive cumulative route counter survives deletion/retention of detailed receipts. When HTTP token rates are configured, the reservation must cover a conservative request-byte/output-token bound. Provider-reported token usage produces cost only when both operator-configured rates are present; otherwise `actualCostMinor=null` and the receipt says cost was unavailable. Actual usage above an estimate raises the accounted reservation. These local controls cannot retrospectively cap a provider invoice; set the provider's own spend cap as well.
+`SpeechService.transcribeFile` turns one sound file into SRT text:
 
-## Analytical output contract
+- one run, in a temporary folder that is removed afterwards;
+- the language is detected (`-l auto`), and an optional one-line prompt of up to 1,000 characters carries the business's own words;
+- a time limit of ten minutes by default (one second to fifteen minutes);
+- the sound is never uploaded, the run is never retried, and there is no fallback;
+- when the business closes mid-run, the run is stopped and nothing is kept.
 
-The model chooses an operation from the currently published dictionary and may select an inclusive ISO-date period and already-visible branch/customer identifiers. Without a dictionary, a small seed catalog supports the first-day flow. A present but unpublished dictionary provides no executable catalog. Unknown keys, arbitrary operations, impossible dates, unavailable selectors, tools, SQL, code, URLs and numeric explanations fail validation. Optional schema properties may be null and are normalized away. The model never supplies a calculated amount or executable query. The deterministic calculator produces all figures and their proof separately.
+If the program or the model is no longer where it was set up, the app says so and nothing runs.
 
-```ts
-const preview = await gateway.preview(context, { question, routeId });
-const approval = preview.approvalRequired
-  ? await gateway.approveOutbound(ownerContext, preview.id)
-  : undefined;
-const { plan, receipt } = await gateway.execute(context, {
-  previewId: preview.id, approvalId: approval?.id,
-});
-```
+## Tests
 
-## Speech providers
-
-`SpeechService` keeps speech separate from model planning. Its default `browser` provider accepts transcript text only and records that the browser provider may process audio remotely; this is not certified offline recognition. A browser transcript can be accepted directly or through a one-use preview.
-
-`local-command` supports an installed `whisper.cpp` `whisper-cli` executable and model, each supplied as an absolute path. It handles wav, mp3 and ogg recordings in a temporary directory, suppresses timestamps and logs, disables decoding fallback and detects language. Chausar makes no network call for this path; the operator must qualify the installed binary. See the [upstream CLI reference](https://github.com/ggml-org/whisper.cpp/blob/master/examples/cli/README.md).
-
-`api-upload` takes an explicit HTTPS transcription endpoint, API key, model and paise-per-minute estimate. It requires the samples policy and a human approval of exact multipart bytes. The preview includes the payload base64 and digest, filename/content type, duration and reservation. Supported uploads are wav, mp3, mp4, webm and ogg, under nine megabytes and five minutes. This adapter performs recorded-file transcription, not a deployed live-voice session. Browser and provider durations/costs are not fabricated as measured billing. See the [OpenAI transcription contract](https://platform.openai.com/docs/api-reference/audio/createTranscription).
-
-Speech provider configurations are session-local; configure installed binaries and upload providers again after restart. API secrets remain memory-only or broker-injected. Permission changes, provider revocation, redirects and provider errors stop the request without retries.
-
-## Verification
-
-`node --test platform/tests/gateway.test.ts platform/tests/speech.test.ts` covers privacy enforcement, exact payload approvals, before/after revocation, source scopes, BigInt budget boundaries, strict plans, redirect refusal, one-attempt behavior, source deletion/retention, isolated CLI process arguments, opaque credentials and speech upload receipts. All transports are injected mocks. Those tests establish application behavior; they do not constitute live provider, installed CLI or audio-quality certification.
+`node --test platform/tests/codex-cli.test.ts platform/tests/speech.test.ts` covers the command-line arguments and the speech service. These tests start no real Codex, Claude Code or whisper.cpp.

@@ -4,8 +4,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { actTask, AWAITING_APPROVAL, DEFAULT_LIMITS, newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';
 import { REPAIR_LINE, repairReason, repairWords } from '../runtime/venture/delivery/harness/repair.ts';
-import { composeTask, decideTask } from '../runtime/venture/core/compose.ts';
-import { countryProfile } from '../runtime/venture/core/countries.ts';
 import { SUGGEST_REPAIR_LINE, suggestRepairTask } from '../runtime/venture/core/suggest.ts';
 import { briefFillTask } from '../runtime/venture/build/brief.ts';
 
@@ -36,19 +34,6 @@ test('the harness repair turn: the reason rides in the input; the instructions c
   assert.doesNotMatch(task.instructions, /not a list/);
   assert.deepEqual((task.input as { repair: unknown }).repair, { reason: 'The calls field was not a list.' });
   assert.equal(actTask(context, waiting('call_one', 'Another reason entirely.')).instructions, task.instructions);
-});
-
-test('onboarding decide and compose repairs: a fixed repair line; the problem stays in the input', () => {
-  const india = countryProfile('IN');
-  const first = decideTask('Books for cafes', india, 'The zebra view was not listed.'), second = decideTask('Books for cafes', india, 'The kind was not listed.');
-  assert.equal(first.instructions, second.instructions);
-  assert.match(first.instructions, /Your last answer was refused for the reason given as problem in the input\./);
-  assert.doesNotMatch(first.instructions, /zebra/);
-  assert.equal((first.input as { problem: string }).problem, 'The zebra view was not listed.');
-  const decision = { text: 'Books for cafes', country: india, kind: 'service', family: { value: 'bookkeeping' }, reading: { value: 'Books' }, views: ['offers-first', 'pages'] } as never;
-  const composed = composeTask(decision, 'A step had no title.');
-  assert.equal(composed.instructions, composeTask(decision, 'An offer had no name.').instructions);
-  assert.equal((composed.input as { problem: string }).problem, 'A step had no title.');
 });
 
 test('the plan suggestion repair: a fixed line; why the answer was refused is in the input', () => {

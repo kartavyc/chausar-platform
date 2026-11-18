@@ -66,16 +66,19 @@ test('flow: six months of in, out and what was left, the AI spend at the owner\'
   assert.equal(view.line, 'Money in and out for the last 6 months, tax included. AI spend counts at ₹83.50 per $1 (your rate, set 23 Oct 2026).');
 });
 
-test('flow without a rupee rate leaves the AI spend out and says so on the month and in the basis', async () => {
+// Fix round 4 (real-app problem 12): a rupee business with no rate of its own counts its AI spend at the dated reference
+// rate shipped with the release. US$1.50 at 94.3996 per $1: 1500000 x 943996 = 1,415,994,000,000, + 50,000,000,
+// / 100,000,000 = 14160 paise; money out 602000 + 14160 = 616160 (₹6,161.60).
+test('flow of a rupee business with no rate of its own counts the AI spend at the reference rate, and names it', async () => {
   const env = await months();
   const view = await env.money<FlowView>('venture.money.flow', {});
   assert.equal(view.months.length, 6, 'six months unless asked');
   const october = view.months[5];
-  assert.equal(october.out?.display, '₹6,020');
-  assert.equal(october.out?.uses, undefined);
-  assert.equal(october.note, 'AI spend not counted: no rupee rate set');
-  assert.deepEqual(view.basis.notCounted, { count: 1, line: '1 not counted: 1 paid AI call with no rupee rate set' });
-  assert.equal(view.line, 'Money in and out for the last 6 months, tax included. AI spend is not counted: no rupee rate set.');
+  assert.equal(october.out?.display, '₹6,161.60');
+  assert.deepEqual(october.out?.uses, ['₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)']);
+  assert.equal(october.note, null);
+  assert.deepEqual(view.basis.notCounted, null);
+  assert.equal(view.line, 'Money in and out for the last 6 months, tax included. AI spend counts at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026).');
 });
 
 test('flow counts a bill paid against its bank row once, and only cleared money in', async () => {
@@ -103,7 +106,9 @@ test('books.summary takes a month as its period and gives the month before with 
   assert.deepEqual(october.figures.map(figure => [figure.operation, figure.minor]), [['billed', '1975000'], ['received', '100000'], ['earned', '0']]);
   assert.deepEqual([october.previous?.month, october.previous?.label, october.previous?.period], ['2026-09', 'September 2026', { from: '2026-09-01', to: '2026-09-30' }]);
   assert.deepEqual(october.previous?.figures.map(figure => [figure.operation, figure.minor, figure.display]), [['billed', '1975000', '₹19,750'], ['received', '2330500', '₹23,305'], ['earned', '0', '₹0']]);
-  assert.ok(october.previous?.figures.every(figure => typeof figure.receiptId === 'string' && figure.receiptId.length > 0));
+  // Billed and received have their receipts; earned counts nothing in September, so it is zero with no receipt.
+  assert.deepEqual(october.previous?.figures.map(figure => typeof figure.receiptId === 'string' && figure.receiptId.length > 0), [true, true, false]);
+  assert.equal(october.previous?.figures[2]?.receiptId, null);
   // This month is a whole month too; all time and this year are not.
   assert.equal((await env.money<BooksSummary>('venture.books.summary', { period: 'this-month' })).previous?.month, '2026-09');
   assert.equal((await env.money<BooksSummary>('venture.books.summary', { period: 'all' })).previous, null);

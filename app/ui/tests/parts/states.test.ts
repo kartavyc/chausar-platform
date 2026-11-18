@@ -14,7 +14,7 @@ const VALUES = {
   // C4 (T20): 'unsent' and 'sent' are an issued invoice before and after the owner marks it sent (InvoiceLite.sent).
   invoice: ['draft', 'issued', 'part-paid', 'paid', 'void', 'unsent', 'sent'] satisfies (InvoiceLite['status'] | 'unsent' | 'sent')[],
   lead: ['new', 'drafted', 'contacted', 'replied', 'won', 'lost', 'blocked'] satisfies LeadStage[],
-  delivery: ['waiting-for-you', 'needs-answer', 'brief-waiting', 'ready-for-review', 'accepted', 'edited', 'rejected', 'failed', 'stopped'] satisfies DeliveryStatus[],
+  delivery: ['working', 'finishing', 'needs-answer', 'ready-for-review', 'accepted', 'edited', 'rejected', 'failed', 'stopped'] satisfies DeliveryStatus[],
   queue: ['draft', 'price', 'quote', 'plan', 'invoice', 'signoff', 'question', 'setup', 'locked', 'connector', 'bank', 'proposal', 'followup', 'reply', 'notice'] satisfies (QueueKind | QueueKindW4)[],
   // W4 4J22a: the engine's one vocabulary and the other wave 4 states (states-w4.test.ts reads the engine's own lists).
   check: ['pass', 'fail', 'not-run', 'not-checked'],
@@ -43,7 +43,8 @@ describe('state words: one module for every state the engine sends', () => {
       for (const value of values) {
         const word = stateWord(kind as StateKind, value);
         expect(word.key.startsWith('state.'), `${kind}.${value}`).toBe(true);
-        expect(CATALOGUES.en[word.key], word.key).toBeDefined();        expect(STATE_TONES).toContain(word.tone);
+        expect(CATALOGUES.en[word.key], word.key).toBeDefined();
+        expect(STATE_TONES).toContain(word.tone);
       }
     }
     expect([...STATE_TONES]).toEqual(['working', 'wait', 'fail', 'idle', 'done', 'neutral']);

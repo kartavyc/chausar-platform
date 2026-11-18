@@ -6,9 +6,8 @@
 // A note about another client and a forgotten note are never sent, and a note is read through the rules again each
 // time: one that now tells the agent to act, states money or reads like a page aimed at an agent is left out. Keys are
 // redacted, and card, bank account, Aadhaar and one-time code numbers masked, when a note is saved and again when it is
-// read; phone numbers and emails are masked in every note, and a note about a client masks its PAN too. The turn keeps
-// the ids of the notes its approved text carried, and a turn whose text carries a note forgotten or changed since is
-// made again before it can go (staleNotes). Reads only, so the delivery harness can load it without the agents package.
+// read; phone numbers and emails are masked in every note, and a note about a client masks its PAN too. Reads only, so
+// the delivery harness can load it without the agents package.
 import type { State } from '../../contracts.ts';
 import type { AgentNoteRecord, AgentNoteScope, OrderRecord, PlaybookRecord, VentureErrorCode, VentureRecord } from '../contracts.ts';
 import { listRecords } from '../records.ts';
@@ -207,30 +206,8 @@ export function recallNotes(state: State, venture: VentureRecord, playbook: Pick
   return [...always, ...topics];
 }
 
-/**
- * The notes an approved turn's text carried, by id, in the order they were saved: each note's id is a random
- * identifier that the text holds only when the turn's input carried that note (recallNotes puts it there). Read from
- * the exact text the owner approved.
- */
-export function notesCarried(state: State, venture: VentureRecord, approvedText: string): string[] {
-  if (!approvedText) return [];
-  return listRecords(state, 'venture-agent-note', venture.id).filter(note => approvedText.includes(note.id)).map(note => note.id);
-}
-
 /** True when the text holds these words as given, or escaped once or twice as JSON (a payload holds its input as JSON text). */
 export function holdsWords(text: string, words: string): boolean {
   const once = JSON.stringify(words).slice(1, -1);
   return text.includes(words) || text.includes(once) || text.includes(JSON.stringify(once).slice(1, -1));
-}
-
-/**
- * The notes a turn's text carried that must not go now: forgotten since, failing the rules now, or changed since (their
- * words now are not the words the text holds). The turn is made again without them before anything is sent.
- */
-export function staleNotes(state: State, venture: VentureRecord, approvedText: string): string[] {
-  const carried = new Set(notesCarried(state, venture, approvedText));
-  return listRecords(state, 'venture-agent-note', venture.id).filter(note => carried.has(note.id)).flatMap(note => {
-    const text = usableNoteText(note);
-    return text === null || !holdsWords(approvedText, text) ? [note.id] : [];
-  });
 }

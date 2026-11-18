@@ -6,6 +6,7 @@ import { CONNECTORS, MODEL_PRESETS } from '../../src/engine/fixtures-business';
 import { connectorLabelOf } from '../../src/parts/ConnectorLabel';
 import type { BooksSummaryLite, ConnectorCardLite, EngineClient, MethodName } from '../../src/engine/types';
 import { assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { planRiskOf } from '../../../../platform/runtime/venture/models/plan-risk';
 
 /**
  * Connections in the Ink v2 look (w3 package 3G1; spec 4.3 "Connections"; catalogue U10, K10, K11). Built from the
@@ -138,6 +139,8 @@ describe('Connections in the Ink v2 look', () => {
       expect(item.querySelector('[data-variant="primary"]'), card.id).toBeNull();
       expect(item.textContent, card.id).not.toContain('Works today');
       expect(names(within(item).queryAllByRole('link')), card.id).toEqual(card.vendorUrl ? [`Visit site, ${card.name}`] : []);
+      // The card's name is in the link's own name, not hidden text run into "Visit site" (page text read ", GitHub").
+      for (const link of within(item).queryAllByRole('link')) expect([link.textContent, link.querySelector('.sr-only')], card.id).toEqual(['Visit site', null]);
     }
     // A connector that works keeps its real action.
     expect(within(await tile('Lovable')).getByRole('button', { name: 'Open Lovable' })).toBeTruthy();
@@ -232,6 +235,20 @@ describe('Connections in the Ink v2 look', () => {
       // Under "Add an AI" (a level 3 heading), each group is a level 4 heading.
       expect(within(group as HTMLElement).getByRole('heading', { level: 4 }).textContent, preset.id).toBe(groups[preset.runsOn]);
     }
+    assertInkRules(document.body);
+  });
+
+  it('where the AI is chosen, a sign-in that runs on your own plan says the platform\'s own risk in the engine\'s words', async () => {
+    const client = start();
+    const section = await region('Your AI');
+    fireEvent.click(await within(section).findByText('Every choice'));
+    const presets = await client.request('venture.models.presets', {});
+    for (const preset of presets) {
+      const item = within(section).getByText(preset.label).closest('li')!;
+      // Codex and Claude Code carry their line; a key and the templates carry none.
+      expect(item.querySelector('[data-plan-risk]')?.textContent ?? null, preset.id).toBe(planRiskOf(preset.id));
+    }
+    expect(section.querySelectorAll('[data-plan-risk]')).toHaveLength(2);
     assertInkRules(document.body);
   });
 

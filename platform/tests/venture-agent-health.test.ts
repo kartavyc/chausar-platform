@@ -12,7 +12,7 @@ import { findRecord, listRecords, ventureAction } from '../runtime/venture/recor
 import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
 import { HEALTH_WORDS } from '../runtime/venture/views/health.ts';
-import { call, code, harness, owner, phone, seedBlueprint, seedOrder, seedRun, type Env, setup } from './venture-views-env.ts';
+import { call, code, harness, owner, phone, seedBlueprint, seedOrder, seedRun, type Env, setup, awaitingStep } from './venture-views-env.ts';
 import { flagshipTeam, turn } from './venture-team-fixtures.ts';
 import { realOrder, runAgentDraft, startRun, turnOf, type RealOrderEnv } from './venture-real-order-env.ts';
 import { consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
@@ -107,7 +107,7 @@ test('a cause no single role can claim makes one team-level quarantine, which on
     receiptIds: [], tableIds: [], startedAt: env.now(), finishedAt: env.now(),
   };
   await seedRun(env, order, {
-    playbookId: playbook.id, playbookHash: playbook.hash, status: 'waiting-for-you',
+    playbookId: playbook.id, playbookHash: playbook.hash, status: 'working',
     harness: harness({ phase: 'act', turns: [turn(1, ['files.read', 'outbox.propose'], 'call_1')], toolCalls: [denied] }),
   });
   const team = await call<TeamListView>(env, 'venture.team.list');
@@ -141,15 +141,15 @@ test('degraded: more than half of at least four reviewed outputs sent back or ed
 test('degraded: more than ten things waiting on the agent, or one waiting longer than seven days', async () => {
   const deep = await setup();
   const first = await bookkeeping(deep);
-  for (let index = 0; index < 10; index += 1) await seedRun(deep, first.order, { status: 'waiting-for-you' });
+  for (let index = 0; index < 10; index += 1) await seedRun(deep, first.order, { status: 'working', agentJob: awaitingStep() });
   assert.equal((await health(deep)).status, 'healthy', 'ten is not more than ten');
-  await seedRun(deep, first.order, { status: 'waiting-for-you' });
+  await seedRun(deep, first.order, { status: 'working', agentJob: awaitingStep() });
   assert.deepEqual(await health(deep).then(item => [item.status, item.reason]), ['degraded', '11 things wait on you for this agent.']);
   assert.equal((await agent(deep)).state, 'waiting');
 
   const old = await setup();
   const second = await bookkeeping(old);
-  await seedRun(old, second.order, { status: 'waiting-for-you' });
+  await seedRun(old, second.order, { status: 'working', agentJob: awaitingStep() });
   old.advance(7 * DAY);
   assert.equal((await health(old)).status, 'healthy', 'exactly seven days is not older than seven days');
   old.advance(60_000);

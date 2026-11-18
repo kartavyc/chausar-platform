@@ -47,10 +47,6 @@ export type AccountingReadConfig = {
 };
 
 export const sha256 = (value: string | Uint8Array): string => createHash('sha256').update(value).digest('hex');
-export function freezeOperation(scope: ConnectorOperationScope): ConnectorOperationScope {
-  const pinned = structuredClone(scope);
-  Object.freeze(pinned.applicability); return Object.freeze(pinned);
-}
 export function object(value: unknown, code = 'ACCOUNTING_OBJECT_REQUIRED'): Record<string, unknown> {
   check(value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype, code, 'Expected a source object.');
   return value as Record<string, unknown>;

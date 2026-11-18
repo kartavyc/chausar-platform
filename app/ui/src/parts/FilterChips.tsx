@@ -69,7 +69,7 @@ export function FilterChips({ label, options, value, onChange, scroll = false, m
   const t = useT();
   const row = useRef<HTMLDivElement>(null);
   // One-shot C3 task 15: the same sliding pill as the tabs.
-  const pill = useSlidingPill(value);
+  const pill = useSlidingPill();
   useEffect(() => {
     const pressed = row.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (row.current && pressed) revealInRow(row.current, pressed);

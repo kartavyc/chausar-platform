@@ -1,6 +1,10 @@
-# Tally accounting adapter: accountable first slice
+# Tally accounting adapter: reading exports
 
-This adapter parses explicitly selected UTF-8 XML exports into adapter-local source records. It never executes TDL, sends a Tally request, resolves credentials, or writes to Tally. `import` means importing retained evidence into Chausar through the parent-owned reviewed decoder and import bridge. Native Release 7 JSON currently has an envelope parser and a closed accounting-mapping refusal.
+`platform/runtime/adapters/accounting/tally.ts` parses explicitly selected UTF-8 XML exports into adapter-local source records. It never executes TDL, sends a Tally request, resolves credentials, or writes to Tally.
+
+No engine method calls this reader today; only its tests do. Two other pieces of the product touch Tally and are not described here: the TallyPrime connector the owner sets up in Connections (`venture/build/`), and the Tally XML file the owner can export from Money (`tally-write-xml.ts`, used by `venture/money/export-formats.ts`).
+
+`import` below means importing retained evidence into Chausar through a reviewed decoder. Native Release 7 JSON currently has an envelope parser and a closed accounting-mapping refusal.
 
 The implemented fixture profiles are exact TallyPrime `6.0` and `7.0`, XML messaging version `1`, declared `response-v1` or `offline-native` envelopes, and separate `vouchers` or `accounts` resources. They do not establish compatibility with other releases, editions, customized TDL schemas, or company configurations. Native JSON uses the independent `native-json-v7` / application `7.0` profile; messaging/header `Version: 1` is not application release 7.
 
@@ -16,7 +20,7 @@ The implemented fixture profiles are exact TallyPrime `6.0` and `7.0`, XML messa
 - `parseTallyNativeJson(text, profile)` always refuses with `TALLY_NATIVE_JSON_MAPPING_UNQUALIFIED` after envelope validation.
 - `createTallyExportAdapter({profile, environment, readExport})` implements framework `ExportReadAdapter`. The injected reader supplies `Uint8Array`, content type, company ID and company name. It receives opaque framework authorization; the parser never receives a token. There is no default endpoint, file path reader, credential broker or retry.
 
-The read domain must select the same company in authority and data scope, dataset matching the resource, branches exactly `['all']`, no period, and no cursor. A complete file ends acquisition pagination; source row totals, source-generated time and consistent snapshot stay unknown. A source report and owner-approved domain reconciliation are still required before completeness claims. The parent dispatcher/bridge retains unchanged bytes and SHA-256; parsed trees do not replace raw custody.
+The read domain must select the same company in authority and data scope, dataset matching the resource, branches exactly `['all']`, no period, and no cursor. A complete file ends acquisition pagination; source row totals, source-generated time and consistent snapshot stay unknown. A source report and owner-approved domain reconciliation are still required before completeness claims. Whoever calls the adapter must keep the unchanged bytes and their SHA-256; parsed trees do not replace the raw file.
 
 ## Mapped and unavailable meaning
 
@@ -39,16 +43,16 @@ Cancellation and deletion are distinct unresolved meanings. Source `ISCANCELLED`
 | Other supported-code XML resource/envelope combinations | Implemented code path, not operation-qualified by these fixtures | Add exact profile fixtures/evidence before registration |
 | Native7 JSON documented response envelope | Synthetic envelope parsing tested | Opaque containers only; no native voucher/ledger mapping |
 | Native7 JSON accounting export/local import | Unimplemented/unqualified; acquisition refuses | Readable native object samples blocked |
-| Tally HTTP read, guided UI acquisition, any Tally write | Unimplemented/unqualified | No provider or endpoint installed |
+| Tally HTTP read, guided UI acquisition, any Tally write | Not in this file | See the note at the top of this page |
 | Corrections, deletions, voids, refunds, statutory tax/FX mapping and source completeness | Unqualified | Source-specific semantic and reconciliation evidence required |
 
-The parent capability registry must bind the exact implemented operation and fixture artifact before calling it `synthetic-tested`. Neither registration nor these tests may promote a profile to sandbox/live. AI mapping proposals require human acceptance; this adapter does not publish accepted facts or install an automatic semantic mapping.
+A capability registry must bind the exact implemented operation and fixture artifact before calling it `synthetic-tested`. Neither registration nor these tests may promote a profile to sandbox/live. AI mapping proposals require human acceptance; this adapter does not publish accepted facts or install an automatic semantic mapping.
 
 ## Official reference and rights boundary
 
 The [official XML integration overview](https://help.tallysolutions.com/xml-integration/) establishes versioned envelopes, response status and export/company variables. The [official XML sample reference](https://help.tallysolutions.com/sample-xml/) describes ledger/group ancestry, date, debit flag, signed postings, inventory/accounting/bill allocations, and balanced debit/credit requirements. Its example creation packets are source reference, not acquired company evidence. The [official chart of accounts reference](https://help.tallysolutions.com/tally-prime/accounting/charts-of-accounts-tally/) explains predefined group classification and the ambiguity of Duties and Taxes.
 
-The [official JSON integration reference](https://help.tallysolutions.com/tally-prime-integration-using-json-1/) confirms Release 7 native JSON, the distinct messaging version, response containers and Tally Amount/Date/Quantity/Rate string types. It distinguishes native JSON/JSONEx from earlier/custom JSON. Concrete ledger/voucher responses link to DOCX files; the available web reader returned unsupported content type, so their object keys were not invented. The [Tally API Explorer](https://tallysolutions.com/tallyprime-api-explorer/) returned 403 to the parent research path. No denied-route bypass was attempted.
+The [official JSON integration reference](https://help.tallysolutions.com/tally-prime-integration-using-json-1/) confirms Release 7 native JSON, the distinct messaging version, response containers and Tally Amount/Date/Quantity/Rate string types. It distinguishes native JSON/JSONEx from earlier/custom JSON. Concrete ledger/voucher responses link to DOCX files; the available web reader returned unsupported content type, so their object keys were not invented. The [Tally API Explorer](https://tallysolutions.com/tallyprime-api-explorer/) could not be read during this research.
 
 All committed fixtures are original synthetic data. No vendor example bodies, proprietary source exports, account data or credentials are redistributed. Public documentation is used for internal technical reference. Public availability does not grant redistribution, model-training or private-company access rights; obtain a separate rights decision for any collected vendor corpus. No external corpus is licensed by this change.
 
@@ -59,4 +63,4 @@ All committed fixtures are original synthetic data. No vendor example bodies, pr
 3. An independently reviewed identity/revision mapping, account/group mapping, currency/tax interpretation, correction/deletion semantics, and accepted coverage gaps. Provide explicit source report totals per company/resource/currency/domain before readiness claims.
 4. For file-export qualification, no password/API key is needed: inject authorized selected bytes plus company custody metadata and framework export grant. A future HTTP-read profile would additionally need an already authorized read-only Tally endpoint/profile and opaque credential reference, with policy-approved transport, redirect boundaries and no internal retries. This slice neither creates accounts nor enables servers/security settings.
 
-Validation: `node --test platform/tests/accounting-tally.test.ts` passes **15 tests**, covering source precision/signs, invoice/credit/payment distinctions, group hierarchy, version/profile isolation, XML attacks and malformed input, schema changes, injected custody/domain/budget enforcement and native JSON fail-closed behavior. These synthetic fixtures do not qualify real accounting data.
+Tests: `node --test platform/tests/accounting-tally.test.ts` (15 tests), covering source precision/signs, invoice/credit/payment distinctions, group hierarchy, version/profile isolation, XML attacks and malformed input, schema changes, injected custody/domain/budget enforcement and native JSON fail-closed behavior. These synthetic fixtures do not qualify real accounting data.

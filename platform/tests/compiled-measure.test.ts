@@ -40,7 +40,7 @@ test('published owner bank revenue has its own exact answer, receipt and compile
     assert.ok(receipt.rows.every(row => row.measureField === 'amountMinor'));
     assert.deepEqual(value.calculator.receipt(owner, receipt.id), receipt);
   }
-  assert.ok(value.calculator.catalog(owner).some(operation => operation.id === 'bank_revenue'));
+  assert.ok(value.ontology.current(owner)!.operations.some(operation => operation.id === 'bank_revenue'));
   assert.equal(new Set(value.store.read().receipts.map(receipt => receipt.id)).size, 4);
 });
 
@@ -172,6 +172,6 @@ test('generated operation collisions refuse atomic publication and retain the pr
   for (const name of ['revenue', 'net_sales', 'margin', 'aging', 'change', 'scenario']) {
     await assert.rejects(value.ontology.publish(owner, draft(definition({ name }))), { code: 'RESERVED_MEASURE' });
     assert.equal(value.ontology.current(owner)!.hash, value.dictionary.hash);
-    assert.equal(value.ontology.history(owner).length, 1);
+    assert.equal(value.store.read().ontology.history.length, 1);
   }
 });

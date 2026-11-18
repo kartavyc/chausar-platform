@@ -12,6 +12,7 @@ import { draftPostsOf, parsePostId, draftApprovalsOfRun } from './run-approvals.
 import { emptyGhostwriting, draftDigest } from './approvals.ts';
 import { ghostwritingOffer, socialRevisionOffer } from './ghostwriting.ts';
 import { invoiceCountry } from '../../core/country-history.ts';
+import { handedOver } from '../../delivery/run-machine.ts';
 
 
 export type SocialRevisionDeskTypes = {
@@ -96,7 +97,7 @@ export const SOCIAL_REVISION_DESK: DeskHandlers = { revision: {
             if (p.action === 'client-answer') {
                 check(b.decision === 'approved' || b.decision === 'changes', 'INVALID_VENTURE_REQUEST', 'Record the client answer.');
                 check(b.comment === undefined || typeof b.comment === 'string' && b.comment.length <= 1000, 'INVALID_VENTURE_REQUEST', 'Keep the client comment short.');
-                await ventureAction(deps, ctx, 'approve', 'social.post.client-answer', tx => { const latest = row(tx.state, venture.id, runId, postId); check(latest.digest === p.digest, 'APPROVAL_STALE', 'Read the changed post again.'); const { run, order } = context(tx.state, venture.id, runId, postId); check(['accepted', 'edited'].includes(run.status), 'OWNER_APPROVAL_FIRST', 'Approve the draft before recording the client answer.'); const own = order.socialGhostwriting ?? emptyGhostwriting(); tx.replace({ ...order, socialGhostwriting: { ...own, decisions: { ...own.decisions, [key(postId)]: { digest: digest({ postId, channel: draftPostsOf(run).find(p=>p.draftId===postId)!.channel, text: latest.text }), decision: b.decision as 'approved' | 'changes', comment: typeof b.comment === 'string' ? b.comment : null, at: tx.now, by: ctx.memberId } } } }); tx.emit('desk.changed', { playbook: 'social-agency', kind: 'revision', id: postId }); });
+                await ventureAction(deps, ctx, 'approve', 'social.post.client-answer', tx => { const latest = row(tx.state, venture.id, runId, postId); check(latest.digest === p.digest, 'APPROVAL_STALE', 'Read the changed post again.'); const { run, order } = context(tx.state, venture.id, runId, postId); check(handedOver(run), 'OWNER_APPROVAL_FIRST', 'Approve the draft before recording the client answer.'); const own = order.socialGhostwriting ?? emptyGhostwriting(); tx.replace({ ...order, socialGhostwriting: { ...own, decisions: { ...own.decisions, [key(postId)]: { digest: digest({ postId, channel: draftPostsOf(run).find(p=>p.draftId===postId)!.channel, text: latest.text }), decision: b.decision as 'approved' | 'changes', comment: typeof b.comment === 'string' ? b.comment : null, at: tx.now, by: ctx.memberId } } } }); tx.emit('desk.changed', { playbook: 'social-agency', kind: 'revision', id: postId }); });
                 return { playbook: 'social-agency', kind: 'revision', id: postId, result: { postId }, line: 'Client answer recorded for this exact post.' };
             }
             check(p.action === 'revise', 'INVALID_VENTURE_REQUEST', 'Choose a revision action.');

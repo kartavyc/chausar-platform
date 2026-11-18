@@ -3,9 +3,10 @@
 // tray) and keeps running in the tray when its window closes. Both are owner settings, shown as ticks in the tray menu
 // and kept in the app's own folder. Only the installed beta (release channel "beta") ever registers a login item:
 // previews and development runs never do.
-// One-shot A5 (founder answer 5; hands-on rows 4, 88, 114, S12, bug 8): start at login is asked in onboarding, ticked
-// by default, and changeable in Settings and the tray. Nothing is registered until the owner answers (the first start
-// used to register it silently). What the window and the tray show is the computer's own state, read back each time:
+// One-shot A5 (founder answer 5; hands-on rows 4, 88, 114, S12, bug 8): start at login is asked in onboarding and
+// changeable in Settings and the tray. Round 5 (re-check 011): it is standing configuration, so it is never suggested
+// on: unasked it reads off, onboarding shows it unticked, and only the owner's own tick turns it on. Nothing is
+// registered until the owner answers (the first start used to register it silently). What the window and the tray show is the computer's own state, read back each time:
 // Windows and macOS through Electron's login items (on Windows the user's Run value "Chausar" and its Task Manager
 // switch, removed again by the uninstaller), Linux through the XDG autostart file (Electron has no Linux login items).
 // A login item the computer's own startup settings switched off stays off at each start; only the owner turning it on
@@ -29,8 +30,8 @@ function realDay(day) {
   const at = new Date(Date.UTC(year, month - 1, date));
   return year >= 2000 && at.getUTCFullYear() === year && at.getUTCMonth() === month - 1 && at.getUTCDate() === date;
 }
-/** startAtLogin here is the suggestion onboarding ticks; it is never applied until the owner answers (asked). */
-function defaultsFor(beta) { return { startAtLogin: beta, keepRunning: beta, asked: false }; }
+/** Unasked, start at login is off (round 5): nothing turns it on but the owner's own tick (asked). */
+function defaultsFor(beta) { return { startAtLogin: false, keepRunning: beta, asked: false }; }
 function parseSettings(text, defaults) {
   try {
     const value = JSON.parse(text);

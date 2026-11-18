@@ -6,9 +6,7 @@
 import { homedir } from 'node:os';
 import { posix, win32 } from 'node:path';
 import { ChausarError, InternalError } from './portable.ts';
-import { checkoutOf, defaultRunRoot, localDay, outputFile, refuseInsideRepo as refuseCore, runRoot as runRootCore, type RunEnv } from './run-root.mjs';
-
-export { checkoutOf, defaultRunRoot, localDay, outputFile };
+import { refuseInsideRepo as refuseCore, runRoot as runRootCore, type RunEnv } from './run-root.mjs';
 
 /** The data kinds. Demo and real never share a folder. */
 export const DATA_KINDS = ['local-web', 'local-web-demo', 'hosted', 'worker'] as const;

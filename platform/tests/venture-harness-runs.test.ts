@@ -426,8 +426,6 @@ test('improvement run: a winning patch becomes a new version, the old one is nev
   assert.equal((await call<PlaybookRecord>(env, 'venture.delivery.playbook')).id, candidate.id, 'the adopted version is the one runs use');
   await assert.rejects(call(env, 'venture.improve.adopt', { runId: run.id, digest: run.digest }), code('CANDIDATE_STALE'));
   assert.equal((await call<ImprovementStatus>(env, 'venture.improve.status')).candidate, null);
-  assert.equal((await call<ImprovementRunRecord>(env, 'venture.improve.get', { runId: run.id })).id, run.id);
-  await assert.rejects(call(env, 'venture.improve.get', { runId: 'improve_missing' }), code('IMPROVEMENT_NOT_FOUND'));
 
   // A plan change carries the adopted patch into the rebuilt playbook.
   await ventureAction(env.deps, owner, 'admin', 'seed.accept', tx => { const record = tx.put(blueprintRecord(tx, 2)); tx.touch({ acceptedBlueprintId: record.id, blueprintId: record.id }); });

@@ -6,12 +6,14 @@ import { listRecords } from '../records.ts';
 import { microsAsUsd } from '../models/cost.ts';
 import { teamAgents } from '../chief/routing.ts';
 import { chatAgent } from '../agents/roles.ts';
+import { jobAgentFor } from '../agents/retired.ts';
+import { teamFlagship } from '../views/team-shape.ts';
 import { AGENT_ID, agentName } from '../views/shared.ts';
 import { rupeesBeside, rupeesOf, spendAgentOf, spendLead } from './spend.ts';
 import {
   METER_WORDS, MICROS, agentMonthTotal, callAgent, counted, latestPolicy, planCall, planJob, pretty, routineMonthTotal, routineName, spentByPlan,
 } from './spend-meter.ts';
-import type { Display, MicroString, RoutineRecord, SpendMeterRowView, SpendMetersView, SpendPolicyRecord, VentureDeps, VentureRecord } from '../contracts.ts';
+import type { DeliveryRunRecord, Display, MicroString, RoutineRecord, SpendMeterRowView, SpendMetersView, SpendPolicyRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 
 const monthOf = (iso: string) => iso.slice(0, 7);
 
@@ -27,6 +29,27 @@ export function receiptAgentName(state: State, venture: VentureRecord, agent: st
   let name: string;
   try { name = chatAgent(state, venture, agent).name; } catch { name = pretty(agent); }
   return METER_WORDS.retired(name);
+}
+
+/**
+ * The one agent a run is named by, the same on every screen: Work's tiles and rows, the run sheet's "Run by", Today's
+ * cards and the run's model receipt (found in the real app, 16 Nov 2026: one order was "Run by Bookings agent" on Work,
+ * the service type's name for the one delivery agent, which a playbook's team does not have, and "Run by Writer" on its
+ * model receipt). It is the agent the run's job ran as (delivery/runs.ts: the role whose step drafts the reply, or
+ * whoever took that role over); for a run with no job of its own, and for a row about no one run, the agent a job
+ * would run as now. On the eight fixed steps that is the one delivery agent.
+ */
+export function runAgentId(state: State, venture: VentureRecord, run?: Pick<DeliveryRunRecord, 'agentJob'> | null): string {
+  const ran = run?.agentJob?.scope.agentId;
+  if (ran) return ran;
+  const flagship = teamFlagship(state, venture);
+  const role = flagship?.roleOf[flagship.draftStep(null)];
+  return role ? jobAgentFor(state, venture.id, role) : AGENT_ID;
+}
+
+/** That agent's name, as receipts say it (receiptAgentName). */
+export function runAgentName(state: State, venture: VentureRecord, run?: Pick<DeliveryRunRecord, 'agentJob'> | null): Display {
+  return receiptAgentName(state, venture, runAgentId(state, venture, run));
 }
 
 /**

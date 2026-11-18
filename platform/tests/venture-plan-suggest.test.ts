@@ -12,8 +12,8 @@ import type { BlueprintView, Json, ModelCallRecord, ModelHttpRequest, ModelProce
 import { APP_ONLY_METHODS, METHOD_OWNERS, PURPOSE_TIER, W4_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
 import { SUGGEST_LEFT, SUGGEST_REFUSED, suggestTask, validateSuggestOutput } from '../runtime/venture/core/suggest.ts';
 import { ATTACHMENT_LEFT_OUT, screenedFile } from '../runtime/venture/core/attachment.ts';
-import { DOG_COMPOSE, DOG_DECIDE, DOG_TEXT, MODELS, planEntries, replay } from './fixtures/venture/compose-unit/plans.ts';
-import { PASSPHRASE, compose, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
+import { DOG_COMPOSE, DOG_PLAN_WORDS, DOG_TEXT, MODELS, anthropicEntry, replay } from './fixtures/venture/compose-unit/plans.ts';
+import { PASSPHRASE, business, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
 import { TEST_CARD } from './venture-agent-helpers.ts';
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
@@ -62,14 +62,12 @@ function recording(responses: ModelReplayFixture['responses']) {
   };
 }
 
-/** Shift Paws Leeds: the dog walking plan composed before the vault and kept, with the owner's AI adopted into it. */
+/** Shift Paws Leeds: made as the first run makes it, its first plan in the AI's words, with the owner's AI adopted into it. */
 async function openBusiness(t: any, suggestions: ModelReplayFixture['responses'] = []) {
-  const { bodies, transport } = recording([...planEntries(DOG_TEXT, DOG_DECIDE, DOG_COMPOSE), ...suggestions]);
+  const { bodies, transport } = recording([anthropicEntry('blueprint', DOG_PLAN_WORDS, ['Dog walking for']), ...suggestions]);
   const { engine } = await engineFor(t, { transport });
   await connectPair(engine);
-  const { plan } = await compose(engine, DOG_TEXT, 'GB');
-  await engine.request('workspace.create', { name: 'Shift Paws Leeds', passphrase: PASSPHRASE, pack: 'services' });
-  await engine.request('venture.create', { idea: DOG_TEXT, countryCode: 'GB', workingName: 'Shift Paws Leeds', composeId: plan.composeId, composedDigest: plan.digest });
+  await business(engine, { name: 'Shift Paws Leeds', idea: DOG_TEXT, countryCode: 'GB', draft: {} });
   const sent = bodies.length;
   return { engine, bodies, since: () => bodies.slice(sent) };
 }

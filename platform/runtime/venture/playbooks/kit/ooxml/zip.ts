@@ -2,7 +2,6 @@
 import {deflateRawSync,inflateRawSync} from 'node:zlib';
 import {ChausarError} from '../../../../portable.ts';
 import {crc32,safeName,scanZip,verifiedEntry,unreadable,type ZipEntry} from './zip-core.ts';
-export {crc32,UNZIP_LIMITS} from './zip-core.ts';
 export type {ZipEntry} from './zip-core.ts';
 const LOCAL=0x04034b50,CENTRAL=0x02014b50,END=0x06054b50,DOS_DATE=33,UTF8_NAMES=0x0800;
 /**

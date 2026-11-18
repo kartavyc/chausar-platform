@@ -26,6 +26,7 @@ import { ownerLines } from './versions.ts';
 import { agentNotes, draftNote, isProblem, keepProposedNote, noteKey, noteReach, noteValue, roomProblem } from './notes.ts';
 import { maskNote } from './recall.ts';
 import { decideImport } from './export.ts';
+import { STOPPABLE } from '../delivery/run-machine.ts';
 
 /** The label on a change drafted from the owner's own words rather than by the owner's AI. */
 export const FROM_YOUR_WORDS = 'Drafted by Chausar from your words';
@@ -170,7 +171,7 @@ export function proposalView(state: State, venture: VentureRecord, record: Agent
 /** Runs that are going now keep the version they started on; the line says which, by their number in this business. */
 function inUseLine(state: State, venture: VentureRecord, version: number): string {
   const runs = listRecords(state, 'venture-delivery-run', venture.id);
-  const going = runs.flatMap((run, index) => (['waiting-for-you', 'needs-answer', 'brief-waiting'].includes(run.status) ? [{ number: index + 1, playbookId: run.playbookId }] : []));
+  const going = runs.flatMap((run, index) => (STOPPABLE.includes(run.status) ? [{ number: index + 1, playbookId: run.playbookId }] : []));
   if (!going.length) return `Version ${version} is in use now. You can undo it.`;
   const byVersion = new Map<number, number[]>();
   for (const run of going) {

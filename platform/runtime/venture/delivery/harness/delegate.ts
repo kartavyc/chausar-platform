@@ -68,7 +68,8 @@ export function delegatePorts(deps: Pick<VentureDeps, 'host' | 'delegate'>): Del
   return realPorts;
 }
 
-const BASE_ENV = ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'ComSpec', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'HOMEDRIVE', 'HOMEPATH', 'LANG'];
+// USER and LOGNAME: the account name, by which Claude Code finds its sign-in in the keychain on macOS (cli-login-environment.test.ts).
+const BASE_ENV = ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'ComSpec', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'HOMEDRIVE', 'HOMEPATH', 'LANG', 'USER', 'LOGNAME'];
 const DOTENV_NAMES: ReadonlySet<string> = new Set(DOTENV_ALLOWLIST.filter(name => !isCredentialName(name)));
 
 /**

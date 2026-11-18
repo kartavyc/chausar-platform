@@ -5,16 +5,31 @@
 // today's rows in that order; set saves the rule and Today's order uses it. A rule only orders: it never hides, drops
 // or adds a row, and never changes an id or a digest. The plan and setup rows still lead and locked businesses still
 // come last; the rule orders the rows between. Every key's value comes from the row's own fields and receipts, by code.
+// A rule can also name kinds of item that lead everything, setup cards included ("proposals that find customers
+// first"): the owner asked for exactly that first. Found on Windows, 16 Nov 2026: with only the five sort fields a
+// rule had no way to say it, the setup cards led whatever it said, and the box still showed the owner's words as
+// the rule. The box now shows what the rule does, in code's words (ruleDoes).
 import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { PURPOSE_TIER } from '../contracts.ts';
-import type { Json, ModelTask, QueueKind, QueueRow, TriageField, TriagePreview, TriageRule, TriageRuleRecord, TriageRuleView, VentureDeps, VentureRecord } from '../contracts.ts';
-import { currentVenture, digest, exactPayload, listRecords, requireAppChannel, singleLine, ventureAction } from '../records.ts';
+import type { Json, ModelTask, QueueKind, QueueRow, TriageField, TriageGroup, TriagePreview, TriageRule, TriageRuleRecord, TriageRuleView, VentureDeps, VentureRecord } from '../contracts.ts';
+import { currentVenture, digest, exactPayload, findRecord, listRecords, requireAppChannel, singleLine, ventureAction } from '../records.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { stakeOf } from '../money/next-step.ts';
 
 export const TRIAGE_FIELDS: readonly TriageField[] = Object.freeze(['due', 'client', 'kind', 'money', 'business'] as const);
 /** The most keys one rule has. */
 export const TRIAGE_KEYS_MAX = 3;
+/** The kinds of item a rule can put first, each with the words code says for it. The most exact kind stands first. */
+const GROUP_WORDS: Readonly<Record<TriageGroup, string>> = Object.freeze({
+  'find-customers': 'proposals that find customers', proposal: 'proposals', draft: 'drafts', question: 'questions for you', invoice: 'invoices', quote: 'quotes',
+  signoff: 'sign-offs', reply: 'replies', followup: 'follow-ups', bank: 'bank items', connector: 'connections', notice: 'notices', setup: 'setup cards',
+  price: 'prices', plan: 'your plan',
+});
+export const TRIAGE_GROUPS = Object.freeze(Object.keys(GROUP_WORDS)) as readonly TriageGroup[];
+/** The wider kind each exact kind belongs to: a proposal that finds customers is a proposal. */
+const WIDER: Readonly<Partial<Record<TriageGroup, TriageGroup>>> = Object.freeze({ 'find-customers': 'proposal' });
+/** The most kinds one rule puts first. */
+export const TRIAGE_FIRST_MAX = 3;
 export const TRIAGE_MARKER = 'chausar-triage-rule-v1';
 
 /** The fixed choices, offered with or without the owner's AI. The last one is Chausar's own order. */
@@ -38,20 +53,34 @@ const KEY_WORDS: Readonly<Record<TriageField, Readonly<Record<'asc' | 'desc', st
 const KIND_ORDER: readonly QueueKind[] = ['plan', 'price', 'setup', 'invoice', 'quote', 'draft', 'question', 'signoff', 'connector', 'bank', 'proposal', 'followup', 'reply', 'notice', 'locked'];
 const LEAD: readonly QueueKind[] = ['plan', 'price', 'setup'];
 
-const INSTRUCTIONS = `${TRIAGE_MARKER}. The owner wrote under words how they want their list of things to do ordered. Map it to keys `
-  + 'using these fields only: due (the deadline), client (the client\'s name), kind (the kind of item), money (the money at stake) '
-  + 'and business (which business). Each key is asc or desc. Give one to three keys, the most important first. When the words ask '
-  + 'for something these fields cannot do, or ask to hide or drop items, give no keys: a rule only orders, it never hides anything.';
+const INSTRUCTIONS = `${TRIAGE_MARKER}. The owner wrote under words how to order their list of tasks. `
+  + 'first: the kinds of item they ask to lead, in order, at most three, each the most exact kind and only those the words '
+  + 'name (find-customers: a proposal to find customers), else empty. keys: how the rest is sorted, by due (the deadline), '
+  + 'client (the name), kind (a fixed order), money (at stake) or business, each asc or desc, at most three, the most '
+  + 'important first. If the words ask to hide or drop items, or for what neither can do, give an empty first and no keys: '
+  + 'a rule only orders.';
 
-/** The rule in plain words, from code: the owner's or the choice's words, then what the keys do. */
+/**
+ * What a rule does, from code alone: the kinds that lead, then what the keys do. Empty for Chausar's own order. A wider
+ * kind after its exact kind leads only the rest of its kind: "proposals that find customers first, then other proposals".
+ */
+export function ruleDoes(rule: TriageRule): string {
+  const first = rule.first ?? [];
+  const words = (group: TriageGroup, at: number) => first.slice(0, at).some(earlier => WIDER[earlier] === group) ? `other ${GROUP_WORDS[group]}` : GROUP_WORDS[group];
+  return [...first.map((group, at) => (at === 0 ? `${words(group, at)} first` : words(group, at))), ...rule.keys.map(key => KEY_WORDS[key.field][key.order])].join(', then ');
+}
+/** Whether a rule orders anything: it names a kind to lead, or a key. */
+const orders = (rule: TriageRule | null | undefined): rule is TriageRule => !!rule && (rule.keys.length > 0 || (rule.first?.length ?? 0) > 0);
+
+/** The rule in plain words, from code: never the owner's words, which a rule may not be able to hold. */
 export function ruleLine(rule: TriageRule): string {
-  if (!rule.keys.length) return "Today is in Chausar's own order.";
-  return `Today is ordered: ${rule.keys.map(key => KEY_WORDS[key.field][key.order]).join(', then ')}. Nothing is hidden.`;
+  if (!orders(rule)) return "Today is in Chausar's own order.";
+  return `Today is ordered: ${ruleDoes(rule)}. Nothing is hidden.`;
 }
 
 /** A rule's keys and words, checked: fixed fields only, each once, asc or desc, at most three. code: the refusal's code. */
 export function validateRule(raw: unknown, words: string | null, code = 'INVALID_VENTURE_REQUEST'): TriageRule {
-  const body = exactPayload(raw, words === null ? ['keys', 'words'] : ['keys'], words === null ? ['keys', 'words'] : ['keys'], code);
+  const body = exactPayload(raw, words === null ? ['keys', 'first', 'words'] : ['keys', 'first'], words === null ? ['keys', 'words'] : ['keys'], code);
   check(Array.isArray(body.keys) && body.keys.length <= TRIAGE_KEYS_MAX, code, `A rule has at most ${TRIAGE_KEYS_MAX} keys.`);
   const keys = (body.keys as unknown[]).map(item => {
     const key = exactPayload(item, ['field', 'order'], ['field', 'order'], code);
@@ -60,7 +89,12 @@ export function validateRule(raw: unknown, words: string | null, code = 'INVALID
     return { field: key.field as TriageField, order: key.order as 'asc' | 'desc' };
   });
   check(new Set(keys.map(key => key.field)).size === keys.length, code, 'Use each field once.');
-  return { keys, words: words ?? singleLine(body.words, 'The rule\'s words', { min: 1, max: 200 }) };
+  const named = body.first ?? [];
+  check(Array.isArray(named) && named.length <= TRIAGE_FIRST_MAX && named.every(group => typeof group === 'string' && (TRIAGE_GROUPS as readonly string[]).includes(group))
+    && new Set(named).size === named.length, code, `A rule puts at most ${TRIAGE_FIRST_MAX} kinds of item first, each once, from the kinds Today shows.`);
+  // An exact kind named after its wider kind would lead nothing: the wider one already took its rows (orderRows).
+  const first = (named as TriageGroup[]).filter((group, at, all) => !all.slice(0, at).includes(WIDER[group]!));
+  return { keys, ...(first.length ? { first } : {}), words: words ?? singleLine(body.words, 'The rule\'s words', { min: 1, max: 200 }) };
 }
 
 /** The newest rule the owner saved for the business, or null. */
@@ -104,18 +138,33 @@ function compare(a: Value, b: Value, order: 'asc' | 'desc'): number {
   return a < b ? -sign : a > b ? sign : 0;
 }
 
+/** Whether a row is of a kind a rule names. A proposal that finds customers is told by its own record, never its title. */
+function inGroup(state: State, row: QueueRow, group: TriageGroup): boolean {
+  if (group !== 'find-customers') return row.kind === group;
+  if (row.kind !== 'proposal') return false;
+  const [subject, id] = row.id.split(':');
+  return subject === 'proposal' && !!id && findRecord(state, 'venture-proposal', id)?.proposalKind === 'find-customers';
+}
+
 /** The open business's id on Today: other businesses only ever show as locked rows (views/queue.ts). */
 function openBusinessOf(rows: readonly QueueRow[]): string | null {
   return rows.find(row => row.kind !== 'locked')?.businessId ?? null;
 }
 
 /**
- * Today's rows in a rule's order: the plan and setup rows first as they are, then the rest ordered by the rule's keys
- * (rows with no value for a key after those with one, ties in Today's own order), then locked businesses. The same
- * rows, each once.
+ * Today's rows in a rule's order: the kinds of item the rule names first, in the order named and each in Today's own
+ * order; then the plan and setup rows as they are; then the rest ordered by the rule's keys (rows with no value for a
+ * key after those with one, ties in Today's own order); then locked businesses. A row of another business is never
+ * read, so it never leads. The same rows, each once.
  */
-export function orderRows(state: State, venture: VentureRecord | null, rows: QueueRow[], rule: TriageRule | null, openBusinessId: string | null = openBusinessOf(rows)): QueueRow[] {
-  if (!venture || !rule?.keys.length) return rows;
+export function orderRows(state: State, venture: VentureRecord | null, all: QueueRow[], rule: TriageRule | null, openBusinessId: string | null = openBusinessOf(all)): QueueRow[] {
+  if (!venture || !orders(rule)) return all;
+  const led: QueueRow[] = [];
+  for (const group of rule.first ?? []) {
+    for (const row of all) if (!led.includes(row) && row.kind !== 'locked' && (openBusinessId === null || row.businessId === openBusinessId) && inGroup(state, row, group)) led.push(row);
+  }
+  const rows = led.length ? all.filter(row => !led.includes(row)) : all;
+  if (!rule.keys.length) return led.length ? [...led, ...rows.filter(row => row.kind !== 'locked'), ...rows.filter(row => row.kind === 'locked')] : all;
   const lead = rows.filter(row => LEAD.includes(row.kind));
   const locked = rows.filter(row => row.kind === 'locked');
   const middle = rows.map((row, index) => ({ row, index })).filter(item => !LEAD.includes(item.row.kind) && item.row.kind !== 'locked');
@@ -128,7 +177,7 @@ export function orderRows(state: State, venture: VentureRecord | null, rows: Que
     }
     return a.index - b.index;
   });
-  return [...lead, ...middle.map(item => item.row), ...locked];
+  return [...led, ...lead, ...middle.map(item => item.row), ...locked];
 }
 
 /**
@@ -150,7 +199,10 @@ export function triageTask(words: string): ModelTask<TriageRule> {
   const key: Json = { type: 'object', additionalProperties: false, required: ['field', 'order'], properties: { field: { type: 'string', enum: [...TRIAGE_FIELDS] }, order: { type: 'string', enum: ['asc', 'desc'] } } };
   return {
     purpose: 'triage-rule', instructions: INSTRUCTIONS, input: { words, fields: [...TRIAGE_FIELDS] },
-    schemaName: 'venture-triage-rule', schema: { type: 'object', additionalProperties: false, required: ['keys'], properties: { keys: { type: 'array', items: key } } },
+    schemaName: 'venture-triage-rule', schema: {
+      type: 'object', additionalProperties: false, required: ['first', 'keys'],
+      properties: { first: { type: 'array', items: { type: 'string', enum: [...TRIAGE_GROUPS] } }, keys: { type: 'array', items: key } },
+    },
     validate: raw => validateRule(raw, words, 'MODEL_OUTPUT_REJECTED'), containsClientData: false, maxOutputTokens: 256,
   };
 }
@@ -162,7 +214,7 @@ async function modelRule(deps: VentureDeps, ctx: Context, words: string): Promis
   if (!tier || tier.presetId === 'built-in-templates' || tier.usable === false) return null;
   try {
     const outcome = await deps.models.generate(ctx, triageTask(words));
-    return outcome.by === 'model' && outcome.value.keys.length ? outcome.value : null;
+    return outcome.by === 'model' && orders(outcome.value) ? outcome.value : null;
   } catch (error) {
     if (error instanceof ChausarError || (error as { code?: unknown })?.code) return null;
     throw error;
@@ -187,7 +239,7 @@ export async function triagePreviewHandler(deps: VentureDeps, ctx: Context, payl
   const { rows } = await queueListHandler(deps, ctx, {});
   const fresh = deps.store.read();
   return {
-    rule, choices: TRIAGE_CHOICES.map(choice => structuredClone(choice)), rows: rule ? orderRows(fresh, venture, rows, rule) : rows,
+    rule, does: rule ? ruleDoes(rule) : null, choices: TRIAGE_CHOICES.map(choice => structuredClone(choice)), rows: rule ? orderRows(fresh, venture, rows, rule) : rows,
     digest: ruleInForceDigest(fresh, venture), by: rule ? 'model' : 'choices',
   };
 }

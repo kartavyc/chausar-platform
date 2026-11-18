@@ -5,11 +5,9 @@
 // agent can't take as instructions (delivery/harness/loop.ts puts them in the input and its KNOWLEDGE_BACKGROUND,
 // Chausar's own words, in the instructions). Each carried item names its source's version. What is carried is read
 // through the untrusted screen again (enforce), and a source the screen holds (by the whole of it, once per version)
-// is never sent; the page names why. The turn keeps the ids its approved text carried (sourcesCarried), and a turn
-// whose text carries a source removed, changed (its version) or held since is made again before it can go
-// (staleSources, read again just before the send). Words are indexed once per source version. The words rules here
-// are the ones the page's own search uses (agents/knowledge.ts). Reads only, so the delivery harness can load it
-// without the agents package.
+// is never sent; the page names why. Words are indexed once per source version. The words rules here are the ones the
+// page's own search uses (agents/knowledge.ts). Reads only, so the delivery harness can load it without the agents
+// package.
 import { hash, type State } from '../../contracts.ts';
 import type { KnowledgeRecord, PlaybookStep, ScreenNote, VentureRecord } from '../contracts.ts';
 import { listRecords } from '../records.ts';
@@ -20,8 +18,6 @@ import { topicWords } from './recall.ts';
 /** The most sources one turn carries, and the most characters it carries from one. */
 export const TURN_SOURCES = 3;
 export const SOURCE_TURN_CHARS = 800;
-/** The owner's words when a turn waiting for approval carried a source removed, changed or held since. */
-export const SOURCES_CHANGED = 'A source this step carried was removed or changed, so Chausar made the step again with what the AI knows now. Read it again.';
 /** Words that carry no topic in a question or a request, beyond the note recall's own list (recall.ts topicWords). */
 const QUESTION_WORDS: ReadonlySet<string> = new Set([
   'much', 'many', 'long', 'where', 'shall', 'may', 'might', 'must', 'okay', 'yes', 'sure', 'tell', 'know', 'think', 'use', 'used', 'using', 'take', 'takes',
@@ -225,22 +221,6 @@ export function knowledgeForTurn(state: State, venture: VentureRecord, query: st
     carried.push({ id: record.id, title: first, text: rest.join(' '), version: versionOf(record) });
   }
   return carried;
-}
-
-/** The sources an approved turn's text carried, by id, in the order they were added: each id is random, so the text holds one only when the turn carried it. */
-export function sourcesCarried(state: State, venture: VentureRecord, approvedText: string): string[] {
-  if (!approvedText) return [];
-  return listRecords(state, 'venture-knowledge', venture.id).filter(record => approvedText.includes(record.id)).map(record => record.id);
-}
-
-/**
- * The sources a turn's text carried that must not go now: removed since, changed since (by Forget, say: the version
- * its text names is not the source's now), or held by the screen now. The turn is made again without them.
- */
-export function staleSources(state: State, venture: VentureRecord, approvedText: string): string[] {
-  if (!approvedText) return [];
-  return listRecords(state, 'venture-knowledge', venture.id).filter(record => approvedText.includes(record.id)).flatMap(record =>
-    (record.removedAt !== null || !approvedText.includes(versionOf(record)) || indexed(record).held.length ? [record.id] : []));
 }
 
 /** The screen's note kept for a source: what it hid and found, from every part screened; null when it found nothing. */

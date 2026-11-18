@@ -71,12 +71,14 @@ describe('the rail', () => {
   it("carries Today's count in tabular digits, hidden from screen readers but said in words, amber when Today is not open", async () => {
     const rail = start('#/team');
     const today = within(rail).getByRole('link', { name: /^Today/ });
-    await waitFor(() => expect(today.textContent).toBe('Today12, 12 need you'));
+    // The words are the link's own name, not hidden text run into the visible words (found on Windows, 15 Nov 2026:
+    // the page text read "Today 4 , 4 need you").
+    await waitFor(() => expect(today.getAttribute('aria-label')).toBe('Today, 12 need you'));
+    expect(today.textContent).toBe('Today12');
     const count = today.querySelector('[aria-hidden="true"][data-num]')!;
     expect(count.textContent).toBe('12');
     expect(count.getAttribute('data-tone')).toBe('wait');
-    expect(count.nextElementSibling!.className).toBe('sr-only');
-    expect(count.nextElementSibling!.textContent).toBe(', 12 need you');
+    expect(today.querySelector('.sr-only')).toBeNull();
     await go('#/today');
     await waitFor(() => expect(within(rail).getByRole('link', { name: /^Today/ }).getAttribute('aria-current')).toBe('page'));
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')!.hasAttribute('data-tone')).toBe(false);

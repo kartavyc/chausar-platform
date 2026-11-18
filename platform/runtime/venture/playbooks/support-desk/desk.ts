@@ -5,6 +5,7 @@ import { digest, exactPayload, identifier, plainText, singleLine, smallInteger, 
 import { clientDraft } from '../../build/draft-text.ts';
 import { readAs } from '../../delivery/shared.ts';
 import { stopIn } from '../../delivery/run-controls.ts';
+import { STOPPABLE } from '../../delivery/run-machine.ts';
 import { matchShopFiles } from './sources.ts';
 import { signedReplyAddress } from './threading.ts';
 import { mailThreadsOf, threadForAgent, threadIdOf } from '../../build/mail-in.ts';
@@ -28,7 +29,7 @@ const row=(t:SupportTicketRecord,now:string):SupportTicketRow=>({id:t.id,thread:
 function ticketOf(tx:VentureTx,id:string):SupportTicketRecord{const ticket=tx.find('venture-support-ticket',id);check(ticket,'SUPPORT_TICKET_NOT_FOUND','That support ticket was not found.');return ticket;}
 const cleaned=(value:unknown,label:string,max=12000)=>screenReadback(redactSecrets(plainText(value,label,{max})),{keep:[]}).text;
 function threadRuns(tx:VentureTx,ticket:SupportTicketBody){return ticket.serviceOrderId?tx.list('venture-delivery-run').filter(r=>r.orderId===ticket.serviceOrderId):[];}
-function activeThread(tx:VentureTx,ticket:SupportTicketBody){return threadRuns(tx,ticket).some(r=>['waiting-for-you','needs-answer','brief-waiting'].includes(r.status));}
+function activeThread(tx:VentureTx,ticket:SupportTicketBody){return threadRuns(tx,ticket).some(r=>STOPPABLE.includes(r.status));}
 function shopOrder(tx:VentureTx,ticket:SupportTicketBody){const order=ticket.serviceOrderId?tx.find('venture-order',ticket.serviceOrderId):null;check(order&&order.status!=='cancelled'&&order.clientId===ticket.shopClientId,'SUPPORT_ORDER_REQUIRED','Choose this shop service order before drafting a reply.');return order;}
 function isBlocked(tx:VentureTx,ticket:SupportTicketBody){const order=shopOrder(tx,ticket);const blocked=order.intake?.fields?.blockedCustomers;return ticket.blocked||Array.isArray(blocked)&&blocked.some(value=>typeof value==='string'&&value.trim().toLowerCase()===ticket.customerEmail.toLowerCase());}
 function sourceFiles(tx:VentureTx,ticket:SupportTicketBody,names:readonly string[]){shopOrder(tx,ticket);const files=tx.list('venture-upload').filter(f=>f.scope.kind==='order'&&f.scope.orderId===ticket.serviceOrderId);check(names.length>0,'SUPPORT_SOURCE_REQUIRED','Cite shop files attached to this service order.');return names.map(name=>{const matches=files.filter(f=>f.name===name);check(matches.length===1,'SUPPORT_SOURCE_REQUIRED','Cite shop files attached to this service order.');return {id:matches[0]!.id,digest:matches[0]!.digest};});}
@@ -126,7 +127,7 @@ async function act(deps:VentureDeps,ctx:Context,p:{id:string;action:string;paylo
  });
 }
 /** Stop queued and active support work using the harness stop latch, without retrying anything in flight. */
-function stopRuns(tx:VentureTx,ticket:SupportTicketBody){for(const r of threadRuns(tx,ticket)){if(['waiting-for-you','needs-answer','brief-waiting'].includes(r.status))stopIn(tx,r.id,!r.harness,tx.ctx.memberId);}}
+function stopRuns(tx:VentureTx,ticket:SupportTicketBody){for(const r of threadRuns(tx,ticket)){if(STOPPABLE.includes(r.status))stopIn(tx,r.id);}}
 export const SUPPORT_DESK_DESK:DeskHandlers=Object.freeze({ticket:{
  async list(deps,ctx,p){const {state,venture}=readAs(deps,ctx,'read');const filter=p.filter===undefined?{}:exactPayload(p.filter,['queue']);check(filter.queue===undefined||['overdue','due-soon','open','waiting-customer','all'].includes(String(filter.queue)),INVALID,'Choose a ticket queue.');const now=deps.clock().toISOString();const tickets=state.conversations.filter((r):r is SupportTicketRecord=>r.kind==='venture-support-ticket'&&r.ventureId===venture.id);const selected=tickets.map(t=>row(wakeTicket(t,now),now)).filter(t=>!filter.queue||filter.queue==='all'||filter.queue==='overdue'&&t.queue===0||filter.queue==='due-soon'&&t.queue===1||filter.queue==='open'&&t.queue===2||filter.queue==='waiting-customer'&&t.status==='waiting-customer').sort((a,b)=>a.queue-b.queue||a.id.localeCompare(b.id));return {playbook,kind:'ticket',rows:selected,line:'Customer replies wait for your approval and your own mail app.'};},
  async get(deps,ctx,p){const {state,venture}=readAs(deps,ctx,'read');const stored=state.conversations.find((r):r is SupportTicketRecord=>r.kind==='venture-support-ticket'&&r.ventureId===venture.id&&r.id===p.id);check(stored,'SUPPORT_TICKET_NOT_FOUND','That support ticket was not found.');const ticket=wakeTicket(stored,deps.clock().toISOString());return {playbook,kind:'ticket',item:{...ticket,ratings:ratingSummary(state.conversations.filter((r):r is SupportRatingRecord=>r.kind==='venture-support-rating'&&r.ventureId===venture.id))},digest:digest(ticket)};},

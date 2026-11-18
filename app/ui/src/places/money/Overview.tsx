@@ -28,10 +28,11 @@ import { NextWeeks } from './NextWeeks';
 import { OwedTile } from './OwedTile';
 import { splitFigure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
-import { Failed, MoneyTile, ProvedFigure, SET_RATE_HREF, isPhrase, lineProof } from './parts';
+import { Failed, MoneyTile, ProvedFigure, isPhrase, lineProof } from './parts';
 import { useMoneyViews, type FlowData, type MoneyViews } from './views';
 import { byDue, onMoney, onRuns, useChosenMonth, useMonthWords } from './words';
 import { GOAL_EVENTS, goalFromView } from '../today/goal';
+import { fixedWords } from '../today/plan-words';
 import s from './Money.module.css';
 // W6 6H3 (D40): the overview's layout as data, and the AI's changes with Undo and Keep.
 import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
@@ -160,7 +161,7 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
       )}
       {/* One-shot B1 (bug 14): an empty invoiced sum (zero, no receipt) says so; the tile is never blank. */}
       {data && !data.invoiced && data.invoicedNone && <p className={s.tileSub}>{month ? t('money.tile.invoicedNoneIn', { month: monthWords(month) }) : t('money.tile.invoicedNone')}</p>}
-      {books && (
+      {books?.receiptId && (
         <>
           <div className={s.tileValue}>
             <ProvedFigure value={books.display} proof={{ receiptId: books.receiptId }} size="stat" />
@@ -212,13 +213,13 @@ function ReceivedTile({ line, books, chosen }: { line: MoneyOverviewLine | undef
           <ProvedFigure value={line.value} proof={proof} size="stat" />
         </div>
       )}
-      {received && (
+      {received?.receiptId && (
         <div className={s.tileValue}>
           <ProvedFigure value={received.display} proof={{ receiptId: received.receiptId }} size="stat" />
         </div>
       )}
       <p className={s.tileSub}>{chosen ? monthWords(chosen) : t('money.tile.thisMonth')}</p>
-      {before && books?.previous && (
+      {before?.receiptId && books?.previous && (
         <p className={v.before} data-previous="">
           <span>{monthWords(books.previous.month)}</span>
           <ProvedFigure value={before.display} proof={{ receiptId: before.receiptId }} />
@@ -230,15 +231,16 @@ function ReceivedTile({ line, books, chosen }: { line: MoneyOverviewLine | undef
 
 /**
  * What AI and tools cost this month, in one currency (C4 T23): the one the engine leads with, the other in the receipt.
- * With no rupee rate on a rupee business, the dollars and "Set a rupee rate". Each call is one step away, on Spend. When
+ * A rupee business reads rupees from its first day (the engine's rate in use). Each call is one step away, on Spend. When
  * the engine writes only words ("No price"), the figure is set smaller, in the body face,
  * and wraps inside the tile (`data-phrase`), so words never run in a typewriter face past the tile's edge.
  */
 function SpendTile({ line, split }: { line: MoneyOverviewLine | undefined; split: MoneyViews['split'] }) {
   const t = useT();
   const proof = lineProof(line);
-  // 4Z3: the figure as the engine says it leads (rupees or dollars first).
-  const shown = line && (line.lead?.figure ?? line.value);
+  // 4Z3: the figure as the engine says it leads (rupees or dollars first). Re-check 7: words with no amount ("On your own
+  // AI plan") are Chausar's own, said in the owner's language as Team's tile says them; a figure stays as the engine sent it.
+  const shown = line && fixedWords(t)(line.lead?.figure ?? line.value);
   // Words after an amount are the Figure's own (splitFigure); only words with no amount at all are a phrase.
   const phrase = shown !== undefined && isPhrase(splitFigure(shown).amount);
   return (
@@ -252,7 +254,6 @@ function SpendTile({ line, split }: { line: MoneyOverviewLine | undefined; split
       {split && line?.receiptId && split.proof.receiptId === line.receiptId && <div className={s.tileChart}><SplitBar data={split} /></div>}
       <p className={s.tileFoot}>
         <a className={s.more} href="#/money/spend">{t('money.spentEach')}</a>
-        {line?.needsRate && <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a>}
       </p>
     </MoneyTile>
   );

@@ -21,6 +21,10 @@ import type {
 } from '../contracts.ts';
 import { playbookInUse, teamFlagship } from '../views/team-shape.ts';
 import { AGENT_ID } from '../views/shared.ts';
+import { DECIDED } from '../delivery/run-machine.ts';
+import { ACTION_WORDS, DECISION_WORDS } from './decision-words.ts';
+
+export { DECISION_WORDS };
 
 /** The newest decisions venture.decisions.list returns. */
 export const DECISIONS_MAX = 500;
@@ -47,12 +51,6 @@ export function recordDecision(tx: VentureTx, input: DecisionInput): DecisionRec
   return tx.put<DecisionRecord>({ ...tx.base('venture-decision'), role: tx.ctx.role, ...input, who });
 }
 
-/** Each Today action in a few words, for the record's line. */
-const ACTION_WORDS: Readonly<Record<QueueActionId, string>> = Object.freeze({
-  approve: 'Approve', deny: 'No', later: 'Later', watch: 'Watch', read: 'Read', answer: 'Answer', 'send-to-ca': 'Send to CA', open: 'Open',
-  connect: 'Connect', 'set-prices': 'Set prices', keep: 'Keep', issue: 'Issue', 'run-again': 'Run again', sent: 'I sent it',
-  continue: 'Continue', stop: 'Stop', resume: 'Resume', 'show-file': 'Show in folder',
-});
 
 /**
  * A4 review (L5): the member a line names, as the reader sees it: the reader's own decision is You's; another member's is
@@ -61,28 +59,6 @@ const ACTION_WORDS: Readonly<Record<QueueActionId, string>> = Object.freeze({
 const WHO_WORDS: Readonly<Record<MemberWho, string>> = Object.freeze({ owner: 'The owner', cofounder: 'Your cofounder', accountant: 'Your accountant' });
 const subjectOf = (state: State, memberId: string | null | undefined, reader: string | null): string => (reader !== null && memberId === reader ? 'You' : WHO_WORDS[whoIs(state, memberId)]);
 
-export const DECISION_WORDS = Object.freeze({
-  today: (action: string, reason: string, who = 'You') => `${who} chose ${action} on Today: ${reason}`,
-  /** One-shot A4 (rows 33, 46): the plan's row is decided on Today, in Prices or on the plan page, so it names no place. */
-  plan: (action: string, reason: string, who = 'You') => `${who} chose ${action}: ${reason}`,
-  owner: (reason: string) => `You decided: ${reason}`,
-  cofounder: (reason: string) => `Your cofounder decided: ${reason}`,
-  decided: (who: string, reason: string) => `${who} decided: ${reason}`,
-  timeout: (reason: string) => `No answer in time: ${reason}`,
-  approved: (what: string, who = 'You') => `${who} approved it: ${what}`,
-  refused: (what: string, who = 'You') => `${who} said no: ${what}`,
-  // A4 review round 2: "wait for you" only to the one who set it; anyone else reads that it waits for an approval.
-  gate: (step: string, gate: 'auto' | 'hold', who = 'You') => (gate === 'auto' ? `${who} set '${step}' to run on its own.` : `${who} set '${step}' to wait for ${who === 'You' ? 'you' : 'an approval'}.`),
-  autoRule: (step: string) => `Your Auto setting on '${step}'`,
-  sessionRule: (step: string) => `Your allow for this session on '${step}'`,
-  someRule: 'A saved rule',
-  autoLine: (step: string) => `Allowed by your Auto setting on '${step}', without asking`,
-  sessionLine: (step: string) => `Allowed for this session on '${step}', without asking`,
-  calls: (count: number) => `${count} calls`,
-  ran: (tool: string) => `The agent ran ${tool} without asking.`,
-  ranMany: (count: number, tools: string) => `The agent made ${count} calls without asking: ${tools}.`,
-  journalAction: 'Ran without asking',
-});
 
 /** A journal step the sweep wrote because nobody decided in time (journal/journal.ts). */
 const NOBODY_DECIDED = /^Nobody decided in time/;
@@ -162,7 +138,8 @@ export function allowedByEntries(state: State, venture: VentureRecord): JournalE
 // ---------------------------------------------------------------------------
 
 /** The review verdicts delivery/runs.ts records. */
-const REVIEW_ACTIONS = new Set(['accepted', 'edited', 'rejected']);
+/** A review's decision is recorded under its verdict's own word, which is the run's status too (run-machine.ts DECIDED). */
+const REVIEW_ACTIONS: ReadonlySet<string> = new Set(DECIDED);
 /** A call id as a Today row's version spells it (views/queue.ts part). */
 const asVersion = (value: string) => value.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80);
 const versionOfRow = (rowId: string) => rowId.slice(rowId.lastIndexOf(':') + 1);
@@ -280,8 +257,12 @@ function opensOf(state: State, venture: VentureRecord, subject: string, reason: 
   }
 }
 
-/** Every decision of the open business, newest first, a Today click listed once. */
-export function decisionViews(state: State, venture: VentureRecord, reader: string | null = null): DecisionView[] {
+/**
+ * Every decision of the open business, newest first, a Today click listed once. effects: false leaves out the steps of
+ * outside effects (each approved or refused journal step, and each step a saved rule let run), for a list that shows
+ * the journal's own line for them (Today's Earlier, journal/earlier.ts).
+ */
+export function decisionViews(state: State, venture: VentureRecord, reader: string | null = null, options: { effects?: boolean } = {}): DecisionView[] {
   const today = listRecords(state, 'venture-queue-decision', venture.id).map((record): DecisionView => {
     const who = whoIs(state, record.decidedBy);
     const words = record.subject.startsWith('plan:') ? DECISION_WORDS.plan : DECISION_WORDS.today;
@@ -306,8 +287,8 @@ export function decisionViews(state: State, venture: VentureRecord, reader: stri
     const words = DECISION_WORDS.gate(stepTitle(state, venture, gate.stepId), gate.gate, subjectOf(state, gate.memberId, reader));
     others.push({ id: gate.id, at: gate.at, subject: `step:${gate.stepId}`, action: `gate-${gate.gate}`, who, rule: null, ruleId: null, reason: words, line: words, by: gate.memberId, agentId: gate.agentId, mine: reader !== null && gate.memberId === reader, ...unopened });
   }
-  others.push(...journalDecisions(state, venture, reader));
-  for (const group of allowedGroups(state, venture)) {
+  if (options.effects !== false) others.push(...journalDecisions(state, venture, reader));
+  for (const group of options.effects === false ? [] : allowedGroups(state, venture)) {
     const tools = [...new Set(group.calls.map(call => call.tool))].join(', ');
     others.push({
       id: groupId(group), at: group.at, subject: `step:${group.stepId}`, action: tools, who: 'saved-rule',

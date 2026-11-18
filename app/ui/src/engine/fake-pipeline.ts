@@ -18,6 +18,7 @@ import {
   type PipelineStage, type PipelineView, type ProposalView, type QueueAction, type QueueRow, type ReceiptLite, type StatTileView, type TieBand, type WarmPathView,
 } from './types';
 import type { W4DeskHost } from './fake-w4';
+import { leadFound, leadWhere } from '../../../../platform/runtime/venture/customers/lead-source';
 import type { PipelineSettingsView, OutreachLane } from './types';
 import { effectiveLaneLimits, LANE_WORDS, limitsObject, pipelineCapsInput } from '../../../../platform/runtime/venture/network/limit-settings';
 import { DEFAULT_PIPELINE_SETTINGS, nextAllowedDay, weekStart } from '../../../../platform/runtime/venture/network/followups';
@@ -426,16 +427,12 @@ export class FakePipelineDesk {
       const touches: Touch[] = lead.sends.map((send) => ({ ref: send.draftId, what: 'sent', on: localDay(send.sentAt), channel: 'own-mailbox', kind: 'cold-email' }));
       return {
         stage, history: [{ to: 'found', at: lead.addedAt }, ...(stage !== 'found' ? [{ to: stage, at: lead.sends.at(-1)?.sentAt ?? lead.addedAt }] : [])],
-        touches, next: null, askAgainFrom: null, lostReason: null, basis: null, trigger: `Found on ${this.where(lead.sourceUrl)}`, score: null,
+        touches, next: null, askAgainFrom: null, lostReason: null, basis: null, trigger: leadFound(lead), score: null,
       };
     }
     const state: CardState = { stage: view.stage, history: [{ to: 'found', at: this.host.now() }], touches: [], next: null, askAgainFrom: null, lostReason: null, basis: null, trigger: view.trigger, score: null };
     desk.states.set(view.id, state);
     return state;
-  }
-
-  private where(url: string): string {
-    try { const parsed = new URL(url); return `${parsed.hostname}${parsed.pathname.replace(/\/+$/, '')}`; } catch { return 'a web page'; }
   }
 
   /** Every card of the open business: the people desk's, then each lead with no card yet. */
@@ -934,7 +931,7 @@ export class FakePipelineDesk {
       blurb = `${first}, meet ${firstOf(introduced.name)}. ${firstOf(introduced.name)}, meet ${first}. I will leave you both to take it from here.`;
     } else {
       subject = `A note from ${business}`;
-      text = `Hi ${first},\n\nI run ${business}.${card.lead ? ` I found ${card.view.company ?? 'your details'} on ${this.where(card.lead.sourceUrl)}.` : ''} ${about ?? ''}If this is not useful to you, there is no need to reply.`.replace(/ {2,}/g, ' ');
+      text = `Hi ${first},\n\nI run ${business}.${card.lead?.sourceUrl ? ` I found ${card.view.company ?? 'your details'} on ${leadWhere(card.lead.sourceUrl)}.` : ''} ${about ?? ''}If this is not useful to you, there is no need to reply.`.replace(/ {2,}/g, ' ');
     }
     if (kind === 'connection-note' && [...text].length > (limit as number)) {
       throw new EngineError('OUTREACH_TOO_LONG', `This note is ${[...text].length} characters; your limit is ${limit}. Shorten your words and draft it again.`);

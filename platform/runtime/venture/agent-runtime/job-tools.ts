@@ -91,7 +91,7 @@ export function createJobMCP(store:StateStore, capability:JobCapability, ports:J
     register('read_business','Read this job business and the required draft structure.',object(),true,async()=>{
       const data=await snapshot();const {id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge}=data.business;
       await capability.guard(async () => { await ports.recordContextRead?.(scope,data,context); });
-      return redactPayload({id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge,sections:data.sections,draftSchema:deliverySchema(serviceType,data.sections),calculations:ports.calculations,packSkills:ports.packSkills??[]});
+      return redactPayload({id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge,sections:data.sections,draftSchema:deliverySchema(serviceType,data.sections,'order-words'),calculations:ports.calculations,packSkills:ports.packSkills??[]});
     }),
     register('read_client','Read only the client assigned to this job.',object(),true,async()=>{
       // One-shot C6: only CLIENT_AI_FIELDS (never the phone or WhatsApp number), whatever the snapshot carries.
@@ -140,7 +140,7 @@ export function createJobMCP(store:StateStore, capability:JobCapability, ports:J
       }
       return exposed;
     }),
-    register('draft_document','Save a draft using words and calculator figure references. Numbers without receipts are refused. Read the returned checks and playbookChecks; repair failed checks and core notChecked checks before proposing. Playbook not-run results disclose checks that did not apply or could not run; they are not passes.',object({draft:{type:'object'}}),false,async args=>{
+    register('draft_document','Save a draft using words and calculator figure references. Amounts come only from figure references; another number passes only when copied exactly from the order with its word (a size, count, date or time). Read the returned checks and playbookChecks; repair failed checks and core notChecked checks before proposing. Playbook not-run results disclose checks that did not apply or could not run; they are not passes.',object({draft:{type:'object'}}),false,async args=>{
       const data=await snapshot();const current=await Promise.all([...receipts.values()].map(currentReceipt));
       const calculated=[...calculatorEvidence].map(([id,text])=>({id:'calculator.'+id,text}));
       const source=[data.order.request,...calculated.map(item=>item.text)].join('\n');

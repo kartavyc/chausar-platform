@@ -11,10 +11,12 @@
 //   exact digest is its manifest kept in the trust folder (CHAUSAR_CODEX_TRUST_DIR) and used.
 // Review runs only the program itself (never a shell or a script), with no prompt, in an empty folder, and reads no
 // sign-in file, token or key.
-// A2 review: only the reviewed Codex versions are accepted (REVIEWED_CODEX_VERSIONS); on the desktop the owner's choice
+// A2 review: only a Codex version Chausar runs is accepted (codexVersionAccepted: the first reviewed version or a newer
+// one in the same major, each still held to the help and feature checks above); on the desktop the owner's choice
 // is sealed with a key Electron's safeStorage keeps, so a file written into the trust folder by anything else is not
 // taken; each choice is kept in a sealed decision journal; a program that changes while Chausar runs drops the setup and
 // asks for a new review; agent jobs get the program only after its digest is checked again.
+import { digestOfUnchanged } from './file-digest.ts';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createReadStream, rmSync } from 'node:fs';
 import { appendFile, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -24,7 +26,7 @@ import { ChausarError, check } from './contracts.ts';
 import { spawnTree } from './process-tree.ts';
 import { defaultProcess, type GatewayOptions, type ProcessRequest, type ProcessResult } from './gateway.ts';
 import { loadCodexCliHostGateway } from './codex-cli-host.ts';
-import { CODEX_CLI_CONFIG, CODEX_QUIET_ARGS, REVIEWED_CODEX_VERSIONS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
+import { CODEX_CLI_CONFIG, CODEX_MINIMUM_VERSION, CODEX_QUIET_ARGS, REVIEWED_CODEX_VERSIONS, codexVersionAccepted, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 import { cliEnv } from './venture/models/cli.ts';
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './venture/models/npm-shim.ts';
 import { locateOnThisComputer } from './venture/models/cli-look.ts';
@@ -54,7 +56,7 @@ export const CODEX_CONFIG_REVIEW = Object.freeze({
   reviewedAt: '2026-11-03T00:00:00.000Z',
   keys: Object.freeze(CODEX_CLI_CONFIG.map(value => value.split('=')[0]).filter(key => !key.startsWith('features.'))),
 });
-/** A2 review: the Codex versions that review (CODEX_CONFIG_REVIEW and the agent driver's protocol pin) covers. */
+/** A2 review: the Codex versions that review (CODEX_CONFIG_REVIEW) was run against live. Newer ones pass the same checks. */
 export { REVIEWED_CODEX_VERSIONS };
 /** The three answers a setup pins, by the file names the loader accepts. */
 export const SETUP_FILES = Object.freeze({ versionOutput: 'version.stdout.txt', execHelp: 'exec-help.stdout.txt', features: 'features.stdout.txt' });
@@ -67,7 +69,8 @@ const TARGETS: Readonly<Record<string, string>> = Object.freeze({
   'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-musl',
   'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
 });
-const REVIEWED = REVIEWED_CODEX_VERSIONS.join(' or ');
+/** The versions Chausar runs, in owner words: the floor, or a newer version in its major. */
+const ACCEPTED = `${CODEX_MINIMUM_VERSION} or a newer ${CODEX_MINIMUM_VERSION.split('.')[0]}.x version`;
 
 export const SETUP_WORDS = Object.freeze({
   none: "Codex isn't on this computer.",
@@ -78,7 +81,7 @@ export const SETUP_WORDS = Object.freeze({
   notProgram: (bundle: boolean) => (bundle
     ? 'This Codex is in a form Chausar does not start. Use the Codex that comes with Chausar.'
     : 'This Codex is in a form Chausar does not start. Install Codex with its own installer, then check again.'),
-  otherVersion: (version: string, bundle: boolean) => `This is Codex ${version}. Chausar works with Codex ${REVIEWED}. ${bundle ? 'Update it, or use the Codex that comes with Chausar.' : 'Update it, then check again.'}`,
+  otherVersion: (version: string, bundle: boolean) => `This is Codex ${version}. Chausar works with Codex ${ACCEPTED}. ${bundle ? 'Update it, or use the Codex that comes with Chausar.' : 'Update it, then check again.'}`,
   lacking: (version: string | null) => `${version ? `Codex ${version}` : 'This Codex'} lacks a setting Chausar needs. Update it, then check again.`,
   noAnswer: 'This Codex did not answer its version check. Update or reinstall it, then check again.',
   noFolder: "Chausar can't keep a chosen Codex here.",
@@ -90,12 +93,15 @@ export const SETUP_WORDS = Object.freeze({
 
 const sha256Of = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 
-async function fileDigest(path: string): Promise<string> {
-  const info = await stat(path);
-  check(info.isFile() && info.size > 0 && info.size <= EXECUTABLE_LIMIT, 'CLI_HOST_EVIDENCE_INVALID', 'Use a bounded native Codex program.');
-  const hash = createHash('sha256');
-  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
-  return hash.digest('hex');
+/** The program's digest: read and hashed, unless this same unchanged file was hashed within the last minute (file-digest.ts). */
+function fileDigest(path: string): Promise<string> {
+  return digestOfUnchanged(path, async () => {
+    const info = await stat(path);
+    check(info.isFile() && info.size > 0 && info.size <= EXECUTABLE_LIMIT, 'CLI_HOST_EVIDENCE_INVALID', 'Use a bounded native Codex program.');
+    const hash = createHash('sha256');
+    for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+    return hash.digest('hex');
+  });
 }
 
 /** Runs a check command without a shell, with the tool's minimal environment, a time limit and a read limit. */
@@ -385,7 +391,7 @@ export class CodexTrust {
       check(dirname(dirname(manifest)) === folder, 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex choice points outside its folder.');
       const gateway = await loadSetup(manifest, pin.sha256 as string, this.#base);
       const evidence = gateway.codexCli!.capabilities.evidence;
-      check(evidence.kind === 'installed-help' && REVIEWED_CODEX_VERSIONS.includes(evidence.version), 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex is not a reviewed version.');
+      check(evidence.kind === 'installed-help' && codexVersionAccepted(evidence.version), 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex is not a version Chausar runs.');
       this.#use(gateway, 'owner');
       this.#sha256 = pin.programSha256 as string;
       return true;
@@ -400,7 +406,7 @@ export class CodexTrust {
         version?: unknown; entrypoint?: unknown; files?: Record<string, { sha256?: unknown }>; evidence?: { recordedAt?: unknown; files?: Record<string, unknown> } | null;
       };
       const evidence = manifest.evidence;
-      check(typeof manifest.version === 'string' && REVIEWED_CODEX_VERSIONS.includes(manifest.version) && typeof manifest.entrypoint === 'string' && manifest.files && evidence && typeof evidence.recordedAt === 'string' && evidence.files,
+      check(typeof manifest.version === 'string' && codexVersionAccepted(manifest.version) && typeof manifest.entrypoint === 'string' && manifest.files && evidence && typeof evidence.recordedAt === 'string' && evidence.files,
         'CLI_HOST_EVIDENCE_INVALID', 'The bundled Codex has no recorded setup.');
       const program = join(bundle, ...(manifest.entrypoint as string).split('/'));
       const programSha = manifest.files![manifest.entrypoint as string]?.sha256;
@@ -469,7 +475,8 @@ export class CodexTrust {
   /**
    * The setup in use, else a review of the Codex found at `found`: its program's digest and version, and whether its help
    * and features have what Chausar needs (the same loader on a review copy). Nothing is kept until the owner says yes.
-   * A Codex of a version Chausar has not reviewed is refused; when this install has its own Codex, that one is offered.
+   * A Codex older than the first reviewed version, or of a new major, is refused; when this install has its own Codex,
+   * that one is offered.
    */
   async review(found: string | null): Promise<CodexSetupView> {
     const current = this.current();
@@ -519,11 +526,11 @@ export class CodexTrust {
         const answer = await probe(program, role === 'versionOutput' ? [...SETUP_ARGS[role]] : [...CODEX_QUIET_ARGS, ...SETUP_ARGS[role]], cwd);
         if (answer.exitCode !== 0 || !answer.stdout.trim()) return role === 'versionOutput' ? refused(SETUP_WORDS.noAnswer, null, sha256) : refused(SETUP_WORDS.lacking(null), null, sha256);
         outputs[role] = answer.stdout;
-        // A2 review: only a reviewed version goes on to the rest of the checks.
+        // A2 review: only a version Chausar runs goes on to the rest of the checks, which decide what it can do.
         if (role === 'versionOutput') {
           version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\s*$/.exec(answer.stdout.trim())?.[1] ?? null;
           if (!version) return refused(SETUP_WORDS.noAnswer, null, sha256);
-          if (!REVIEWED_CODEX_VERSIONS.includes(version)) return refused(SETUP_WORDS.otherVersion(version, bundle), version, sha256);
+          if (!codexVersionAccepted(version)) return refused(SETUP_WORDS.otherVersion(version, bundle), version, sha256);
         }
       }
     } finally { await rm(cwd, { recursive: true, force: true }).catch(() => undefined); }
@@ -610,10 +617,3 @@ function reviewKey(sha256: string, path: string): string {
   return `${sha256}\u0000${path}`;
 }
 
-/** A Codex trust source handed to the venture options: a live profile, read at each use. */
-export function isCodexTrust(value: unknown): value is CodexTrust {
-  return value instanceof CodexTrust;
-}
-
-/** Thrown words for a host without a trust object (a test engine, the hosted app). */
-export const NO_TRUST = () => new ChausarError('CODEX_SETUP_UNAVAILABLE', SETUP_WORDS.noFolder);

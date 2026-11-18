@@ -108,8 +108,9 @@ export function OnlineSellerDesk() {
         {rows.length > 0 && <ul className={s.list} aria-label={t('pb-online-seller.saved')}>{rows.map(row => <li key={row.id} className={s.row}><span data-content="">{row.sourceName}</span><span>{t(`pb-online-seller.mode.${row.mode}`)}</span><Button variant="quiet" onClick={() => void open(row.id)}>{t('pb-online-seller.open')}</Button></li>)}</ul>}
       </div>
     </Tile>
-    {operations&&<SellerOperations key={selectedOrder} orderId={selectedOrder}/>}
-    {connections&&<SellerConnections key={selectedOrder} orderId={selectedOrder}/>}
+    {/* Each section starts over when the order changes, under its own key: both under the order's id alone were two siblings with one key. */}
+    {operations&&<SellerOperations key={`operations:${selectedOrder}`} orderId={selectedOrder}/>}
+    {connections&&<SellerConnections key={`connections:${selectedOrder}`} orderId={selectedOrder}/>}
     {report && <Tile as="section" label={t('pb-online-seller.report')}>
       <div className={s.body}>
         <h3 className={s.heading}>{t(`pb-online-seller.mode.${report.mode}`)}</h3>

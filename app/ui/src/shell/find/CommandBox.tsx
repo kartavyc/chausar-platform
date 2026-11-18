@@ -31,8 +31,20 @@ import s from './CommandBox.module.css';
 /** The header's box, drawn again in each page header. */
 const HEADER_BOX = '[data-find-header] input[role="combobox"]';
 
-/** The keys, the same at every width and shown at rest (F2). */
+/** The keys, the same at every width and shown at rest (F2). On a Mac the bar opens with Cmd K (ask.ts takes either). */
 export const FIND_KEYS = 'Ctrl K';
+export const FIND_KEYS_MAC = '⌘K';
+
+/** The keys as this computer names them: its platform says Mac (or an iPad or iPhone with a keyboard), else Ctrl K. */
+export function findKeysOn(platform: string | undefined): string {
+  return platform && /mac|iphone|ipad/i.test(platform) ? FIND_KEYS_MAC : FIND_KEYS;
+}
+
+/** The platform the browser reports: the newer field where it exists, else the old one. */
+function platformNow(): string | undefined {
+  if (typeof navigator === 'undefined') return undefined;
+  return (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform;
+}
 
 /** Words with the matched part marked, when the hit falls inside them. */
 function marked(text: string, hit: FindHit | null | undefined): ReactNode {
@@ -240,7 +252,7 @@ export function CommandBox({ variant = 'header', onDone, opener }: CommandBoxPro
             <Icon name="x" size={16} />
           </button>
         )}
-        <kbd data-code="" className={cx(s.keys, 'mono')} aria-hidden="true">{FIND_KEYS}</kbd>
+        <kbd data-code="" className={cx(s.keys, 'mono')} aria-hidden="true">{findKeysOn(platformNow())}</kbd>
       </div>
       {showing && answer.failed && <InlineError tone="expected" className={s.failed}>{t('find.failed')}</InlineError>}
       <div id={listId} role="listbox" aria-label={t('find.label')} className={s.list} data-find-list="" hidden={!showing}>

@@ -62,6 +62,24 @@ describe('Business > Decisions', () => {
     expect(first.textContent).toContain('Sent back with your words: Revise this to cut the intro');
   });
 
+  it('an entry says what was decided once: the reason is not repeated under a line that already holds it', async () => {
+    const { client } = start('#/business/decisions');
+    await client.request('venture.chief.review.set', { on: false });
+    await act(async () => { client.engine.emit({ type: 'queue.changed', businessId: 'lumen', at: '2026-10-23T10:00:00.000Z' }); });
+    await settle();
+    const first = await waitFor(() => {
+      const found = [...document.querySelectorAll<HTMLElement>('[data-decisions] li')].find((row) => row.textContent?.includes('Daily review off.'));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    expect(first.textContent).toContain('You decided: Daily review off.');
+    expect(first.textContent!.split('Daily review off.').length - 1).toBe(1);
+    expect(first.querySelectorAll('[data-engine-line]')).toHaveLength(1);
+    // A rule still shows beneath its line, and a reason the line does not hold still shows.
+    const ruled = [...document.querySelectorAll<HTMLElement>('[data-decisions] li')].find((row) => row.textContent?.includes('Rule: '));
+    expect(ruled).toBeTruthy();
+  });
+
   // A4 review round 2: the eyebrow names who decided as the reader reads it: You for the reader's own, else the role,
   // and Chausar for its own note.
   it('names the reader as You, another member by their role, and Chausar for its own note', async () => {

@@ -35,6 +35,11 @@ const fold = async (summary: string | RegExp) => {
   return node;
 };
 async function press(button: HTMLElement) { await act(async () => { fireEvent.click(button); }); }
+/** Make the file asks once first: the press, then the same words again on the ask. */
+async function makeFile(move: HTMLElement) {
+  await press(within(move).getByRole('button', { name: 'Make the file' }));
+  await press(within(move).getByRole('button', { name: 'Make the file' }));
+}
 async function sitara() {
   const engine = new FakeEngine({ closed: true });
   await engine.request('workspace.open', { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE });
@@ -118,7 +123,16 @@ describe('Keep this business: moving to another computer', () => {
     const move = await fold('Move to another computer');
     expect(within(move).getByText('Chausar makes one file and one code. On the other computer, choose Move from another computer, then give it both.')).toBeTruthy();
     expect(within(move).queryByLabelText(/passphrase/i)).toBeNull();
+    // Found on the real app, 16 November 2026: one press made the file and its code. It asks once first.
     await press(within(move).getByRole('button', { name: 'Make the file' }));
+    expect(within(move).getByText('Chausar makes one file with this whole business in it, and a code that opens it. Anyone with both can open your business. Nothing is saved to this computer until you press Save the file.')).toBeTruthy();
+    expect(sent(calls, 'workspace.transfer.export')).toEqual([]);
+    expect(within(move).queryByRole('group', { name: 'Move code' })).toBeNull();
+    await press(within(move).getByRole('button', { name: 'Cancel' }));
+    expect(within(move).queryByText('Chausar makes one file with this whole business in it, and a code that opens it. Anyone with both can open your business. Nothing is saved to this computer until you press Save the file.')).toBeNull();
+    expect(sent(calls, 'workspace.transfer.export')).toEqual([]);
+    expect(document.activeElement).toBe(within(move).getByRole('button', { name: 'Make the file' }));
+    await makeFile(move);
     expect(sent(calls, 'workspace.transfer.export')).toEqual([{}]);
     const code = within(move).getByRole('group', { name: 'Move code' });
     const groups = [...code.querySelectorAll('span')].map((part) => part.textContent ?? '');
@@ -148,12 +162,13 @@ describe('Keep this business: moving to another computer', () => {
     await press(within(move).getByRole('button', { name: 'Make the file' }));
     expect(within(move).getByRole('alert').textContent).toBe('Enter your passphrase.');
     expect(sent(calls, 'workspace.transfer.export')).toEqual([]);
+    expect(within(move).queryByRole('button', { name: 'Cancel' })).toBeNull();
     fireEvent.change(field, { target: { value: 'not the passphrase' } });
-    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await makeFile(move);
     expect(field.value).toBe('');
     expect(within(move).getByRole('alert').textContent).toBe("Couldn't do that: That passphrase doesn't match.");
     fireEvent.change(field, { target: { value: SAMPLE_PASSPHRASE } });
-    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await makeFile(move);
     expect(sent(calls, 'workspace.transfer.export')).toEqual([{ passphrase: 'not the passphrase' }, { passphrase: SAMPLE_PASSPHRASE }]);
     expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
     expect(document.body.textContent).not.toContain(SAMPLE_PASSPHRASE);
@@ -164,7 +179,7 @@ describe('Keep this business: moving to another computer', () => {
     const { calls } = start('#/business/keep');
     const move = await fold('Move to another computer');
     expect(screen.queryByText(/^Move file made /)).toBeNull();
-    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await makeFile(move);
     await waitFor(() => expect(screen.getByText(/^Move file made .+. Delete it once the move is done.$/)).toBeTruthy());
     expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
     await press(within(move).getByRole('button', { name: 'Done' }));
@@ -181,6 +196,10 @@ describe('Keep this business: moving to another computer', () => {
     const { calls } = start('#/business/keep', engine);
     const move = await fold('Move to another computer');
     expect(within(move).getByText('Make a recovery code first, in case the move goes wrong.')).toBeTruthy();
+    // It asks once first, saying the code shows once.
+    await press(within(move).getByRole('button', { name: 'Make the code' }));
+    expect(within(move).getByText('Chausar shows the recovery code once and keeps no copy. Be ready to save it somewhere safe.')).toBeTruthy();
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(0);
     await press(within(move).getByRole('button', { name: 'Make the code' }));
     expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(1);
     expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
@@ -362,8 +381,18 @@ describe('Keep this business: delete this business', () => {
 describe('Keep this business: the recovery code shown once', () => {
   it('Save as file gives the exact code on its own line, only when the owner asks; Done forgets it', async () => {
     const saved = catchSaves();
-    start('#/business/keep');
+    const { calls } = start('#/business/keep');
+    // A new code stops the old one working: it asks once first, and Cancel makes nothing.
     await press(await screen.findByRole('button', { name: 'Make a new one' }));
+    const words = 'The old recovery code stops working as soon as the new one is made. Chausar shows the new code once and keeps no copy.';
+    expect(screen.getByText(words)).toBeTruthy();
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(0);
+    await press(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText(words)).toBeNull();
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(0);
+    await press(screen.getByRole('button', { name: 'Make a new one' }));
+    await press(screen.getByRole('button', { name: 'Make a new one' }));
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(1);
     const code = (await screen.findByRole('group', { name: 'Recovery code' })).textContent!;
     expect(saved).toHaveLength(0);
     await press(screen.getByRole('button', { name: 'Save as file' }));
@@ -382,6 +411,7 @@ describe('Keep this business: the recovery code shown once', () => {
     vi.stubGlobal('print', print);
     start('#/business/keep');
     await press(await screen.findByRole('button', { name: 'Make a new one' }));
+    await press(screen.getByRole('button', { name: 'Make a new one' }));
     const code = (await screen.findByRole('group', { name: 'Recovery code' })).textContent!;
     expect(document.querySelector('[data-print-view]')).toBeNull();
     await press(screen.getByRole('button', { name: 'Print' }));
@@ -401,7 +431,7 @@ describe('Keep this business: secrets', () => {
     const { calls } = start('#/business/keep', await sitara());
     const move = await fold('Move to another computer');
     fireEvent.change(within(move).getByLabelText('Your passphrase'), { target: { value: SAMPLE_PASSPHRASE } });
-    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await makeFile(move);
     await press(within(move).getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(document.body.textContent).not.toContain(SAMPLE_MOVE_CODE));
     for (const input of document.querySelectorAll('input')) expect(input.value).not.toBe(SAMPLE_PASSPHRASE);

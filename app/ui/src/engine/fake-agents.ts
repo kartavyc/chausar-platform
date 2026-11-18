@@ -50,7 +50,7 @@ const FORGET_FINAL = "Forget erased this note's words, so it can't be undone.";
 const NOTE_CHANGED_LINE = 'This note changed since you opened it. Your draft is still here.';
 const ERASED_MESSAGE = 'Erased: you asked me to forget these words.';
 const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, with every approval setting. Chat does not change that.';
-const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Business, not by an agent's instructions.";
+const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Settings, not by an agent's instructions.";
 const CONTROLS_REASON = 'Tools, checks and limits are not changed from chat.';
 const ALWAYS_LIMIT = 2000;
 const MAX_NOTE = 600;
@@ -143,11 +143,15 @@ export class FakeAgentsDesk {
   private readonly books: Record<string, Book> = {};
   private seq = 0;
 
-  constructor(host: W4DeskHost, options: { fresh?: boolean; floor?: FloorDraft; retired?: RetiredLookup } = {}) {
+  /** Told once each time the chat consent is newly given (agents/consent.ts tells the daily review the same way). */
+  private readonly consentGiven: () => void;
+
+  constructor(host: W4DeskHost, options: { fresh?: boolean; floor?: FloorDraft; retired?: RetiredLookup; consentGiven?: () => void } = {}) {
     this.host = host;
     this.fresh = options.fresh ?? false;
     this.floor = options.floor ?? null;
     this.retired = options.retired ?? (() => null);
+    this.consentGiven = options.consentGiven ?? (() => undefined);
   }
 
   handles(method: string): boolean {
@@ -346,7 +350,7 @@ export class FakeAgentsDesk {
     if (!route) return { state: 'not-needed', text: null, digest: null, at: null };
     // As agents/consent.ts routedVendor: on OpenRouter the model's company is named, so another company asks again.
     const vendor = route.presetId === 'openrouter' && route.model?.includes('/') ? route.model.replace(/^~/, '').split('/')[0]!.toLowerCase() : null;
-    const text = `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${!vendor ? '' : vendor === 'openrouter' ? ", and OpenRouter picks which company's model gets each chat" : `, which passes it to the ${vendor} model you chose`}. Keys, passphrases and bank or card numbers are never sent.`;
+    const text = `Chats send your message and what Chausar reads to answer it (the earlier messages of the same chat, run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${!vendor ? '' : vendor === 'openrouter' ? ", and OpenRouter picks which company's model gets each chat" : `, which passes it to the ${vendor} model you chose`}. Keys, passphrases and bank or card numbers are never sent.`;
     const digest = this.hex(text);
     const last = this.book().consent;
     if (!last) return { state: 'needed', text, digest, at: null };
@@ -365,6 +369,7 @@ export class FakeAgentsDesk {
     if (view.state === 'given') return view;
     const at = this.host.now();
     this.book().consent = { presetId: route.presetId, model: route.model, digest: view.digest!, at };
+    this.consentGiven();
     return { state: 'given', text: view.text, digest: view.digest, at };
   }
 

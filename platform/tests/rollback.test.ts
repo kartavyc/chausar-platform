@@ -7,6 +7,9 @@ import { join } from 'node:path';
 import { ReleaseUpdater, canonicalReleaseManifest, type ReleaseManifest, type PrepareRollbackOptions, type RollbackRestoreRequest, type RollbackRestoreResult } from '../runtime/updater.ts';
 import { Vault } from '../runtime/vault.ts';
 import { noNet } from './helpers/no-net.ts';
+import type {DownloadRequest,ReleaseDownload} from '../runtime/updater.ts';
+/** A stand-in download that hands the whole answer over as one chunk. */
+const whole=(respond:(request:DownloadRequest)=>unknown):ReleaseDownload=>async request=>{const answer=await respond(request) as {status:number;body:string|Uint8Array;url?:string;headers?:Record<string,string>};return{status:answer.status,url:answer.url,headers:answer.headers,body:(async function*(){yield Buffer.from(answer.body as Uint8Array);})()};};
 
 test.beforeEach(t => noNet(t));
 
@@ -29,7 +32,7 @@ async function fixture(t:any) {
   const artifactPath=join(root,'previous.artifact');await writeFile(artifactPath,artifact);
   const current=release('2.0.0'),previous=release('1.1.0');previous.rollback.supported=false;
   let networkCalls=0;
-  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:current.version,stageDirectory:join(root,'unused-stage'),http:async()=>{networkCalls++;throw new Error('Rollback qualification must not fetch anything.');}});
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:current.version,stageDirectory:join(root,'unused-stage'),download:whole(async()=>{networkCalls++;throw new Error('Rollback qualification must not fetch anything.');})});
   const options:PrepareRollbackOptions={currentManifest:current,currentSignature:signature(current),previousManifest:previous,previousSignature:signature(previous),previousArtifactPath:artifactPath,backup:{path:backupPath,sha256:hash(backupBytes)},expectedVault:{vaultId:envelope.id,workspaceId:state.workspace.id,revision:state.revision},validateRestore:async request=>result(request)};
   return {root,updater,current,previous,options,state,backupBytes,networkCalls:()=>networkCalls};
 }

@@ -1,7 +1,12 @@
 /* PageTitle: D's `header.phead`, `.eyebrow`, `.h1`, `.sub` and `.tools` (D-Today.dc.html). */
 
+/* The tools sit beside the title while the title fits on one line beside them. Where it does not (Settings beside its
+   list in a window about 1000 px wide) they go under it, so the title is never squeezed to one word a line. The line
+   under the title takes the width the title's block has and asks for none of its own (see .line), so a long line
+   still wraps under a short title and never pushes the tools down. */
 .header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
@@ -9,6 +14,7 @@
 }
 
 .text {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -31,6 +37,8 @@
 }
 
 .line {
+  width: 0;
+  min-width: 100%;
   min-height: 1lh;
   margin-top: var(--sp-1);
   font-size: var(--text-body);
@@ -47,6 +55,7 @@
   flex: none;
   align-items: center;
   gap: var(--sp-2);
+  margin-left: auto;
 }
 
 /* Under 900 px a line that would wrap pushes the page down: it goes, and an empty slot gives its height back. */

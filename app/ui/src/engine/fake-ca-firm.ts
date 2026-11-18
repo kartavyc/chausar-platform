@@ -12,7 +12,6 @@ export function fakeCaFirmDesk(_host: W4DeskHost): FakePlaybookDesk {
     receipt:id=>work.receipt(id)??packs.receipt(id),
     forgetPeople(people,removeClient){work.forgetPeople(people,removeClient);packs.forgetPeople(people,removeClient);},
     methods: {
-      'venture.ca.differential.add': work.capture,
       'venture.ca.dataPack.export': packs.exportPack,
     },
   };

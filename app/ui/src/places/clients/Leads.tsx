@@ -14,6 +14,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, timeKeyIn } from '../../../../../platform/runtime/owner-format';
+import { looksLikePage } from '../../../../../platform/runtime/venture/customers/lead-source';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -32,22 +33,29 @@ export function LeadSheet(props: SheetComponentProps) {
   return props.id === 'new' ? <NewLeadSheet {...props} /> : <ExistingLeadSheet {...props} />;
 }
 
-type NewLead = { name: string; company: string; email: string; sourceUrl: string };
+type NewLead = { name: string; company: string; email: string; source: string };
 
-/** Add a lead: venture.leads.add with what was typed. The engine refuses a lead without the page it was found on. */
+/**
+ * Add a lead: venture.leads.add with what was typed. Where the owner found them is one field: a web address goes to
+ * the engine as the page (sourceUrl; "www." gets its https), anything else as the owner's own words (sourceNote), which
+ * the engine keeps as their statement. The engine refuses a lead with neither, in its own words under the field.
+ */
 function NewLeadSheet({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
-  const [draft, setDraft] = useState<NewLead>({ name: '', company: '', email: '', sourceUrl: '' });
+  const [draft, setDraft] = useState<NewLead>({ name: '', company: '', email: '', source: '' });
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<{ field?: 'sourceUrl'; message: string } | null>(null);
+  const [problem, setProblem] = useState<{ field?: 'source'; message: string } | null>(null);
   const set = (key: keyof NewLead) => (event: { target: { value: string } }) => setDraft((d) => ({ ...d, [key]: event.target.value }));
-  const ready = draft.name.trim() !== '' && draft.sourceUrl.trim() !== '';
+  const ready = draft.name.trim() !== '' && draft.source.trim() !== '';
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy || !ready) return;
-    const params: { name: string; company?: string; email?: string; sourceUrl: string } = { name: draft.name.trim(), sourceUrl: draft.sourceUrl.trim() };
+    const source = draft.source.trim();
+    const params: { name: string; company?: string; email?: string; sourceUrl?: string; sourceNote?: string } = {
+      name: draft.name.trim(), ...(looksLikePage(source) ? { sourceUrl: /^www\./i.test(source) ? `https://${source}` : source } : { sourceNote: source }),
+    };
     if (draft.company.trim()) params.company = draft.company.trim();
     if (draft.email.trim()) params.email = draft.email.trim();
     setBusy(true);
@@ -57,7 +65,7 @@ function NewLeadSheet({ onClose, returnFocus }: SheetComponentProps) {
       clientsChanged(engine);
       openSheet('lead', lead.id, document.querySelector<HTMLElement>('[data-add-lead]'));
     } catch (error) {
-      setProblem(codeOf(error) === 'LEADS_SOURCE_REQUIRED' ? { field: 'sourceUrl', message: messageOf(error) } : { message: messageOf(error) });
+      setProblem(codeOf(error) === 'LEADS_SOURCE_REQUIRED' ? { field: 'source', message: messageOf(error) } : { message: messageOf(error) });
       setBusy(false);
     }
   }
@@ -69,8 +77,8 @@ function NewLeadSheet({ onClose, returnFocus }: SheetComponentProps) {
         <Field label={t('clients.leads.new.company')} value={draft.company} onChange={set('company')} autoComplete="off" maxLength={120} />
         <Field label={t('clients.leads.new.email')} type="email" value={draft.email} onChange={set('email')} autoComplete="off" maxLength={200} />
         <Field
-          label={t('clients.leads.new.source')} type="url" value={draft.sourceUrl} onChange={set('sourceUrl')} autoComplete="off" required maxLength={500}
-          hint={t('clients.leads.new.sourceHint')} error={problem?.field === 'sourceUrl' ? problem.message : undefined}
+          label={t('clients.leads.new.source')} type="text" value={draft.source} onChange={set('source')} autoComplete="off" required maxLength={500}
+          hint={t('clients.leads.new.sourceHint')} error={problem?.field === 'source' ? problem.message : undefined}
         />
         {problem && !problem.field && <p className={s.failed} role="alert">{t('clients.leads.failed', { message: problem.message })}</p>}
         <div className={s.formActions}>
@@ -106,8 +114,11 @@ function ExistingLeadSheet({ id, onClose, returnFocus }: SheetComponentProps) {
         <>
           <dl className={s.facts}>
             <div className={s.fact}>
-              <dt>{t('clients.leads.foundOn')}</dt>
-              <dd data-code="" className="mono">{lead.sourceUrl}</dd>
+              {/* A page is shown as the address it is; the owner's own words are said as theirs, never as a find. */}
+              <dt>{t(lead.sourceUrl ? 'clients.leads.foundOn' : 'clients.leads.youSaid')}</dt>
+              {lead.sourceUrl
+                ? <dd data-code="" data-lead-source="" className="mono">{lead.sourceUrl}</dd>
+                : <dd data-content="" data-lead-source="">{lead.sourceNote}</dd>}
             </div>
             <div className={s.fact}>
               <dt>{t('clients.field.email')}</dt>

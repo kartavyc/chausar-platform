@@ -18,7 +18,7 @@ import { isAppChannel, readVenture, requireAppChannel, tidyWords, ventureAction 
 import { agentSettingsOf } from '../agent-runtime/settings.ts';
 import type { SearchProviderId, WebSearchView } from './search-types.ts';
 import { searchProviderOf, webSearchChange, webSearchViewOf } from './search-data.ts';
-export type { SearchProviderId, WebSearchView, SavedSearchKey } from './search-types.ts';
+export type { SearchProviderId, WebSearchView } from './search-types.ts';
 
 export { SEARCH_PROVIDERS } from './search-data.ts';
 const providerOf = searchProviderOf;

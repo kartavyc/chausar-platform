@@ -11,6 +11,7 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
+import { RUN_FIXED_WORDS } from './run-words.ts';
 import { formatElapsed, formatRate, formatUsd } from '../../owner-format.ts';
 import { playbookForRun } from '../delivery/workflow.ts';
 import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
@@ -24,11 +25,9 @@ import type {
 } from '../contracts.ts';
 // 4F3: the scope's cap in rupees at the owner's rate.
 import { rupeeFigure, rupeeRateWords, rupeesOf } from '../money/spend.ts';
-import { STOPPED_BY_YOU, stopAsked, watchdogLine } from '../delivery/harness/controls.ts';
 import { usualDuration } from '../delivery/estimates.ts';
 import { auditedSteps, type StepAudit } from '../delivery/judge/auditor.ts';
 import { runView } from '../delivery/runs.ts';
-import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { staleReason } from '../delivery/improve.ts';
@@ -38,7 +37,10 @@ import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
 import { regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
 import { agentFactsRowId, questionRowId, runError } from './queue.ts';
 import { screenSummary } from '../policy/untrusted.ts';
-import { agentName, businessOf, clientNameFor, elapsedText, lastEventAt, plain, short } from './shared.ts';
+import { businessOf, clientNameFor, elapsedText, lastEventAt, plain, short } from './shared.ts';
+import { runAgentName } from '../money/agent-meters.ts';
+import { openSearchesOf } from '../customers/find-search.ts';
+import type { OpenSearchView } from '../customers/find-types.ts';
 // What each tool did, in the owner's words: a leaf module now, so the breaker can read it too (4F2).
 import { TOOL_PURPOSE } from '../delivery/harness/tool-purpose.ts';
 import { runFailure } from '../delivery/failure-words.ts';
@@ -52,6 +54,9 @@ import { coverageView, readCoverage, workReceiptCoverage, type ReadCoverage } fr
 import { actOutcome, deliverableReport, runOutcome, type JudgeStanding } from '../delivery/outcomes.ts';
 import type { FileLike } from '../delivery/harness/files.ts';
 import type { WorkReceiptRecord } from '../contracts.ts';
+import type { RunEvidence } from './run-evidence.ts';
+import { assertNever, awaitingApproval, decided, inReview, stopLine, stopReason } from '../delivery/run-machine.ts';
+import { CARD_TEMPLATE_WORDS as CARD_T, fillWords } from './card-words.ts';
 
 /** The playbook step kind each tool serves. The agent loop moves between these three in any order. */
 const TOOL_KIND: Readonly<Record<string, StepKind>> = {
@@ -70,15 +75,15 @@ export const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
 const AGENT_TOOL_KIND:Readonly<Record<string,StepKind>>={read_business:'gather',read_client:'gather',read_order:'gather',list_files:'gather',read_file:'gather',search_records:'gather',calculate:'compute',draft_document:'write'};
 function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position):RunStep['state'] {
   const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);
-  if(calls.some(tool=>tool.status==='running'))return record.agentJob!.pendingApproval?'waiting':'current';
+  if(calls.some(tool=>tool.status==='running'))return awaitingApproval(record)?'waiting':'current';
   if(calls.some(tool=>tool.status==='failed'))return 'failed';
   // One-shot A1 (row 9): a draft handed over while the job still runs: the agent is still writing, the owner's step waits.
-  const finishing=record.status==='ready-for-review'&&!record.agentJob!.reviewReady&&!record.agentJob!.pendingApproval;
+  const finishing=record.status==='finishing'&&!awaitingApproval(record);
   if(finishing&&kind==='write')return 'current';
   if(finishing&&kind==='approve')return 'pending';
   if(kind==='write')return record.deliverable?'done':position.kind==='write'?position.state:'pending';
   if(kind==='verify')return record.checks.length?record.checks.every(check=>check.passed)?'done':'failed':'pending';
-  if(kind==='approve')return record.status==='ready-for-review'?'waiting':record.verdict?'done':'pending';
+  if(kind==='approve')return inReview(record)?'waiting':decided(record)?'done':'pending';
   // A proposed handoff is still unsent. No model tool completion can count as sending it.
   if(kind==='operator')return 'pending';
   return calls.some(tool=>tool.status==='done')?'done':'pending';
@@ -102,7 +107,7 @@ export function playbookCheckLabel(result: PlaybookCheckResult): string {
  * Why a practice case that named the rules judge has no judge result: the judge is asked only after every code check
  * passed. A judge that was never asked did not run (4J14, the one table), so it reads "Not run".
  */
-function judgeMissing(results: readonly CheckResult[]): { kind: string; id: string; label: string } {
+function judgeMissing(results: readonly CheckResult[]): RunEvidence {
   const why = results.every(result => result.passed) ? 'no quality check connected.' : 'a code check failed first, so the quality check was not asked.';
   return { kind: 'check', id: 'rules-judge', label: `${checkWord('not-run')}: ${why}` };
 }
@@ -230,7 +235,7 @@ export function waitSpans(state: State, ventureId: string, runId: string, openEn
 type Position = { kind: StepKind; state: RunStep['state'] };
 
 /** Where a run stands: the step kind it is at and that step's state. Once reviewed, only the owner's send is left. */
-function positionOf(run: ReturnType<typeof runView>, nowMs: number): Position {
+function positionOf(run: ReturnType<typeof runView>): Position {
   const loopKind = (): StepKind => {
     const harness = run.harness;
     if (!harness || harness.phase !== 'act') return 'write';
@@ -238,22 +243,18 @@ function positionOf(run: ReturnType<typeof runView>, nowMs: number): Position {
     return last ? toolKind(last.tool) : 'gather';
   };
   switch (run.status) {
-    // A stop asked while a turn is out (4F1): the run is still working until that step finishes.
-    case 'waiting-for-you': return { kind: loopKind(), state: run.agentJob?.pendingApproval ? 'waiting' : run.agentJob || stopAsked(run.harness) ? 'current' : 'waiting' };
+    // The AI job is at work; it waits only while one exact step of it asks for the owner's approval.
+    case 'working': return { kind: loopKind(), state: awaitingApproval(run) ? 'waiting' : 'current' };
     // Stopped (4F1): it waits for the owner's Resume at the step it stopped on; a stopped run never reads as done.
     case 'stopped': return { kind: run.harness?.phase === 'needs-answer' ? 'question' : run.harness?.phase === 'brief' ? 'work' : loopKind(), state: 'waiting' };
     case 'needs-answer': return { kind: 'question', state: 'waiting' };
-    case 'brief-waiting': {
-      const open = run.harness ? openDelegation(run.harness) : null;
-      const running = open?.status === 'running' && open.startedAt !== null && Date.parse(open.startedAt) + open.limits.minutes * 60_000 + 120_000 >= nowMs;
-      return { kind: 'work', state: running ? 'current' : 'waiting' };
-    }
     // One-shot A1 (row 9): handed over while the AI's job still runs: it is still at work, writing, not waiting on you.
-    case 'ready-for-review': return run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval ? { kind: 'write', state: 'current' }
-      : { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' };
+    case 'finishing': return awaitingApproval(run) ? { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' } : { kind: 'write', state: 'current' };
+    case 'ready-for-review': return { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' };
     case 'failed': return { kind: loopKind(), state: 'failed' };
     // Accepted, edited or rejected: Chausar sends nothing, so the send step stays the owner's.
-    default: return { kind: 'operator', state: 'pending' };
+    case 'accepted': case 'edited': case 'rejected': return { kind: 'operator', state: 'pending' };
+    default: return assertNever(run.status, 'job state');
   }
 }
 
@@ -264,15 +265,16 @@ function runStateOf(run: ReturnType<typeof runView>, position: Position): RunSta
 }
 
 /** unsigned: why a CA firm's regulated papers wait for the CA's sign-off (signoff-gate.ts), which an edit needs too. */
-function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null, watchdog: string | null = null): string | undefined {
+function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null): string | undefined {
   switch (run.status) {
     case 'accepted': return 'Draft accepted. You send it to the client.';
     case 'edited': return unsigned ? short(unsigned) : 'You edited the draft. You send your version.';
     case 'rejected': return run.verdict?.reason ? `Draft rejected: ${REASON_WORDS[run.verdict.reason]}.` : 'Draft rejected.';
-    case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
-    // A2 review: the watchdog's stop of a quiet (or, A2 second review, overlong) AI job says so, never "Stopped by you".
-    case 'stopped': return watchdog ?? run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
-    default: return undefined;
+    case 'finishing': case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
+    // The stop's own line: the owner's stop, an interruption, the watchdog, an answer, an erasure or a newer job (run-machine.ts).
+    case 'stopped': return stopLine(run) ?? undefined;
+    case 'working': case 'needs-answer': case 'failed': return undefined;
+    default: return assertNever(run.status, 'job state');
   }
 }
 
@@ -291,7 +293,7 @@ function deliveryRun(
   const harness = run.harness ?? null;
   // Runs without the agent loop never read files, asked or worked with tools: their loop steps are left out.
   const steps = stepsFor(state, venture, record).filter(step => record.agentJob || harness || !LOOP_KINDS.includes(step.kind));
-  const position = positionOf(run, now.getTime());
+  const position = positionOf(run);
   const runState = runStateOf(run, position);
   // In the loop the agent moves between reading, asking and working in any order: each of those steps is done once
   // it was used, and every later step waits. After the loop the steps run in order.
@@ -338,7 +340,7 @@ function deliveryRun(
     const elapsed = stepElapsed(stepCalls, now.toISOString(), stepState === 'current');
     const waitedMs = timed ? waitedBefore.get(step.kind) : undefined;
     const working = timed && elapsed !== undefined ? elapsed : undefined;
-    const evidence: { kind: string; id: string; label: string }[] = [];
+    const evidence: RunEvidence[] = [];
     if (step.kind === 'gather' && harness) {
       for (const id of harness.uploadIds) {
         const upload = listRecords(state, 'venture-upload', venture.id).find(item => item.id === id);
@@ -358,7 +360,7 @@ function deliveryRun(
         evidence.push({ kind: 'delegate-run', id: delegated.id, label: `What ${DELEGATE_LABELS[delegated.cli]} left` });
       }
     }
-    if (step.kind === 'compute' && order) evidence.push({ kind: 'price-receipt', id: order.priceReceiptId, label: 'Price receipt' });
+    if (step.kind === 'compute' && order) evidence.push({ kind: 'price-receipt', id: order.priceReceiptId, label: RUN_FIXED_WORDS.priceReceipt });
     if (step.kind === 'write' && run.deliverable) evidence.push({ kind: 'draft', id: run.id, label: short(agentWords(run.deliverable.title), 120) });
     if (step.kind === 'verify') {
       for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: checkLabel(result) });
@@ -385,10 +387,10 @@ function deliveryRun(
   const client = clientNameFor(state, venture.id, run.orderId);
   // C4 task 12: the client the run worked for, so a finished row can open the client sheet.
   const clientRecord = order ? listRecords(state, 'venture-client', venture.id).find(item => item.id === order.clientId && !item.self) : undefined;
-  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null, watchdogLine(record.agentJob));
+  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null);
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
-    runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
+    runId: run.id, businessId: business.id, agent: runAgentName(state, venture, record), purpose: fillWords(run.practiceNow && run.status !== 'accepted' ? CARD_T.practiceDraft : CARD_T.replyDraft, { client }),
     state: runState, startedAt: run.at, elapsed: spent.worked,
     ...(spent.waited !== undefined ? { waited: spent.waited } : {}),
     ...(runState === 'waiting' && spent.waitingSince ? { waitingSince: spent.waitingSince } : {}),
@@ -439,7 +441,7 @@ function deliveryRun(
 /** 4J13: the interruption a crash left on the run (H34) and the reports background jobs delivered into it (H30). */
 function leaseFields(record: DeliveryRunRecord): Pick<RunDetail, 'interrupted' | 'reports'> {
   return {
-    ...(record.interrupted ? { interrupted: { at: record.interrupted.at, line: record.interrupted.line, steps: record.interrupted.steps.map(step => ({ ...step })) } } : {}),
+    ...(stopReason(record) === 'interrupted' ? { interrupted: { at: record.stopped!.at, line: record.stopped!.line, steps: (record.stopped!.steps ?? []).map(step => ({ ...step })) } } : {}),
     ...(record.reports?.length ? { reports: record.reports.map(report => ({ at: report.at, from: report.from, line: report.line, sources: [...report.sources], warning: report.warning })) } : {}),
   };
 }
@@ -503,10 +505,8 @@ function controlSummary(state: State, venture: VentureRecord, record: DeliveryRu
   const usually = runState === 'active' || runState === 'waiting' ? usualDuration(state, venture.id, record.playbookHash) : null;
   // 4F2: a breaker stop names its rule as a code too, for the screen's own words.
   const trigger = record.status === 'stopped' && breakerStopped(record.harness) ? record.harness!.breaker!.trigger : null;
-  // 4J13: a run a crash cut reads Interrupted (delivery/leases.ts), never "Stopped by you".
-  const stop = record.status === 'stopped' ? { state: 'stopped' as const, line: watchdogLine(record.agentJob) ?? record.harness?.control?.line ?? record.interrupted?.line ?? STOPPED_BY_YOU, ...(trigger ? { trigger } : {}) }
-    : record.status === 'waiting-for-you' && stopAsked(record.harness) ? { state: 'stopping' as const, line: 'Stopping: the step in progress finishes first.' }
-      : null;
+  // 4J13: a run a crash cut reads Interrupted, never "Stopped by you": the stop carries its own line (run-machine.ts).
+  const stop = record.status === 'stopped' ? { state: 'stopped' as const, line: stopLine(record)!, ...(trigger ? { trigger } : {}) } : null;
   return { ...(usually ? { usually } : {}), ...(stop ? { stop } : {}) };
 }
 
@@ -544,7 +544,7 @@ function controlDetail(state: State, venture: VentureRecord, record: DeliveryRun
   if (harness?.gate) view.gate = { on: harness.gate.on, every: harness.gate.every, waiting: harness.gate.waiting };
   // The calls of the turn out now, from their run.call events: ids and states only, the newest state per call. They are
   // matched by the turn's own model call, so a cut turn's calls never show as a later turn's.
-  if (harness && record.status === 'waiting-for-you' && record.callId) {
+  if (harness && record.status === 'working' && record.callId) {
     const latest = new Map<string, 'start' | 'done' | 'error'>();
     for (const event of listRecords(state, 'venture-event', venture.id).filter(item => item.name === 'run.call').sort((a, b) => a.seq - b.seq)) {
       const data = event.data as { runId?: unknown; callId?: unknown; state?: unknown; modelCallId?: unknown } | null;
@@ -650,15 +650,15 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
   const scenarios = businessScenarios(state, venture.id, serviceTypeOf(state, venture));
   const { scenarios: total, passed } = record.summary;
   const summary: RunSummary = {
-    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Rehearse with practice clients', state: 'done',
+    runId: record.id, businessId: business.id, agent: runAgentName(state, venture), purpose: 'Rehearse with practice clients', state: 'done',
     startedAt: record.startedAt, elapsed: elapsedText(record.startedAt, record.finishedAt),
     result: `${passed} of ${total} practice ${total === 1 ? 'client' : 'clients'} passed.`,
   };
   const steps: RunStep[] = record.episodes.map((episode, index) => {
     const scenario = scenarios.find(item => item.id === episode.scenarioId);
-    const evidence: { kind: string; id: string; label: string }[] = [
-      ...episode.checks.filter(result => !result.passed).map(result => ({ kind: 'check', id: result.check, label: checkLabel(result) })),
-      ...(episode.playbookChecks ?? []).filter(result => result.outcome === 'fail').map(result => ({ kind: 'check', id: `${result.playbook}:${result.check}`, label: playbookCheckLabel(result) })),
+    const evidence: RunEvidence[] = [
+      ...episode.checks.filter(result => !result.passed).map((result): RunEvidence => ({ kind: 'check', id: result.check, label: checkLabel(result) })),
+      ...(episode.playbookChecks ?? []).filter(result => result.outcome === 'fail').map((result): RunEvidence => ({ kind: 'check', id: `${result.playbook}:${result.check}`, label: playbookCheckLabel(result) })),
     ];
     if (scenario?.checks.includes('rules-judge') && !episode.checks.some(result => result.check === 'rules-judge')) evidence.push(judgeMissing(episode.checks));
     return plain({
@@ -684,7 +684,7 @@ function fixWords(reason: string): string {
 function improvementRun(state: State, venture: VentureRecord, record: ImprovementRunRecord, business: { id: string }): Built {
   const startedAt = record.startedAt ?? record.at;
   const summary: RunSummary = {
-    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
+    runId: record.id, businessId: business.id, agent: runAgentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
     startedAt, elapsed: elapsedText(startedAt, record.at),
     // One-shot A4 (rows 38, 128): a kept version Practice no longer offers (adopted, rolled back, or the plan changed)
     // says why, in Practice's own words, never that it is ready to adopt.
@@ -730,15 +730,20 @@ function allRuns(deps: VentureDeps, ctx: Context, whole: boolean): { state: Stat
   return { state, venture, runs };
 }
 
-/** venture.runs.list { state? } (read): runs newest first. 'active' keeps the working and waiting ones, 'done' the rest. */
-export async function runsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ runs: RunSummary[] }> {
+/**
+ * venture.runs.list { state? } (read): runs newest first. 'active' keeps the working and waiting ones, 'done' the rest.
+ * searches (round 5, re-check 028): the searches for customers open now, Chausar's own work on an approved card, which
+ * is not an agent's run; listed for 'active' and 'all', and gone once a search ends.
+ */
+export async function runsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ runs: RunSummary[]; searches: OpenSearchView[] }> {
   const body = exactPayload(payload, ['state']);
   check(body.state === undefined || body.state === 'active' || body.state === 'done' || body.state === 'all', 'INVALID_VENTURE_REQUEST', 'Choose active, done or all runs.');
   const want = (body.state as 'active' | 'done' | 'all' | undefined) ?? 'all';
-  const { runs } = allRuns(deps, ctx, false);
+  const { state, venture, runs } = allRuns(deps, ctx, false);
   const summaries = [...runs.values()].map(build => build().summary)
     .filter(run => want === 'all' || (want === 'active') === (run.state === 'active' || run.state === 'waiting'));
-  return { runs: summaries.sort((a, b) => b.startedAt.localeCompare(a.startedAt)) };
+  const searches = venture && want !== 'done' ? openSearchesOf(state, venture.id, deps.clock().toISOString()) : [];
+  return { runs: summaries.sort((a, b) => b.startedAt.localeCompare(a.startedAt)), searches };
 }
 
 /** venture.runs.get { runId } (read): one run with its steps, tool lines, evidence, question and error. */

@@ -5,13 +5,14 @@ import { useEngine, useResource } from '../../engine/context';
 import type { BackupInspectLite, BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
 import { formatCount } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
-import { Confirm } from '../../parts/Confirm';
+import { Confirm, useSecondAsk } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { formatBytes, formatTime } from '../../../../../platform/runtime/owner-format';
 import { LeftContext, StartedContext } from '../onboarding/started';
+import { leaveBusiness } from '../../shell/switchBusiness';
 import { CopyImport } from '../onboarding/CopyImport';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
@@ -169,10 +170,20 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
   const [problem, setProblem] = useState<string | null>(null);
   const [made, setMade] = useState<MoveFile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  // Found on the real app, 16 November 2026: each of these acted on one press. Both ask once first.
+  const fileAsk = useSecondAsk();
+  const codeAsk = useSecondAsk();
 
-  async function make(event: FormEvent) {
+  /** Make the file, pressed: a locked business needs its passphrase typed before the ask. */
+  function askFile(event: FormEvent) {
     event.preventDefault();
     if (locked && !passphrase) { setProblem(t('custody.enterPassphrase')); return; }
+    setProblem(null);
+    codeAsk.done();
+    fileAsk.ask();
+  }
+
+  async function make() {
     const typed = passphrase;
     setPassphrase('');
     setBusy(true);
@@ -184,6 +195,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
       setProblem(failed(t, error));
     } finally {
       setBusy(false);
+      fileAsk.done();
     }
   }
 
@@ -201,11 +213,16 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
   }
 
   /** The nudge's button: a locked business takes the passphrase typed in this fold, as Make the file does. */
-  function makeCode() {
+  function askCode() {
     if (locked && !passphrase) { setProblem(t('custody.enterPassphrase')); return; }
+    setProblem(null);
+    fileAsk.done();
+    codeAsk.ask();
+  }
+  function makeCode() {
     const typed = passphrase;
     setPassphrase('');
-    setProblem(null);
+    codeAsk.done();
     void onMakeCode(locked ? typed : null);
   }
 
@@ -246,17 +263,25 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
           <div className={s.buttons}><Button variant="quiet" onClick={forget}>{t('business.done')}</Button></div>
         </div>
       ) : (
-        <form className={s.form} onSubmit={(event) => void make(event)}>
+        <form className={s.form} onSubmit={askFile}>
           <p className={s.line}>{t('business.moveLine')}</p>
           {locked && <PassphraseField label={t('business.yourPassphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />}
           {noCode && (
             <>
               <p className={s.warn}>{t('business.moveCodeFirst')}</p>
-              <div className={s.buttons}><Button disabled={busy} onClick={makeCode}>{t('business.moveCodeMake')}</Button></div>
+              {codeAsk.asking ? (
+                <Confirm action={t('business.moveCodeMake')} busy={busy} onCancel={codeAsk.cancel} onConfirm={makeCode}>
+                  <p className={s.line}>{t('business.makeCodeAsk')}</p>
+                </Confirm>
+              ) : <div className={s.buttons}><Button ref={codeAsk.button} disabled={busy} onClick={askCode}>{t('business.moveCodeMake')}</Button></div>}
             </>
           )}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
+          {fileAsk.asking ? (
+            <Confirm action={t('business.moveMake')} busy={busy} onCancel={fileAsk.cancel} onConfirm={() => void make()}>
+              <p className={s.line}>{t('business.moveMakeAsk')}</p>
+            </Confirm>
+          ) : <div className={s.buttons}><Button ref={fileAsk.button} type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>}
         </form>
       )}
     </Fold>
@@ -279,13 +304,11 @@ export function CloseBusiness({ unlock }: { unlock: UnlockMode | null }) {
   async function close() {
     setBusy(true);
     setProblem(null);
-    try {
-      await client.request('workspace.lock', {});
-      left();
-    } catch (error) {
-      setProblem(failed(t, error));
-      setBusy(false);
-    }
+    // The window stops asking this business for data before it locks (shell/switchBusiness.ts).
+    const outcome = await leaveBusiness(client);
+    if (outcome.left) { left(); return; }
+    setProblem(failed(t, outcome.error));
+    setBusy(false);
   }
 
   return (

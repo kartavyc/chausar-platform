@@ -28,12 +28,22 @@ export type PresetSpec = Omit<ModelPreset, 'availability' | 'availabilityReason'
 /**
  * What the screen says next to 'ready' or 'unverified'. No preset here has been tried against a live account by
  * Chausar, so none claims it: a key option says it was not checked with a live key, a command-line option that it
- * was not tried on a real task.
+ * was not tried on a real task. Once a real task ran through the option in this business (cli-status.ts
+ * lastPresetTask: a finished call, never a synthetic recording, or a heavy-work run), the note says how the last one
+ * went instead (verificationNoteNow).
  */
 export const VERIFICATION_NOTES = Object.freeze({
   key: 'Not yet checked with a live key.',
   cli: 'Not yet checked on a real task.',
+  worked: 'Its last task worked.',
+  failed: 'Its last task failed.',
 });
+
+/** The note beside an option now: its fixed words until a real task ran through it, then how the last one went. */
+export function verificationNoteNow(note: string | null | undefined, last: { outcome: 'succeeded' | 'failed' } | null): string | null {
+  if (note == null || !last) return note ?? null;
+  return last.outcome === 'succeeded' ? VERIFICATION_NOTES.worked : VERIFICATION_NOTES.failed;
+}
 
 function verificationNoteOf(fields: Omit<PresetSpec, 'consentDigest' | 'verificationNote'>): string | null {
   if (fields.verification === 'built-in') return null;

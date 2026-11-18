@@ -17,8 +17,6 @@ import { ChausarError } from '../../../portable.ts';
 import type {FactsHandoffInput as HandoffRequest,Json,FactsCallInput as ToolCallRecord} from './facts-types.ts';
 import { screenUntrusted } from '../../policy/untrusted.ts';
 
-export const HINDI_REVIEW = 'machine-drafted, needs a native reviewer';
-
 /** The facts a CA calculator may be short of, in the order they are asked. */
 export const FACT_FIELDS = ['regime', 'residency', 'ageBand', 'income', 'filedOn', 'gstin', 'period', 'payeeKind', 'paymentDate', 'entity', 'houseProperties', 'presumptive', 'capitalGains', 'agriculture', 'formExclusions', 'regimeHistory', 'totalIncome', 'taxEstimate', 'taxCredits', 'businessIncome'] as const;
 export type FactField = typeof FACT_FIELDS[number];

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// C5 task 30: the signed update feed. Reads the built installers in one folder (the Windows NSIS .exe and the Linux
-// AppImage; .deb, .tar.gz, blockmaps and checksums are not update targets), makes one ReleaseManifest for each, signs
+// C5 task 30: the signed update feed. Reads the built installers in one folder (the Windows NSIS .exe, the Linux
+// AppImage and, since the Mac build of 14 Nov 2026, the Mac .zip for each chip, which the app downloads, checks and
+// shows for the person to install by hand; .deb, .tar.gz, .dmg, blockmaps and checksums are not update targets), makes one ReleaseManifest for each, signs
 // each manifest and then the whole feed with the Ed25519 private key file passed in, and writes the feed and its detached
 // signature (<output>.sig). The tag workflow (release.yml) calls it; the private key never enters the checkout.
 // The feed expires (--valid-days, 90 by default): the release checklist in docs/desktop-releases.md says when to re-sign.
@@ -33,6 +34,9 @@ function targetOf(name) {
   const architecture = /(?:arm64|aarch64)/i.test(name) ? 'arm64' : 'x64';
   if (/\.exe$/i.test(name)) return ['win32', architecture];
   if (/\.AppImage$/.test(name)) return ['linux', architecture];
+  // A Mac build's zip, named with electron-builder's mac word and the chip (Chausar-Beta-1.2.3-mac-arm64.zip). The dmg
+  // is for a first install; a Windows preview zip (-win-) is never a Mac update.
+  if (/-mac-(?:x64|arm64)\.zip$/.test(name)) return ['darwin', architecture];
   return null;
 }
 
@@ -69,7 +73,7 @@ export async function buildFeed({ artifacts, privateKey, version, channel, rollo
     };
     releases.push({ manifest, signature: sign(null, Buffer.from(canonicalReleaseManifest(manifest)), key).toString('base64url') });
   }
-  if (!releases.length) throw new Error(`No installer (.exe or .AppImage) in ${artifacts}.`);
+  if (!releases.length) throw new Error(`No installer (.exe, .AppImage or a Mac .zip) in ${artifacts}.`);
   const feed = { schemaVersion: 1, channel: pick, rolloutPercent: rollout, expiresAt: new Date(Date.parse(publishedAt) + validDays * 86_400_000).toISOString(), releases };
   const text = canonicalReleaseFeed(feed), signature = sign(null, Buffer.from(text), key).toString('base64url');
   // The app's own reader checks what was written: every manifest's fields, both signatures and the feed's shape.

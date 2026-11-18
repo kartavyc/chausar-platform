@@ -690,3 +690,11 @@
   margin-bottom: var(--sp-4);
   font-size: var(--text-body);
 }
+
+/* Your phone: Pair and, while phone access is on, Stop, side by side from the left. */
+.phoneButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}

@@ -10,6 +10,7 @@ import { canonical } from '../../portable.ts';
 import { CODEX_APPS_SERVER, CONNECTOR_WORDS, GMAIL_CONNECTOR_ID, codexGmailTool, codexGmailToolsConfig } from './connector-policy.ts';
 import { aiFailureWords, classifyAiText, classifyCodexInfo, type AiFailureKind } from '../models/ai-failure.ts';
 import { fromCodexLimits } from '../models/plan-meter.ts';
+import { codexVersionAccepted } from '../../providers/codex-cli.ts';
 
 type Launch = { command: string; args: string[]; cwd: string; env: Record<string, string> };
 type Qualification = { rpc: CodexRpc; jobRoot: string; profile: string };
@@ -19,8 +20,6 @@ export type CodexDriverOptions = {
   spawn?: (launch: Launch) => CodexChild;
   qualify?: (input: Qualification) => Promise<void>;
 };
-/** A2: the one Codex app-server protocol the agent driver is qualified against (the bundled Codex, scripts/codex-bundle.mjs). */
-export const CODEX_PROTOCOL_VERSION = '0.166.0';
 // A2: Codex 0.166.0 turns on a background app-server daemon, a browser annotation surface, in-app voice and plugin prefetching
 // by default (read live with this config on 3 Nov 2026); a job needs none of them, so they are off and checked off too.
 export const CODEX_PROHIBITED_FEATURES: readonly string[] = ['apps', 'plugins', 'hooks', 'memories', 'goals', 'multi_agent', 'multi_agent_v2', 'view_image', 'image_generation', 'computer_use', 'browser_use', 'browser_use_external', 'in_app_browser', 'tool_suggest', 'request_permissions_tool', 'skill_mcp_dependency_install', 'skill_search', 'sleep_tool',
@@ -297,10 +296,11 @@ export class CodexDriver implements AgentDriver {
     }
     try {
       const hello = await rpc.request('initialize', { clientInfo: { name: 'chausar', version: '0.1.0' }, capabilities: { experimentalApi: true, requestAttestation: false } });
-      // Tool enforcement is qualified against this exact installed protocol, not inferred from a version range.
-      // A2: 0.166.0 (its user agent leads with the client's name, then the version: "chausar/0.166.0 (...)").
-      // A2 review: exactly that version, with no pre-release or build suffix.
-      if (!object(hello) || typeof hello.userAgent !== 'string' || /^[^/\s]+\/(\S+)/.exec(hello.userAgent)?.[1] !== CODEX_PROTOCOL_VERSION) throw failPolicy();
+      // The version is only the floor (the qualified protocol or a newer one in its major): an exact version stopped every
+      // job at each Codex update. Tool enforcement is never inferred from it: the thread's own answer, its tool inventory
+      // and its feature list are each checked below, and again before every turn, and anything unexpected refuses the job.
+      // A2: the user agent leads with the client's name, then the version: "chausar/0.166.0 (...)".
+      if (!object(hello) || typeof hello.userAgent !== 'string' || !codexVersionAccepted(/^[^/\s]+\/(\S+)/.exec(hello.userAgent)?.[1])) throw failPolicy();
       rpc.notify('initialized', {});
       input.guard();
       // Config tables merge with the owner's configuration. Discover names through the runtime,

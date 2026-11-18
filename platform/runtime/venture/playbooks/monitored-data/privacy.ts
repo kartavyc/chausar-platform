@@ -1,4 +1,5 @@
 // Original monitored data erasure follows client, order, source, execution and report identities, never just copied words.
+import {eraseRun,eraseCall,eraseOrder} from '../../delivery/erase-runs.ts';
 import type {VentureTx} from '../../records.ts';
 import {removeRecords} from '../../network/people.ts';
 function callIds(value:unknown,found=new Set<string>()):Set<string>{if(Array.isArray(value))for(const x of value)callIds(x,found);else if(value&&typeof value==='object')for(const[k,x]of Object.entries(value)){if(['callId','modelCallId'].includes(k)&&typeof x==='string')found.add(x);if(['callIds','modelCallIds'].includes(k)&&Array.isArray(x))for(const id of x)if(typeof id==='string')found.add(id);callIds(x,found);}return found;}
@@ -8,9 +9,9 @@ export function eraseWatchNaming(tx:VentureTx,clientIds:ReadonlySet<string>,hand
  for(const f of tx.list('venture-upload'))if(f.scope.kind==='order'&&ownOrders.has(f.scope.orderId)&&named(Buffer.from(f.contentBase64,'base64').toString('utf8')))orders.add(f.scope.orderId);
  for(const p of tx.list('venture-watch-source'))if(clientIds.has(p.clientId)||named(p))orders.add(p.orderId);
  const projects=tx.list('venture-watch-source').filter(p=>orders.has(p.orderId)),ids=new Set(projects.map(p=>p.id)),runs=tx.list('venture-delivery-run').filter(r=>orders.has(r.orderId)),runIds=new Set([...orders,...ids,...runs.map(r=>r.id)]),calls=callIds(runs),reports=new Set(tx.list('venture-report').filter(r=>runIds.has(r.runId)).map(r=>r.id));
- for(const call of tx.list('venture-model-call'))if(calls.has(call.id))tx.replace({...call,payloadText:'',payloadTruncated:false,error:null,erasedAt:tx.now,...(call.status==='preview'?{status:'expired' as const}:{})});
- for(const run of runs){const{judge:_judge,...rest}=run;tx.replace({...rest,status:'stopped',callId:null,preview:null,deliverable:null,renderedText:null,editedText:null,harness:null,checks:[],playbookChecks:[],verdict:null});tx.emit('run.stopped',{runId:run.id});}
- for(const order of tx.list('venture-order'))if(orders.has(order.id)){const{intake:_intake,...rest}=order;tx.replace({...rest,request:'',status:'cancelled',chainState:'stopped'});}
+ for(const call of tx.list('venture-model-call'))if(calls.has(call.id))eraseCall(tx,call);
+ for(const run of runs)eraseRun(tx,run);
+ for(const order of tx.list('venture-order'))if(orders.has(order.id))eraseOrder(tx,order,'',true);
  removeRecords(tx,r=>r.kind==='venture-watch-source'&&ids.has(String(r.id))||r.kind==='venture-upload'&&r.scope!==null&&typeof r.scope==='object'&&'orderId'in r.scope&&orders.has(String(r.scope.orderId))||r.kind==='venture-asset'&&orders.has(String(r.orderId))||r.kind==='venture-share-link'&&runIds.has(String(r.deliveryId))||r.kind==='venture-report'&&reports.has(String(r.id))||r.kind==='venture-report-share'&&reports.has(String(r.reportId))||(r.kind==='venture-work-receipt'||r.kind==='venture-work-table')&&r.runRef!==null&&typeof r.runRef==='object'&&'runId'in r.runRef&&runIds.has(String(r.runRef.runId)));
  if(orders.size)tx.emit('desk.changed',{playbook:'monitored-data'});
 }

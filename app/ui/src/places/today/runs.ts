@@ -9,7 +9,9 @@ import type { RunDetail, RunSummary, VentureRunEvent } from '../../engine/types'
 import type { AvatarState } from '../../parts/Avatar';
 
 /** Run events and queue changes refresh what Today shows about runs. */
-export const RUN_EVENTS = (event: VentureRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed';
+// Round 5: a search for customers says each of its moves with a pipeline change (find-search.ts moveSearch), and the
+// runs list carries the open ones beside the runs.
+export const RUN_EVENTS = (event: VentureRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed' || event.type === 'pipeline.changed';
 
 /** A run's state as its ring says it: working, waiting on the owner, stopped, or nothing when it is done. */
 export function runStateOf(run: Pick<RunSummary, 'state'>): AvatarState {

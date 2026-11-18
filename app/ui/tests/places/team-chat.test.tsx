@@ -157,6 +157,50 @@ describe('The Chat tab', () => {
     expect((within(panel).getByRole('textbox', { name: 'Message Researcher' }) as HTMLTextAreaElement).value).toContain('sk-ant-');
   });
 
+  // Found by running the real app (15 Nov 2026): the agent chat kept the owner's words in the box while it wrote, where
+  // Chats already showed them in the thread at once. The same now holds here.
+  it('the owner\'s own message shows at once while the agent writes, the box is clear, and it shows once when the answer comes', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    start('#/team?sheet=agent:researcher&tab=chat', { intercept: (method, params, base) => (method === 'venture.agents.thread.send'
+      ? held.then(() => base.request('venture.agents.thread.send', params as never))
+      : undefined) });
+    const panel = await panelOf('Researcher');
+    const log = await within(panel).findByRole('log');
+    const box = within(panel).getByRole('textbox', { name: 'Message Researcher' }) as HTMLTextAreaElement;
+    await type(panel, 'Which thumbnails did best?');
+    // The answer is still being written: the owner's words are in the thread already, and the box holds nothing.
+    const bubble = within(log).getByText('Which thumbnails did best?').closest('[data-from="owner"]') as HTMLElement;
+    expect(bubble.hasAttribute('data-unsent')).toBe(false);
+    expect(box.value).toBe('');
+    expect(box.readOnly).toBe(true);
+    expect(within(panel).getByText(/^Writing/)).toBeTruthy();
+    release();
+    await settle();
+    await waitFor(() => expect(box.readOnly).toBe(false));
+    expect(within(log).getAllByText('Which thumbnails did best?')).toHaveLength(1);
+    expect(box.value).toBe('');
+  });
+
+  it('while the chat consent is asked the words wait in the thread, and Cancel puts them back in the box', async () => {
+    const engine = new FakeEngine();
+    await ledgerline(engine);
+    const { spy } = start('#/team?sheet=agent:bookkeeper&tab=chat', { engine });
+    const panel = await panelOf('Bookkeeper');
+    const log = await within(panel).findByRole('log');
+    const box = within(panel).getByRole('textbox', { name: 'Message Bookkeeper' }) as HTMLTextAreaElement;
+    await act(async () => { fireEvent.change(box, { target: { value: 'Hello there' } }); });
+    await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Send' })); });
+    const consent = await within(panel).findByRole('region', { name: 'Before your first message' });
+    expect(within(log).getByText('Hello there').closest('[data-from="owner"]')).not.toBeNull();
+    expect(box.value).toBe('');
+    await click(within(consent).getByRole('button', { name: 'Cancel' }));
+    await settle();
+    expect(calls(spy, 'venture.agents.thread.send')).toEqual([]);
+    expect(box.value).toBe('Hello there');
+    expect(within(log).queryByText('Hello there')).toBeNull();
+  });
+
   // C4 task 30: a send that fails stays in the thread as a bubble; Try again sends the same words and it becomes a normal one.
   it('a failed send stays as a bubble marked Not sent; Try again sends the same words', async () => {
     let refuse = true;

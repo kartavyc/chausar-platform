@@ -76,7 +76,6 @@ export class OntologyService {
   constructor(store: StateStore) { this.store = store; }
   packs() { return structuredClone(starterPacks); }
   current(ctx: Context): Dictionary | null { authorize(this.store, ctx); const value = this.store.read().ontology; return structuredClone(value?.current ?? (value?.operations ? value : null)); }
-  history(ctx: Context): Dictionary[] { authorize(this.store, ctx); return structuredClone(this.store.read().ontology?.history ?? []); }
   async publish(ctx: Context, input: DictionaryDraft | string): Promise<Dictionary> {
     authorize(this.store, ctx, 'admin');
     const draft = typeof input === 'string' ? starterPacks.find(p => p.pack === input) : input;

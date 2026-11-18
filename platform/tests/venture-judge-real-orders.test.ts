@@ -568,7 +568,7 @@ test('judgeAuto: between the ready draft and the judge, Accept waits; an accepte
     await assert.rejects(env.call('venture.delivery.review', { runId: listed.id, verdict: 'accepted' }), code('DELIVERY_NOT_READY'));
   };
   const run = await readyDraft(env);
-  assert.equal(between.status, 'ready-for-review');
+  assert.equal(between.status, 'finishing');
   assert.equal(between.canAccept, false, 'the judge is due, so Accept waits for it');
   assert.equal(between.acceptBlocked, 'AI work must finish before you can approve this draft.');
   assert.equal(judgeOf(run).passed, true);

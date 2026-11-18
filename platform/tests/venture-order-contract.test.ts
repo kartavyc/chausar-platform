@@ -53,7 +53,7 @@ test('order contract: an order on an offer with no contract runs as before and h
   const env = await contractBusiness(false);
   assert.equal(await env.call('venture.order.contract', { orderId: env.order.id }), null);
   const waiting = await env.call('venture.delivery.run', { orderId: env.order.id });
-  assert.equal(waiting.status, 'waiting-for-you');
+  assert.equal(waiting.status, 'working');
 });
 
 test('order contract: a required contract refuses the run until the owner signs the newest revision', async () => {
@@ -75,7 +75,7 @@ test('order contract: a required contract refuses the run until the owner signs 
   assert.equal(signed.digest, proposed.digest);
   assert.deepEqual(await env.call('venture.order.contract', { orderId: env.order.id }), signed);
   const waiting = await env.call('venture.delivery.run', { orderId: env.order.id });
-  assert.equal(waiting.status, 'waiting-for-you');
+  assert.equal(waiting.status, 'working');
 });
 
 test('order contract: it records what the owner agreed and never changes a price', async () => {
@@ -121,7 +121,7 @@ test('order contract: an agent may propose scope and check changes only; revisio
   // Until the owner signs revision 2, no run starts.
   await assert.rejects(env.call('venture.delivery.run', { orderId: env.order.id }), code('ORDER_CONTRACT_UNSIGNED'));
   await env.call('venture.order.contract.sign', { orderId: env.order.id, digest: second.digest });
-  assert.equal((await env.call('venture.delivery.run', { orderId: env.order.id })).status, 'waiting-for-you');
+  assert.equal((await env.call('venture.delivery.run', { orderId: env.order.id })).status, 'working');
 });
 
 test('order contract: each field is checked, ids are stable and stages are the order\'s own', async () => {

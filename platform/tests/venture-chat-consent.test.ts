@@ -8,7 +8,7 @@ import { listRecords } from '../runtime/venture/records.ts';
 import { code, phone } from './venture-judge-helpers.ts';
 import { agentBusiness, said, scriptChat } from './venture-agent-helpers.ts';
 
-const TEXT = 'Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent\'s notes; for a network search, your question as you typed it, your contacts\' titles and companies with each contact\'s own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to Claude Sonnet 5.5 with your key. Keys, passphrases and bank or card numbers are never sent.';
+const TEXT = 'Chats send your message and what Chausar reads to answer it (the earlier messages of the same chat, run steps, file names, figures with their receipts, the agent\'s notes; for a network search, your question as you typed it, your contacts\' titles and companies with each contact\'s own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to Claude Sonnet 5.5 with your key. Keys, passphrases and bank or card numbers are never sent.';
 
 test('consent: the first message waits for the consent, which names the connected AI', async () => {
   const env = await agentBusiness();

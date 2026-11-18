@@ -1,8 +1,8 @@
-# Zoho Books v3 accounting adapter
+# Zoho Books v3 accounting adapter: reading
 
-This is an injected, read-only acquisition adapter and an exact JSON import parser. All committed fixtures are newly authored synthetic data. They test code behavior and establish no real Zoho organization, sandbox, edition, country, tax regime or account qualification. There is no default HTTP provider, credential acquisition, OAuth exchange or write implementation.
+`platform/runtime/adapters/accounting/zoho.ts` is an injected, read-only acquisition adapter and an exact JSON import parser. All committed fixtures are newly authored synthetic data. They test code behavior and establish no real Zoho organization, sandbox, edition, country, tax regime or account qualification. This file has no default HTTP provider, credential acquisition, OAuth exchange or write.
 
-The scope is the first accounting slice, not the final product catalogue. QuickBooks and the remaining user-authorized connector groups remain in the parent scope.
+No engine method calls this reader today; only its tests do. The bookkeeping playbook (`venture/playbooks/bookkeeping-cfo/`) writes to Zoho Books through other files in the same folder (`zoho-write.ts`, `zoho-setup.ts`, `zoho-settlement.ts`, over `zoho-transport.ts`): exact drafts, masters, one opening balance and customer payments, each only after the owner approves it. Those files are not described here; they share this file's list of data-center hosts (`ZOHO_HOSTS`).
 
 ## Interfaces and target binding
 
@@ -10,7 +10,7 @@ The scope is the first accounting slice, not the final product catalogue. QuickB
 
 `createZohoReadAdapter(config)` returns the existing framework `ApiReadAdapter`. Its config names the opaque host-injected `transport`, execution `environment`, exact framework `operation`, `organizationId`, optional canonical `companyId`, fixed official `dataCenter`, `resource`, optional `resourceId` or refund `parentId`, optional `perPage` and dataset. The host resolves `context.authorization.credentialReference`; the adapter exposes no token, secret, Authorization header, login flow or account-creation method.
 
-`ZOHO_ADAPTER_VERSION` is `books-v3-adapter-1`. `zohoReadOperationId(resource, detail)` returns `zoho-books-v3-<resource>-list` or `...-detail`. `zohoReadConfiguration(config)` hashes every non-secret organization/company/DC/resource/detail/parent/page-size/dataset setting with the adapter revision. Factory construction requires that configuration digest, resource module, connector version and operation ID to match the qualified scope. The parent must choose explicit edition and deployment applicability and register read and import independently. Synthetic evidence cannot satisfy sandbox/live minima.
+`ZOHO_ADAPTER_VERSION` is `books-v3-adapter-1`. `zohoReadOperationId(resource, detail)` returns `zoho-books-v3-<resource>-list` or `...-detail`. `zohoReadConfiguration(config)` hashes every non-secret organization/company/DC/resource/detail/parent/page-size/dataset setting with the adapter revision. Factory construction requires that configuration digest, resource module, connector version and operation ID to match the qualified scope. A caller must choose explicit edition and deployment applicability and register read and import independently. Synthetic evidence cannot satisfy sandbox/live minima.
 
 The reader requires matching authority company, authority organization and data-scope company. Dataset defaults to `zoho-<resource>`. Only `branches: ['all']` and no period are accepted; scoped branch/date acquisition is unsupported. List and detail operations are separate. Detail IDs and refund parent IDs are checked against response IDs. The reader chooses a documented fixed data-center host, sends GET only, never follows source URLs or redirects, and checks the transport's exact final URL. Transport/SDK internal retries must be disabled. Dispatcher owns retries and cancellation/budgets; failed payload bytes are included in `ReadTransportError`.
 
@@ -30,7 +30,7 @@ The [invoices reference](https://www.zoho.com/books/api/v3/invoices/) was found,
 
 ## Operation evidence and qualification states
 
-Each supported parser profile requires a separately scoped captured-artifact import operation. The table describes implementation/fixture evidence, not externally usable registry permission. The parent owns the evidence registry, decoder, reviewed mapping and source-total reconciliation.
+Each supported parser profile requires a separately scoped captured-artifact import operation. The table describes implementation and fixture evidence, not permission to use an operation with a real account.
 
 | Exact resource/profile | Implementation and fixture state | External qualification and limitations |
 | --- | --- | --- |
@@ -40,21 +40,21 @@ Each supported parser profile requires a separately scoped captured-artifact imp
 | chartofaccounts list / detail, plus separate import | Synthetic tested; root detail envelope, documented account classifications and unknown-type abstention | No sandbox/live evidence; list pagination absent in official example requires real sample; balances are retained raw, not reinterpreted as transactional revenue |
 | creditnote-refunds list / separate import | Synthetic tested; separate refund ID, parent, date, foreign/base source amounts retained | Currency/settlement unverified; no automatic credit/refund joining; no nested refund detail implementation |
 | customerpayment-refunds list / separate import | Synthetic tested; exact payment parent, separate refund event ID/date/amount retained | Currency/settlement unverified; real pagination behavior still needs sample; no refund detail implementation |
-| remote create/update/delete/void/refund, guided export, PDF/CSV export | Not implemented | Unsupported and unqualified |
+| remote create/update/delete/void/refund, guided export, PDF/CSV export | Not in this file | Writes are in the other files named at the top of this page |
 
 No operation proves deletions, immutable correction ordering, whole-organization completeness, a stable source snapshot, local freshness from vendor generated time, source financial report totals or jurisdiction-complete tax behavior. Record revision text is retained where the documented source provides it; timestamps are not promoted to a monotonic revision or snapshot. Unknown status/account type remains unknown. Missing quantities, currency, totals or lines remain unavailable. No FX rate is applied, currency guessed, absent money filled with zero, draft/void original erased, or refund subtracted twice.
 
 `zohoSchemaFingerprint(originalContent)` fingerprints observed JSON structure, including numeric-versus-quoted wire types. Unknown/optional field changes conservatively produce drift for framework quarantine. It is not the stable adapter profile digest. Raw bytes and hash/capture provenance belong to the framework dispatcher/bridge; the local source objects preserve unconsumed fields and raw decimal spelling.
 
-The parent's qualified decoder and deterministic decimal engine must convert units only after a human accepts the exact recipe, event type, currency units and country-specific meaning. An independent organization/resource/branch/period/currency report must reconcile source totals before publication. AI-generated proposals have no acceptance authority. Terminal pagination and a synthetic fixture total cannot replace the report or source custody.
+A decoder must convert units only after a human accepts the exact recipe, event type, currency units and country-specific meaning. An independent organization/resource/branch/period/currency report must reconcile source totals before publication. AI-generated proposals have no acceptance authority. Terminal pagination and a synthetic fixture total cannot replace the report or source custody.
 
 ## Credentials and samples required for future qualification
 
-The parent needs existing user-authorized organization ID, canonical Chausar company ID, confirmed Zoho data center/country edition, existing approved OAuth app configuration and a broker-owned credential reference. Read scopes are `ZohoBooks.invoices.READ`, `ZohoBooks.creditnotes.READ`, `ZohoBooks.customerpayments.READ` and `ZohoBooks.accountants.READ`, granted only as needed. Actual access/refresh tokens, client secrets and OAuth headers remain in the credential broker/transport; they must not be committed, passed to parsers or embedded in evidence receipts. No live request is performed in this slice.
+A real read needs an existing user-authorized organization ID, canonical Chausar company ID, confirmed Zoho data center/country edition, existing approved OAuth app configuration and a broker-owned credential reference. Read scopes are `ZohoBooks.invoices.READ`, `ZohoBooks.creditnotes.READ`, `ZohoBooks.customerpayments.READ` and `ZohoBooks.accountants.READ`, granted only as needed. Actual access/refresh tokens, client secrets and OAuth headers remain in the credential broker/transport; they must not be committed, passed to parsers or embedded in evidence receipts. This reader has made no live request.
 
 Qualification samples must include list first/middle/terminal pages and detail payloads from the same organization, complete official invoice OpenAPI or readable official schema, exact API version/DC/edition/tax configuration, declared resource IDs/parents, response status/content type/final URL and custody hashes. Semantic samples need a normal/partial/paid/draft/void invoice, positive credit with invoice allocation, credit refund distinct from applied credit, successful/failed/unapplied payment, partial refund with separate refund event, withheld tax, inclusive/exclusive tax, discounts/rounding, multi-currency and fractional-quantity transactions, inactive/unknown account types and an independently reviewed report with exact row count and amounts for the same domain. Include controlled before/after corrections and deletions if those capabilities are requested; this adapter currently makes no correction/deletion completeness claim.
 
-The seventeen Zoho tests passed with `node --test platform/tests/accounting-zoho.test.ts`. They cover synthetic exact values, statuses, separate refund provenance, account-type abstention, pagination refusal, organization/resource/profile mismatches, scope rejection, wire drift, frozen operation metadata, raw bytes and failed-byte accounting. Node runtime tests do not establish a strict TypeScript check or vendor-account certification.
+Tests: `node --test platform/tests/accounting-zoho.test.ts` (17 tests). They cover synthetic exact values, statuses, separate refund provenance, account-type abstention, pagination refusal, organization/resource/profile mismatches, scope rejection, wire drift, frozen operation metadata, raw bytes and failed-byte accounting. They do not show that any real Zoho account works.
 
 ## Documentation and corpus rights
 

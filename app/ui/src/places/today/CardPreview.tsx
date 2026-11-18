@@ -8,6 +8,7 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import { PreviewFrame } from '../../parts/PreviewFrame';
 import { QuestionCardView } from '../../parts/QuestionCard';
 import { useTodayDrafts } from './drafts';
+import { draftViewWords, fixedWords } from './plan-words';
 import s from './CardPreview.module.css';
 
 /** What a big card shows to look at: drawn by the card through ApprovalRow's `preview`, which hands it `view`. */
@@ -35,6 +36,7 @@ export function EngineViewText({ text }: { text: string }): ReactNode {
 }
 
 const engineText = (text: string) => <EngineViewText text={text} />;
+
 
 /** The first lines of a view, across its sections, each section keeping its heading. */
 function firstLines(sections: QueueItemView['sections'], max: number): QueueItemView['sections'] {
@@ -232,7 +234,10 @@ export function useCardPreview(row: QueueRow, { unseen, enabled, taxRegistered }
   const isDraft = enabled && row.kind === 'draft' && ref?.kind === 'draft';
   // Today reads the drafts once for every card (drafts.tsx); the approval page's card reads them itself.
   const drafts = useTodayDrafts(isDraft);
-  const writtenBy = isDraft ? drafts.runs?.find((run) => run.id === ref?.id)?.writtenBy : undefined;
+  const said = isDraft ? drafts.runs?.find((run) => run.id === ref?.id)?.writtenBy : undefined;
+  // Round 6: "Written by ... through Codex" in the owner's language; the model and the tool keep their names.
+  const words = fixedWords(t);
+  const writtenBy = said ? words(said) : said;
   // A view's text changes only with a new version of its row (a new digest): read it again then, not on every change
   // in the queue.
   const digest = useRef(row.digest);
@@ -259,10 +264,11 @@ export function useCardPreview(row: QueueRow, { unseen, enabled, taxRegistered }
   if (!data) return written ? () => written : undefined;
   if (ref.kind === 'draft') {
     if (data.sections.length === 0) return undefined;
+    const own = draftViewWords(data, words);
     return () => (
       <>
         <div data-content="">
-          <PreviewFrame variant="text" view={{ title: data.title, line: data.line, sections: data.sections, amounts: data.amounts }} />
+          <PreviewFrame variant="text" view={{ title: own.title, line: own.line, sections: own.sections, amounts: data.amounts }} />
         </div>
         {written}
       </>

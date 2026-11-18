@@ -83,5 +83,7 @@
   "crm.facts.cancel": "रद्द करें",
   "crm.facts.earlier": "पुराने तथ्य",
   "crm.facts.replacedOn": "{day} को बदला",
-  "crm.facts.fromAi": "AI से"
+  "crm.facts.fromAi": "AI से",
+  "crm.edit.field.phone": "फ़ोन या WhatsApp",
+  "crm.facts.needBoth": "पहले विषय और तथ्य जोड़ें"
 }

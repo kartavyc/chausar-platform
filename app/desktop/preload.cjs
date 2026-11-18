@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 // Sandbox preloads cannot import project modules; main owns the shared validator.
-contextBridge.exposeInMainWorld('chausar', Object.freeze({
+const api = {
   request: async (method, payload = {}) => {
     const reply = await ipcRenderer.invoke('chausar:request', { method, payload });
     if (reply?.ok === true) return reply.result;
@@ -197,4 +197,19 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     ipcRenderer.on('chausar:venture-event', listener);
     return () => ipcRenderer.removeListener('chausar:venture-event', listener);
   },
-}));
+};
+// Electron copies an error thrown across the context bridge with its message alone, so a refusal's code and its owner
+// flag never reached the page: every screen that reads a code (the chat consent card first of all) was dead in the
+// real app, and no test saw it, because the tests' stand-in bridge hands the error over whole (found on the first real
+// run of the Mac app, 14 Nov 2026). `settled` runs one of the calls above and answers its outcome as plain data, which
+// crosses whole; the page raises the refusal again on its own side (app/ui/src/engine/client.ts). It reaches only the
+// calls above with the arguments given, so it opens nothing they do not.
+const SETTLED = Object.keys(api).filter(name => !['firstPaint', 'onEngineStatus', 'onEvent'].includes(name));
+api.settled = async (name, ...args) => {
+  if (typeof name !== 'string' || !SETTLED.includes(name)) return { ok: false, error: { code: 'INVALID_REQUEST', message: 'That is not a desktop request.' } };
+  try { return { ok: true, result: await api[name](...args) }; }
+  catch (error) {
+    return { ok: false, error: { code: typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message : 'The desktop request failed.', ...(error?.owner === true ? { owner: true } : {}) } };
+  }
+};
+contextBridge.exposeInMainWorld('chausar', Object.freeze(api));

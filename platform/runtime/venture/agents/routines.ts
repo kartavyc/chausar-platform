@@ -3,7 +3,9 @@
 // schedule is stored as once, every so many minutes, or days of the week at a time in a named time zone ("Every Monday
 // 09:00, Asia/Kolkata"), never as cron text. The prompt must stand on its own, since a routine runs without the chat:
 // words that lean on a conversation ("as above", "this one", "like before") are refused with ROUTINE_NOT_STANDALONE.
-// A routine never approves anything: each run waits for the owner on Today (agents/routine-runner.ts). Routines an
+// A routine never approves anything: each run waits for the owner on Today (agents/routine-runner.ts). The one
+// exception to the wait is the chief's daily review (chief/review.ts): switching it on is the owner's one approval, and
+// each run after that only reads the records and proposes, so it waits for nobody and still approves nothing. Routines an
 // agent or the chief set can never change or remove the owner's (ROUTINE_NOT_YOURS). A routine is switched on only for
 // an AI connection that Check connections has looked at (ROUTINE_NEEDS_CHECK, 4J7). History says "delivered", never
 // "done". Code only; the rules follow Open Duet's routines and cloudflare-os's schedule types, rewritten.
@@ -21,13 +23,16 @@ import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { teamFlagship } from '../views/team-shape.ts';
 import { AGENT_ID } from '../views/shared.ts';
 import { ventureTimeZone } from '../local-day.ts';
-import { formatClock } from '../../owner-format.ts';
+import { computerZone, formatClock, placeWords } from '../../owner-format.ts';
 import { ERASED_NAMED } from './notes.ts';
 import { chatRoute } from './consent.ts';
 import { requireConnectorChecked } from '../build/connector-check.ts';
 import {pickPlaybook} from '../playbooks/registry.ts';
 import {VA_REPORT_PROMPTS} from '../playbooks/virtual-assistant/routines.ts';
 import { RETIRED_LINE, RETIRED_SUFFIX, retirementOf } from './retired.ts';
+// The daily review's own name, words, time and line (chief/plan-view.ts, which the app's fake engine reads too).
+import { DAILY_REVIEW_NAME, DAILY_REVIEW_PROMPT, DAILY_REVIEW_TIME, REVIEW_LINE, REVIEW_WORDS } from '../chief/plan-view.ts';
+export { DAILY_REVIEW_NAME, DAILY_REVIEW_PROMPT, DAILY_REVIEW_TIME, REVIEW_LINE } from '../chief/plan-view.ts';
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -48,12 +53,31 @@ export function weeklyReview(venture: Pick<VentureRecord, 'country'>): RoutineIn
   };
 }
 
+const EVERY_DAY = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
+
+/**
+ * The chief's daily review of the standing plan (chief/review.ts): every day at a time on the owner's clock, where the
+ * business is. The owner approves it once; each run then reads the records, updates the plan and may put proposal
+ * cards on Today. A run never approves, sends, spends or changes a price.
+ */
+export function dailyReview(venture: Pick<VentureRecord, 'country'>, time: string = DAILY_REVIEW_TIME): RoutineInput {
+  return {
+    name: DAILY_REVIEW_NAME, agent: null, on: true, prompt: DAILY_REVIEW_PROMPT, review: 'daily',
+    schedule: { kind: 'calendar', weekdays: [...EVERY_DAY], time, timeZone: ventureTimeZone(venture.country ?? { code: 'XX' }) },
+  };
+}
+
+/** The business's daily review, when the owner has set one: at most one, removed ones left out. */
+export function dailyReviewOf(state: State, ventureId: string): RoutineRecord | null {
+  return liveRoutines(state, ventureId).find(routine => routine.review === 'daily') ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Time zones, by Intl only
 // ---------------------------------------------------------------------------
 
 import {knownTimeZone,wall,instantAt,occurrencesBetween,nextOccurrence} from './routine-time.ts';
-export {knownTimeZone,instantAt,occurrencesBetween,nextOccurrence,type Occurrences} from './routine-time.ts';
+export {occurrencesBetween,nextOccurrence} from './routine-time.ts';
 
 // ---------------------------------------------------------------------------
 // Schedules
@@ -120,19 +144,27 @@ function momentIn(iso: IsoTime, timeZone: string, order: VentureRecord['country'
 export const ordinal = (day: number) => `${day}${day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th'}`;
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
-/** The schedule in words with its time zone: "Every Monday 9:00 am, Asia/Kolkata". once and interval read in the business's zone. */
-export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord, 'country'>): string {
+/** The computer's own zone, or null for the hosted app, whose server is not where the owner is (chief/plan.ts zoneHere). */
+export const routineZoneHere = (deps: Pick<VentureDeps, 'host'>): string | null => (deps.host === 'hosted-web' ? null : computerZone());
+
+/**
+ * The schedule in the owner's words: "Every Monday at 9:00 am", and the place only when it is not where this computer
+ * is ("Every Monday at 9:00 am, London time"), as the daily review's line reads (chief/plan-view.ts reviewWhen). The
+ * stored schedule keeps its zone by name; only the words leave it out. once and interval read in the business's zone.
+ * here: the computer's own zone, or null (the hosted app, or a caller that does not know): then the place is said.
+ */
+export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord, 'country'>, here: string | null = null): string {
   if (schedule.kind === 'event') return eventWhen(schedule);
   const order = venture.country?.dateOrder ?? 'year-month-day';
   const zone = ventureTimeZone(venture.country ?? { code: 'XX' });
-  if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, zone, order)}, ${zone}`;
+  if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, zone, order)}${placeWords(zone, here)}`;
   if (schedule.kind === 'interval') {
     const every = schedule.everyMinutes % (24 * 60) === 0 ? `${schedule.everyMinutes / (24 * 60)} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
-    return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, zone, order)}, ${zone}`;
+    return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, zone, order)}${placeWords(zone, here)}`;
   }
-  if (schedule.kind === 'monthly') return `On the ${ordinal(schedule.day)} of each month, ${formatClock(schedule.time)}, ${schedule.timeZone}`;
+  if (schedule.kind === 'monthly') return `On the ${ordinal(schedule.day)} of each month at ${formatClock(schedule.time)}${placeWords(schedule.timeZone, here)}`;
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map(day => DAY_NAMES[day - 1]));
-  return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
+  return `Every ${days} at ${formatClock(schedule.time)}${placeWords(schedule.timeZone, here)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +212,7 @@ export function askedName(state: State, venture: VentureRecord, agent: string | 
 /** The input checked: the name, the agent (one on the team, or null for the chief), a standalone prompt and the schedule. */
 function checkInput(state: State, venture: VentureRecord, raw: unknown, nowMs: number): RoutineInput {
   check(raw !== null && typeof raw === 'object' && !Array.isArray(raw), 'INVALID_VENTURE_REQUEST', 'Send the routine.');
-  const body = exactPayload(raw, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport'], ['name', 'prompt', 'schedule', 'on']);
+  const body = exactPayload(raw, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport', 'review'], ['name', 'prompt', 'schedule', 'on']);
   const name = tidyWords(plainText(body.name, 'Name', { min: 1, max: MAX_NAME }));
   const agent = body.agent === undefined || body.agent === null ? null : identifier(body.agent, 'Agent');
   if (agent !== null) check(!retirementOf(state, venture.id, agent), 'AGENT_RETIRED', RETIRED_LINE);
@@ -197,7 +229,18 @@ function checkInput(state: State, venture: VentureRecord, raw: unknown, nowMs: n
   if (!kept || JSON.stringify(kept) !== JSON.stringify(schedule)) checkSchedule(body.schedule, nowMs);
   // C7: a trigger needs the relay and its source, and its prompt uses only its event's blanks.
   if (schedule.kind === 'event') { checkTrigger(venture, schedule); triggerFacts(prompt, schedule); }
-  return { ...(id ? { id } : {}), name, agent, prompt, schedule, on: body.on,...(report?{recordReport:report as RoutineInput['recordReport']}:{}) };
+  // The daily review: the routine the owner already keeps as one stays one, whatever the form sends back, and a new one
+  // is only ever the review's own name, words and every day. There is one per business.
+  const stored = id ? listRecords(state, 'venture-routine', venture.id).find(routine => routine.id === id) : undefined;
+  check(body.review === undefined || body.review === 'daily', 'INVALID_VENTURE_REQUEST', REVIEW_WORDS.shape);
+  const review = stored?.review === 'daily' || body.review === 'daily';
+  if (review) {
+    check(agent === null && name === DAILY_REVIEW_NAME && prompt === DAILY_REVIEW_PROMPT && report === undefined
+      && schedule.kind === 'calendar' && schedule.weekdays.length === 7, 'INVALID_VENTURE_REQUEST', REVIEW_WORDS.shape);
+    const other = dailyReviewOf(state, venture.id);
+    check(!other || other.id === id, 'INVALID_VENTURE_REQUEST', REVIEW_WORDS.onlyOne);
+  }
+  return { ...(id ? { id } : {}), name, agent, prompt, schedule, on: body.on,...(report?{recordReport:report as RoutineInput['recordReport']}:{}), ...(review ? { review: 'daily' as const } : {}) };
 }
 
 const NOT_YOURS = "You set this routine yourself, so only you can change or remove it. An agent's routine never touches yours.";
@@ -208,7 +251,7 @@ const NOT_YOURS = "You set this routine yourself, so only you can change or remo
  */
 export function saveRoutine(tx: VentureTx, input: RoutineInput, setBy: RoutineRecord['setBy']): RoutineRecord {
   if (!input.id) {
-    return tx.put<RoutineRecord>({ ...tx.base('venture-routine'), ...(input.schedule.kind === 'event' ? { facts: triggerFacts(input.prompt, input.schedule) } : {}), name: input.name, agent: input.agent ?? null, setBy, prompt: input.prompt, schedule: input.schedule, on: input.on, removedAt: null,...(input.recordReport?{recordReport:input.recordReport}:{}) });
+    return tx.put<RoutineRecord>({ ...tx.base('venture-routine'), ...(input.schedule.kind === 'event' ? { facts: triggerFacts(input.prompt, input.schedule) } : {}), name: input.name, agent: input.agent ?? null, setBy, prompt: input.prompt, schedule: input.schedule, on: input.on, removedAt: null,...(input.recordReport?{recordReport:input.recordReport}:{}), ...(input.review ? { review: input.review } : {}) });
   }
   const existing = tx.find('venture-routine', input.id);
   check(existing && existing.removedAt === null, 'INVALID_VENTURE_REQUEST', 'That routine was not found.');
@@ -230,7 +273,7 @@ export function removeRoutine(tx: VentureTx, id: string, by: RoutineRecord['setB
 // ---------------------------------------------------------------------------
 
 /** One routine as the owner reads it. withPrompt: only for a role that may change routines (4J22a). */
-export function routineView(state: State, venture: VentureRecord, routine: RoutineRecord, nowMs: number, withPrompt = true): RoutineView {
+export function routineView(state: State, venture: VentureRecord, routine: RoutineRecord, nowMs: number, withPrompt = true, here: string | null = null): RoutineView {
   const order = venture.country?.dateOrder ?? 'year-month-day';
   const zone = routine.schedule.kind === 'calendar' || routine.schedule.kind === 'monthly' ? routine.schedule.timeZone : ventureTimeZone(venture.country ?? { code: 'XX' });
   const next = routine.on ? nextOccurrence(routine.schedule, nowMs) : null;
@@ -238,11 +281,12 @@ export function routineView(state: State, venture: VentureRecord, routine: Routi
   const line = !routine.on ? 'Off. Nothing runs.'
     // C7: a trigger starts on its event, while Chausar is open, and only drafts.
     : routine.schedule.kind === 'event' ? `${eventWhen(routine.schedule)}, while Chausar is open. It makes a draft or a proposal for Today, nothing more.`
+    : next && routine.review ? `Next ${momentIn(next, zone, order)}. ${REVIEW_LINE}`
     : next ? routine.recordReport?`Next ${momentIn(next,zone,order)}. A private report from saved records waits for your approval on Today. No model call.`:`Next ${momentIn(next, zone, order)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.`
       : 'No more times to run.';
   // 4J22a: the prompt too, so the owner turns a routine off, on or changes it by sending the same words back; a role
   // that may not change routines (an accountant, a viewer) reads the schedule without the words.
-  return { id: routine.id, name: routine.name, agent: routine.agent, ...(routine.facts ? { facts: routine.facts.map(fact => FACT_WORDS[fact] ?? fact) } : {}), ...(withPrompt ? { prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}) } : {}), schedule: structuredClone(routine.schedule), when: whenWords(routine.schedule, venture), on: routine.on, next, line };
+  return { id: routine.id, name: routine.name, agent: routine.agent, ...(routine.facts ? { facts: routine.facts.map(fact => FACT_WORDS[fact] ?? fact) } : {}), ...(withPrompt ? { prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}) } : {}), schedule: structuredClone(routine.schedule), when: whenWords(routine.schedule, venture, here), on: routine.on, next, line, ...(routine.review ? { review: routine.review } : {}) };
 }
 
 /** One run in the history. A finished run says delivered, never done. */
@@ -256,7 +300,7 @@ export async function routinesListHandler(deps: VentureDeps, ctx: Context, paylo
   const { state, venture } = readAs(deps, ctx, 'read');
   const nowMs = deps.clock().getTime();
   const mayChange = ctx.role === 'owner' || ctx.role === 'cofounder';
-  return { routines: liveRoutines(state, venture.id).map(routine => routineView(state, venture, routine, nowMs, mayChange)) };
+  return { routines: liveRoutines(state, venture.id).map(routine => routineView(state, venture, routine, nowMs, mayChange, routineZoneHere(deps))) };
 }
 
 /** venture.routines.runs { id } (read): one routine's history, newest first. */
@@ -290,10 +334,11 @@ export async function routinesSetHandler(deps: VentureDeps, ctx: Context, payloa
   const input = checkInput(state, venture, body.routine, deps.clock().getTime());
   // 4J7 (K7): a routine is switched on only for an AI connection Check connections has looked at (its runs go to it).
   const route = chatRoute(deps.models.status(ctx));
-  if (input.on && route&&!input.recordReport) requireConnectorChecked(state, venture.id, `model:${route.presetId}`);
+  // The daily review plans from the records alone when the AI cannot be used, so it needs no checked connection.
+  if (input.on && route&&!input.recordReport && !input.review) requireConnectorChecked(state, venture.id, `model:${route.presetId}`);
   return ventureAction(deps, ctx, 'approve', 'routines.set', tx => {
     const saved = saveRoutine(tx, input, 'owner');
-    return { routine: routineView(tx.state, tx.venture!, saved, Date.parse(tx.now)) };
+    return { routine: routineView(tx.state, tx.venture!, saved, Date.parse(tx.now), true, routineZoneHere(deps)) };
   });
 }
 
@@ -328,7 +373,7 @@ const SUGGESTIONS_MAX = 2;
  * Code only; none when the plan names no recurring step, and none for a step a routine of that name already covers.
  * Nothing is stored: the owner adds one through the form and saves it, and each run waits on Today as every routine does.
  */
-export function routineSuggestions(state: State, venture: VentureRecord): RoutineSuggestion[] {
+export function routineSuggestions(state: State, venture: VentureRecord, here: string | null = null): RoutineSuggestion[] {
   const plan = acceptedBlueprintOrNull(state, venture);
   if (!plan) return [];
   const steps = plan.flagshipSteps
@@ -348,7 +393,7 @@ export function routineSuggestions(state: State, venture: VentureRecord): Routin
     const agent = owner && team.includes(owner) ? owner : team.includes(AGENT_ID) ? AGENT_ID : null;
     const schedule = rhythm.schedule(timeZone);
     const prompt = checkPrompt(`${name.replace(/[.\s]+$/, '')} for this business, from its own records and plan. Keep it as a draft for my approval.`);
-    found.push({ name, agent, prompt, schedule, when: whenWords(schedule, venture), step: step.title });
+    found.push({ name, agent, prompt, schedule, when: whenWords(schedule, venture, here), step: step.title });
     taken.add(name.toLowerCase());
   }
   return found;
@@ -358,7 +403,7 @@ export function routineSuggestions(state: State, venture: VentureRecord): Routin
 export async function routinesSuggestionsHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<RoutineSuggestionsView> {
   exactPayload(payload, []);
   const { state, venture } = readAs(deps, ctx, 'read');
-  return { suggestions: routineSuggestions(state, venture) };
+  return { suggestions: routineSuggestions(state, venture, routineZoneHere(deps)) };
 }
 
 /**

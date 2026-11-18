@@ -95,7 +95,7 @@ export function recheckSend(deps: VentureDeps, ventureId: string, runId: string,
   try {
     const state = deps.store.read();
     const run = findRecord(state, 'venture-delivery-run', runId);
-    const waiting = run && run.status === 'waiting-for-you' && run.callId === callId ? run.preview : null;
+    const waiting = run && run.status === 'working' && run.callId === callId ? run.preview : null;
     denial = recheckBeforeApply(runFacts(state, ventureId, run, { approvedDigest, currentDigest: waiting?.digest ?? null, callMicros: waiting?.estimatedMaxCostMicros ?? '0' }, deps.clock().toISOString()))
       // Ink v2 wave 4 (4F2): a call that writes a draft is held to today's cap on drafts (write-caps.ts).
       ?? draftCapDenial(state, findRecord(state, 'venture-record', ventureId), waiting ? run : null, deps.clock().toISOString());

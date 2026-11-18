@@ -76,7 +76,10 @@ describe('Money w4: owed by age and reminders', () => {
     // 4J20: what the late ones owe, with its own receipt (here the one late invoice), beside the words.
     const late = owed.querySelector('[data-late-figure]') as HTMLElement;
     expect(late.textContent).toContain('₹26,200');
-    expect(late.textContent).toContain('of it is late');
+    // The words lead and the figure ends the line, its mark right after it: the mark never cuts the sentence (sample item 18).
+    expect(late.textContent?.startsWith('Late:')).toBe(true);
+    expect(late.lastElementChild?.matches('[data-figure]')).toBe(true);
+    expect(late.lastElementChild?.lastElementChild?.matches('[data-receipt]')).toBe(true);
     expect(within(late).getByRole('button', { name: receiptMark(/^R-/) }).getAttribute('data-receipt')).not.toBe(figure);
     // The bar is at rest, not in a fold; the tile is sized to what it holds.
     expect(chart.closest('details')).toBeNull();
@@ -120,8 +123,9 @@ describe('Money w4: owed by age and reminders', () => {
 
 describe('Money w4: in and out by month', () => {
   it('paired bars with the engine values over them, what was left under each month, and every figure its own receipt', async () => {
-    // The sample has the owner's rupee rate (4Z3); cleared here, the month's paid calls cannot be counted in rupees.
-    start('#/money', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
+    // What the engine leaves out it says in words: here, as for a business outside India, whose AI spend has no rate to its currency.
+    const left = { count: 2, line: '2 not counted: 2 paid AI calls with no rate from US dollars to AED' };
+    start('#/money', { override: { 'venture.money.flow': async (params, request) => { const view = await request('venture.money.flow', params) as { basis: object }; return { ...view, basis: { ...view.basis, notCounted: left } }; } } });
     const flow = await tile('In and out by month');
     const chart = await within(flow).findByRole('img', { name: 'Money in and out for the last 6 months' });
     expect(within(flow).getByText('May to Oct')).toBeTruthy();
@@ -135,8 +139,8 @@ describe('Money w4: in and out by month', () => {
     expect(within(data).getByText('View chart data')).toBeTruthy();
     expect(within(data).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['In', 'Out', 'What was left', 'Receipt']);
     expect(within(data).getAllByRole('button', { name: receiptMark(/^R-/) }).length).toBeGreaterThan(0);
-    // The sample's calls cannot be counted in rupees without a rate: the engine says so, never a zero.
-    expect(flow.textContent).toMatch(/not counted: \d+ paid AI calls? with no rupee rate set/);
+    // Calls that cannot be counted in the business's currency: the engine says so, never a zero.
+    expect(flow.textContent).toContain(left.line);
     assertInkRules();
     assertFiguresProved();
   });
@@ -222,9 +226,10 @@ describe('Money w4: cash ahead and the next three weeks', () => {
 
 describe('Money w4: the month, last month and Export for your CA', () => {
   it('Received shows last month under this one with its receipt; the month picker moves Invoiced and Received', async () => {
-    const { calls } = start('#/money');
+    // A payment in September, so last month has something to show: a month that counts nothing has no receipt and no line.
+    const { calls } = start('#/money', { before: (engine) => engine.request('venture.payment.record', { invoiceId: 'inv-0039', amount: '1000', receivedOn: '2026-09-25', method: 'upi' }) });
     const received = await tile('Received');
-    const before = await waitFor(() => received.querySelector('[data-previous]') as HTMLElement);
+    const before = await waitFor(() => { const line = received.querySelector('[data-previous]') as HTMLElement | null; expect(line).not.toBeNull(); return line!; });
     expect(before.textContent).toContain('September 2026');
     expect(within(before).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     const picker = screen.getByRole('combobox', { name: 'Month' });
@@ -314,50 +319,68 @@ describe('C4 T28: why a forecast is flat', () => {
   });
 });
 
-describe('C4 T23: AI spend in one currency, and Set rate', () => {
+describe('C4 T23: AI spend in one currency, the business\'s own', () => {
   it('with a rate the card shows rupees alone with the receipt; the dollars are in the receipt, not beside the figure', async () => {
     start('#/money');
     const spent = await tile('AI spend this month');
     const figure = await waitFor(() => { const found = spent.querySelector('[data-figure] [data-ui-number]'); expect(found).toBeTruthy(); return found!; });
     expect(figure.textContent).toBe('₹60.10');
     expect(spent.textContent).not.toContain('$0.72');
-    expect(within(spent).queryByRole('link', { name: 'Set a rupee rate' })).toBeNull();
     expect(within(spent).getAllByRole('button', { name: receiptMark(/^R-/) }).length).toBeGreaterThan(0);
     assertFiguresProved();
   });
 
-  it('without a rate the card shows dollars and links to the spend settings, which open on the rate', async () => {
+  // Fix round 4 (real-app problem 12): a business in Indore read "AI spend this month $0.00" and "Shown first: US dollars,
+  // by business location" because rupees could lead only once the owner typed a rate. A rupee business now reads rupees
+  // from its first day at the dated reference rate (719800 micros x 943996 / 10^8 = 6795 paise), and nothing sends the
+  // owner off to set a rate first.
+  it('with no rate of the owner\'s own a rupee business still reads rupees, at the reference rate, on the card and on Spend', async () => {
     start('#/money', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
     const spent = await tile('AI spend this month');
-    const link = await within(spent).findByRole('link', { name: 'Set a rupee rate' });
-    expect(link.getAttribute('href')).toBe('#/money/spend?set=rate');
-    expect(spent.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('$0.72');
-    window.location.hash = link.getAttribute('href')!;
-    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    expect(await screen.findByLabelText(/Rupees per US dollar/)).toBeTruthy();
+    const figure = await waitFor(() => { const found = spent.querySelector('[data-figure] [data-ui-number]'); expect(found).toBeTruthy(); return found!; });
+    expect(figure.textContent).toBe('₹67.95');
+    expect(spent.textContent).not.toContain('$');
+    // One link in the foot, to each call; no second link runs into it (real-app problem 18a).
+    expect(within(spent).getAllByRole('link').map((link) => link.textContent)).toEqual(['Each call']);
+    cleanup();
+    start('#/money/spend', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
+    const paid = await tile('Paid calls');
+    await waitFor(() => expect(paid.textContent).toContain('₹67.95 this month'));
+    expect(paid.querySelector('h2')?.parentElement?.textContent ?? '').not.toContain('$0.72');
+    // The settings say which currency leads and at what rate, with the rate's source and day.
+    const shown = await waitFor(() => { const found = document.querySelector('[data-shown-first]'); expect(found).toBeTruthy(); return found!; });
+    expect(shown.textContent).toBe('Shown first: Rupees, by business location');
+    expect(document.body.textContent).toContain('₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)');
+    expect(screen.queryByRole('link', { name: /rupee rate/i })).toBeNull();
   });
 
-  it('the spend page total is in one currency: rupees with a rate, dollars and the link without', async () => {
+  it('the spend page total is in one currency: rupees at the owner\'s rate', async () => {
     start('#/money/spend');
     const paid = await tile('Paid calls');
     await waitFor(() => expect(paid.textContent).toContain('₹60.10 this month'));
     expect(paid.querySelector('h2')?.parentElement?.textContent ?? '').not.toContain('$0.72');
-    cleanup();
-    start('#/money/spend', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
-    const dollars = await tile('Paid calls');
-    await waitFor(() => expect(dollars.textContent).toContain('$0.72 this month'));
-    expect(within(dollars).getByRole('link', { name: 'Set a rupee rate' }).getAttribute('href')).toBe('#/money/spend?set=rate');
   });
 
-  it('the margins footnote offers Set rate without a rate and lands on the spend settings; with a rate it does not', async () => {
+  it('margins count the spend at the reference rate until the owner types a rate, and say which rate', async () => {
     start('#/money/margins', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
     const section = await tile(/^Margins in /);
-    const link = await within(section).findByRole('link', { name: 'Set rate' });
-    expect(link.getAttribute('href')).toBe('#/money/spend?set=rate');
+    await within(section).findByText(/at ₹94\.40 per \$1 \(FBIL reference rate of 5 Nov 2026\)/);
+    expect(within(section).queryByRole('link', { name: 'Set rate' })).toBeNull();
     cleanup();
     start('#/money/margins');
     const rated = await tile(/^Margins in /);
-    await within(rated).findByText(/invoiced before tax/);
-    expect(within(rated).queryByRole('link', { name: 'Set rate' })).toBeNull();
+    await within(rated).findByText(/at ₹83\.50 per \$1 \(your rate, set 15 Oct 2026\)/);
+  });
+
+  it('a business outside India with no rate to its currency reads Not counted, in the engine\'s words', async () => {
+    const line = 'October 2026: invoiced before tax. The AI and tool spend is not counted: no rate from US dollars to AED.';
+    start('#/money/margins', { override: { 'venture.money.margins': async (params, request) => {
+      const view = await request('venture.money.margins', params) as { rows: object[] };
+      return { ...view, line, rows: view.rows.map((row) => ({ ...row, spend: null, margin: null, note: 'Not counted: no rate from US dollars to AED' })) };
+    } } });
+    const section = await tile(/^Margins in /);
+    const row = await within(section).findByRole('row', { name: /Boat Audio/ });
+    expect(within(row).getAllByText('Not counted')).toHaveLength(2);
+    expect(section.textContent).toContain(line);
   });
 });

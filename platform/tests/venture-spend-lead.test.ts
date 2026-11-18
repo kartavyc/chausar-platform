@@ -1,12 +1,12 @@
 // Ink v2 wave 4, package 4Z3 (founder, 27 Oct): which currency leads AI spend. By the owner's location by default
-// (Auto: rupees lead for a business in India once a rupee rate is set), changeable in the spend settings (Rupees
+// (Auto: rupees lead for a business in India, at the owner's rate or the reference rate), changeable in the spend settings (Rupees
 // first, Dollars first). The engine sends the lead with every spend figure, so the screen works out nothing, and a lead
 // figure never shows more than two decimals of dollars; the exact figure stays in the receipt. Every amount is worked
 // out by hand in a comment.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AcrossMoneyView, BusinessSnapshot, BusinessSnapshotRead, MoneyOverview, SpendPolicyView, SpendRow, TeamListView } from '../runtime/venture/contracts.ts';
-import { dollarsLead, rupeesLead, spendLead } from '../runtime/venture/money/spend.ts';
+import { dollarsLead, rupeeRateFor, rupeeRateShown, rupeeRateWords, rupeesLead, spendLead } from '../runtime/venture/money/spend.ts';
 import { goalBusiness } from './venture-goals-helpers.ts';
 import { paidCall } from './venture-money-env.ts';
 import { call, code } from './venture-views-env.ts';
@@ -32,6 +32,31 @@ test('which currency leads: Auto by where the business is, or the owner\'s own c
   assert.equal(rupeesLead('usd', india), false);
 });
 
+// Fix round 4 (real-app problem 12): the real app showed an Indore business its AI spend as "$0.00" and "Shown first: US
+// dollars, by business location", because rupees could lead only once the owner had typed a rate. The business's own
+// currency decides: a rupee business has a rate from its first day, the dated reference rate shipped with the release.
+test('the rate rupee figures use: the owner\'s own, else the reference rate for a rupee business, else none', () => {
+  const own = { perUsd: '835000', setOn: '2026-10-23' };
+  assert.deepEqual(rupeeRateFor({ rupeeRate: own }, { currency: 'INR' }), own);
+  assert.deepEqual(rupeeRateFor({ rupeeRate: own }, { currency: 'USD' }), own);
+  assert.deepEqual(rupeeRateFor(null, { currency: 'INR' }), { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' });
+  assert.deepEqual(rupeeRateFor({ rupeeRate: null }, { currency: 'INR' }), { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' });
+  // Outside India a rupee rate would not be the business's own currency, so none stands in; nor before the business has a country.
+  assert.equal(rupeeRateFor(null, { currency: 'USD' }), null);
+  assert.equal(rupeeRateFor(null, null), null);
+});
+
+// The rate in words is in the owner form, as every figure on a screen is: two decimals, a half paisa up. The exact
+// figure (94.3996) is the one typed back in the settings field and kept in each receipt.
+test('the rate as the owner reads it has two decimals; the exact figure is typed back and kept in the receipt', () => {
+  assert.equal(rupeeRateShown('943996'), '₹94.40');
+  assert.equal(rupeeRateShown('835000'), '₹83.50');
+  assert.equal(rupeeRateShown('841250'), '₹84.13');
+  assert.equal(rupeeRateShown('841249'), '₹84.12');
+  assert.equal(rupeeRateShown('12345670000'), '₹12,34,567.00');
+  assert.equal(rupeeRateWords({ rate: { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' }, dateOrder: 'day-month-year' }), '₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)');
+});
+
 test('a spend figure as it leads: rupees with dollars beneath, dollars with rupees beneath, or dollars alone without a rate', () => {
   // $0.72 at 83.50: 719800 x 835000 / 10^8 = 6010.83 paise, to the nearest paisa 6010: ₹60.10.
   assert.deepEqual(spendLead('719800', { ...RUPEES, leads: true }), {
@@ -46,8 +71,9 @@ test('a spend figure as it leads: rupees with dollars beneath, dollars with rupe
 test('spend settings: Auto by default; the choice is kept, said back with which currency leads, and refused when unknown', async () => {
   const env = await goalBusiness();
   const get = () => env.money<SpendPolicyView>('venture.spend.policy.get');
-  // No rate yet: dollars lead whatever the choice.
-  assert.deepEqual([(await get()).currencyLead, (await get()).leads], ['auto', 'USD']);
+  // Fix round 4 (real-app problem 12): no rate of the owner's own yet, and a business in India still reads its spend in
+  // rupees first, at the dated reference rate. It never came out in dollars for want of a setting.
+  assert.deepEqual([(await get()).currencyLead, (await get()).leads], ['auto', 'INR']);
   // A business in India with a rate: Auto leads with rupees.
   const rated = await env.money<SpendPolicyView>('venture.spend.policy.set', { inrPerUsd: '83.50' });
   assert.deepEqual([rated.currencyLead, rated.leads], ['auto', 'INR']);
@@ -57,9 +83,9 @@ test('spend settings: Auto by default; the choice is kept, said back with which 
   assert.equal((await env.money<SpendPolicyView>('venture.spend.policy.set', { capUsd: '20' })).currencyLead, 'usd');
   const inr = await env.money<SpendPolicyView>('venture.spend.policy.set', { currencyLead: 'inr' });
   assert.deepEqual([inr.currencyLead, inr.leads], ['inr', 'INR']);
-  // Rupees first with the rate cleared: nothing to show in rupees, so dollars lead.
+  // Rupees first with the owner's rate cleared: the reference rate stands in again, so rupees still lead.
   const cleared = await env.money<SpendPolicyView>('venture.spend.policy.set', { inrPerUsd: null });
-  assert.deepEqual([cleared.currencyLead, cleared.leads], ['inr', 'USD']);
+  assert.deepEqual([cleared.currencyLead, cleared.leads], ['inr', 'INR']);
   await assert.rejects(env.money('venture.spend.policy.set', { currencyLead: 'eur' }), code('INVALID_VENTURE_REQUEST'));
 });
 

@@ -294,7 +294,7 @@ test('allowSession: with nothing granted, closing the vault or opening it again 
 
 test('a Today click hides only the record of what it ran: a run-sheet approval of turn 1 and a Today approval of turn 2 both show', async () => {
   const { env, order, fields } = await business();
-  const run = await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_2', harness: harness() });
+  const run = await seedRun(env, order, { ...fields, status: 'working', callId: 'call_2', harness: harness() });
   const send = (callId: string) => ventureAction(env.deps, owner, 'prepare', 'seed.send', tx => tx.put<JournalRecord>({
     ...tx.base('venture-journal-entry'), action: 'delivery.send', subject: `${run.id}:${callId}`, target: CLIENT_NAME, actionDigest: 'a'.repeat(64),
     describe: `Send the next step for ${CLIENT_NAME} to your AI.`, agent: null, shadow: false, quote: null, state: 'applied', claimedAt: tx.now, decidedBy: 'owner',
@@ -336,7 +336,7 @@ test('end to end in a vault whose stage says auto: the turn is stopped, nothing 
   const { env, order, fields } = await business('auto-spot-check');
   await call(env, 'venture.team.gate', { agentId: 'delivery', stepId: 'gather', gate: 'auto' });
   env.advance(1000);
-  const run = await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', harness: harness() });
+  const run = await seedRun(env, order, { ...fields, status: 'working', callId: 'call_1', harness: harness() });
   const state = env.store.read();
   const venture = listRecords(state, 'venture-record')[0];
   const playbook = listRecords(state, 'venture-playbook')[0];

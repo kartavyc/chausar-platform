@@ -127,7 +127,7 @@ test('only a draft the owner could accept, or did accept or edit, can be shared;
   const env = await setup();
   const { order } = await readyRun(env);
   const seed = (fields: Partial<DeliveryRunRecord>) => seedRun(env, order, { status: 'ready-for-review', servedBy: 'template', renderedText: TEXT, ...fields });
-  await assert.rejects(call(env.deps, 'venture.share.create', { deliveryId: (await seed({ status: 'waiting-for-you' })).id }), code('DELIVERY_NOT_READY'));
+  await assert.rejects(call(env.deps, 'venture.share.create', { deliveryId: (await seed({ status: 'working' })).id }), code('DELIVERY_NOT_READY'));
   await assert.rejects(call(env.deps, 'venture.share.create', { deliveryId: (await seed({ practice: true })).id }), code('PRACTICE_DRAFT'));
   await assert.rejects(call(env.deps, 'venture.share.create', { deliveryId: (await seed({ checks: [{ check: 'house-style', passed: false, detail: 'It has an em dash.' }] })).id }), code('DELIVERY_NOT_READY'));
   await assert.rejects(call(env.deps, 'venture.share.create', { deliveryId: (await seed({ renderedText: '  ' })).id }), code('DELIVERY_NOT_READY'));

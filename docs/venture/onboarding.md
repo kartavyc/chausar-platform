@@ -1,8 +1,10 @@
-# Onboarding: connect an AI first, one open box, a plan made from checked blocks
+# Onboarding: connect an AI first, before any vault
 
 The founder's decisions of 18 October 2026 changed how a new owner starts. The old first screen asked "What service business do you want to start?" and dropped the answer into one of eight built-in templates by counting keywords. No AI was involved, so "Dog walking for busy nurses in Leeds" got the generic template.
 
-Now the owner connects an AI first, then types one sentence about what they want to do. The AI reads it, picks views from a fixed list and builds a plan from Chausar's checked library of blocks. Code checks every id and every word. The AI chooses; Chausar draws. It never writes markup, a number or a price.
+Now the owner connects an AI first, before any business exists, and that AI reads the owner's own words. This page says what the engine does for that first run: the Connect rows, the draft desk that holds the AI before any vault, and the handover into the vault. The screens are Ink's first run ([ink.md](ink.md)).
+
+**What changed on 14 November 2026.** Onboarding v2 also had a plan composer: two model calls that built a plan from a checked library of blocks, drawn through a fixed list of views, with a list of the calls made before the vault. Ink's first run never called it, so the composer and its methods were removed. A vault made while it existed may still hold a composed plan, and the engine still reads one: "A composed plan a vault already holds" below says how. The sections marked as records describe the old renderer and its walk as they were.
 
 The spec (revision 2) and the research behind the ChatGPT row are local working notes in `.b2c-work/`, a folder that isn't in the repository. This page says what the build does and carries what a reader needs from them.
 
@@ -12,44 +14,40 @@ The spec (revision 2) and the research behind the ChatGPT row are local working 
 0  Pair this browser          local web only, when the browser has no session
 1  Connect an AI              API key (Anthropic or OpenAI), Claude Code, Codex; ChatGPT sign-in "Not open yet"
        |  the key lives in the engine's memory only: never on disk, never in the browser
-2  What do you want to do?    one sentence: an idea, a skill or a problem
-       |  call 1, the quick model (decide): idea, skill or problem? which two to four views fit?
-3  Working                    still outlines in the shapes of those views; nothing spins, nothing loops
-       |  call 2, the plan model (compose): blocks from the library, short words for each
-       |  code checks every block id, count, word cap and word: no money, no price words, no markup (a number marks a model estimate)
-4  Here's your plan           drawn by Chausar's own code from the blocks
-5  Set your prices            typed by the owner; nothing is added up yet
-       |  Keep this plan: Chausar makes the encrypted vault itself, named after the business, and this
+2  About you                  a few lines about the owner's work, a resume PDF or a LinkedIn export
+       |  one call, the quick model: a family of work and up to three offers, never a price
+3  Keep this plan             Chausar makes the encrypted vault itself, named after the business, and this
        |  computer keeps its key for the owner's login (no passphrase, no folder; see "Keeping the plan" below)
-6  Setting up                 the plan, the AI and "What was sent" move into the vault; prices become receipts
-7  Accept, Build, then the seven places, as before
+4  Setting up                 venture.create makes the business; the AI and the calls it made move into the vault
+       |  the built-in interview, then the first plan (venture.blueprint.draft), kept as About you showed it
+5  Accept, Build, then the places, as before
 ```
 
 Side paths:
 
-- **Continue without AI** (a quiet link on Connect): the open box, then today's built-in template plan, labelled "Built-in plan, not fitted to what you wrote."
-- **Already have a business? Open it** (on the open box) and **Open my business** (on Connect): Welcome back, which lists this computer's businesses (below).
+- **With no AI connected**, About you reads the owner's words by keywords, or the owner picks a family (`venture.about.pick`), and the first plan is the built-in one.
+- **Open my business**: Welcome back, which lists this computer's businesses (below).
 - **Hosted web** keeps today's order for now (idea, template plan, keep, then Add your AI inside the vault). Connect-first there needs a draft desk per session behind the hosted rate limits (founder flag F4).
 
 ## Keeping the plan, Welcome back and the live preview (keychain custody, 18 October)
 
 The founder's later decisions of 18 October removed the Keep it safe step. The engine side is in [docs/custody.md](../custody.md); this is what the screens do.
 
-- **Keep this plan** sends `workspace.create { name, pack: 'services', folder: null }` with no passphrase key. The name is the composed plan's name, or the built-in plan's kind of service. The engine picks the folder from the name and asks this computer to keep the vault key. Then Setting up, Accept and Build, as before. Progress has five segments here: AI, Idea, Plan, Accept, Build.
+- **Keep this plan** sends `workspace.create { name, pack: 'services', folder: null }` with no passphrase key. The name is the business name the owner kept, or the built-in plan's kind of service. The engine picks the folder from the name and asks this computer to keep the vault key. Then Setting up, Accept and Build, as before. Progress has five segments here: AI, Idea, Plan, Accept, Build.
 - **No protected storage.** When the engine answers `DEVICE_KEYS_UNAVAILABLE`, one screen, "Choose a passphrase.", shows the engine's own reason, two passphrase fields, then the recovery code once. Nothing else changes.
-- **Opening the app.** A held draft or a connected draft AI resumes onboarding. Otherwise `workspace.list`: one business that opens with this computer (and that its owner didn't close) opens straight away; more, or one locked with a passphrase, show Welcome back; none starts at Connect.
+- **Opening the app.** A connected draft AI resumes onboarding. Otherwise `workspace.list`: one business that opens with this computer (and that its owner didn't close) opens straight away; more, or one locked with a passphrase, show Welcome back; none starts at Connect.
 - **Welcome back** lists the businesses on this computer, newest opened first, two at rest and the rest under "More businesses". Each row has its name, a chip ("Opens with this computer", "Needs your passphrase" or "This computer's key is missing") and Open. A passphrase row opens its own field. "Start a new business" and "Move from another computer" sit under the rows; More options holds "Restore a backup", "Use a recovery code" (the business is chosen from the list, and a new passphrase is asked only when the engine says this computer can't keep the key), "Open by folder name" (only when the list is incomplete or empty), "Try the engine again" and, on the experimental engine, the sample business.
 - **Restore a backup** lists `workspace.backups.list` by business, each with its day and time and its kind ("Automatic", "You made it", "Before a change"), and sends the file's name, never a path. **Move a business here** takes the move file and its code; the code field is a password field outside any form and is cleared after each send.
 - **Trust & access** starts with "Keeping your business safe": the "Lock with a passphrase" switch, the recovery code, the automatic backups with Back up now and a confirmed restore, "Move to another computer" (the code in chunks of four and "Save the file") and "What this protects". The same panel opens from the workspace menu as "Backups and lock". In this-computer mode the menu's "Lock vault" reads "Close this business". Today shows one quiet line while the business has no recovery code.
 - **Hosted web** keeps server custody, Keep it and its recovery code, and never calls a custody method.
 
-**The live preview.** The right side shows the business coming together in real words, like the founder's prototype B: the kind, the name, the one line, each offer with how it is charged and its price, and a small website card with the first four page names, the line and the offers. Every word there is an engine answer, the owner's own typing, or one of five fixed phrases ("Your business", "Takes shape as you type.", "Price not set", "before tax", "Encrypted on this computer"). A price is the engine's `priceDisplay` before the vault, the receipt's total label and display after it, or, on the built-in plan, the owner's typed text beside the currency code. The renderer adds, rounds and formats nothing. There is no web address. The pane stays `aria-hidden`, and it isn't counted in the 45 words at rest. At phone width a strip under the header shows the small shapes, the kind and the name. Hosted gets the same preview, without the lock words.
+**The live preview (a record of the old renderer).** The right side shows the business coming together in real words, like the founder's prototype B: the kind, the name, the one line, each offer with how it is charged and its price, and a small website card with the first four page names, the line and the offers. Every word there is an engine answer, the owner's own typing, or one of five fixed phrases ("Your business", "Takes shape as you type.", "Price not set", "before tax", "Encrypted on this computer"). A price is the receipt's total label and display, or, before a receipt, the owner's typed text beside the currency code. The renderer adds, rounds and formats nothing. There is no web address. The pane stays `aria-hidden`, and it isn't counted in the 45 words at rest. At phone width a strip under the header shows the small shapes, the kind and the name. Hosted gets the same preview, without the lock words.
 
-Words at rest, header and left pane, measured by the renderer test with the longest answers: Pair 30, Connect 45, the open box 35, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Choose a passphrase 36, the recovery code 36, Setting up 9, Accept 45 (the longest plan) or 30, Build 44, Welcome back 38 (three businesses, the longest name, the typed folder offered) or 20 (none). These screens were captured in light and dark at 1366 px and 375 px from the renderer fixtures in headless Edge, not from a live engine, and walked live on 19 October against the real engine and this computer's Windows key store; the next section says what that walk did. Those captures are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones.
+Words at rest on the old renderer (a record), header and left pane, measured by the renderer test with the longest answers: Pair 30, Connect 45, the open box 35, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Choose a passphrase 36, the recovery code 36, Setting up 9, Accept 45 (the longest plan) or 30, Build 44, Welcome back 38 (three businesses, the longest name, the typed folder offered) or 20 (none). These screens were captured in light and dark at 1366 px and 375 px from the renderer fixtures in headless Edge, not from a live engine, and walked live on 19 October against the real engine and this computer's Windows key store; the next section says what that walk did. Those captures are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones.
 
 ## The live walk, 19 October
 
-The integration pass ran the app in local web mode on port 4391 with the demo replay variables and an empty vault folder under `.b2c-work/demo-data`, and walked it in headless Edge over the DevTools protocol, by clicking and typing in the real page. The engine used this computer's real key store, Windows DPAPI. What happened, in order:
+A record of the walk as it was, with the plan composer and the old renderer. The integration pass ran the app in local web mode on port 4391 with the demo replay variables and an empty vault folder under `.b2c-work/demo-data`, and walked it in headless Edge over the DevTools protocol, by clicking and typing in the real page. The engine used this computer's real key store, Windows DPAPI. What happened, in order:
 
 1. First visit: Pair this browser; the printed pairing link opened Connect. Paste an API key with a demo key, I agree, Connect.
 2. The open box, Based in India, "Monthly bookkeeping for cafes and small shops in Pune." The right side showed "Your business" and the typed line as it was typed, then the plan's kind, name, line, offers and a website card with four page names.
@@ -76,9 +74,9 @@ Each row on Connect has one status, the weakest of its presets, in this order: r
 | Codex on this computer | The owner's own `codex exec` on the reviewed host profile, on their own `codex login`. | needs setup without the reviewed profile, else unverified | Needs setup or Can connect |
 | Sign in with ChatGPT | Nothing. No preset, no route, no request, no button. | not open | Not open yet |
 
-Cheap by default: the recommended row connects Haiku 5.5 for decide and Sonnet 5.5 for compose with one Anthropic key. Claude Code runs Sonnet 5.5 for both tiers in this milestone (one model per connection, founder flag F12), and the screens name it "Claude Code (Sonnet 5.5)".
+Cheap by default: the recommended row connects Haiku 5.5 for quick work and Sonnet 5.5 for plans with one Anthropic key. Claude Code runs Sonnet 5.5 for both tiers in this milestone (one model per connection, founder flag F12), and the screens name it "Claude Code (Sonnet 5.5)".
 
-If the second call of the recommended pair fails, the first stays connected and `venture.ai.status` shows the quick tier only. The screen says "Connected for quick work only.", shows the engine's words and the key field again, and offers "Connect Sonnet 5.5 for plans", which sends only the second call. Connect doesn't move on until both the quick and the plan tier can serve, because decide runs on the quick tier.
+If the second call of the recommended pair fails, the first stays connected and `venture.ai.status` shows the quick tier only. The screen says "Connected for quick work only.", shows the engine's words and the key field again, and offers "Connect Sonnet 5.5 for plans", which sends only the second call. Connect doesn't move on until both the quick and the plan tier can serve.
 
 ### Sign in with ChatGPT: real, but not open to Chausar yet
 
@@ -112,103 +110,66 @@ The other conditions hold whether the gate is open or not: Chausar never reads `
 Before a business is kept, the engine holds everything in a **draft desk**, in memory only:
 
 - a secret shelf for keys (`model:<presetId>`);
-- an in-memory store with one draft business record, the draft connections and every draft call, so the same model port runs every rule it runs in the vault: the call is written down before it is sent, the monthly cap, the consent digest, one dispatch per call, the client-data guard;
-- one compose session (the decision, then the plan, then the owner's edits).
+- an in-memory store with one draft business record, the draft connections and every draft call, so the same model port runs every rule it runs in the vault: the call is written down before it is sent, the monthly cap, the consent digest, one dispatch per call, the client-data guard.
 
 | Event | Draft desk |
 |---|---|
-| First `venture.ai.*` or `venture.compose.*` request | Made (loaded on first use) |
+| First draft request | Made (loaded on first use) |
 | Any draft request | The idle timer starts again at sixty minutes |
-| Sixty minutes with no draft request | Cleared: keys, records and plan. The next fill or update answers `COMPOSE_NOT_FOUND`, and decide answers `NO_MODEL_CONNECTED`, so the screen can send the owner back to Connect. |
-| `workspace.create` (Keep this plan) | Kept, timer paused, so making the vault can't wipe the plan |
+| Sixty minutes with no draft request | Cleared: keys and records. `venture.ai.status` then lists no connection, so the screen can send the owner back to Connect. |
+| `workspace.create` (Keep this plan) | Kept, timer paused, so making the vault can't wipe the AI |
 | `venture.create` succeeds | Adopted into the vault, then wiped |
 | `venture.create` fails | Kept as it was; the owner can try again |
 | `workspace.open`, `recover`, `restore`, lock, close | Cleared |
 | The engine stops | Gone. Keys never touched disk. |
 | A vault that already holds a business is open | Every draft method refuses `VENTURE_EXISTS` |
 
-The nine draft methods are `venture.ai.options`, `venture.ai.connect`, `venture.ai.disconnect`, `venture.ai.status`, `venture.ai.calls`, `venture.compose.decide`, `venture.compose.fill`, `venture.compose.get` and `venture.compose.update`. The engine answers them before its vault check. The local server lets only the trusted owner's bootstrap session use them, and the hosted server answers `HOSTED_NOT_AVAILABLE`. `venture.ai.connect`, `decide` and `fill` are app-only: a phone or a tainted context is refused.
-
-Wave 6 (6C1, 6C2) adds six more draft methods for the new first run. `venture.ai.tools` reads whether Codex and Claude Code are installed and signed in, from each tool's own status command. `venture.ai.login.start` and `venture.ai.login.cancel` open and stop that tool's own sign-in; Chausar never shows a sign-in of its own and never reads the tool's login files. `venture.about.read` turns a few lines about the owner, a resume PDF or a LinkedIn export into a family and up to three offers, checked by a strict schema; `venture.about.pick` takes a family the owner picks; `venture.about.families` lists the families. Notes: `chausar-private/docs/superpowers/plans/w6/notes/6C1.md` and `6C2.md`.
-
-**Handover.** `venture.create` gains `composeId` and `composedDigest`, sent together or not at all. The renderer never sends the plan itself. The engine checks the held plan's digest (else `APPROVAL_STALE`), checks the plan again, then writes in one action: the business, the composition record, the answered interview, plan version 1, the adopted connections and calls (same ids and times, so "What was sent" in the vault lists the calls made before it), and the events `venture-created`, `plan-composed`, `interview-updated`, `blueprint-drafted` and `model-connected`. Only after that commit are the keys copied to the vault's memory-only shelf. An AI connected before the vault is adopted even when the owner chose a built-in plan.
-
-## The open box
-
-One textarea, "What do you want to do?", 10 to 2,000 characters. Decide sorts the sentence into one of four kinds:
-
-| Kind | Example | Lead view the pick lines steer toward |
-|---|---|---|
-| idea | "Dog walking for busy nurses in Leeds." | `offers-first` |
-| skill | "I'm good at Excel and I want to teach it." | `steps-first` |
-| problem (one other people have) | "Small cafes lose track of their bills." | `audience-first` |
-| not a service | "My landlord won't fix the heating." | none: "Chausar plans services you sell to other people. Try saying what you could do for them." |
-
-All three service kinds end in the same plan shape. There is no keyword fallback in the product: with no AI connected, decide refuses `NO_MODEL_CONNECTED` and the screen offers the built-in plan by name. The keyword rules in `platform/tests/fixtures/venture/onboarding/kind-rules.ts` exist for tests only.
-
-## The block library
-
-The AI picks block ids and writes short words for them. What each block means, who does each step, the approval and note words, and which pricing an offer may use are code (`platform/runtime/venture/core/blocks.ts`).
-
-| Kind | Ids | Count | The AI writes | Code decides |
-|---|---|---|---|---|
-| Offer | `retainer`, `subscription`, `one-off-project`, `package`, `audit`, `setup`, `session`, `course`, `hourly-help`, `done-for-you` | 1 to 3 | name (4 words), description (30 words), pricing from the block's list | id `offer_1` on, allowed pricing, price only from the owner |
-| Step | `collect-inputs`, `book-time`, `meet-client`, `hands-on-work`, `in-person-work`, `draft-reply`, `send`, `deliver-files`, `follow-up`, `get-paid` | 3 to 6, exactly one `draft-reply`, and `send`, `deliver-files`, `follow-up`, `get-paid` only after it | title (4 words) | id `step_1` on, who does it, what it can do today, its note |
-| Approval | `each-draft`, `prices-invoices`, `posts-in-your-name`, `client-files` | 1 to 4, always `each-draft` | nothing | the words |
-| Page | `home`, `offers-prices`, `how-it-works`, `start-request`, `booking`, `about`, `faq`, `portfolio`, `client-area`, `privacy-terms` | 4 to 6, always `home` and `offers-prices` | title (4 words), purpose (24 words) | id `page_1` on |
-| Tool | 29 connector catalogue ids, never a payments connector | 2 to 6 | reason (18 words) | the connector card |
-| Question | `customer`, `first-offer`, `channel`, `area`, `hours`, `experience`, `tools-you-use` | 0 to 2; 1 to 2 only with the `questions` view | text (20 words), 2 to 4 choices (5 words each) or a typed answer; never about prices | id `q_1` on, the field it fills, optional |
-| Note | `licence-may-apply`, `insurance`, `personal-data`, `children-or-care`, `regulated-advice`, `safety` | 0 to 3; 1 to 3 only with the `notes` view | nothing | the words: prompts to check, not advice |
-
-The tool ids are `mail-app`, `google-workspace`, `zoho-mail`, `cal-com`, `calendly`, `google-calendar`, `chausar-crm`, `hubspot`, `zoho-crm`, `attio`, `whatsapp`, `telegram`, `slack`, `discord`, `notion`, `google-drive`, `linear`, `airtable`, `linkedin`, `x`, `instagram`, `buffer`, `chausar-books`, `zoho-books`, `tally`, `xero`, `quickbooks-online`, `tally-forms` and `typeform`. The payment rail always comes from the owner's country.
-
-Who does a step is never the AI's call. `draft-reply` is the only step an agent drafts in this build ("An agent drafts a reply from the client's message. You check it."). `meet-client`, `in-person-work` and `get-paid` are the owner's alone, with no agent planned, so "Walk the dogs" can never be credited to an agent.
-
-Word caps for the top-level words: business name 4 words (60 characters), one line summary 24, customer line 24, the reading 12 (90 characters), the `audience-first` who line 7 and problem line 8. The caps keep every onboarding screen at 45 words or fewer even when every answer is as long as allowed. A longer answer is refused and repaired once (founder flag F21).
-
-## The view registry
-
-The AI picks two to four views from this fixed list: one lead view, first, then support views in the order it wants them. The renderer has one drawing function per id, built from text nodes; the AI never sends markup.
-
-| View | Role | Heading | Draws |
-|---|---|---|---|
-| `offers-first` | lead | What you sell | one or two offer names at rest |
-| `steps-first` | lead | How the work gets done | two or three step titles with who does each |
-| `audience-first` | lead | Who it helps | the who line and the problem line |
-| `pages` | support | Your website | pages, in a fold |
-| `tools` | support | Tools to connect | tools, in a fold |
-| `questions` | support | Quick questions | one or two questions, in a fold |
-| `notes` | support | Check before you start | notes, in a fold |
-
-The lead view is open at rest with only its lead items. The first support view is a closed fold. Everything else sits in one fold, "More of your plan". The right-hand preview shows the plan in real words (see "Keeping the plan, Welcome back and the live preview" above); while the AI writes, its website card outlines only the page list when the picks include `pages`, and `notes` adds one badge to the card.
-
-## The composer contract
+The draft methods are `venture.ai.options`, `venture.ai.connect`, `venture.ai.disconnect`, `venture.ai.status` and `venture.country.suggest`, with the six that wave 6 added and `venture.ai.reuse` (both below). The engine answers them before its vault check. The local server lets only the trusted owner's bootstrap session use them, and the hosted server answers `HOSTED_NOT_AVAILABLE`. `venture.ai.connect`, `venture.ai.reuse`, `venture.country.suggest`, `venture.ai.login.start`, `venture.ai.login.cancel` and `venture.about.read` are app-only: a phone or a tainted context is refused.
 
 `venture.country.suggest` accepts the owner's description and asks the connected AI for a country suggestion. The time-zone default stays selected until the owner confirms a change; computer language is never used to choose the country.
 
-```
-venture.compose.decide { text, countryCode }
-   quick tier, schema venture-decide, marker chausar-decide-v1
-   check -> rejected: one repair call (chausar-redecide-v1) -> rejected again: COMPOSE_REFUSED
-venture.compose.fill { composeId }
-   plan tier, schema built from the decided views only, marker chausar-compose-v1
-   check -> rejected: one repair call (chausar-recompose-v1) -> rejected again: COMPOSE_REFUSED
-   assemble (pure code) -> the plan, held in the draft desk
-```
+Wave 6 (6C1, 6C2) adds six more draft methods for the new first run. `venture.ai.tools` reads whether Codex and Claude Code are installed and signed in, from each tool's own status command. `venture.ai.login.start` and `venture.ai.login.cancel` open and stop that tool's own sign-in; Chausar never shows a sign-in of its own and never reads the tool's login files. `venture.about.read` turns a few lines about the owner, a resume PDF or a LinkedIn export into a family and up to three offers, checked by a strict schema; `venture.about.pick` takes a family the owner picks; `venture.about.families` lists the families. Notes: `chausar-private/docs/superpowers/plans/w6/notes/6C1.md` and `6C2.md`.
 
-- Only a refused answer (`MODEL_OUTPUT_REJECTED`) gets the repair call. Every other error (timeout, refusal by the model, budget, send setting off, no key, no CLI) passes through with the port's own words.
-- The repair call carries the engine's description of what was wrong, never the rejected text.
-- Each call is its own entry under "What was sent", the failed one included, and counts toward the month's cap. One plan can cost four calls at most (founder flag F8).
-- A refused decide stores no decision. A refused fill keeps the decision and stores no plan, so "Try again" calls fill again. There is never a made-up plan, a partial plan or a quiet swap to a template. The refused screen says "There's no plan to show." and "The AI's answer failed Chausar's checks again. No plan was saved. Both tries are listed under What was sent."
+**A later business (15 November).** Every new business goes through these same steps, the first or a later one. For a later one the app closes the open business and asks `venture.ai.reuse {}`: the engine connects, in the new draft, the Codex or Claude Code the owner already connected in another business on this computer, from the newest setup kept beside the business folders (`models/ai-setup.ts`). It passes every gate a connection passes, the tool's own fresh check included, and carries the agreement the owner gave there and when. A key never carries over; it stays in its own business. The answer is the draft's status with `reused`, the name of the business it came from, or null when nothing carried over, and the app then shows step 1 as on a first run. `venture.create` no longer takes `reuseAi`: the AI comes along through the draft, where the owner sees it, and the new business notes where its AI came from.
 
-### The number guard, every layer
+**Handover.** `venture.create` takes the idea, the country and an optional working name, never a plan. In one action it writes the business, its empty interview and the adopted connections and calls (same ids and times, so "What was sent" in the vault lists the calls made before it), with the events `venture-created` and `model-connected`. Only after that commit are the keys copied to the vault's memory-only shelf, and the draft is wiped. Calls made before the vault are adopted even when every connection was disconnected since; then no AI is claimed.
 
-1. **Schema.** No number or integer type anywhere a model writes.
-2. **Numbers are model estimates.** Since the founder's decision of 21 October a number the model writes, in digits or in words ("Walks for 2 dogs", "twice a week"), passes and marks its plan line `estimate: true`, shown as a model estimate and never given a receipt.
-3. **Money and price words.** No currency sign, no currency code or name next to a number ("INR 500", "Twenty pounds a walk"), no amount token even if the owner typed it (Rs500, 15GBP), no "20% off" or "half price", and none of the currency names, currency codes the owner didn't write themselves, or the price words free, discount and discounted. "stress-free" is allowed. "Twenty pounds a walk" is refused and repaired (founder flag F23).
-4. **Ids and choices** are enums and refs, never free text.
-5. **Prices** are typed by the owner, parsed by code into the currency's smallest unit, and shown back as the engine formats them. Before the plan is kept it shows only what the owner typed: no tax and no total (founder flag F5). After it, each priced offer gets a calculator receipt.
-6. **The renderer** never parses or works out an amount. It sends the typed text as typed and shows the engine's words.
+## A composed plan a vault already holds
+
+Nothing composes a plan any more. A vault from before 14 November 2026 may hold one: a `venture-composition` record (the owner's sentence, the kind of plan, the views it was drawn with, the model's checked answer and the owner's prices before the vault) and plan versions whose offers and steps carry block ids, with the plan's own pages, tools, notes and approval blocks. The engine keeps reading these, and the ids below stay in `platform/runtime/venture/onboarding-contracts.ts` for them.
+
+| Kind | Ids | What code decides from the id |
+|---|---|---|
+| Offer | `retainer`, `subscription`, `one-off-project`, `package`, `audit`, `setup`, `session`, `course`, `hourly-help`, `done-for-you` | which pricing the offer may use; the price only ever comes from the owner |
+| Step | `collect-inputs`, `book-time`, `meet-client`, `hands-on-work`, `in-person-work`, `draft-reply`, `send`, `deliver-files`, `follow-up`, `get-paid` | who does it, what it can do today, its note |
+| Approval | `each-draft`, `prices-invoices`, `posts-in-your-name`, `client-files` | the words |
+| Page | `home`, `offers-prices`, `how-it-works`, `start-request`, `booking`, `about`, `faq`, `portfolio`, `client-area`, `privacy-terms` | whether the build brief has a private client area |
+| Tool | 29 connector catalogue ids, never a payments connector | the starter connectors |
+| Question | `customer`, `first-offer`, `channel`, `area`, `hours`, `experience`, `tools-you-use` | nothing now: the answers are in the stored interview |
+| Note | `licence-may-apply`, `insurance`, `personal-data`, `children-or-care`, `regulated-advice`, `safety` | nothing now: the words are stored with the plan |
+
+The tool ids are `mail-app`, `google-workspace`, `zoho-mail`, `cal-com`, `calendly`, `google-calendar`, `chausar-crm`, `hubspot`, `zoho-crm`, `attio`, `whatsapp`, `telegram`, `slack`, `discord`, `notion`, `google-drive`, `linear`, `airtable`, `linkedin`, `x`, `instagram`, `buffer`, `chausar-books`, `zoho-books`, `tally`, `xero`, `quickbooks-online`, `tally-forms` and `typeform`. The payment rail always comes from the owner's country.
+
+The views a composed plan was drawn with are stored by id: `offers-first`, `steps-first` and `audience-first` (the lead views), then `pages`, `tools`, `questions` and `notes`.
+
+Who does a step is code's call (`platform/runtime/venture/core/blocks.ts`). `draft-reply` is the only step an agent drafts ("An agent drafts a reply from the client's message. You check it."). `meet-client`, `in-person-work` and `get-paid` are the owner's alone, with no agent planned, so "Walk the dogs" can never be credited to an agent.
+
+What the engine still does with such a plan ([core.md](core.md#composed-plans-a-vault-already-holds) has the detail):
+
+- Later versions ("Rewrite with AI", owner edits) keep the block ids, pages, tools, notes and approval blocks; a rewrite may change words, never the block structure. Rewritten words keep the caps the plan was composed with: business name, offer names and step titles 4 words, the one line summary and the customer line 24, an offer description 30.
+- A composed plan can't fall back to template words. With no AI connected, a rewrite refuses with "This plan was made with your AI. Connect an AI to rewrite it."
+- An offer can only be priced the ways its block allows.
+- The playbook finds the drafting step by its `draft-reply` block, and takes the agent's work step title only from `hands-on-work`.
+- The build brief uses the plan's own pages in order. Without a `client-area` page it leaves out the sign-in, row security and private upload lines, because there is no private client area to protect.
+
+## Numbers and prices in the AI's words
+
+These hold for every plan word an AI writes (`venture.blueprint.draft`, `venture.blueprint.suggest`):
+
+1. **Numbers are model estimates.** Since the founder's decision of 21 October a number the model writes in a plan line, in digits or in words ("Walks for 2 dogs", "twice a week"), passes and marks that line `estimate: true`, shown as a model estimate and never given a receipt.
+2. **Money and price words are refused.** No currency sign, no currency code or name next to a number ("INR 500", "Twenty pounds a walk"), no amount token even if the owner typed it (Rs500, 15GBP), no "20% off" or "half price", and none of the currency names, currency codes the owner didn't write themselves, or the price words free, discount and discounted. "stress-free" is allowed.
+3. **Prices** are typed by the owner, parsed by code into the currency's smallest unit, and shown back as the engine formats them. Each priced offer gets a calculator receipt.
+4. **The renderer** never parses or works out an amount. It sends the typed text as typed and shows the engine's words.
 
 ## The screens
 
@@ -222,31 +183,25 @@ Every "with <model>" line on these screens comes from the live status, and the p
 
 The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their test `venture-onboarding-renderer.test.ts`. [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words. The captures are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones.
 
-## After the plan is kept
+## After the business is kept
 
-The kept plan becomes the records that already existed, so everything downstream (receipts, the build brief, the playbook, rehearsal, orders, invoices) reads the same records as before. [core.md](core.md#composed-plans-onboarding-v2) explains how. In short:
-
-- Plan version 1 is written by the model, with its block ids, pages, tools, notes and approval blocks. Later versions ("Rewrite with AI", owner edits) keep all of them; a rewrite may change words, never the block structure.
-- A composed plan can't fall back to template words. With no AI connected, a rewrite refuses with "This plan was made with your AI. Connect an AI to rewrite it."
-- The playbook finds the drafting step by its `draft-reply` block, and takes the agent's work step title only from `hands-on-work`.
-- The build brief uses the plan's own pages in order. Without a `client-area` page it leaves out the sign-in, row security and private upload lines, because there is no private client area to protect.
-- The launch checklist starts with "Connect your AI", then "Say what you want to do".
+Everything downstream (receipts, the build brief, the playbook, rehearsal, orders, invoices) reads the same records as before. The launch checklist was replaced on 14 November by the chief's standing plan, which starts every business with "Accept your plan" and "Set your prices" (see [ink.md](ink.md)).
 
 ## How it is tested
 
 | Test | What it proves |
 |---|---|
-| `venture-compose.test.ts` (engine package) | the fixed words, the schemas, every validation rule and the number guard cases, the repair, assembly, later plan versions keeping the blocks, and that no runtime file imports from the tests |
-| `venture-draft.test.ts` (engine package) | the draft desk through the real engine: connect, the half-connected pair, the Claude Code gate, lifetime and idle expiry, the handover, and that the key is in no result, record, error or file |
-| `venture-onboarding-e2e.test.ts` | the whole new journey on recordings: connect before any vault, compose "Dog walking for busy nurses in Leeds" in the United Kingdom, type GBP 18 and GBP 60.50, keep the plan with no passphrase (the engine composed as `server.ts` composes it, with an in-memory key store in place of the operating system's), adopt the plan and the AI, receipts equal to the typed prices, accept, a brief with the plan's pages and no client-area lines, a playbook that credits no agent with the walks, GitHub followed read only from the existing recording, a template rehearsal, an order, an issued invoice whose total is the receipt total and whose money lines pass the number guard, and no key in any file, call record or vault record, then a restart that lists the business by name, finds an automatic backup and opens it with no passphrase; the repaired and refused recordings, each checked for the rule it was refused by and a repair that names that rule; a judged rehearsal of a composed plan (the demo bookkeeping plan, on all three practice clients); the skill and problem plans; the Claude Code route with the gate open and closed; a restart before Keep this plan; a plan kept with a passphrase, as on a computer with no protected storage; and the demo replay |
+| `venture-compose.test.ts` (engine package) | the fixed words of the Connect rows and the block library, the row statuses, a composed plan written into a vault (its structure, later plan versions keeping the blocks, the refusal without an AI), and that no runtime file imports from the tests |
+| `venture-draft.test.ts` (engine package) | the draft desk through the real engine: connect, the half-connected pair, the Claude Code gate, lifetime and idle expiry, the handover of the AI and the calls made before the vault, and that the key is in no result, record, error or file |
+| `venture-onboarding-e2e.test.ts` | the whole journey on a recording: connect before any vault, About you read by the connected AI, the business kept with no passphrase (the engine composed as `server.ts` composes it, with an in-memory key store in place of the operating system's), the AI and its call adopted, the first plan kept as About you showed it, GBP 18 and GBP 60.50 typed and receipts equal to them, accept, a brief, GitHub followed read only from the existing recording, a template rehearsal, an order, an issued invoice whose total is the receipt total and whose money lines pass the number guard, and no key in any file, call record or vault record, then a restart that lists the business by name, finds an automatic backup and opens it with no passphrase |
 | `venture-onboarding-renderer.test.ts` (renderer package) | every screen through the real `launch.js` and `app.js` on a fake engine: Connect first, the honest chips, the recommended and half-connected pair, a plan tier with no quick tier staying on Connect, the Claude Code gate, the open box, the decided views, not a service and refused, prices sent as typed, Keep this plan with no passphrase to Build in order, the passphrase fallback, five progress segments, the start-up choices, Welcome back's list, recovery, restore and move, the recovery code chunks, a reload, pairing, words at rest within each budget with the longest answers, the live preview's words and their sources, hosted's own Keep it, the CSS tokens, VAT kept in capitals, no control characters, and the renderer's copies of the contract lists |
 | `custody-renderer.test.ts` (renderer package) | the Trust panel: the switch off, on, and on but disabled with the engine's reason; turning it on with the recovery code shown once; turning it off with the current passphrase; making a recovery code with and without the passphrase; backups, Back up now and a confirmed restore; moving, with the code in chunks of four and the file saved as given; Today's line and the workspace menu's "Close this business"; the copies of the custody words |
 
-The recordings are in `platform/tests/fixtures/venture/onboarding/` ([README](../../platform/tests/fixtures/venture/onboarding/README.md)). All are hand-written and labelled synthetic recording.
+The model answers these tests use are hand-written and labelled synthetic recording.
 
 ## The demo
 
-The offline demo answers the composer for the demo idea ("Monthly bookkeeping for cafes and small shops in Pune."), the three open-box examples, the landlord sentence, and "Bike repairs at home for families in Bristol.", whose two plan answers both use a block Chausar doesn't have, so the refused screen can be seen. Any other sentence has no recording and says so (`FIXTURE_MISSING`); nothing is made up. While other agents share this worktree, run it on its own port and folder so it never meets the founder's server on 4317 or the repo's `data/` folder:
+The offline demo answers the plan, the brief and the bookkeeping rehearsal from one recording, the same whatever is typed. A call with no recording says so (`FIXTURE_MISSING`); nothing is made up. While other agents share this worktree, run it on its own port and folder so it never meets the founder's server on 4317 or the repo's `data/` folder:
 
 In sh:
 
@@ -260,10 +215,10 @@ In PowerShell:
 $env:CHAUSAR_PORT='4391'; $env:CHAUSAR_HOME="$env:TEMP\chausar-demo"; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
 ```
 
-Add `CHAUSAR_CLAUDE_CODE_TERMS=accepted` to try the Claude Code row; the demo has Claude Code answers for decide and compose only.
+Add `CHAUSAR_CLAUDE_CODE_TERMS=accepted` to try the Claude Code row; the demo has no Claude Code answers, so a call on that row says there is no recording.
 
 [README.md](README.md#demo-script) has the steps.
 
 ## Founder flags
 
-Section 12 of the spec (a local working note) lists every choice the founder may want to reverse (F1 to F23). The ones this page touches most: F1 (ChatGPT sign-in not built), F2 (Codex on the ChatGPT login), F3 (the Claude Code gate), F4 (hosted keeps today's order), F5 (no tax or total before the plan is kept), F7 (sixty minutes idle, paused while the vault is made), F8 (one repair call each), F10 (45 words or fewer per screen, lower on some, with a recorded exception possible for Accept and Build), F18 (a personal problem is refused, and a built-in plan is still offered), F21 (word caps), F23 (numbers in words refused).
+Section 12 of the spec (a local working note) lists every choice the founder may want to reverse (F1 to F23). The ones this page touches most: F1 (ChatGPT sign-in not built), F2 (Codex on the ChatGPT login), F3 (the Claude Code gate), F4 (hosted keeps today's order), F5 (no tax or total before the plan is kept), F7 (sixty minutes idle, paused while the vault is made), F10 (45 words or fewer per screen, lower on some, with a recorded exception possible for Accept and Build), F21 (word caps).

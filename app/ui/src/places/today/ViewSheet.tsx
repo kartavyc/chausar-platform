@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../../text';
-import { useResource } from '../../engine/context';
+import { useEngine, useResource } from '../../engine/context';
+import { Button } from '../../parts/Button';
 import { Sheet } from '../../parts/Sheet';
 import { AmountsText } from '../../parts/AmountsText';
 import type { SheetComponentProps } from '../../shell/sheets';
 import type { QueueItemView } from '../../engine/types';
-import { useTodaySession } from './session';
+import { decide, seenKey, useTodaySession } from './session';
 import { EngineViewText } from './CardPreview';
+import { draftViewWords, fixedWords } from './plan-words';
 import s from './Today.module.css';
 
 const KINDS: readonly QueueItemView['kind'][] = ['draft', 'file', 'plan'];
@@ -39,10 +41,36 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     return () => session.unshow(id);
   }, [data, session, id]);
 
+  // 15 Nov 2026 (the first Windows walk): a plan's sheet ends with its own accept. The owner read the plan to its end
+  // and had to close it to find Accept back on Today. It is the waiting row's own action (the engine's label), sent the
+  // one way every decision is (session.ts decide), and only once the plan's content is on screen: the read-first rule.
+  // Today's card keeps its Accept, and unlocks with the same reading.
+  const client = useEngine();
+  const queue = useResource('venture.queue.list', { scope: 'all' }, { skip: !known || kind !== 'plan' });
+  const asking = kind === 'plan' ? queue.data?.rows.find((row) => row.kind === 'plan' && row.viewRef?.kind === 'plan' && row.viewRef.id === ref) : undefined;
+  const accept = asking?.actions.find((action) => action.primary && action.id === 'approve');
+  const [accepting, setAccepting] = useState(false);
+  const [acceptedHere, setAcceptedHere] = useState(false);
+  const [refused, setRefused] = useState<string | null>(null);
+  const askingKey = data && asking ? seenKey(asking) : null;
+  useEffect(() => { if (askingKey) session.markViewed(askingKey); }, [askingKey, session]);
+  async function acceptPlan() {
+    if (!asking || !accept || accepting) return;
+    setAccepting(true); setRefused(null);
+    try {
+      const decision = await decide(client, asking, accept.id, { viewed: true }, t);
+      if (decision.outcome === 'done') setAcceptedHere(true);
+      else setRefused(decision.line);
+    } catch (error) { setRefused(error instanceof Error ? error.message : String(error)); }
+    finally { setAccepting(false); }
+  }
+
   if (!known) return <Sheet label="" title={t('sheet.unknown')} onClose={onClose} returnFocus={returnFocus} />;
   const label = t(`today.view.${kind}`);
   const quoted = kind === 'draft';
   const words = (text: string) => (quoted ? text : <EngineViewText text={text} />);
+  // Round 6: a draft's Chausar-written title, line, Checks and Files in the owner's language; the draft stays as written.
+  const planWords = fixedWords(t);
   if (!data) {
     return (
       <Sheet label={label} loading={!view.error} title={view.error ? t('today.view.missing') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
@@ -50,18 +78,21 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       </Sheet>
     );
   }
+  const shown = quoted ? draftViewWords(data, planWords) : data;
   return (
     <Sheet
       label={label}
       eyebrow={data.agent ? `${data.businessName} · ${data.agent}` : data.businessName}
-      title={words(data.title)}
+      title={words(shown.title)}
       // The line under the title is the engine's own sentence about the thing, whatever it is.
-      line={data.line === undefined ? undefined : <span data-engine-line="">{words(data.line)}</span>}
+      line={shown.line === undefined ? undefined : <span data-engine-line="">{words(shown.line)}</span>}
       onClose={onClose}
       returnFocus={returnFocus}
+      footer={decided ? (acceptedHere ? <p className={s.sheetDecided} data-sheet-accepted="">{decided.line}</p> : undefined)
+        : accept ? <Button variant="primary" disabled={accepting} onClick={() => void acceptPlan()}>{accept.label}</Button> : undefined}
     >
       {decided && <p className={s.sheetDecided} role="status" data-sheet-decided="">{decided.line}</p>}
-      {data.sections.map((section, i) => (
+      {shown.sections.map((section, i) => (
         <section key={`${section.heading ?? ''}:${i}`} className={s.part}>
           {section.heading && <h3 className={s.partHeading}>{section.heading}</h3>}
           <ul className={s.lines} data-content={quoted ? '' : undefined} data-engine-line={quoted ? undefined : ''}>
@@ -69,6 +100,7 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           </ul>
         </section>
       ))}
+      {refused && !decided && <p className={s.failed} role="alert">{refused}</p>}
     </Sheet>
   );
 }

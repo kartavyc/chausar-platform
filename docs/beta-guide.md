@@ -25,7 +25,7 @@ How to move around: the list on the left has **Today**, **Chats**, **Team**, **W
 
 ## 1. Install Chausar
 
-Chausar is free. It runs on Windows and Linux laptops. There is no Mac version yet.
+Chausar is free. It runs on Windows and Linux laptops. A Mac build exists too, but it is not signed and not published yet, so there is no Mac download for now.
 
 You need:
 
@@ -42,7 +42,7 @@ You need:
 5. The installer installs Chausar for you only, so it does not ask for an admin password. It shows the folder it will use; you can change it. Click **Install**.
 6. It adds Chausar to the Start menu and the desktop, and opens Chausar at the end. The shortcuts, the window and the tray show the Chausar logo, a dark square with a grey and a green square inside. Earlier beta builds showed the Electron icon on the shortcuts (a blue atom): Chausar is built with Electron, and the unsigned beta left the program file with Electron's own icon. That is fixed now. If a shortcut still shows the atom after you update, Windows is showing its saved copy of the old icon, and it may take a while to change.
 
-Chausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right; look for the Chausar logo). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.
+If you ticked **Start Chausar when you sign in to this computer** (it starts unticked), Chausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right; look for the Chausar logo). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.
 
 To remove Chausar: open Windows **Settings**, then **Apps**, find **Chausar** and click **Uninstall**. Your businesses stay on your laptop, in case you install it again.
 
@@ -74,7 +74,7 @@ If the AppImage says it needs FUSE, install the FUSE 2 library (often called `fu
 
 If you prefer the `.tar.gz` file: unpack it (`tar -xzf Chausar-Beta-*.tar.gz` in a terminal), open the folder and run `./chausar`. To remove it, delete the AppImage file or the folder.
 
-On Linux, Chausar also starts when you sign in. To stop that, untick **Start at login** in the tray menu. Once Chausar is removed, your desktop skips that entry by itself.
+On Linux, Chausar also starts when you sign in if you ticked it. To stop that, untick **Start at login** in the tray menu. Once Chausar is removed, your desktop skips that entry by itself.
 
 ---
 
@@ -82,30 +82,31 @@ On Linux, Chausar also starts when you sign in. To stop that, untick **Start at 
 
 ![The Connect your AI screen](beta-guide/connect-your-ai.png)
 
-The first screen is **Connect your AI** (step 1 of 3). Your Chausar team runs on your own AI plan. Pick one of three tiles.
+The first screen is **Connect your AI** (step 1 of 3). Your Chausar team runs on your own ChatGPT or Claude plan. There are two buttons.
 
 ### ChatGPT plan (Codex)
 
-1. The Windows installer includes Codex, so the tile says **Codex installed** even if you never installed it yourself. If you already have your own Codex, Chausar uses yours.
-2. Click **Sign in with Codex**. OpenAI's own sign-in page opens.
-3. Chausar shows a code under **Finish signing in on OpenAI's page**. Type that code on OpenAI's page. **Copy code** helps.
-4. If the page did not open, click **Open the sign-in page again**.
-5. Come back to Chausar. The tile now says **Signed in**.
-6. Click **Use Codex**.
+1. Click **Sign in with ChatGPT**. OpenAI's own sign-in page opens. The Windows installer already includes what Chausar needs for this.
+2. If Chausar shows a code, type that code on OpenAI's page. **Copy code** helps.
+3. If the page did not open, click **Open the sign-in page again**.
+4. Come back to Chausar. It connects on its own and moves to the next step.
 
-Already signed in to Codex? The tile says **Signed in** straight away. Just click **Use Codex**.
+Already signed in? One click connects.
+
+If Codex is already on your computer, Chausar may ask **Use Codex with Chausar?** first. Codex is OpenAI's tool that your ChatGPT plan runs through. Click **Use this Codex** to go on, or **Cancel** to change nothing.
 
 ### Claude plan (Claude Code)
 
-1. Install Claude Code with its own installer first. Until then the tile says **Not installed yet**.
-2. Click **Sign in with Claude Code**. Anthropic's own sign-in page opens.
-3. Finish there and come back. Then click **Use Claude Code**.
+1. Click **Sign in with Claude**. Anthropic's own sign-in page opens.
+2. Finish there and come back. Chausar connects on its own.
+
+If a button cannot work on this computer, one line under it says why and what to do, such as installing Claude Code with its own installer first.
 
 ### AI key
 
 Use this if you pay an AI company directly (OpenAI, Anthropic, or a gateway such as OpenRouter).
 
-1. Click **Add a key**.
+1. Open **More options** at the bottom, then click **Use an AI key instead**.
 2. Pick the AI, paste your key, and read **What is sent**. Click **I agree**, then **Connect**.
 3. You can set an optional monthly limit in US dollars. Calls stop when you reach it.
 4. Click **Continue with this AI**.
@@ -115,8 +116,9 @@ The key is saved in your computer's keychain, not in Chausar's files.
 ### Good to know
 
 - Chausar never sees your password or your login files. Sign-in always happens on OpenAI's or Anthropic's own page.
-- Before you connect, the tile shows **What Chausar sends**. Read it once.
-- No AI yet? Click **Skip for now: use templates**. You can connect later.
+- Before you connect, **What's sent** under the buttons shows what Chausar sends. Read it once.
+- A small line under each button says the risk of that plan in plain words. Under ChatGPT: "OpenAI hasn't said yet that apps like Chausar may use a ChatGPT plan this way." Under Claude: "Plans have limits made for one person, so heavy use can be cut off." An AI key has neither.
+- No AI yet? Open **More options** and click **Continue without AI for now**. You can connect later.
 - To change your AI later: **Connections**, then **Your AI**, then **AI settings**.
 - If work stops with a message about the model, open **AI settings** and pick a model your plan includes. Chausar never switches models on its own.
 
@@ -141,6 +143,8 @@ The screen asks **What do you do today?** You have two ways in.
 
 Your country comes from your computer's time zone, for example **India, from your time zone**. Click **Change** if that is wrong. Prices are in rupees for India.
 
+When your AI read your message, the plan also shows **How you earn** (who pays, how you reach them, what your team does, what you do, and your first week) and **Your team**: up to three AI agents for the work. **Leave out** drops one. Keeping the plan adds the rest to your team. None of them sends, pays, posts, deletes or changes a price by itself; they ask you first.
+
 When the plan looks right, click **Keep this plan**.
 
 Chausar then asks **Day job and rules**: whether you also have a job, and any rules your field sets for side work. Answer it before you go on; nothing is kept until you do.
@@ -149,11 +153,14 @@ Chausar may ask you for a passphrase (at least 12 characters; nobody can reset i
 
 ### Connect what your business needs (step 3 of 3)
 
-Chausar lists the outside services your business may use, such as Gmail or TallyPrime. Each one says why.
+Chausar lists what your plan needs from outside, grouped by need, such as **To find customers** or **To get paid**. Each row has a label and one line.
 
-- **Set up** opens that service's own sign-in or key steps.
-- Items marked **Planned** are not ready yet. They say what to do meanwhile.
-- Every item is optional. **Skip** any of them. They stay in **Connections** under **Services you need**.
+- **Set up** opens the steps right there, under the row. For a tool you connect with your own account, such as Canva or Monid, you see its address first and tick a box before it is saved.
+- **Nothing to set up** means it works already.
+- Items marked **Planned** are not ready yet, or not tried on a live account yet. They say what to do meanwhile.
+- Everything is optional. The list stays in **Connections**.
+
+If you went on without an AI, the list shows the services your field usually uses instead.
 
 Click **Go to Today** when you are done.
 
@@ -163,6 +170,12 @@ On **Today** you will see a few setup cards.
 
 1. **Your plan is ready. Read it.** Click **Read**. **Accept** unlocks after you read it. Then click **Accept**.
 2. **Keep this business**, if it shows. Click **Keep it** and save the recovery code.
+
+The plan you read is the one you kept: who pays, what you sell, how you earn, your first week and your team.
+
+**Today** also keeps your plan in front of you. **Next best step** is always one thing to do, with one button. **This week** lists your moves, starting with your plan, your prices and your first week; tick one when it is done. **Let Chausar plan each morning** offers a daily review at 8:00 am: click **Turn on** or **Not now**. The review reads your records and updates your plan. It never sends, spends or changes a price.
+
+The agents you kept are on **Team** from the start. You can open one and chat with it before you accept the plan.
 
 ### Set your prices
 
@@ -194,6 +207,8 @@ Live means **Live (you approve each)**: drafts can reach clients, each only afte
 1. Open **Clients** and click **Add client**.
 2. Type the **Name**. Only the name is needed. **Email** and **Note** are optional. **More details** holds a GSTIN or tax number.
 3. Click **Add client**.
+
+No clients yet? Once your plan is accepted and your prices are set, open **Clients**, then **Pipeline**, and click **Find customers**. Say who to look for and the city, click **Review**, read the card, then click **Approve**. Chausar looks on a public map, which is free, and adds what it finds to your pipeline, each with its source. Nothing is sent: you write to each one yourself.
 
 ### Let your AI work with this client
 
@@ -349,7 +364,7 @@ A report never holds client names, client data, message text, files or prompts, 
 
 ## 10. Where to get help
 
-- **Find or ask**, at the top of every page (Ctrl K from anywhere, or the search button on a phone), finds your clients, invoices, orders, jobs, chats and pages, opens a form, or asks Chausar, who answers questions about your own business.
+- **Find or ask**, at the top of every page (Ctrl K from anywhere, Cmd K on a Mac, or the search button on a phone), finds your clients, invoices, orders, jobs, chats and pages, opens a form, or asks Chausar, who answers questions about your own business.
 - **Sending a report** (part 8) tells us what went wrong without sharing client data.
 - **Write to us** at info@chausar.co.in. Say what you were doing and what you saw; never send passwords, keys or client details.
 

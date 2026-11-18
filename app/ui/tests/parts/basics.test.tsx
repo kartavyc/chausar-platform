@@ -256,10 +256,10 @@ describe('EmptyState (Ink v2): one sentence, then actions, never a control that 
 
   it('lists its actions as rows: a link for an address, a button for a handler, each with a chevron', () => {
     const onSelect = vi.fn();
-    render(<EmptyState title="No agents work here yet." actions={[{ label: 'See ways to earn', href: '#/onboarding' }, { label: 'Add a lead', onSelect }]} />);
+    render(<EmptyState title="No agents work here yet." actions={[{ label: 'Add agent', href: '#/team?sheet=hire:new' }, { label: 'Add a lead', onSelect }]} />);
     const list = screen.getByRole('list');
     expect(list.querySelectorAll('li')).toHaveLength(2);
-    expect(screen.getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding');
+    expect(screen.getByRole('link', { name: 'Add agent' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
     const add = screen.getByRole('button', { name: 'Add a lead' });
     expect(add.getAttribute('type')).toBe('button');
     fireEvent.click(add);

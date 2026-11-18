@@ -183,14 +183,15 @@ test('queue scope all: other businesses on this computer are locked rows, last; 
   const locked = byKind(all.rows, 'locked');
   assert.deepEqual(all.rows.slice(-2), locked);
   assert.deepEqual(locked.map(row => [row.businessId, row.businessName, row.title, row.line]), [
-    ['lumen-studio', 'Lumen Studio', 'Lumen Studio is locked.', 'Open it to see what needs you.'],
+    // One this computer opens by itself is not locked, only not open; one that needs its passphrase is locked.
+    ['lumen-studio', 'Lumen Studio', 'Lumen Studio is not open.', 'Open it to see what needs you.'],
     ['old-books', 'old-books', 'old-books is locked.', 'Open it with its passphrase to see what needs you.'],
   ]);
   assert.deepEqual(locked[0].actions, [{ id: 'open', label: 'Open', primary: true }]);
   const open = await decide(env, locked[0], 'open');
   assert.deepEqual([open.outcome, open.reason, open.line], ['refused', 'NOT_A_DECISION', 'Open Lumen Studio from the business menu.']);
   assert.equal(all.needsYou, 2);
-  assert.equal(all.summary, '2 need you. 2 more businesses are locked');
+  assert.equal(all.summary, '2 need you. 2 more businesses are not open');
 
   env.workspace.others = [];
   const nothing = await setup();
@@ -199,6 +200,8 @@ test('queue scope all: other businesses on this computer are locked rows, last; 
   nothing.workspace.others = [{ id: 'lumen-studio', name: 'Lumen Studio', opens: 'key-missing', openedAt: null }];
   const onlyLocked = await list(nothing, 'all');
   assert.equal(onlyLocked.summary, 'Nothing needs you here. Lumen Studio is locked.');
+  nothing.workspace.others = [{ id: 'lumen-studio', name: 'Lumen Studio', opens: 'with-this-computer', openedAt: null }];
+  assert.equal((await list(nothing, 'all')).summary, 'Nothing needs you here. Lumen Studio is not open.');
   assert.equal(onlyLocked.rows[0].line, 'This computer lost its key. Open it with your recovery code.');
 });
 
@@ -258,7 +261,7 @@ test('queue: retired per-turn records cannot create a new approval or spending w
   const env = await setup();
   const { order } = await seedOrder(env, await seedBlueprint(env));
   await setStage(env, 'approve-each');
-  await seedRun(env, order, { status: 'waiting-for-you', callId: null, preview: null });
+  await seedRun(env, order, { status: 'working', callId: null, preview: null });
   const rows = (await list(env)).rows;
   assert.equal(rows.some(row => row.kind === 'quote' && row.viewRef?.kind === 'run'), false);
 });

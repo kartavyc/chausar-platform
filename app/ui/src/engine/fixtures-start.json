@@ -1,5 +1,5 @@
 {
-  "_source": "The engine's own data (platform/runtime/venture/core/ways.ts listWays with no business open, core/checklist.ts CHECKLIST_ITEMS). platform/tests/venture-ways.test.ts pins both equal; make it again when the engine changes them.",
+  "_source": "The engine's own data (platform/runtime/venture/core/ways.ts listWays with no business open). platform/tests/venture-ways.test.ts pins it equal.",
   "ways": {
     "ways": [
       {
@@ -1710,67 +1710,5 @@
         "count": 2
       }
     ]
-  },
-  "checklist": [
-    {
-      "id": "ai",
-      "label": "Connect your AI",
-      "link": "#/connections/ai"
-    },
-    {
-      "id": "idea",
-      "label": "Say what you want to do",
-      "link": "#/business/plan"
-    },
-    {
-      "id": "questions",
-      "label": "Set your price and tax",
-      "link": "#/business/plan"
-    },
-    {
-      "id": "plan",
-      "label": "Accept your plan",
-      "link": "#/business/plan"
-    },
-    {
-      "id": "prices",
-      "label": "Set your prices",
-      "link": "#/business/prices"
-    },
-    {
-      "id": "brief",
-      "label": "Write the build brief",
-      "link": "#/business/build"
-    },
-    {
-      "id": "builder",
-      "label": "Build your website",
-      "link": "#/business/build"
-    },
-    {
-      "id": "repo",
-      "label": "Follow the build on GitHub",
-      "link": "#/business/build"
-    },
-    {
-      "id": "rehearsal",
-      "label": "Rehearse with practice clients",
-      "link": "#/business/practice"
-    },
-    {
-      "id": "first-client",
-      "label": "Add your first client",
-      "link": "#/clients"
-    },
-    {
-      "id": "first-invoice",
-      "label": "Send your first invoice",
-      "link": "#/money/invoices"
-    },
-    {
-      "id": "first-payment",
-      "label": "Record your first payment",
-      "link": "#/money/invoices"
-    }
-  ]
+  }
 }

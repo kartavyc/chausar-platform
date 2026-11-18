@@ -110,9 +110,9 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'A flexible CRM. Linking it to Chausar is planned.'),
 
   entry('marketing', 'bluesky', 'Bluesky', 'https://bsky.app/', ['write'], GI, 'Your app password for the selected server and handle',
-    'Official plain-text API posts after exact approval. Credentials stay in the current session.'),
+    'Posts your approved plain text to Bluesky. Your password stays this session only.'),
   entry('marketing', 'mastodon', 'Mastodon', 'https://joinmastodon.org/', ['write'], GI, 'Your instance token with write:statuses',
-    'Public plain-text API posts after exact approval, within the lower of five hundred characters and the instance limit.'),
+    "Posts your approved plain text publicly to Mastodon, within five hundred characters or your server's lower limit."),
 
   // Messaging and support
   entry('messaging', 'whatsapp', 'WhatsApp (Business Platform)', 'https://business.whatsapp.com/', ['write'], GI, 'Meta business sign-up',
@@ -122,7 +122,7 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   entry('messaging', 'slack', 'Slack', 'https://slack.com/', ['write'], GI, 'Incoming message address or bot token',
     'Posting updates to a channel is planned.'),
   entry('messaging', 'discord', 'Discord', 'https://discord.com/', ['write'], GI, 'Incoming channel message address',
-    'Official incoming connection posts after exact approval. Automatic mentions are disabled and uncertain outcomes are never retried.'),
+    'Posts your approved text to one Discord channel. It never mentions everyone or retries an unclear result.'),
 
   // Docs and ops
   entry('docs-ops', 'notion', 'Notion', 'https://www.notion.com/', ['write'], GI, 'Notion sign-in',

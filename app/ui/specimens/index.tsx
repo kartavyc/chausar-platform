@@ -7,7 +7,7 @@
  *   parts.html?app=departments#/team    the whole app, with the department views W4 4A1 sends added to the fake's
  *                                       team (as tests/places/team-v2.test.tsx does), so Team draws its departments
  *   parts.html?show=goal|team-dept|network|chats|money
- *                                       the parts W4 feeds (goal card, next step, gallery, paths, board, chat, charts),
+ *                                       the parts W4 feeds (goal card, next step, paths, board, chat, charts),
  *                                       drawn with test-style props and marked "Sample props" on the page
  *
  * The specimen page uses the same English-only catalogue as the app.

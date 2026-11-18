@@ -4,8 +4,9 @@ import { exactPayload, findRecord, identifier, listRecords, plainText, requireAp
 import type { DeliveryRunRecord, PauseRecord, PauseView, RunControlResult, RunDetail, VentureDeps, VentureRecord } from '../contracts.ts';
 import { optionalFlag, readAs } from './shared.ts';
 import { agentStage, deliveryRunHandler, STAGE_BLOCKED_REASON } from './runs.ts';
-import { GATE_EVERY, gateWaits, STOPPED_BY_YOU } from './harness/controls.ts';
-import { refuseNewWork, STOPPABLE } from './run-guards.ts';
+import { GATE_EVERY, STOPPED_BY_YOU } from './harness/controls.ts';
+import { refuseNewWork } from './run-guards.ts';
+import { STOP_LINES, stopByOwner, stoppable, superseded } from './run-machine.ts';
 import { redactSecrets, screenReadback } from '../core/secrets.ts';
 import { runsGetHandler } from '../views/runs.ts';
 import type { W4Decision, W4Outcome } from '../views/queue-w4.ts';
@@ -34,26 +35,16 @@ function deliveryRunOf(state: State, venture: VentureRecord, runId: string): Del
   throw other ? new ChausarError('RUN_NOT_RUNNING', NOT_RUNNING) : new ChausarError('RUN_NOT_FOUND', 'That job was not found.');
 }
 
-/** Stop a job before its next result can be accepted. Native session interruption follows commit. */
-export function stopIn(tx: VentureTx, runId: string, _force: boolean, _by: string): void {
+/**
+ * The owner's stop, before the job's next result can be accepted: the machine moves the run (run-machine.ts stopByOwner)
+ * and refuses RUN_ALREADY_STOPPED or RUN_NOT_RUNNING. Native session interruption follows commit.
+ */
+export function stopIn(tx: VentureTx, runId: string): void {
   const current = tx.find('venture-delivery-run', runId);
   check(current, 'RUN_NOT_FOUND', 'That job was not found.');
-  check(current.status !== 'stopped', 'RUN_ALREADY_STOPPED', 'This job is already stopped. Resume it or run it again.');
-  check(STOPPABLE.includes(current.status) || current.agentJob && current.status === 'ready-for-review', 'RUN_NOT_RUNNING', NOT_RUNNING);
-  const job = current.agentJob ? { ...current.agentJob } : undefined;
-  if (job) delete job.pendingApproval;
-  tx.replace({ ...current, status: 'stopped', callId: null, preview: null, ...(job ? { agentJob: job } : {}) });
+  tx.replace(stopByOwner(current, tx.now));
   tx.emit('run.stopped', { runId });
   tx.emit('queue.changed', {});
-}
-
-const SUPERSEDED = 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.';
-
-/** 4F3: whether a newer run of the same order exists; of two at the same moment, the later one stored wins. */
-function supersededBy(state: State, run: DeliveryRunRecord): boolean {
-  const runs = listRecords(state, 'venture-delivery-run', run.ventureId).filter(item => item.orderId === run.orderId);
-  const newest = runs.reduce<DeliveryRunRecord | null>((best, item) => (!best || item.at >= best.at ? item : best), null);
-  return !!newest && newest.id !== run.id;
 }
 
 /** The run as the run sheet reads it now. */
@@ -66,17 +57,17 @@ export async function runsStopHandler(deps: VentureDeps, ctx: Context, payload: 
   requireAppChannel(ctx, 'venture.runs.stop');
   const body = exactPayload(payload, ['runId', 'force'], ['runId']);
   const runId = identifier(body.runId, 'Run');
-  const force = optionalFlag(body.force, 'force');
+  optionalFlag(body.force, 'force');
   const { state, venture } = readAs(deps, ctx, 'approve');
   deliveryRunOf(state, venture, runId);
-  await ventureAction(deps, ctx, 'approve', 'runs.stop', tx => stopIn(tx, runId, force, ctx.memberId));
+  await ventureAction(deps, ctx, 'approve', 'runs.stop', tx => stopIn(tx, runId));
   stopAgentJob(deps.store, runId);
   return { run: await detailOf(deps, ctx, runId), line: STOPPED_BY_YOU };
 }
 
 async function resumeRun(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, run: DeliveryRunRecord): Promise<{ line: string; runId: string }> {
   refuseNewWork(state, venture, ctx, deps.clock().toISOString());
-  check(!supersededBy(state, run), 'RUN_SUPERSEDED', SUPERSEDED);
+  check(!superseded(run), 'RUN_SUPERSEDED', STOP_LINES.superseded);
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   check(findRecord(state, 'venture-order', run.orderId)?.status !== 'cancelled', 'ORDER_NOT_ACTIVE', 'This order was cancelled, so its job cannot go on.');
   refuseUnsignedRun(state, venture, run);
@@ -107,9 +98,9 @@ export async function runsSteerHandler(deps: VentureDeps, ctx: Context, payload:
   deliveryRunOf(state, venture, runId);
   await ventureAction(deps, ctx, 'prepare', 'runs.steer', tx => {
     const run = tx.find('venture-delivery-run', runId);
-    check(run?.agentJob && (run.status === 'stopped' || STOPPABLE.includes(run.status) || run.status === 'ready-for-review'), 'RUN_CONTROL_UNAVAILABLE', 'This job cannot take AI instructions. Start a new AI job.');
+    check(run?.agentJob && (run.status === 'stopped' || stoppable(run)), 'RUN_CONTROL_UNAVAILABLE', 'This job cannot take AI instructions. Start a new AI job.');
     tx.replace({ ...run, agentJob: { ...run.agentJob, ownerNotes: [...(run.agentJob.ownerNotes ?? []), { text, at: tx.now, by: ctx.memberId }] } });
-    if (run.status !== 'stopped') stopIn(tx, runId, false, ctx.memberId);
+    if (run.status !== 'stopped') stopIn(tx, runId);
     else { tx.emit('run.step', { runId }); tx.emit('queue.changed', {}); }
   });
   stopAgentJob(deps.store, runId);
@@ -147,8 +138,8 @@ export async function businessPauseHandler(deps: VentureDeps, ctx: Context, payl
     let stopped = 0;
     if (stopRunning) {
       for (const run of tx.list('venture-delivery-run')) {
-        if (!STOPPABLE.includes(run.status) && !(run.agentJob && run.status === 'ready-for-review')) continue;
-        stopIn(tx, run.id, false, ctx.memberId);
+        if (!stoppable(run)) continue;
+        stopIn(tx, run.id);
         stoppedIds.push(run.id);
         stopped += 1;
       }
@@ -180,7 +171,7 @@ export async function decideGateContinue(deps: VentureDeps, ctx: Context, decisi
 export async function decideGateStop(deps: VentureDeps, ctx: Context, decision: W4Decision): Promise<W4Outcome> {
   const runId = runOfSubject(decision.subject);
   readAs(deps, ctx, 'approve');
-  await ventureAction(deps, ctx, 'approve', 'runs.stop', tx => stopIn(tx, runId, false, ctx.memberId));
+  await ventureAction(deps, ctx, 'approve', 'runs.stop', tx => stopIn(tx, runId));
   stopAgentJob(deps.store, runId);
   return { line: STOPPED_BY_YOU };
 }
@@ -201,7 +192,3 @@ export async function decideRunAgain(deps: VentureDeps, ctx: Context, decision: 
   await deliveryRunHandler(deps, ctx, { orderId: run.orderId });
   return { line: 'Started again with the same files.' };
 }
-
-/** The open run statuses a gate or a note applies to, for other packages (4F2's breaker rows). */
-export const CONTROLLED_STATUSES: readonly DeliveryRunRecord['status'][] = Object.freeze([...STOPPABLE, 'stopped']);
-export { gateWaits };

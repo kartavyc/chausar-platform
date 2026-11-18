@@ -1,8 +1,9 @@
 import { useId } from 'react';
 import { useT } from '../../text';
-import type { RunDetail, RunSummary } from '../../engine/types';
+import type { OpenSearchView, RunDetail, RunSummary } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
-import { Avatar } from '../../parts/Avatar';
+import { Avatar, ChausarAvatar } from '../../parts/Avatar';
+import { fixedWords, usePlanWords } from './plan-words';
 import { EmptyState } from '../../parts/EmptyState';
 import { ProgressBar } from '../../parts/ProgressBar';
 import { Row } from '../../parts/Row';
@@ -15,17 +16,19 @@ import { plainFailure } from '../work/StoppedRun';
 import s from './Today.module.css';
 
 /** Put focus on a row or card of the page by its id, and bring it into view. */
-export function focusRow(id: string): boolean {
+export function focusRow(id: string, block: ScrollLogicalPosition = 'nearest'): boolean {
   const row = [...document.querySelectorAll<HTMLElement>('[data-row-id]')].find((el) => el.getAttribute('data-row-id') === id);
   if (!row) return false;
   row.focus();
-  row.scrollIntoView({ block: 'nearest' });
+  row.scrollIntoView({ block });
   return true;
 }
 
 export interface WorkingNowProps {
   /** The runs to list, in the engine's order: working, waiting on the owner, and stopped ones that can run again. */
   runs: readonly RunSummary[];
+  /** Round 5: the searches for customers open now (venture.runs.list searches), Chausar's own work beside the runs. */
+  searches: readonly OpenSearchView[];
   /** Each listed run's detail, read once for the page (useRunDetails). */
   details: ReadonlyMap<string, RunDetail>;
   /** The card that answers a waiting run, when one is listed. */
@@ -41,13 +44,14 @@ export interface WorkingNowProps {
  * its measured steps (or the step it is on, when the engine cannot count them) and the time it has run. A run waiting
  * on the owner says so in place of its timer, which stops, and those words take you to the card that answers it. A
  * stopped run says so in the engine's words. The purpose opens the run sheet.
- * W4 4F3: each running row has Stop ("Stop run 31") and its small dialog; a run the engine says is stopping reads
- * Stopping, and one it stopped (the owner, or Chausar) reads Stopped or Interrupted with its line, never "Failed".
+ * W4 4F3: each running row has Stop (named by what the run is doing, "Stop: Cutting shorts from episode 13") and its
+ * small dialog; a run the engine says is stopping reads Stopping, and one it stopped (the owner, or Chausar) reads
+ * Stopped or Interrupted with its line, never "Failed".
  */
-export function WorkingNow({ runs, details, rowForRun, goToRow, title }: WorkingNowProps) {
+export function WorkingNow({ runs, searches, details, rowForRun, goToRow, title }: WorkingNowProps) {
   const t = useT();
   const headingId = useId();
-  const running = runs.filter((run) => run.state !== 'failed').length;
+  const running = runs.filter((run) => run.state !== 'failed').length + searches.length;
   const stopped = runs.length - running;
   const meta = [
     t('today.working.running', { count: running }),
@@ -55,15 +59,39 @@ export function WorkingNow({ runs, details, rowForRun, goToRow, title }: Working
   ].join(' · ');
   return (
     <Tile as="section" labelledBy={headingId} className={s.listTile}>
-      <TileHead id={headingId} title={title ?? t('jobs.active')} meta={runs.length > 0 ? meta : undefined} more={{ href: '#/work', label: t('today.working.open') }} />
-      {runs.length === 0 ? (
+      <TileHead id={headingId} title={title ?? t('jobs.active')} meta={runs.length + searches.length > 0 ? meta : undefined} more={{ href: '#/work', label: t('today.working.open') }} />
+      {runs.length + searches.length === 0 ? (
         <EmptyState title={t('jobs.none')} />
       ) : (
         <ul className={s.list}>
+          {searches.map((search) => <SearchRow key={search.searchId} search={search} />)}
           {runs.map((run) => <WorkRow key={run.runId} run={run} detail={details.get(run.runId)} rowId={run.state === 'waiting' ? rowForRun(run.runId) : undefined} goToRow={goToRow} />)}
         </ul>
       )}
     </Tile>
+  );
+}
+
+/**
+ * Round 5 (re-check 028): a search for customers Chausar runs on an approved card, while it runs: who does it (Chausar,
+ * or the agent its card named), the engine's line and its time so far. The engine counts nothing until the search
+ * ends, so the bar is the one with no step count and no number is shown. It opens Clients, Pipeline, where the
+ * searches and what they found are listed; it has no Stop, as the search itself has none.
+ */
+function SearchRow({ search }: { search: OpenSearchView }) {
+  const t = useT();
+  const words = usePlanWords();
+  const who = search.agent ?? t('today.chausar.name');
+  return (
+    <Row
+      id={`search-${search.searchId}`}
+      mark={search.agent ? <Avatar name={search.agent} state="working" size={32} /> : <ChausarAvatar state="working" size={32} />}
+      title={search.title}
+      line={`${who} · ${words(search.line)}`}
+      onOpen={() => { window.location.hash = '#/clients/pipeline'; }}
+      aside={<span className={s.progress}><ProgressBar progress="indeterminate" tone="working" showCount={false} className={s.bar} /></span>}
+      end={search.elapsed || undefined}
+    />
   );
 }
 
@@ -76,7 +104,10 @@ function WorkRow({ run, detail, rowId, goToRow }: { run: RunSummary; detail: Run
   const stop = useStopRun(run, detail);
   const halted = run.stop?.state;
   // 4Z2: a known failure in plain words (Work's), the engine's technical line left to the run's own sheet.
-  const said = state === 'failed' ? (detail ? plainFailure(t, detail) ?? stopLineOf(detail) : run.result) : halted === 'stopped' ? run.stop!.line : current?.purpose;
+  // Round 6 (re-check 036): the run's purpose and its step when code wrote them ("Practice draft for ...", "You review the
+  // draft") in the owner's language; a step the plan or the AI named stays as written.
+  const planWords = fixedWords(t);
+  const said = state === 'failed' ? (detail ? plainFailure(t, detail) ?? stopLineOf(detail) : run.result) : halted === 'stopped' ? run.stop!.line : current?.purpose && planWords(current.purpose);
   const haltWord = halted === 'stopped' ? t(detail?.interrupted ? 'work.stop.interrupted' : 'work.stop.chip') : null;
   const measured = progress !== 'indeterminate' && progress.total > 0;
 
@@ -106,7 +137,7 @@ function WorkRow({ run, detail, rowId, goToRow }: { run: RunSummary; detail: Run
     <Row
       id={`run-${run.runId}`}
       mark={<Avatar name={run.agent} state={state} size={32} />}
-      title={run.purpose}
+      title={planWords(run.purpose)}
       line={said ? `${run.agent} · ${said}` : run.agent}
       onOpen={(origin) => openSheet('run', run.runId, origin)}
       aside={(

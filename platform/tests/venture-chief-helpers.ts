@@ -62,10 +62,22 @@ export function scriptChief(env: ChiefEnv, turns: Turn[]): ModelTask<any>[] {
 }
 
 /** A tool turn: the chief asks for these read tools and answers nothing yet. */
-export const tools = (...names: string[]) => ({ tools: names, parts: [], proposals: [] });
-/** A final turn: the answer's parts and any proposals. */
-export const answer = (parts: unknown[], proposals: unknown[] = []) => ({ tools: [], parts, proposals });
+export const tools = (...names: string[]) => ({ tools: names, reply: '', figures: [], guide: '', proposals: [] });
+type Scripted = { kind: string; text: string; receiptId: string; key: string };
+/**
+ * A final turn as the AI writes it: its words as one reply (a paragraph for each text() or estimate()), the figures it
+ * cites, the id of a guide part ({ kind: 'guide', key }), and any proposals.
+ */
+export const answer = (parts: unknown[], proposals: unknown[] = []) => {
+  const rows = parts as Scripted[];
+  return {
+    tools: [], reply: rows.filter(row => row.kind === 'text' || row.kind === 'estimate').map(row => row.text).join('\n'),
+    figures: rows.filter(row => row.kind === 'figure').map(row => ({ receiptId: row.receiptId, key: row.key })),
+    guide: rows.find(row => row.kind === 'guide')?.key ?? '', proposals,
+  };
+};
 export const text = (words: string) => ({ kind: 'text', text: words, receiptId: '', key: '' });
+/** Words the AI wrote that state a number: code labels them, so this is text() by another name. */
 export const estimate = (words: string) => ({ kind: 'estimate', text: words, receiptId: '', key: '' });
 export const figure = (receiptId: string, key: string) => ({ kind: 'figure', text: '', receiptId, key });
 /** A proposal's fields in the answer's closed shape: every field present, empty where the kind does not use it. */

@@ -81,8 +81,6 @@ type Part = 'row' | 'item';
 type PartOf<X extends Part> = { [P in DeskPlaybook]: { [K in KindsOf<P>]: EntryOf<P, K>[X] }[KindsOf<P>] }[DeskPlaybook];
 type ActResultOf = { [P in DeskPlaybook]: { [K in KindsOf<P>]: EntryOf<P, K>['actions'][string]['result'] }[KindsOf<P>] }[DeskPlaybook];
 
-/** `${playbook}.${kind}` for every kind any desk declares (never, until a package declares one). */
-export type DeskKey = { [P in DeskPlaybook]: `${P}.${KindsOf<P>}` }[DeskPlaybook];
 export type DeskRow = PartOf<'row'>;
 export type DeskItem = PartOf<'item'>;
 export type DeskActResult = ActResultOf;

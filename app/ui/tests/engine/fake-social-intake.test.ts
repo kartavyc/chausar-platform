@@ -56,7 +56,7 @@ it('blocks missing rules and no-go community drafts before creating any run', as
  await expect(start(create())).rejects.toMatchObject({ code: 'COMMUNITY_RULES_REQUIRED' });
  await expect(start(create({ fields: { communityRules: 'No self-promotion.', communityPromotion: true, communityLinks: false } }))).rejects.toMatchObject({ code: 'COMMUNITY_NO_GO' });
  expect(runs).toHaveLength(0);
- await expect(start(create({ fields: { communityRules: 'Be kind.', communityPromotion: false, communityLinks: false } }))).resolves.toMatchObject({status:'waiting-for-you'});
+ await expect(start(create({ fields: { communityRules: 'Be kind.', communityPromotion: false, communityLinks: false } }))).resolves.toMatchObject({status:'working'});
  expect(runs).toHaveLength(1);
 });
 it('counts actual bound transcript content, excluding timestamps, before repurposing', async () => {
@@ -65,7 +65,7 @@ it('counts actual bound transcript content, excluding timestamps, before repurpo
  await expect(start(create({ fields }, source(['One claim'])))).rejects.toMatchObject({ code: 'SOURCE_THIN' });
  expect(runs).toHaveLength(0);
  const good = create({ fields }, source(['Claim one', 'Fact two', 'Story three', 'Lesson four']));
- await expect(start(good)).resolves.toMatchObject({status:'waiting-for-you'});
+ await expect(start(good)).resolves.toMatchObject({status:'working'});
  expect(runs).toHaveLength(1);
  expect(() => create({ fields: { ...fields, sourceFile: good.intake!.fields!.sourceFile } })).toThrowError(expect.objectContaining({ code: 'UPLOAD_NOT_FOUND' }));
 });

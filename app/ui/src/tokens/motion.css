@@ -113,16 +113,6 @@ details[open] > summary [data-fold-chevron] {
   to { opacity: 1; transform: none; }
 }
 
-/* A value the owner just changed (parts/useChanged.ts): one tint that fades, once. */
-@keyframes ink-changed {
-  from { background-color: var(--accent-soft); }
-  to { background-color: transparent; }
-}
-
-[data-changed] {
-  animation: ink-changed var(--t-settle) var(--ease) 1;
-}
-
 @keyframes ink-sheet-in {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: none; }

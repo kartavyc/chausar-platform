@@ -8,14 +8,14 @@
  * the engine converts it, checks it, says in words what is wrong, and answers with the settings written in its own
  * words. Rate lines that were already on the card go back as the engine gave them, in dollars.
  *
- * The owner may also set their own rate of rupees per US dollar. Spend is still counted in dollars; with a rate, the
- * engine gives the limits (and every spend figure) in rupees too, with that rate and the day it was set, beside them.
+ * The owner may also set their own rate of rupees per US dollar. Spend is still counted in dollars; the engine gives the
+ * limits (and every spend figure) in rupees too at the rate in use, with its day: the owner's own, or for a business in
+ * India the dated reference rate until they type one.
  */
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { setQuery, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
@@ -74,14 +74,6 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
   const [rates, setRates] = useState<RateDraft[]>([]);
   const leadId = useId();
   useEffect(() => { setSaved(null); }, [policy.data]);
-  // C4 (T23): "Set a rupee rate" lands here with the settings open on the rate; the address is cleared so the link works again.
-  const wantsRate = useRoute().query.set === 'rate';
-  const current = policy.data;
-  useEffect(() => {
-    if (!wantsRate || !current) return;
-    edit(current);
-    setQuery({});
-  }, [wantsRate, current]);
   // W4 4J21: the edits, kept as a draft of exactly what venture.spend.policy.set takes, and offered back.
   const [touched, setTouched] = useState(false);
   const values = { capUsd: figureOrNull(cap), askFirstUsd: figureOrNull(askFirst), inrPerUsd: figureOrNull(inrPerUsd), currencyLead: lead, rates: rates.map(inputOf) };

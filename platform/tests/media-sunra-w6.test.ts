@@ -102,10 +102,13 @@ test('auto-confirm, webhooks, the key tool and batches are refused before any ca
   assert.equal(listRecords(job.env.store.read(), 'venture-media-generation').length, 0);
 });
 
-test('without the owner\'s rupee rate there is no card; a reference image needs recorded rights', async t => {
+test('a rupee business with no rate of its own gets its card at the reference rate; a reference image needs recorded rights', async t => {
+  // Fix round 4 (real-app problem 12): no rate of the owner's own, so the dated reference rate prices the card, as it
+  // does every other rupee figure. US$0.045 at 94.3996 per $1 is 4.2480 rupees: 425 paise.
   const noRate = await sunraJob(t, { rate: false });
-  await assert.rejects(noRate.call('submit', { endpointId: 'a/b/text-to-image', input: { prompt: 'x' } }), { code: 'RUPEE_RATE_REQUIRED' });
-  assert.equal(noRate.cards.length, 0);
+  await noRate.call('submit', { endpointId: 'black-forest-labs/flux-1.1-pro/text-to-image', input: { prompt: 'A synthetic sample', resolution: '1K' } });
+  assert.equal(noRate.cards.length, 1);
+  assert.equal((noRate.cards[0]!.arguments as any).cost.display, '₹4.25');
   const noRights = await sunraJob(t);
   await assert.rejects(noRights.call('submit', { endpointId: 'a/b/image-editing', input: { prompt: 'x', image_url: 'https://example.com/client-photo.jpg' } }), { code: 'RIGHTS_REQUIRED' });
   assert.equal(noRights.cards.length, 0);

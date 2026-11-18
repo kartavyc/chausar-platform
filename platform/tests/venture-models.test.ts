@@ -20,6 +20,7 @@ import type {
   SecretName, SecretShelf, VentureDeps,
 } from '../runtime/venture/contracts.ts';
 import { digest, formatMicros, houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
+import { defaultAiSettings } from '../runtime/venture/agent-runtime/settings.ts';
 import {
   PRESETS, assertSchemaSafe, callCostMicros, clientDataFindings, createModelPort, createReplayTransport, defaultModelTransport, handlers,
 } from '../runtime/venture/models/index.ts';
@@ -599,7 +600,7 @@ test('Claude Code CLI: flags, a clean environment, a 150 second limit and the te
   assert.equal('ANTHROPIC_API_KEY' in request.env, false);
   assert.equal(request.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS, '2048');
   assert.equal(request.env.CLAUDE_CODE_MAX_RETRIES, '0');
-  for (const name of Object.keys(request.env)) assert.match(name, /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|CLAUDE_CODE_[A-Z_]+|MAX_STRUCTURED_OUTPUT_RETRIES|FALLBACK_FOR_ALL_PRIMARY_MODELS)$/);
+  for (const name of Object.keys(request.env)) assert.match(name, /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|USER|LOGNAME|CLAUDE_CODE_[A-Z_]+|MAX_STRUCTURED_OUTPUT_RETRIES|FALLBACK_FOR_ALL_PRIMARY_MODELS)$/);
   assert.equal(during.length, 1, 'one temp folder exists while the command runs');
   assert.equal(existsSync(join(tmpdir(), during[0])), false, 'the temp folder is removed afterwards');
   const record = calls(store).at(-1);
@@ -711,10 +712,58 @@ test('A2: connecting Codex takes the route model from Codex’s own list; the fi
   assert.ok(asked.some(line => line.endsWith('debug models') && line.includes('--disable daemon_auto_start')), 'Codex is asked for its own list, its background features off');
   assert.equal((listRecords(first.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-astra', 'gpt-6-luna is hidden for this account');
   assert.equal((await first.deps.models.codexModels!()).main, 'gpt-6-astra');
+  // Fix round 6 (17 Nov 2026): Connections showed only the route model while an order's receipt named the job's main
+  // model. The row now carries the model the agent jobs run on, read from the same list the job route reads.
+  const row = first.deps.models.status(owner).connections.find(item => item.presetId === 'codex-cli')!;
+  assert.equal(row.model, 'gpt-6-astra');
+  assert.equal(row.jobModel, 'gpt-6-astra');
+  // The owner's own choice in AI settings is what a job runs on, so it is what the row says.
+  await ventureAction(first.deps, owner, 'approve', 'test.job-model', tx => { tx.touch({ aiSettings: { ...defaultAiSettings(), codex: { ...defaultAiSettings().codex, main: { model: 'gpt-6-sol', effort: 'high' } } } }); });
+  assert.equal(first.deps.models.status(owner).connections.find(item => item.presetId === 'codex-cli')!.jobModel, 'gpt-6-sol');
   list = null;
   const second = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
   await connect(second.deps, 'codex-cli');
   assert.equal((listRecords(second.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-luna');
+  // Codex's list could not be read, so which model a job will run on is not known yet: the row names none.
+  assert.equal(second.deps.models.status(owner).connections.find(item => item.presetId === 'codex-cli')!.jobModel, null);
+});
+
+test('fix round 7: the status read reads Codex’s own list once when the job model is not known yet, so the first Connections visit names it', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  let list: string | null = JSON.stringify({ models: [{ slug: 'gpt-6-astra', visibility: 'list', priority: 2 }] });
+  const asked: string[] = [];
+  const hostProcess = async (request: any) => {
+    if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
+    if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
+    if (request.args.slice(-2).join(' ') === 'debug models') { asked.push('models'); return list === null ? { exitCode: 1, stdout: '' } : { exitCode: 0, stdout: list }; }
+    return { exitCode: 1, stdout: '' };
+  };
+  const first = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  // The owner typed the route model, so connecting never read Codex's list (as after the app starts again).
+  await connect(first.deps, 'codex-cli', { model: 'gpt-6-luna' });
+  assert.equal(asked.length, 0);
+  assert.equal(first.deps.models.status(owner).connections.find(item => item.presetId === 'codex-cli')!.jobModel, null);
+  const view = await call(first.deps, 'venture.models.status') as ModelStatusView;
+  assert.equal(view.connections.find(item => item.presetId === 'codex-cli')!.jobModel, 'gpt-6-astra');
+  assert.equal(asked.length, 1);
+  await call(first.deps, 'venture.models.status');
+  assert.equal(asked.length, 1, 'a list read once is kept for this run');
+  // When Codex cannot give its list, no model is guessed, and it is not asked again on every status read.
+  list = null;
+  asked.length = 0;
+  const second = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(second.deps, 'codex-cli', { model: 'gpt-6-luna' });
+  for (let i = 0; i < 3; i += 1) assert.equal((await call(second.deps, 'venture.models.status') as ModelStatusView).connections.find(item => item.presetId === 'codex-cli')!.jobModel, null);
+  assert.equal(asked.length, 1);
+});
+
+test('fix round 6: a key AI serving plans and drafts names the main model its jobs run on; one serving quick work only names none', async () => {
+  const { deps } = await setup();
+  await connect(deps, 'anthropic-haiku-5-5');
+  await connect(deps, 'anthropic-sonnet-5-5');
+  const rows = deps.models.status(owner).connections;
+  assert.equal(rows.find(item => item.presetId === 'anthropic-sonnet-5-5')!.jobModel, defaultAiSettings().claude.main.model);
+  assert.equal(rows.find(item => item.presetId === 'anthropic-haiku-5-5')!.jobModel, null);
 });
 
 test('A2: the agent route runs the Codex program the trust names, read at each use', async () => {
@@ -785,7 +834,7 @@ test('cost: the hand-worked examples, the monthly limit, and reservations by cal
   const lunaStatus = lunaSetup.deps.models.status(owner);
   assert.equal(lunaStatus.spentThisMonthMicros, '164');
   assert.equal(lunaStatus.estimate, true);
-  assert.equal(lunaStatus.spentThisMonthDisplay, 'under $0.01 (estimate)');
+  assert.equal(lunaStatus.spentThisMonthDisplay, '₹0.02 (estimate) (under $0.01 at ₹94.40 per $1)');
   const lunaPreview = await lunaSetup.deps.models.preview(owner, wordsTask({ containsClientData: true }));
   assert.ok(lunaPreview!.estimatedMaxCostDisplay.endsWith(' (estimate)'));
 
@@ -820,7 +869,7 @@ test('cost: the hand-worked examples, the monthly limit, and reservations by cal
   held.rec.replyHttp = () => anthropicReply({ words: 'More plan words' }, { usage: { input_tokens: 1430, output_tokens: 402 } });
   await held.deps.models.generate(owner, wordsTask({ purpose: 'blueprint', maxOutputTokens: 4096 }));
   assert.equal(held.deps.models.status(owner).spentThisMonthMicros, '13760');
-  assert.equal(held.deps.models.status(owner).spentThisMonthDisplay, '$0.01');
+  assert.equal(held.deps.models.status(owner).spentThisMonthDisplay, '₹1.30 ($0.01 at ₹94.40 per $1)');
 });
 
 // ---------------------------------------------------------------------------

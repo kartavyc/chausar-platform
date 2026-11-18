@@ -436,18 +436,23 @@ describe('Money v2: spend', () => {
     assertInkRules();
   });
 
-  it('keeps the Ink rules with the owner rupee rate set', async () => {
-    // The sample has the owner's rupee rate (4Z3); cleared first, the owner types it here.
+  it('keeps the Ink rules at the reference rate and with the owner rupee rate set', async () => {
+    // The sample has the owner's rupee rate (4Z3); cleared first, the dated reference rate stands in for a rupee business
+    // (fix round 4, real-app problem 12): $20 at 94.3996 is ₹1,887.99, $2 is ₹188.80. The owner then types their own.
     const engine = new FakeEngine({ now: NOW });
     await engine.request('venture.spend.policy.set', { inrPerUsd: null });
     start('#/money/spend', { engine });
     const settings = await screen.findByRole('region', { name: 'Limits and rates' });
     // The owner's own limits, said back in the engine's sentences: engine words, in the body face.
-    for (const words of ['$20.00 a month', 'Asks you first above $2.00']) {
+    for (const words of ['₹1,887.99 a month', 'Asks you first above ₹188.80']) {
       const line = await within(settings).findByText(words);
       expect(line.closest('[data-engine-line]'), words).toBeTruthy();
       expect(line.closest('.mono'), words).toBeNull();
     }
+    // The rate reads in the owner form, two decimals, with its source and day; never four decimals on the page.
+    expect(within(settings).getByText('₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)')).toBeTruthy();
+    expect(settings.textContent).toContain('Shown first: Rupees, by business location');
+    assertInkRules();
     await click(within(settings).getByRole('button', { name: 'Change' }));
     await act(async () => { fireEvent.change(within(settings).getByLabelText('Rupees per US dollar'), { target: { value: '83.50' } }); });
     await click(within(settings).getByRole('button', { name: 'Save' }));

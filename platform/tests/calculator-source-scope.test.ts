@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { CalculatorService, type CalculationRequest, type CalculatorOptions } from '../runtime/calculator.ts';
+import { CalculatorService, type CalculationReceipt, type CalculationRequest, type CalculatorOptions } from '../runtime/calculator.ts';
 import { type Context, type StateStore } from '../runtime/contracts.ts';
 import { MemoryService, type FactInput } from '../runtime/memory.ts';
 import { OntologyService } from '../runtime/ontology.ts';
@@ -21,7 +21,7 @@ async function setup(options: CalculatorOptions = {}, store: StateStore = new Fi
   await new OntologyService(store).publish(owner, 'retail');
   return { store, memory: new MemoryService(store), calculator: new CalculatorService(store, options) };
 }
-function assertOnlySource(receipt: Awaited<ReturnType<CalculatorService['calculate']>>, store: StateStore, sourceId: string) {
+function assertOnlySource(receipt: CalculationReceipt, store: StateStore, sourceId: string) {
   assert.deepEqual(receipt.requestedSourceIds, [sourceId]);
   assert.ok(receipt.rows.every(row => row.sourceId === sourceId));
   const allowedRows = new Set(store.read().facts.filter(row => row.sourceId === sourceId).map(row => row.id));
@@ -54,7 +54,8 @@ test('source precedence and source corrections resolve only among reviewed sourc
   const value = await setup();
   const initial = await value.memory.append(owner, [fact('A', 'same-invoice', '10000'), fact('B', 'same-invoice', '20000')], { testLearnedAt: '2026-09-11T00:00:00Z' });
   await value.memory.correct(owner, initial[0].id, { amountMinor: '15000' }, { testLearnedAt: '2026-09-12T00:00:00Z' });
-  await value.memory.setSourcePrecedence(owner, 'invoice', ['B', 'A']);
+  // A published source rule, as the vault keeps it (nothing in the app writes one now; the calculator still reads them).
+  await value.store.update(state => { state.sourceRules.push({ id: 'rule_invoice', kind: 'invoice', sourceIds: ['B', 'A'], at: new Date().toISOString(), by: owner.memberId }); });
   const scoped = await value.calculator.calculate(owner, request({ sourceIds: ['A'] }));
   assert.equal(scoped.totalMinor, '15000'); assertOnlySource(scoped, value.store, 'A');
   assert.deepEqual(scoped.exclusions, [{ rowId: initial[0].id, reason: 'Superseded source version.' }]);

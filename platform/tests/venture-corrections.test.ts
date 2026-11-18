@@ -73,13 +73,10 @@ test('each edit or send-back is a regression case in rehearsal; a practice draft
   const playbooks = listRecords(state, 'venture-playbook').map(record => record.hash);
 
   const [signalRecord] = listRecords(state, 'venture-signal');
-  // Recorded, the send-back is already a rehearsal case: listed with its expectations, before anyone turns it into one.
+  // Recorded, the send-back is already a rehearsal case, listed with its expectations.
   const recorded = await env.call('venture.simulation.scenarios', {});
-  assert.deepEqual(recorded.find((item: any) => item.id === `signal-${signalRecord.id}`)?.expectations, [{ kind: 'cites', what: 'figure' }]);
-  const scenario = await env.call('venture.simulation.fromSignal', { signalId: signalRecord.id });
-  assert.deepEqual(scenario.expectations, [{ kind: 'cites', what: 'figure' }]);
-  const listed = await env.call('venture.simulation.scenarios', {});
-  assert.deepEqual(listed.find((item: any) => item.id === scenario.id)?.expectations, [{ kind: 'cites', what: 'figure' }]);
+  const scenario = recorded.find((item: any) => item.id === `signal-${signalRecord.id}`);
+  assert.deepEqual(scenario?.expectations, [{ kind: 'cites', what: 'figure' }]);
   // The practice draft (plainDraft) cites no figure, so the case fails on the correction, with its result on the episode.
   const rehearsal = await env.call('venture.simulation.run', { scenarioIds: [scenario.id] });
   const [practice] = rehearsal.episodes;

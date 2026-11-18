@@ -1,8 +1,8 @@
 /**
- * The one-sentence start, in the engine's own order (docs/venture/onboarding.md; runSetup in the old renderer, removed):
+ * Keeping a business, in the engine's own order (docs/venture/onboarding.md):
  *
- *   venture.preview        the built-in plan for the sentence and country, before any vault (nothing is stored)
- *   workspace.lock         only when a business is open on this computer: the engine keeps one vault open
+ *   venture.preview        the built-in plan's name for the sentence and country, when the plan card named none
+ *   workspace.lock         only when a business is still open on this computer: the engine keeps one vault open
  *   workspace.create       the encrypted vault, named after the plan; this computer keeps its key, no passphrase
  *                          (DEVICE_KEYS_UNAVAILABLE: no protected storage, so the owner chooses a passphrase)
  *   venture.create         the business, inside the vault
@@ -15,7 +15,7 @@
  */
 
 import type { Language } from '../../text';
-import { EngineError, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type Transport, type WorkspaceCreated } from '../../engine/types';
+import { EngineError, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type OfferUnit, type Transport, type WorkspaceCreated } from '../../engine/types';
 import { COUNTRY_TIME_ZONES } from '../../../../../platform/runtime/venture/local-day-data';
 
 /** venture.preview and venture.create take 10 to 2000 characters. */
@@ -29,9 +29,11 @@ export type Request = EngineClient['request'];
 /** What the owner wrote and where, with the name the vault gets. */
 /**
  * offers and by (one-shot A1, row 3): the offers the owner saw and kept on About you and who wrote them (the AI's
- * reading, or the keywords or a tile), saved as the plan's offers; without them the plan keeps the template's.
+ * reading, the keywords or a tile, or the owner, who typed them all with no AI and no listed field), saved as the
+ * plan's offers; without them the plan keeps the template's.
  */
-export interface Sentence { idea: string; countryCode: string; name: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string }
+/** unit: the unit the card showed for the offer (the engine's core/offer-units.ts); the plan keeps the offer priced in it. */
+export interface Sentence { idea: string; countryCode: string; name: string; offers?: readonly { name: string; line: string; unit?: OfferUnit }[]; by?: 'model' | 'template' | 'owner'; callId?: string }
 
 const ZONE_COUNTRIES: Readonly<Record<string, string>> = Object.freeze({
   ...Object.fromEntries(Object.entries(COUNTRY_TIME_ZONES).map(([country, zone]) => [zone, country])),
@@ -130,14 +132,13 @@ export async function makeVault(request: Request, transport: Transport, name: st
 }
 
 /**
- * Inside the new vault: the business, the template interview, the plan. reuseAi: the Start gallery's business reuses the
- * AI set up in another business on this computer. Running it again after a failure is safe:
- * an existing business is kept (VENTURE_EXISTS) and only unanswered questions are answered.
+ * Inside the new vault: the business, the template interview, the plan. The AI connected before the vault (the first
+ * run's step 1, or the one a later business uses again: venture.ai.reuse) comes along in venture.create by itself.
+ * Running it again after a failure is safe: an existing business is kept (VENTURE_EXISTS) and only unanswered
+ * questions are answered.
  */
-export async function setUpPlan(request: Request, sentence: Sentence, options: { reuseAi?: boolean } = {}): Promise<void> {
-  const payload: { idea: string; countryCode: string; workingName?: string; reuseAi?: true } = { idea: sentence.idea, countryCode: sentence.countryCode };
-  // A4 fix round: from the Start gallery, the AI set up in another business comes along (the engine decides what).
-  if (options.reuseAi) payload.reuseAi = true;
+export async function setUpPlan(request: Request, sentence: Sentence): Promise<void> {
+  const payload: { idea: string; countryCode: string; workingName?: string } = { idea: sentence.idea, countryCode: sentence.countryCode };
   const name = sentence.name.trim();
   if (name.length >= 2 && name.length <= 80) payload.workingName = name;
   try { await request('venture.create', payload); }
@@ -151,7 +152,7 @@ export async function setUpPlan(request: Request, sentence: Sentence, options: {
     view = await request('venture.interview.answer', { questionId: question.id, answer: answerFor(question) });
   }
   // Review of A1 (row 3): the first plan is the one About you showed, its words still the AI's or the template's.
-  const offers = (sentence.offers ?? []).filter((offer) => offer.name.trim().length >= 2).slice(0, 3).map((offer) => ({ name: offer.name.trim(), line: offer.line.trim() }));
+  const offers = (sentence.offers ?? []).filter((offer) => offer.name.trim().length >= 2).slice(0, 3).map((offer) => ({ name: offer.name.trim(), line: offer.line.trim(), ...(offer.unit && offer.unit !== 'project' ? { unit: offer.unit } : {}) }));
   const shownName = sentence.name.trim();
   try {
     await request('venture.blueprint.draft', offers.length && shownName.length >= 2 && shownName.length <= 60

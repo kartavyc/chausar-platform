@@ -157,4 +157,3 @@ export function readWorkbook(input: Uint8Array, options: { sheet?: string } = {}
 export function workbookSheetToCSV(sheet: WorkbookResult['sheets'][number]): string {
   return sheet.rows.map(row => row.map(value => /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value).join(',')).join('\n');
 }
-export class WorkbookReader { read(input: Uint8Array, options: { sheet?: string } = {}) { return readWorkbook(input, options); } }

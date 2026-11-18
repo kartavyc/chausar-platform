@@ -1,48 +1,37 @@
-// Chausar venture launcher: onboarding v2 contracts. Connect an AI first, one open box, a plan composed from a checked
-// library of blocks and drawn through a fixed view registry. The AI picks and writes words; code checks and draws.
+// Chausar venture launcher: onboarding v2 contracts. Connect an AI first, before any vault. The ids and shapes of a
+// plan composed from the block library stay here for vaults that already hold one; nothing composes a new one.
 // Erasable TypeScript only (Node type stripping). Created first by P-engine; P-renderer and P-e2e-docs import it and
 // never edit it. This file imports only types from contracts.ts, and contracts.ts imports only types from this file.
 import type {
-  BackOffice, BlueprintStep, ConnectorCard, CountryCode, CountryProfile, InterviewAnswer, InterviewQuestion, IsoTime,
+  CountryProfile, InterviewAnswer, IsoTime,
   Labelled, MinorString, ModelCallRecord, ModelConnectionRecord, ModelPreset, ModelPresetId, ModelStatusView, ModelTier,
-  Offer, PlanFlagshipStep, PricingModel, RecordBase, SecretShelf, ServiceType,
+  PricingModel, RecordBase, SecretShelf, ServiceType,
 } from './contracts.ts';
 
-import type { AboutRead, FamilyId, FamilyTile, ToolView, ToolsView } from './core/first-run-types.ts';
-
-export const ONBOARDING_CONTRACT_VERSION = 'chausar.dev/venture-onboarding/v1alpha2' as const;
+import type { AboutBeforePayload, AboutRead, FamilyId, FamilyTile, ToolView, ToolsView } from './core/first-run-types.ts';
 
 /** The onboarding methods. All are answered before the vault check by the engine's draft desk. contracts.ts lists them
  *  again as DRAFT_METHODS (a test pins the two lists equal); they are not PRE_VAULT_METHODS. */
 export const ONBOARDING_METHODS = [
-  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
-  'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status',
   'venture.country.suggest',
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
   'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.ai.reuse',
 ] as const;
-export type OnboardingMethod = typeof ONBOARDING_METHODS[number];
 
 // ---------------------------------------------------------------------------
 // 1. The open box
 // ---------------------------------------------------------------------------
 
-export const OPEN_BOX_KINDS = ['idea', 'skill', 'problem', 'not-a-service'] as const;
-export type OpenBoxKind = typeof OPEN_BOX_KINDS[number];
-export type PlanKind = Exclude<OpenBoxKind, 'not-a-service'>;
-export const KIND_LABELS: Readonly<Record<PlanKind, string>> = Object.freeze({
-  idea: 'Your idea, as a service', skill: 'Your skill, as a service', problem: 'A service that fixes this',
-});
-export const NOT_A_SERVICE_WORDS = 'Chausar plans services you sell to other people. Try saying what you could do for them.';
-export const COMPOSE_REFUSED_WORDS = "The AI's answer failed Chausar's checks again. No plan was saved. Both tries are listed under What was sent.";
+/** The kind of sentence a composed plan was made from. */
+export type PlanKind = 'idea' | 'skill' | 'problem';
 export const OPEN_BOX_TEXT = Object.freeze({ min: 10, max: 2000 } as const);
 
 // ---------------------------------------------------------------------------
-// 2. Block library ids (meanings, who does each step and fixed words live in core/blocks.ts)
+// 2. Block library ids (who does each step, the approval words and the allowed pricing live in core/blocks.ts)
 // ---------------------------------------------------------------------------
 
-export const BLOCK_KINDS = ['offer', 'step', 'approval', 'page', 'tool', 'question', 'note'] as const;
-export type BlockKind = typeof BLOCK_KINDS[number];
 export const OFFER_BLOCK_IDS = ['retainer', 'subscription', 'one-off-project', 'package', 'audit', 'setup', 'session', 'course', 'hourly-help', 'done-for-you'] as const;
 export type OfferBlockId = typeof OFFER_BLOCK_IDS[number];
 export const STEP_BLOCK_IDS = ['collect-inputs', 'book-time', 'meet-client', 'hands-on-work', 'in-person-work', 'draft-reply', 'send', 'deliver-files', 'follow-up', 'get-paid'] as const;
@@ -51,7 +40,7 @@ export const APPROVAL_BLOCK_IDS = ['each-draft', 'prices-invoices', 'posts-in-yo
 export type ApprovalBlockId = typeof APPROVAL_BLOCK_IDS[number];
 export const PAGE_BLOCK_IDS = ['home', 'offers-prices', 'how-it-works', 'start-request', 'booking', 'about', 'faq', 'portfolio', 'client-area', 'privacy-terms'] as const;
 export type PageBlockId = typeof PAGE_BLOCK_IDS[number];
-/** Connector catalogue ids the composer may pick. Never a payments connector: the rail comes from the country. */
+/** Connector catalogue ids a composed plan may hold as tools. Never a payments connector: the rail comes from the country. */
 export const TOOL_BLOCK_IDS = [
   'mail-app', 'google-workspace', 'zoho-mail', 'cal-com', 'calendly', 'google-calendar', 'chausar-crm', 'hubspot', 'zoho-crm', 'attio',
   'whatsapp', 'telegram', 'slack', 'discord', 'notion', 'google-drive', 'linear', 'airtable', 'linkedin', 'x', 'instagram', 'buffer',
@@ -63,90 +52,38 @@ export type QuestionBlockId = typeof QUESTION_BLOCK_IDS[number];
 export const NOTE_BLOCK_IDS = ['licence-may-apply', 'insurance', 'personal-data', 'children-or-care', 'regulated-advice', 'safety'] as const;
 export type NoteBlockId = typeof NOTE_BLOCK_IDS[number];
 
-/**
- * Code-owned identities for the largest registered flagship offer set. The AI still composes only
- * BLOCK_LIMITS.offers and its schema exposes only that smaller prefix. Owner-added offers have their own cap.
- */
+/** Code-owned identities for the largest registered flagship offer set. Owner-added offers have their own cap. */
 export const OFFER_REFS = ['offer_1', 'offer_2', 'offer_3', 'offer_4', 'offer_5', 'offer_6', 'offer_7', 'offer_8', 'offer_9', 'offer_10', 'offer_11', 'offer_12', 'offer_13', 'offer_14'] as const;
 export type OfferRef = typeof OFFER_REFS[number];
-export const STEP_REFS = ['step_1', 'step_2', 'step_3', 'step_4', 'step_5', 'step_6'] as const;
-export type StepRef = typeof STEP_REFS[number];
 export const PAGE_REFS = ['page_1', 'page_2', 'page_3', 'page_4', 'page_5', 'page_6'] as const;
 export type PageRef = typeof PAGE_REFS[number];
 export const QUESTION_REFS = ['q_1', 'q_2'] as const;
 export type QuestionRef = typeof QUESTION_REFS[number];
 
-/** Counts code enforces after the model answers; a schema here cannot carry counts. [min, max]. */
-export const BLOCK_LIMITS = Object.freeze({
-  offers: [1, 3], steps: [3, 6], approvals: [1, 4], pages: [4, 6], tools: [2, 6], questions: [0, 2], notes: [0, 3],
-} as const);
-/** Longest text, in characters, code accepts in each model field. */
-export const WORD_LIMITS = Object.freeze({
-  reading: 90, name: 60, oneLiner: 160, customer: 200, offerName: 60, offerDescription: 200, stepTitle: 80,
-  pageTitle: 40, pagePurpose: 160, toolReason: 120, questionText: 160, choice: 60, who: 120, pain: 160,
-} as const);
 /**
- * Most words code accepts in each model field, counted like the renderer's words-at-rest test (split on spaces, count
- * pieces holding a letter or a digit). They keep every onboarding screen within 45 words at rest with the longest
- * answers allowed. A longer answer is MODEL_OUTPUT_REJECTED, so the repair path handles it.
+ * Most words code accepts in each model field of a composed plan, counted like the renderer's words-at-rest test
+ * (split on spaces, count pieces holding a letter or a digit). A longer answer is MODEL_OUTPUT_REJECTED.
  */
 export const WORD_CAPS = Object.freeze({
-  reading: 12, name: 4, oneLiner: 24, customer: 24, offerName: 4, offerDescription: 30, stepTitle: 4,
-  pageTitle: 4, pagePurpose: 24, toolReason: 18, questionText: 20, choice: 5, who: 7, pain: 8,
+  name: 4, oneLiner: 24, customer: 24, offerName: 4, offerDescription: 30, stepTitle: 4,
 } as const);
 
 // ---------------------------------------------------------------------------
-// 3. The view registry
+// 3. The views of a composed plan
 // ---------------------------------------------------------------------------
 
 export const VIEW_IDS = ['offers-first', 'steps-first', 'audience-first', 'pages', 'tools', 'questions', 'notes'] as const;
 export type ViewId = typeof VIEW_IDS[number];
-export type ViewShape = 'cards' | 'flow' | 'statement' | 'site' | 'chips' | 'asks' | 'lines';
-export type ViewSpec = {
-  id: ViewId;
-  role: 'lead' | 'support';
-  /** Fixed words shown above the view. */
-  heading: string;
-  /** What the decide model reads: what the view is for, and what it is not for. */
-  pick: string;
-  draws: 'offers' | 'steps' | 'audience' | 'pages' | 'tools' | 'questions' | 'notes';
-  slot: 'lead-refs' | 'audience';
-  /** How many items the model names as the view's lead items, [min, max], for a lead-refs slot; [0, 0] for audience.
-   *  A lead view shows exactly these at rest; a support view shows them first when its fold opens. */
-  lead: readonly [number, number];
-  outline: { shape: ViewShape; rows: number };
-};
-export const VIEW_REGISTRY: readonly ViewSpec[] = Object.freeze([
-  { id: 'offers-first', role: 'lead', heading: 'What you sell', draws: 'offers', slot: 'lead-refs', lead: [1, 2], outline: { shape: 'cards', rows: 2 },
-    pick: 'Lead with the offers when the person already knows what they would sell. Not for a skill with no clear offer yet, and not for a problem.' },
-  { id: 'steps-first', role: 'lead', heading: 'How the work gets done', draws: 'steps', slot: 'lead-refs', lead: [2, 3], outline: { shape: 'flow', rows: 3 },
-    pick: 'Lead with the steps when the work itself is the point, such as a skill the person has. Not when the person described a problem.' },
-  { id: 'audience-first', role: 'lead', heading: 'Who it helps', draws: 'audience', slot: 'audience', lead: [0, 0], outline: { shape: 'statement', rows: 2 },
-    pick: 'Lead with who it helps and what goes wrong for them when the person described a problem. Not for a plain idea or skill.' },
-  { id: 'pages', role: 'support', heading: 'Your website', draws: 'pages', slot: 'lead-refs', lead: [2, 3], outline: { shape: 'site', rows: 3 },
-    pick: 'Show the website pages when clients will find, book or pay the business online.' },
-  { id: 'tools', role: 'support', heading: 'Tools to connect', draws: 'tools', slot: 'lead-refs', lead: [1, 3], outline: { shape: 'chips', rows: 3 },
-    pick: 'Show the tools when the work depends on a calendar, an inbox, a chat app or shared files.' },
-  { id: 'questions', role: 'support', heading: 'Quick questions', draws: 'questions', slot: 'lead-refs', lead: [1, 2], outline: { shape: 'asks', rows: 2 },
-    pick: 'Ask short questions only when an answer would change the plan, such as where the person works or who for. Not to ask about prices.' },
-  { id: 'notes', role: 'support', heading: 'Check before you start', draws: 'notes', slot: 'lead-refs', lead: [1, 2], outline: { shape: 'lines', rows: 2 },
-    pick: 'Show notes when the work may need a licence, insurance, care with personal details, checks for work with children, or safety rules.' },
-]);
-/** How many views decide may pick: one lead view first, then support views. */
-export const VIEW_PICKS = Object.freeze({ min: 2, max: 4 } as const);
-
 export type ViewSelection =
   | { id: Exclude<ViewId, 'audience-first'>; lead: string[] }
   | { id: 'audience-first'; who: Labelled<string>; pain: Labelled<string> };
 
 // ---------------------------------------------------------------------------
-// 4. What the model returns (words and enums only; no number anywhere, in digits or in words)
+// 4. What the model returned for a composed plan (words and enums only), as a stored composition keeps it
 // ---------------------------------------------------------------------------
 
-/** Purpose 'decide' (fast tier), schema 'venture-decide'. */
-export type DecideModelOutput = { kind: OpenBoxKind; family: ServiceType; reading: string; views: ViewId[] };
 export type ViewSlotOutput = { lead: string[] } | { who: string; pain: string };
-/** Purpose 'compose' (main tier), schema 'venture-compose'. views has exactly the decided view ids as keys. */
+/** What the 'compose' call answered. views has exactly the decided view ids as keys. */
 export type ComposeModelOutput = {
   name: string;
   oneLiner: string;
@@ -160,87 +97,21 @@ export type ComposeModelOutput = {
   notes: NoteBlockId[];
   views: Record<string, ViewSlotOutput>;
 };
-/** Put in task.input as "marker". Quote-free, so replay mustInclude matches HTTP bodies and CLI stdin alike. */
-export const ONBOARDING_MARKERS = Object.freeze({
-  decide: 'chausar-decide-v1', redecide: 'chausar-redecide-v1', compose: 'chausar-compose-v1', recompose: 'chausar-recompose-v1',
-} as const);
-export const ONBOARDING_SCHEMAS = Object.freeze({ decide: 'venture-decide', compose: 'venture-compose' } as const);
-export const ONBOARDING_MAX_OUTPUT = Object.freeze({ decide: 512, compose: 4096 } as const);
 
 // ---------------------------------------------------------------------------
-// 5. The composed plan (engine-held before the vault; the renderer draws it, never sends it back)
+// 5. The parts of a composed plan a stored blueprint carries, and the note about a dropped file
 // ---------------------------------------------------------------------------
 
 export type WrittenBy = { presetId: ModelPresetId; model: string | null; replay: boolean };
-/** allowedPricing is OFFER_BLOCKS[block].allowed, copied here for the renderer; after the vault it is derived from block. */
-export type ComposedOffer = Offer & { block: OfferBlockId; allowedPricing: PricingModel[]; priceDisplay: string | null };
-export type ComposedStep = BlueprintStep & { block: StepBlockId };
-export type ComposedApproval = Labelled<string> & { block: ApprovalBlockId };
 export type ComposedPage = { id: PageRef; block: PageBlockId; title: Labelled<string>; purpose: Labelled<string> };
-export type ComposedTool = { block: ToolBlockId; reason: Labelled<string>; card: ConnectorCard };
-export type ComposedQuestion = InterviewQuestion & { block: QuestionBlockId; answer: InterviewAnswer | null };
 export type ComposedNote = { block: NoteBlockId; text: string };
 
-export type ComposeDecision = {
-  composeId: string;
-  text: string;
-  country: CountryProfile;
-  kind: OpenBoxKind;
-  family: Labelled<ServiceType> | null; // null for not-a-service
-  reading: Labelled<string> | null; // null for not-a-service
-  views: ViewId[]; // [] for not-a-service
-  refusal: string | null; // NOT_A_SERVICE_WORDS for not-a-service
-  callIds: string[]; // draft call ids, one or two
-  writtenBy: WrittenBy;
-  at: IsoTime;
-  /** Ink v2 wave 4 (4J8): the file dropped with the sentence, never its text; absent when none was. */
-  attachment?: ComposeAttachmentNote;
-};
 /**
- * The file the owner dropped with the sentence: its name, whether it went with the model calls (as background only),
+ * The file the owner dropped with a sentence: its name, whether it went with the model calls (as background only),
  * and, when it was left out, the plain line that says why and its reason, so a screen can say it in its own words
  * (Hindi too): words aimed at the AI, hidden characters, or a file the screen could not check.
  */
 export type ComposeAttachmentNote = { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null };
-export type ComposedPlan = {
-  composeId: string;
-  digest: string; // digest of the plan without composeId and digest; venture.create checks it
-  text: string;
-  country: CountryProfile;
-  kind: PlanKind;
-  kindLabel: string;
-  family: Labelled<ServiceType>;
-  familyLabel: string;
-  reading: Labelled<string>;
-  views: ViewSelection[];
-  name: Labelled<string>;
-  oneLiner: Labelled<string>;
-  customer: Labelled<string>;
-  offers: ComposedOffer[]; // 1 to 3, offer_1..
-  steps: ComposedStep[]; // 3 to 6, step_1..
-  approvals: ComposedApproval[];
-  pages: ComposedPage[]; // 4 to 6
-  tools: ComposedTool[]; // 2 to 6
-  questions: ComposedQuestion[]; // 0 to 2, q_1..
-  notes: ComposedNote[];
-  backOffice: BackOffice;
-  taxQuestion: InterviewQuestion; // the engine's tax question for the country
-  taxRateQuestion: InterviewQuestion; // shown after a yes
-  calls: { decide: string[]; compose: string[] };
-  writtenBy: WrittenBy; // the main tier
-  by: 'model';
-  saved: false;
-  /** A flagship playbook's delivery steps, listed in place of steps (venture/playbooks/steps.ts); absent otherwise. */
-  flagshipSteps?: PlanFlagshipStep[];
-};
-export type ComposeState = { decision: ComposeDecision; plan: ComposedPlan | null };
-export type ComposePatch = {
-  countryCode?: CountryCode;
-  offers?: { id: OfferRef; unitPrice?: string | null; pricingModel?: PricingModel }[];
-  taxRegistered?: boolean;
-  taxRate?: string;
-  answers?: { questionId: QuestionRef; answer: InterviewAnswer }[];
-};
 
 // ---------------------------------------------------------------------------
 // 6. Connecting an AI before the vault
@@ -293,6 +164,12 @@ export type AiStatusView = ModelStatusView & {
   /** When the draft AI is wiped if no draft request touches it; null when nothing is connected or the timer is paused. */
   idleUntil: IsoTime | null;
 };
+/**
+ * venture.ai.reuse {}: the status of a new draft after the AI the owner already connected in another business on this
+ * computer was connected in it (Codex or Claude Code only; a key never leaves its vault). reused names that business,
+ * or is null when nothing carried over: no such setup, a gate that connect runs failed, or the words agreed to changed.
+ */
+export type AiReuseView = AiStatusView & { reused: { from: string } | null };
 export type AiOptionsView = {
   options: AiOption[];
   presets: ModelPreset[]; // with live availability; an explicit pending override omits Claude Code
@@ -321,25 +198,26 @@ export type CompositionRecord = RecordBase<'venture-composition'> & {
   decideCallIds: string[];
   composeCallIds: string[];
   writtenBy: WrittenBy;
-  planDigest: string; // the ComposedPlan digest the owner kept
+  planDigest: string; // the digest of the plan the owner kept
 };
 
-export type DraftAi = { connections: ModelConnectionRecord[]; calls: ModelCallRecord[] };
-export type DraftCompose = { decision: ComposeDecision; decideOutput: DecideModelOutput; output: ComposeModelOutput; plan: ComposedPlan };
+/**
+ * reused: the setup venture.ai.reuse connected in this draft (models/ai-setup.ts AiSetupNote), while one of its
+ * connections is still connected: the new business takes the agents' models from it and notes where its AI came from.
+ */
+export type DraftAi = { connections: ModelConnectionRecord[]; calls: ModelCallRecord[]; reused?: import('./models/ai-setup.ts').AiSetupNote };
 /** Trusted host composition (engine to venture host to deps), never from a payload. */
 export interface DraftHandoverPort {
   /** Connected draft connections and every draft call, or null when nothing is connected and no call was made. */
   ai(): DraftAi | null;
-  /** The held session when it has a plan and its id matches, else null. */
-  compose(composeId: string): DraftCompose | null;
   /** Copies every model:<presetId> key to the vault's shelf. Call only after the vault write committed. */
   moveKeys(target: SecretShelf): void;
-  /** Wipes the draft: keys, records and session. */
+  /** Wipes the draft: keys and records. */
   settle(): void;
 }
 
 // ---------------------------------------------------------------------------
-// 8. Payloads and results of the nine methods (contracts.ts copies them into VenturePayloads and VentureResults)
+// 8. Payloads and results of the draft methods (contracts.ts copies them into VenturePayloads and VentureResults)
 // ---------------------------------------------------------------------------
 
 export type CountrySuggestion = { country: Pick<CountryProfile, 'code' | 'name' | 'currency'> | null; evidence: string | null; source: 'ai' | 'not-connected' };
@@ -350,17 +228,13 @@ export type OnboardingPayloads = {
   'venture.ai.connect': { presetId: ModelPresetId; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string };
   'venture.ai.disconnect': { connectionId: string };
   'venture.ai.status': Record<string, never>;
-  'venture.ai.calls': { limit?: number };
-  'venture.compose.decide': { text: string; countryCode: CountryCode };
-  'venture.compose.fill': { composeId: string };
-  'venture.compose.get': Record<string, never>;
-  'venture.compose.update': { composeId: string; patch: ComposePatch };
   'venture.ai.tools': Record<string, never>;
   'venture.ai.login.start': { cli: 'codex' | 'claude-code' };
   'venture.ai.login.cancel': { cli: 'codex' | 'claude-code' };
-  'venture.about.read': { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } };
+  'venture.about.read': { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string }; before?: AboutBeforePayload };
   'venture.about.pick': { familyId: FamilyId; text?: string };
   'venture.about.families': Record<string, never>;
+  'venture.ai.reuse': Record<string, never>;
 };
 export type OnboardingResults = {
   'venture.country.suggest': CountrySuggestion;
@@ -368,15 +242,11 @@ export type OnboardingResults = {
   'venture.ai.connect': AiStatusView;
   'venture.ai.disconnect': AiStatusView;
   'venture.ai.status': AiStatusView;
-  'venture.ai.calls': ModelCallRecord[];
-  'venture.compose.decide': ComposeDecision;
-  'venture.compose.fill': ComposedPlan;
-  'venture.compose.get': ComposeState | null;
-  'venture.compose.update': ComposedPlan;
   'venture.ai.tools': ToolsView;
   'venture.ai.login.start': ToolView;
   'venture.ai.login.cancel': ToolView;
   'venture.about.read': AboutRead;
   'venture.about.pick': AboutRead;
   'venture.about.families': { families: FamilyTile[] };
+  'venture.ai.reuse': AiReuseView;
 };

@@ -1,8 +1,8 @@
 // Flagship playbooks feed the plan (playbook wiring, plan side). An idea that picks a flagship playbook (YouTube
 // channel, AI-native CA firm, social media agency) plans with that playbook's own offers, summary, approvals and
 // connectors, on the base service type that keeps money, invoices and books working. The instant plan, the template
-// plan, the plan the AI rewrites and the plan the AI composes all keep the playbook's offer set and approvals; the AI
-// only words the name, the summary, the customer line and the steps. A workspace named after the plan's own label is
+// plan, the plan the AI rewrites and a composed plan a vault already holds all keep the playbook's offer set and
+// approvals; the AI only words the name, the summary, the customer line and the steps. A workspace named after the plan's own label is
 // an assumption on the plan, never "told by you".
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,12 +11,11 @@ import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
 import type { BlueprintView, ModelOutcome, ModelTask, SecretShelf, VentureDeps, VentureMethod } from '../runtime/venture/contracts.ts';
-import { OFFER_REFS, type ComposedPlan } from '../runtime/venture/onboarding-contracts.ts';
+import { OFFER_REFS } from '../runtime/venture/onboarding-contracts.ts';
 import { handlers, previewPlan } from '../runtime/venture/core/index.ts';
 import { OFFER_BLOCKS } from '../runtime/venture/core/blocks.ts';
-import { structureFromBlueprint, structureOf } from '../runtime/venture/core/blueprint.ts';
+import { structureOf } from '../runtime/venture/core/blueprint.ts';
 import { CONNECTOR_CATALOGUE } from '../runtime/venture/build/catalogue.ts';
-import { briefTask } from '../runtime/venture/build/brief.ts';
 import { doneClaimFindings, houseStyleFindings } from '../runtime/venture/records.ts';
 import { FLAGSHIP_PLANS, flagshipPlan } from '../runtime/venture/playbooks/plan.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
@@ -28,8 +27,8 @@ import { SOCIAL_APPROVALS, SOCIAL_OFFERS } from '../runtime/venture/playbooks/so
 import { SOCIAL_AGENCY_REGISTRATION } from '../runtime/venture/playbooks/social/registration.ts';
 import { socialIntakeFields } from '../runtime/venture/playbooks/social/intake-fields.ts';
 import { caIntakeFields } from '../runtime/venture/playbooks/ca-firm/intake-fields.ts';
-import { EXCEL_COMPOSE, EXCEL_DECIDE, planEntries } from './fixtures/venture/compose-unit/plans.ts';
-import { PASSPHRASE, compose, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
+import { EXCEL_COMPOSE, EXCEL_DECIDE } from './fixtures/venture/compose-unit/plans.ts';
+import { storedComposition } from './fixtures/venture/compose-unit/stored.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
@@ -223,53 +222,37 @@ test('a workspace named after the plan\'s own label is an assumption on the plan
   assert.deepEqual([own.blueprint.name.value, own.blueprint.name.label, own.blueprint.name.by], ['Plain Money Talks', 'told-by-you', 'owner']);
 });
 
-test('a composed plan for a flagship idea takes its offers and approvals from the playbook; the AI words the rest', async t => {
-  const { engine } = await engineFor(t, { responses: planEntries(YOUTUBE_IDEA, EXCEL_DECIDE, EXCEL_COMPOSE) });
-  await connectPair(engine);
-  const { plan } = await compose(engine, YOUTUBE_IDEA, 'IN');
-  assert.equal(plan.familyLabel, 'YouTube channel');
-  assert.equal(plan.family.value, 'studio');
-  assert.equal(plan.name.value, EXCEL_COMPOSE.name, 'the AI still names the business');
-  assert.deepEqual(plan.offers.map(offer => offer.name.value), youtubeOffers.map(offer => offer.name));
-  assert.deepEqual(plan.offers.map(offer => offer.block), ['package', 'package', 'retainer']);
-  assert.deepEqual(plan.offers.map(offer => offer.pricing.model), ['project', 'project', 'monthly']);
-  assert.deepEqual(plan.approvals.map(line => line.value), YOUTUBE_APPROVALS.map(item => item.words));
+/** The structure code makes for an idea whose vault holds a composed plan: the composition written beside a business made as today. */
+async function composedStructure(idea: string, prices: Record<string, string>) {
+  const { call, store } = harness();
+  await templatePlan(call, idea);
+  const record = (kind: string) => store.read().conversations.find((item: any) => item.kind === kind) as any;
+  return structureOf(record('venture-record'), record('venture-interview'), storedComposition(record('venture-record'), { text: idea, decide: EXCEL_DECIDE, output: EXCEL_COMPOSE, prices }));
+}
 
-  const priced = await engine.request('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_3', unitPrice: '20000' }] } }) as ComposedPlan;
-  await engine.request('workspace.create', { name: 'Plain Money', passphrase: PASSPHRASE, pack: 'services' });
-  await engine.request('venture.create', { idea: YOUTUBE_IDEA, countryCode: 'IN', workingName: 'Plain Money', composeId: priced.composeId, composedDigest: priced.digest });
-  const first = (await engine.request('venture.blueprint.get', {}) as BlueprintView).blueprint;
-  assert.equal(first.serviceType, 'studio');
-  assert.deepEqual(first.offers.map(offer => offer.name.value), youtubeOffers.map(offer => offer.name));
-  assert.deepEqual(first.offers.map(offer => offer.playbookOffer), ['episode-package', 'shorts-from-own-video', 'licensed-clips']);
-  assert.deepEqual(first.offers.map(offer => offer.pricing.unitPriceMinor), [null, null, '2000000']);
-  assert.deepEqual(first.approvals.map(line => line.value), YOUTUBE_APPROVALS.map(item => item.words));
-  assert.ok(first.starterConnectorIds.includes('youtube'));
-  const state = engine.vault!.read();
-  const record = (kind: string) => state.conversations.find((item: any) => item.kind === kind);
-  assert.deepEqual(structureOf(record('venture-record'), record('venture-interview'), record('venture-composition')), structureFromBlueprint(first));
-  // The composed plan and the plan it becomes list the playbook's own delivery steps, the ones that run.
-  assert.deepEqual(titles(plan.flagshipSteps), stepsOf('youtube'));
-  assert.deepEqual(first.flagshipSteps, plan.flagshipSteps);
-  // The builder brief describes the same steps the owner accepted.
-  const brief = briefTask(record('venture-record') as any, first as any, () => ({}) as any);
-  assert.deepEqual((brief.input as { steps: string[] }).steps, first.flagshipSteps!.map(step => step.title.value));
+test('a composed plan a vault holds for a flagship idea takes its offers and approvals from the playbook; the composed steps, pages and tools stay', async () => {
+  const structure = await composedStructure(YOUTUBE_IDEA, { offer_3: '2000000' });
+  assert.equal(structure.serviceType, 'studio');
+  assert.deepEqual(structure.offers.map(offer => offer.id), ['offer_1', 'offer_2', 'offer_3']);
+  assert.deepEqual(structure.offers.map(offer => offer.playbookOffer), ['episode-package', 'shorts-from-own-video', 'licensed-clips']);
+  assert.deepEqual(structure.offers.map(offer => offer.pricing.model), ['project', 'project', 'monthly']);
+  assert.deepEqual(structure.offers.map(offer => offer.pricing.unitPriceMinor), [null, null, '2000000'], 'a price the owner kept before the vault stays');
+  assert.deepEqual(structure.blocks!.offers, ['package', 'package', 'retainer']);
+  assert.equal(structure.approvals, YOUTUBE_APPROVALS.length);
+  assert.deepEqual(structure.blocks!.approvals, flagshipPlan(YOUTUBE_IDEA)!.approvals.map(item => item.block));
+  assert.ok(structure.starterConnectorIds.includes('youtube'));
+  // What the playbook does not fix stays as it was composed.
+  assert.deepEqual(structure.blocks!.steps, EXCEL_COMPOSE.steps.map(step => step.block));
+  assert.deepEqual(structure.blocks!.pages, EXCEL_COMPOSE.pages.map(page => page.block));
+  for (const tool of EXCEL_COMPOSE.tools) assert.ok(structure.starterConnectorIds.includes(tool.block), tool.block);
 });
 
-test('a composed social agency plan keeps every shipped offer, the monthly report fourth, each priced by the owner', async t => {
-  const { engine } = await engineFor(t, { responses: planEntries(SOCIAL_IDEA, EXCEL_DECIDE, EXCEL_COMPOSE) });
-  await connectPair(engine);
-  const { plan } = await compose(engine, SOCIAL_IDEA, 'IN');
-  assert.deepEqual(plan.offers.map(offer => offer.id), socialOffers.map((_, index) => `offer_${index + 1}`));
-  assert.deepEqual(plan.offers.map(offer => offer.playbookOffer), socialOffers.map(offer => offer.id));
-  assert.deepEqual(plan.offers.map(offer => offer.name.value), socialOffers.map(offer => offer.name));
-  assert.ok(plan.offers.every(offer => OFFER_BLOCKS[offer.block].allowed.includes(offer.pricing.model)));
-  const priced = await engine.request('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_4', unitPrice: '5000' }] } }) as ComposedPlan;
-  await engine.request('workspace.create', { name: 'Goa Yoga', passphrase: PASSPHRASE, pack: 'services' });
-  await engine.request('venture.create', { idea: SOCIAL_IDEA, countryCode: 'IN', workingName: 'Goa Yoga', composeId: priced.composeId, composedDigest: priced.digest });
-  const first = (await engine.request('venture.blueprint.get', {}) as BlueprintView).blueprint;
-  assert.deepEqual(first.offers.map(offer => offer.playbookOffer), socialOffers.map(offer => offer.id));
-  assert.deepEqual(first.offers.map(offer => offer.pricing.unitPriceMinor), socialOffers.map((_, index) => index === 3 ? '500000' : null));
+test('a composed social agency plan a vault holds keeps every shipped offer, the monthly report fourth, each with the price the owner kept', async () => {
+  const structure = await composedStructure(SOCIAL_IDEA, { offer_4: '500000' });
+  assert.deepEqual(structure.offers.map(offer => offer.id), socialOffers.map((_, index) => `offer_${index + 1}`));
+  assert.deepEqual(structure.offers.map(offer => offer.playbookOffer), socialOffers.map(offer => offer.id));
+  assert.ok(structure.offers.every((offer, index) => OFFER_BLOCKS[structure.blocks!.offers[index]].allowed.includes(offer.pricing.model)));
+  assert.deepEqual(structure.offers.map(offer => offer.pricing.unitPriceMinor), socialOffers.map((_, index) => index === 3 ? '500000' : null));
 });
 
 /** The steps a flagship playbook delivers with, as the plan lists them: its own titles and who does each. */

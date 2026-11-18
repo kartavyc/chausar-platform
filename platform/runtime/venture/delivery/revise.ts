@@ -18,6 +18,7 @@ import { refuseNewWork } from './run-guards.ts';
 import { loadQuarantineCheck, refuseQuarantined } from './quarantine-gate.ts';
 import { agentStage, restartNativeDelivery, runView, STAGE_BLOCKED_REASON } from './runs.ts';
 import { waitForAgentWork } from '../agent-runtime/runner.ts';
+import { allows, handedOver, inReview, requestRevision, undoRevision as undoRevisionMove } from './run-machine.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { joinParagraphs, mergeParagraphs, mergedText, paragraphs } from './merge.ts';
 import { fixStatus, outcomeOfCheck, outcomeOfPlaybookCheck, type CheckOutcome } from './verdicts.ts';
@@ -54,7 +55,7 @@ export async function startRevision(deps: VentureDeps, ctx: Context, input: Revi
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRecord(state, 'venture-delivery-run', input.runId);
   check(run && run.ventureId === venture.id, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
-  check(run.status === 'ready-for-review' || input.socialPost && ['accepted','edited'].includes(run.status), 'DELIVERY_NOT_READY', NOT_READY);
+  check(run.status === 'ready-for-review' || input.socialPost && handedOver(run), 'DELIVERY_NOT_READY', NOT_READY);
   check(!ghostwritingOffer(state,run)||draftPostsOf(run).length===0||input.socialPost,'SOCIAL_POST_REQUIRED','Choose one LinkedIn post to revise from the canvas.');
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   refuseNewWork(state, venture, ctx, deps.clock().toISOString());
@@ -67,10 +68,10 @@ export async function startRevision(deps: VentureDeps, ctx: Context, input: Revi
   check(main.presetId !== 'built-in-templates' && main.usable !== false, 'NO_MODEL_CONNECTED', NO_AI);
   // The agent revises the text the owner saw; its own draft stays the base the owner's words are merged against.
   const base = run.renderedText ?? '';
-  const draft: DraftRevision = {
+  const draft = {
     by: input.by, words: input.words, rowId: input.rowId, at: deps.clock().toISOString(), callId: '', base, previous: run.editedText ?? base,
     ...(input.socialPost ? {socialPost:input.socialPost} : {}),
-    prior: { callId: run.callId, phase: run.harness?.phase ?? null, status:run.status }, ...(input.checks ? { checks: input.checks } : {}),
+    prior: { callId: run.callId }, ...(input.checks ? { checks: input.checks } : {}),
   };
   const order = findRecord(state, 'venture-order', run.orderId);
   check(order, 'ORDER_NOT_FOUND', 'This order was not found.');
@@ -85,10 +86,9 @@ export async function startRevision(deps: VentureDeps, ctx: Context, input: Revi
     refuseQuarantined(tx.state, tx.venture!, tx.now);
     refuseUnsignedRun(tx.state, tx.venture!, current);
     requireClientAiConsent(tx.state, tx.venture!.id, order.clientId);
-    const stored: DeliveryRunRecord = {
-      ...current, status: 'waiting-for-you', verdict: null, callId: null, preview: null, harness: null,
-      revision: { ...draft, at: tx.now, callId: '' }, reopened: reopenMark(current, tx.now), judgePending: null,
-    };
+    // The machine keeps the verdict the draft held on the revision, so Undo restores status and verdict together.
+    const stored = requestRevision({ ...current, callId: null, preview: null, harness: null, reopened: reopenMark(current, tx.now), judgePending: null },
+      { ...draft, at: tx.now, callId: '' });
     tx.replace(stored);
     within?.(tx, stored);
     tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
@@ -101,7 +101,7 @@ export async function startRevision(deps: VentureDeps, ctx: Context, input: Revi
 
 /** A revision starts when its native job opens, marked atomically before the driver sees any data. */
 export function revisionStarted(run: DeliveryRunRecord): boolean {
-  return !run.revision || run.status !== 'waiting-for-you' || run.revision.callId !== '';
+  return !run.revision || !allows('undoRevision', run);
 }
 
 /** The words Undo promises: only until the owner edits it again. */
@@ -118,10 +118,7 @@ export async function undoRevision(deps: VentureDeps, ctx: Context, runId: strin
     check(current, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(current.revision && (rowId === null || current.revision.rowId === rowId) && !revisionStarted(current), 'UNDO_TOO_LATE', TOO_LATE_LINE);
     const revision = current.revision;
-      const restored: DeliveryRunRecord = {
-      ...current, status: revision.prior.status ?? 'ready-for-review', callId: revision.prior.callId, preview: null, harness: null, revision: null,
-      reopened: reopenMark(current, tx.now),
-    };
+    const restored: DeliveryRunRecord = { ...undoRevisionMove(current), callId: revision.prior.callId, preview: null, harness: null, reopened: reopenMark(current, tx.now) };
     if(revision.socialPost){
       const order=tx.find('venture-order',current.orderId)!;const state=order.socialGhostwriting??emptyGhostwriting();const key='post-'+revision.socialPost.n;const before=revision.socialPost.prior;
       check(state.rounds[key]===(before.rounds[key]??0)+1,'UNDO_TOO_LATE','A later revision of this post already started.');
@@ -205,7 +202,7 @@ export async function deliveryFixHandler(deps: VentureDeps, ctx: Context, payloa
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRecord(state, 'venture-delivery-run', runId);
   check(run && run.ventureId === venture.id, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
-  check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', NOT_READY);
+  check(inReview(run), 'DELIVERY_NOT_READY', NOT_READY);
   const failed = failedChecks(run);
   check(failed.length > 0, 'INVALID_VENTURE_REQUEST', 'Nothing failed on this draft, so there is nothing to fix.');
   let picked: { id: string; detail: string }[];

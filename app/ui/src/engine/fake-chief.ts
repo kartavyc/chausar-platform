@@ -14,6 +14,7 @@
  * sample studio's titles and hooks carry over), labelled a model estimate as the engine's is.
  */
 
+import type { FakeFindInput } from './fake-find-customers';
 import { formatMoment, ownerZone } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type ChatConsentView, type ChatPart, type ChiefCounted, type ChiefFit, type ChiefLineAmount, type ChiefMessageView, type ChiefSendResult, type ChiefThreadSummary, type ChiefThreadView,
@@ -81,7 +82,11 @@ type Drafted = { kind: ProposalKind; title: string; line: string; agent: string 
 /** target: what the proposal acts on (an invoice by its number, or an order), for its gate; the engine keeps it in the proposal's input. */
 interface HeldProposal extends Drafted {
   id: string; at: string; status: ProposalStatus; raisedAt: string | null; outcome: string | null; digest: string; target?: { invoice?: string; order?: string };
+  /** Finding customers: the search's brief and pin, as the engine keeps them in the proposal's input (fake-find-customers.ts). */
+  find?: FakeFindInput;
 }
+/** What a search's card asks the finding customers desk: its gate, the facts it depends on, and the run once approved. */
+export type FindHooks = { gate(input: FakeFindInput, title: string, line: string): string | null; facts(input: FakeFindInput): unknown; run(proposalId: string, input: FakeFindInput, title: string): string };
 interface HeldMessage {
   id: string; at: string; from: 'owner' | 'chief'; text: string; parts: ChatPart[]; proposalIds: string[]; routedTo: string | null;
   recordReport?:true;
@@ -230,7 +235,8 @@ export class FakeChiefDesk {
       return 'Not now. Nothing changed.';
     }
     proposal.status = 'approved';
-    proposal.outcome = DONE[proposal.kind] ?? 'Drafted. Open it to send it yourself.';
+    // A search for customers runs only here, once its card is approved (chief/proposals.ts decideProposal).
+    proposal.outcome = proposal.find && this.findHooks ? this.findHooks.run(proposal.id, proposal.find, proposal.title) : DONE[proposal.kind] ?? 'Drafted. Open it to send it yourself.';
     return proposal.outcome;
   }
 
@@ -279,6 +285,29 @@ export class FakeChiefDesk {
     this.mine().proposals.push(kept);
     this.raise({ id: kept.id });
     return { id: kept.id, title: kept.title };
+  }
+
+  private findHooks: FindHooks | null = null;
+  /** The finding customers desk, attached once both desks exist (fake.ts). */
+  attachFind(hooks: FindHooks): void { this.findHooks = hooks; }
+
+  /**
+   * Finding customers: a search the owner started from the pipeline (the engine's venture.leads.find.propose), raised to
+   * Today at once and decided like any other. The same card already waiting answers with itself.
+   */
+  draftOwned(input: { title: string; line: string; spends: boolean; find: FakeFindInput }): { proposal: ProposalView; rowId: string } {
+    const same = this.mine().proposals.find((item) => item.status === 'raised' && item.find && JSON.stringify(item.find) === JSON.stringify(input.find));
+    if (same) return { proposal: this.proposalView(same), rowId: this.rowId(same) };
+    const drafted: Drafted = { kind: 'find-customers', title: input.title, line: input.line, agent: null, spends: input.spends, sends: false };
+    const kept: HeldProposal = { ...drafted, id: `proposal-${this.seq++}`, at: this.host.now(), status: 'drafted', raisedAt: null, outcome: null, digest: this.host.digest({ ...drafted, input: input.find }), find: input.find };
+    this.mine().proposals.push(kept);
+    this.raise({ id: kept.id });
+    return { proposal: this.proposalView(kept), rowId: this.rowId(kept) };
+  }
+  /** The searches waiting on Today, for the pipeline's own list. */
+  findCards(): { id: string; title: string; at: string; rowId: string; find: FakeFindInput }[] {
+    const current = this.host.current();
+    return (current ? this.held.get(current)?.proposals ?? [] : []).filter((item) => item.status === 'raised' && item.find).map((item) => ({ id: item.id, title: item.title, at: item.raisedAt ?? item.at, rowId: this.rowId(item), find: item.find! }));
   }
 
   /** 4E4: the proposals from meeting notes that wrote no day. */
@@ -548,12 +577,13 @@ export class FakeChiefDesk {
     const month = MONTHS[Number(books.period.from.slice(5, 7)) - 1]!;
     const parts: ChatPart[] = [{ kind: 'text', text: `Here is where ${month} stands. You have billed` }];
     const worked: ChiefMessageView['worked'] = [];
-    if (billed) {
+    // A figure that counts nothing has no receipt in the summary a screen reads (money/books.ts), so it is not cited.
+    if (billed?.receiptId) {
       parts.push({ kind: 'figure', receiptId: billed.receiptId, key: 'total', display: billed.display });
       worked.push({ label: `Billed in ${month}`, value: billed.display, receiptId: billed.receiptId });
     }
     parts.push({ kind: 'text', text: 'and received' });
-    if (received) {
+    if (received?.receiptId) {
       parts.push({ kind: 'figure', receiptId: received.receiptId, key: 'total', display: received.display });
       worked.push({ label: `Received in ${month}`, value: received.display, receiptId: received.receiptId });
     }
@@ -579,6 +609,7 @@ export class FakeChiefDesk {
     const parts: ChatPart[] = [{ kind: 'text', text: noAi ? "Here is where the money stands, from Chausar's records." : AI_FAILED_LEAD }, ...(reason ? [{ kind: 'text' as const, text: reason }] : [])];
     const worked: ChiefMessageView['worked'] = [];
     for (const figure of shown) {
+      if (!figure.receiptId) continue;
       const label = `${figure.operation === 'billed' ? 'Billed' : 'Received'} in ${month}`;
       parts.push({ kind: 'text', text: `${label}:` }, { kind: 'figure', receiptId: figure.receiptId, key: 'total', display: figure.display });
       worked.push({ label, value: figure.display, receiptId: figure.receiptId });
@@ -614,6 +645,7 @@ export class FakeChiefDesk {
 
   /** What a proposal acts on, as it stands now: its invoice's status, or its order's. */
   private facts(proposal: HeldProposal): unknown {
+    if (proposal.find && this.findHooks) return this.findHooks.facts(proposal.find);
     if (proposal.target?.invoice) {
       const invoice = (this.host.ask('venture.invoice.list', {}) as InvoiceLite[]).find((item) => item.number === proposal.target!.invoice);
       return { invoice: invoice?.status ?? null };
@@ -627,6 +659,7 @@ export class FakeChiefDesk {
 
   /** Why a proposal cannot go ahead now, in the engine's words (chief/gate.ts targetOf), or null when it can. */
   private gate(proposal: HeldProposal): string | null {
+    if (proposal.find && this.findHooks) return this.findHooks.gate(proposal.find, proposal.title, proposal.line);
     const facts = this.facts(proposal) as { invoice?: string | null; order?: string | null } | null;
     if (!facts) return null;
     if ('invoice' in facts) return facts.invoice === null ? 'that invoice was not found.' : facts.invoice === 'issued' || facts.invoice === 'part-paid' ? null : 'this invoice has nothing left to pay.';
@@ -759,12 +792,14 @@ export class FakeChiefDesk {
           messages: [
             message('chiefmsg-billed-1', billedAt, 'owner', said('How much have we billed this month?')),
             message('chiefmsg-billed-2', billedAt, 'chief', [
-              { kind: 'text', text: 'This month you have billed' }, { kind: 'figure', receiptId: billed.receiptId, key: 'total', display: billed.display },
-              { kind: 'text', text: 'and received' }, { kind: 'figure', receiptId: received.receiptId, key: 'total', display: received.display },
+              // The sample's books are October's: the answer names that month, as answer() does, so it never says "this
+              // month" beside a Today and a Money that count the month on the clock.
+              { kind: 'text', text: `In ${MONTHS[Number(books.period.from.slice(5, 7)) - 1]!} you billed` }, { kind: 'figure', receiptId: billed.receiptId!, key: 'total', display: billed.display },
+              { kind: 'text', text: 'and received' }, { kind: 'figure', receiptId: received.receiptId!, key: 'total', display: received.display },
               { kind: 'text', text: "Boat Audio has not paid invoice INV-0039 yet, and episode 14's order is still open." },
             ], {
               proposalIds: proposals.map((proposal) => proposal.id), read: false,
-              worked: [{ label: 'Billed in October', value: billed.display, receiptId: billed.receiptId }, { label: 'Received in October', value: received.display, receiptId: received.receiptId }],
+              worked: [{ label: 'Billed in October', value: billed.display, receiptId: billed.receiptId! }, { label: 'Received in October', value: received.display, receiptId: received.receiptId! }],
             }),
           ],
         },

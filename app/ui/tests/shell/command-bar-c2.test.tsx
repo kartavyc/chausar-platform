@@ -5,6 +5,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { kindOf } from '../../src/engine/reads';
 import { NARROW } from '../../src/shell/useNarrow';
 import { catalogue } from '../../src/shell/find/catalogue';
+import { findKeysOn } from '../../src/shell/find/CommandBox';
 import { CATALOGUES, format } from '../../src/text';
 import { assertFiguresProved } from '../helpers/ink-rules';
 
@@ -120,9 +121,9 @@ describe('the command bar (C2)', () => {
     await press(document.body, 'k', { ctrlKey: true });
     expect(document.activeElement).toBe(box);
     expect([box.selectionStart, box.selectionEnd]).toEqual([0, 4]);
-    window.location.hash = '#/onboarding';
+    window.location.hash = '#/business/owner';
     await hashChanged();
-    const field = await screen.findByRole('textbox', { name: /^(What do you want to start\?|Or describe it in one sentence)$/ });
+    const field = await screen.findByRole('textbox', { name: 'Your first name' });
     field.focus();
     await press(field, 'k', { ctrlKey: true });
     expect(document.activeElement).toBe(field);
@@ -172,6 +173,13 @@ describe('the command bar (C2)', () => {
     await waitFor(() => expect(within(list()).queryByRole('group', { name: 'Clients' })).not.toBeNull());
     await press(box, 'Enter');
     expect(box.value).toBe('');
+  });
+
+  it('the keys are the computer\'s own: Cmd K on a Mac, Ctrl K elsewhere', async () => {
+    expect([findKeysOn('MacIntel'), findKeysOn('macOS'), findKeysOn('Win32'), findKeysOn('Linux x86_64'), findKeysOn(''), findKeysOn(undefined)]).toEqual(['⌘K', '⌘K', 'Ctrl K', 'Ctrl K', 'Ctrl K', 'Ctrl K']);
+    vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    const { box } = await start('#/money');
+    expect(box.closest('[data-find-box]')!.querySelector('kbd[data-code]')!.textContent).toBe('⌘K');
   });
 
   it('F2: the keys show at rest, at a wide and a narrow desktop width', async () => {

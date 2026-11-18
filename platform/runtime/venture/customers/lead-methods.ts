@@ -1,6 +1,7 @@
 // Chausar venture launcher: the customer engine's lead rules as engine methods. venture.leads.add, venture.leads.list,
 // venture.leads.draft, venture.leads.recordSend and venture.leads.block. leads.ts keeps the rules; this file keeps the records.
-// - A lead needs the page it was found on, and its email is checked for a mail server when it is added.
+// - A lead needs where it came from: the page it was found on, or, from the owner inside the app only, their own
+//   words for it (a referral, a meeting). Its email is checked for a mail server when it is added.
 // - Drafting checks the blocklist first, then the source, the verified email and the business postal address.
 // - The postal address is the business's: only the owner sets it, inside the app. Agents draft with the stored one.
 // - Agents only draft. Chausar never sends: the owner sends from their own mailbox and records the send in the app.
@@ -19,7 +20,8 @@ import { refuseNeverContact } from '../network/outreach-checks.ts';
 /** A stored lead as the screens and the rules read it. A lead stored before stages kept their moves reads with none. */
 function leadOf(record: LeadRecord): LeadView {
   const { kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, ...rest } = record;
-  return { ...rest, moves: (rest as Partial<LeadView>).moves ?? [], id: record.id };
+  // A lead stored before the owner could say a source in words has a page and no words.
+  return { ...rest, moves: (rest as Partial<LeadView>).moves ?? [], sourceNote: (rest as Partial<LeadView>).sourceNote ?? null, id: record.id };
 }
 
 function recordOf(tx: VentureTx, lead: Lead, existing?: LeadRecord): LeadRecord {
@@ -41,11 +43,16 @@ function findLead(tx: VentureTx, leadId: string): LeadRecord {
   return lead;
 }
 
-/** venture.leads.add { name, company?, email?, sourceUrl } (prepare): a new lead, its email checked for a mail server. */
+/**
+ * venture.leads.add { name, company?, email?, sourceUrl? | sourceNote? } (prepare): a new lead, its email checked for a
+ * mail server. Where it came from is one of two: sourceUrl, the page it was found on (any caller), or sourceNote, the
+ * owner's own words for it, taken only from the owner inside the app and kept as their statement.
+ */
 export async function leadsAdd(deps: VentureDeps, ctx: Context, payload: unknown): Promise<LeadView> {
-  const body = exactPayload(payload, ['name', 'company', 'email', 'sourceUrl'], ['name', 'sourceUrl']);
+  const body = exactPayload(payload, ['name', 'company', 'email', 'sourceUrl', 'sourceNote'], ['name']);
   const now = deps.clock().toISOString();
-  let lead = createLead({ id: 'pending', name: body.name, company: body.company, email: body.email, sourceUrl: body.sourceUrl }, { by: ctx.memberId, at: now });
+  const ownerSays = isAppChannel(ctx) && (ctx.role === 'owner' || ctx.role === 'cofounder');
+  let lead = createLead({ id: 'pending', name: body.name, company: body.company, email: body.email, sourceUrl: body.sourceUrl, sourceNote: body.sourceNote }, { by: ctx.memberId, at: now, ownerSays });
   authorize(deps.store, ctx, 'prepare');
   if (lead.email) lead = await verifyLeadEmail(lead, { ...(deps.mx ? { resolver: deps.mx } : {}), now: deps.clock().toISOString() });
   const checked = lead;

@@ -2,14 +2,14 @@
  * One place for "may this move?" (one-shot C3). Motion is off when the computer asks for reduced motion, or when the
  * owner turns animations off in Settings, This app (shell/App.tsx puts `data-motion="off"` on <html>). The CSS side is
  * tokens/motion.css, which sets every --t-* to 0 in both cases; this file is the same answer for code, plus the small
- * helpers every moving part shares: a view transition around a DOM change, a scroll that is smooth only when motion is
- * on, and a presence hook that keeps a closing thing on screen until its exit ends.
+ * helpers every moving part shares: a view transition around a DOM change and a presence hook that keeps a closing
+ * thing on screen until its exit ends.
  *
  * Nothing here moves at first paint, and nothing waits on an event that may never come: every wait has a timer read
  * from the element's own computed duration.
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 
 const REDUCE = '(prefers-reduced-motion: reduce)';
@@ -35,22 +35,6 @@ export function ownerTurnedMotionOff(): boolean {
 /** True when nothing may move: the computer asks for reduced motion, or the owner turned animations off. */
 export function motionOff(): boolean {
   return prefersReducedMotion() || ownerTurnedMotionOff();
-}
-
-function subscribe(onChange: () => void): () => void {
-  const query = reduceQuery();
-  query?.addEventListener?.('change', onChange);
-  const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(onChange);
-  observer?.observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] });
-  return () => {
-    query?.removeEventListener?.('change', onChange);
-    observer?.disconnect();
-  };
-}
-
-/** `motionOff()` that re-renders when either setting changes. Off on the server, where nothing moves. */
-export function useMotionOff(): boolean {
-  return useSyncExternalStore(subscribe, motionOff, () => true);
 }
 
 type Transition = { ready?: Promise<unknown>; finished?: Promise<unknown>; updateCallbackDone?: Promise<unknown> };
@@ -86,11 +70,6 @@ export function withViewTransition(update: () => void, swap?: string): Promise<v
   if (transition?.updateCallbackDone) return transition.updateCallbackDone.then(() => undefined, () => { if (!ran) run(); });
   if (!ran) run();
   return Promise.resolve();
-}
-
-/** Bring `element` into view: a smooth scroll only when motion is on, the nearest edge, never the whole page jumping. */
-export function scrollToView(element: Element | null | undefined): void {
-  element?.scrollIntoView?.({ behavior: motionOff() ? 'auto' : 'smooth', block: 'nearest' });
 }
 
 /** The longest of a comma list of CSS times ("0.14s, 200ms"), in ms. */

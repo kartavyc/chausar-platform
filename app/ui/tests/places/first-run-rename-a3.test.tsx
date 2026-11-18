@@ -4,7 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { EngineClient } from '../../src/engine/types';
 import { renameIn } from '../../src/places/onboarding/rename';
-import { answerSideWork, toToday } from './first-run-steps';
+import { answerSideWork, toToday, skipAi } from './first-run-steps';
 
 /*
  * One-shot A3 (S1): the plan the owner saw is the plan that is saved. In the hands-on test "Please call the business
@@ -78,7 +78,7 @@ describe('first run: the name the owner asked for is the name kept (A3, S1)', ()
     }) as EngineClient['request'] };
     window.location.hash = '#/today';
     render(<App client={client} language="en" />);
-    await press('Skip for now: use templates');
+    await skipAi();
     fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'I run a small weekend photography studio in Pune.' } });
     await press('Send');
     expect(await screen.findByText('Birthday party photography')).toBeTruthy();
@@ -126,7 +126,7 @@ describe('a rename with more asked after it (A3 review, L2)', () => {
     }) as EngineClient['request'] };
     window.location.hash = '#/today';
     render(<App client={client} language="en" />);
-    await press('Skip for now: use templates');
+    await skipAi();
     fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'I run a small weekend photography studio in Pune.' } });
     await press('Send');
     expect(await screen.findByText('Birthday party photography')).toBeTruthy();

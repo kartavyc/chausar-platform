@@ -57,113 +57,6 @@
   line-height: 1.2;
 }
 
-/* Inside the app: the Start page. The header keeps D's 24 px above the first tile. */
-.page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--gap-grid);
-}
-
-.page > header {
-  margin-bottom: var(--sp-2);
-}
-
-/* How starting works: three inner cards, each a number, an icon and its words. */
-.howSteps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--gap-cards);
-  margin: var(--sp-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.howStep {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  padding: var(--pad-card);
-  border-radius: var(--r-card);
-  background: var(--inner);
-}
-
-.howMark {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-
-.howNumber {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--av-24);
-  height: var(--av-24);
-  border-radius: var(--r-chip);
-  background: var(--selected);
-  color: var(--on-selected);
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-}
-
-.howIcon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--av-40);
-  height: var(--av-40);
-  border: var(--hair) solid var(--line-soft);
-  border-radius: var(--r-button);
-  background: var(--surface);
-  color: var(--fg2);
-}
-
-.howTitle {
-  font-size: var(--text-body);
-  font-weight: var(--weight-strong);
-  line-height: 1.35;
-}
-
-.howLine {
-  margin-top: var(--sp-1);
-  font-size: var(--text-read);
-  line-height: 1.35;
-  color: var(--fg2);
-}
-
-/* The gallery of ways to earn, a page section with 32 px around it. */
-.ways {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3);
-  margin: var(--sp-4) 0;
-}
-
-.waysMeta {
-  font-size: var(--text-read);
-  color: var(--mute);
-}
-
-/* W4 4J21: a filter with no way in it. */
-.waysMore {
-  display: flex;
-  justify-content: center;
-  margin-top: var(--sp-3);
-}
-
-.waysNone {
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-/* The one-sentence tile on the Start page, and the form it shares with the first run. */
-.describe {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3);
-}
-
 .form {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -172,28 +65,6 @@
 
 .form .question {
   margin-bottom: 0;
-}
-
-.formHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-1) var(--sp-4);
-}
-
-.formTitle {
-  font-size: var(--text-section);
-  font-weight: var(--weight-strong);
-  letter-spacing: -0.01em;
-  line-height: 1.35;
-}
-
-.formLine {
-  margin-top: calc(var(--sp-2) * -1);
-  font-size: var(--text-read);
-  line-height: 1.4;
-  color: var(--mute);
 }
 
 .country {
@@ -282,51 +153,6 @@
   color: var(--mute);
 }
 
-/* The examples: D's `.ex` row of chips that fill the box. */
-.examples {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.examplesTry {
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
-}
-
-.example {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control);
-  padding: 0 var(--sp-3);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-chip);
-  background: var(--surface);
-  color: var(--fg2);
-  font: inherit;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  line-height: 1.2;
-  cursor: pointer;
-  transition: border-color var(--t-press) var(--ease);
-}
-
-.example:hover:not(:disabled) {
-  border-color: var(--edge);
-}
-
-.example:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 1px;
-}
-
-.example:disabled {
-  color: var(--mute);
-  cursor: not-allowed;
-}
-
 /* What the engine asks before the vault: a passphrase, then the recovery code, each on an inner card. */
 .step {
   display: grid;
@@ -340,13 +166,6 @@
 .sentence {
   font-size: var(--text-read);
   line-height: 1.5;
-  color: var(--fg2);
-}
-
-.countryEvidence {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: var(--text-read);
   color: var(--fg2);
 }
 
@@ -452,13 +271,6 @@
 /* The status line stays in place for screen readers, but takes no room (and no gap) until it says something. */
 .form > .progress:empty {
   position: absolute;
-}
-
-/* Resume setup: one compact tile under the box. */
-.resume {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3);
 }
 
 /* Welcome back: the businesses on this computer, one line each. */
@@ -568,34 +380,6 @@
     padding: var(--pad-tile);
   }
 
-  .howSteps {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .howStep {
-    grid-template-columns: auto minmax(0, 1fr);
-    column-gap: var(--sp-3);
-  }
-
-  /* The number sits on the icon's corner, so the words get the width. */
-  .howMark {
-    position: relative;
-    grid-row: span 2;
-    align-self: start;
-    margin-bottom: 0;
-  }
-
-  .howNumber {
-    position: absolute;
-    top: calc(var(--sp-3) * -1);
-    left: calc(var(--sp-3) * -1);
-  }
-
-  .howLine {
-    grid-column: 2;
-  }
-
-  .example,
   .input,
   .select,
   .check {

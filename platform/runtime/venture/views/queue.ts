@@ -24,6 +24,7 @@
 // decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
 // (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
 import { formatUsd, formatMoney } from '../../owner-format.ts';
+import { QUEUE_FIXED_WORDS } from './queue-words.ts';
 import { authorize,ChausarError,check,type Context,type State,internalCheck } from '../../contracts.ts';
 import { decideAgentApproval } from '../agent-runtime/approvals.ts';
 import { answerAgentFacts } from '../agent-runtime/facts.ts';
@@ -63,8 +64,11 @@ import { changedPrices, priceOnlyOffer } from './price-only.ts';
 import { noticeRows } from './probes.ts';
 import { decideW4Row,type W4RowSource,type W4RowSourceFn } from './queue-w4.ts';
 import { withMeta } from './row-meta.ts';
-import { AGENT_ID,agentName,businessOf,clientNameFor,lastEventAt,plain,short } from './shared.ts';
+import { AGENT_ID,businessOf,clientNameFor,lastEventAt,plain,short } from './shared.ts';
+import { runAgentName } from '../money/agent-meters.ts';
 import { withTriage } from './triage.ts';
+import { awaitingApproval } from '../delivery/run-machine.ts';
+import { CARD_TEMPLATE_WORDS as CARD_T, fillWords } from './card-words.ts';
 
 export const STALE_LINE = 'This click did not run anything. Here is the new version.';
 export const GONE_LINE = 'This was resolved elsewhere.';
@@ -121,7 +125,7 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
   if (!latest || latest.status !== 'draft') return [];
   const accepted = acceptedBlueprintOrNull(state, venture);
   const subject = `plan:${part(venture.id)}`;
-  const accept: Perform = async (deps, ctx) => { await blueprintAccept(deps, ctx, { digest: latest.digest }); return { line: 'Plan accepted.' }; };
+  const accept: Perform = async (deps, ctx) => { await blueprintAccept(deps, ctx, { digest: latest.digest }); return { line: QUEUE_FIXED_WORDS.planAccepted }; };
   const viewRef = { kind: 'plan' as const, id: latest.id };
   if (!accepted) {
     return [{
@@ -184,8 +188,8 @@ async function setupRows(deps: VentureDeps, ctx: Context, state: State, venture:
     rows.push({
       subject: 'setup:ai', perform: {}, navigate: 'Connect your AI under Connections.',
       row: ai.kind === 'none'
-        ? { ...base(business, 'setup', 'setup:ai', 'none', venture.at), title: 'Connect your AI', line: 'Templates work without one. Your agents draft with your AI once it is connected.', actions: [action('connect', 'Connect', true)] }
-        : { ...base(business, 'setup', 'setup:ai', 'attention', venture.at), title: 'Your AI needs attention', line: short(ai.reason), actions: [action('connect', 'Open', true)] },
+        ? { ...base(business, 'setup', 'setup:ai', 'none', venture.at), title: QUEUE_FIXED_WORDS.connectAi, line: QUEUE_FIXED_WORDS.connectAiLine, actions: [action('connect', 'Connect', true)] }
+        : { ...base(business, 'setup', 'setup:ai', 'attention', venture.at), title: QUEUE_FIXED_WORDS.aiAttention, line: short(ai.reason), actions: [action('connect', 'Open', true)] },
     });
   }
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
@@ -199,8 +203,8 @@ async function setupRows(deps: VentureDeps, ctx: Context, state: State, venture:
     const words = !tax
       ? { title: 'Set your prices', line: `${noPrice}.`, label: 'Set prices', navigate: 'Set your prices in the business menu.' }
       : !unpriced.length
-        ? { title: 'Confirm your tax', line: `${assumed}. Say whether you do.`, label: 'Confirm tax', navigate: 'Confirm your tax in the business menu.' }
-        : { title: 'Confirm your prices and tax', line: `${noPrice}, and ${assumed}.`, label: 'Confirm', navigate: 'Set your prices and tax in the business menu.' };
+        ? { title: QUEUE_FIXED_WORDS.confirmTax, line: `${assumed}. Say whether you do.`, label: 'Confirm tax', navigate: 'Confirm your tax in the business menu.' }
+        : { title: QUEUE_FIXED_WORDS.confirmPricesTax, line: `${noPrice}, and ${assumed}.`, label: 'Confirm', navigate: 'Set your prices and tax in the business menu.' };
     rows.push({
       subject: 'setup:prices', perform: {}, navigate: words.navigate,
       row: { ...base(business, 'setup', 'setup:prices', latest.id, venture.at), title: words.title, line: words.line, actions: [action('set-prices', words.label, true)] },
@@ -211,7 +215,7 @@ async function setupRows(deps: VentureDeps, ctx: Context, state: State, venture:
   if (recovery === 'not-made') {
     rows.push({
       subject: 'setup:keep', perform: {}, navigate: 'Keep this business safe in the business menu.',
-      row: { ...base(business, 'setup', 'setup:keep', 'not-made', venture.at), title: 'Keep this business', line: 'Make a recovery code so you can open it if this computer is lost.', actions: [action('keep', 'Keep it', true)] },
+      row: { ...base(business, 'setup', 'setup:keep', 'not-made', venture.at), title: QUEUE_FIXED_WORDS.keep, line: QUEUE_FIXED_WORDS.keepLine, actions: [action('keep', 'Keep it', true)] },
     });
   }
   return rows;
@@ -272,7 +276,6 @@ const reviewReason = (answer: string | null): DeliveryReason =>
 
 function runRows(deps: VentureDeps, state: State, venture: VentureRecord, business: Business, ctx: Context): Pending[] {
   const nowMs = deps.clock().getTime();
-  const agent = agentName(state, venture);
   const rupees = rupeesOf(state, venture);
   const times = lastEventAt(state, venture.id);
   const runs = listRecords(state, 'venture-delivery-run', venture.id);
@@ -282,6 +285,8 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
   const rows: Pending[] = [];
   for (const record of runs) {
     const run = runView(record, venture, nowMs, state);
+    // The run's one agent, as Work and its model receipt name it (money/agent-meters.ts runAgentName).
+    const agent = runAgentName(state, venture, record);
     const client = clientNameFor(state, venture.id, run.orderId);
     const subject = `run:${part(run.id)}`;
     const at = times.get(run.id) ?? run.at;
@@ -298,8 +303,8 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
         title: `A question for ${client}`, line: pending.question, viewRef: viewRun, actions: [action('answer', 'Answer', true)] } });
       continue;
     }
-    if (record.agentJob?.pendingApproval && ['waiting-for-you', 'ready-for-review'].includes(run.status)) {
-      const pending = record.agentJob.pendingApproval;
+    if (awaitingApproval(record)) {
+      const pending = record.agentJob!.pendingApproval!;
       const decide = (decision: 'approve' | 'deny'): Perform => async (d, context) => {
         await decideAgentApproval(d, context, { runId: run.id, digest: pending.digest, decision });
         return { line: decision === 'approve' ? 'Approved this exact AI step once.' : 'Declined this AI step.' };
@@ -337,11 +342,11 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
       rows.push({
         subject, perform: run.canAccept ? { approve: review('accepted'), deny: review('rejected') } : blocked,
         row: run.canAccept
-          ? { ...base(business, 'draft', subject, run.reopened ? `review-${run.reopened.count + 1}` : 'review', at), agent, title: `Draft reply for ${client}`, viewRef: viewDraft,
+          ? { ...base(business, 'draft', subject, run.reopened ? `review-${run.reopened.count + 1}` : 'review', at), agent, title: fillWords(CARD_T.draftReply, { client }), viewRef: viewDraft,
             // Where the judge stands, so a verdict that is not in never reads like a pass (judge-run.ts).
             line: [`Read it, then approve it. You send it yourself.`, judgeStateLine(state, venture, record, nowMs)].filter(Boolean).join(' '),
             actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] }
-          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : run.reopened ? `review-blocked-${run.reopened.count + 1}` : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
+          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : run.reopened ? `review-blocked-${run.reopened.count + 1}` : 'review-blocked', at), agent, title: fillWords(CARD_T.draftReply, { client }), line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
             actions: toCa
               ? [action('deny', 'Reject', false), action('read', 'Read', false), action('send-to-ca', 'Send to CA', true, { requiresView: true })]
               : [action('deny', 'Reject', false), action('read', 'Read', true)] },
@@ -364,7 +369,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
 async function allowRunWindow(deps: VentureDeps, ctx: Context, runId: string, callId: string): Promise<void> {
   await ventureAction(deps, ctx, 'approve', 'delivery.cap', tx => {
     const current = tx.find('venture-delivery-run', runId);
-    check(current && current.status === 'waiting-for-you' && current.callId === callId && current.harness && current.preview, 'APPROVAL_STALE', STALE_LINE);
+    check(current && current.status === 'working' && current.callId === callId && current.harness && current.preview, 'APPROVAL_STALE', STALE_LINE);
     tx.replace({ ...current, harness: allowCapWindow(current.harness, current.preview.estimatedMaxCostMicros, tx.now, ctx.memberId) });
     tx.emit('run.step', { runId });
   });
@@ -392,7 +397,7 @@ function spotRows(state: State, venture: VentureRecord, business: Business): Pen
     const review = (verdict: 'looks-right' | 'needs-work', line: string): Perform => async (d, ctx) => { await reviewSpotCheck(d, ctx, spot.id, verdict); return { line }; };
     return {
       subject, perform: { approve: review('looks-right', 'Spot check recorded: it looks right.'), deny: review('needs-work', 'Spot check recorded: it needs work.') },
-      row: { ...base(business, 'draft', subject, 'review', spot.at), agent: agentName(state, venture),
+      row: { ...base(business, 'draft', subject, 'review', spot.at), agent: runAgentName(state, venture, run),
         title: `Spot check: the draft for ${run ? clientNameFor(state, venture.id, run.orderId) : 'a client'}`, line: short(spot.line, 300),
         viewRef: { kind: 'run', id: spot.runId }, actions: [action('deny', 'Needs work', false), action('approve', 'Looks right', true, { requiresView: true })] },
     };
@@ -446,7 +451,7 @@ function signoffRows(state: State, venture: VentureRecord, business: Business): 
  */
 function quoteRows(deps: VentureDeps, state: State, venture: VentureRecord, business: Business): Pending[] {
   const now = deps.clock().toISOString();
-  const agent = agentName(state, venture);
+  const agent = runAgentName(state, venture);
   return openSpendQuotes(state).filter(quote => quoteLive(quote, now)).map((quote): Pending => {
     const subject = `spend-quote:${part(quote.id)}`;
     const approve: Perform = async (d, ctx) => {
@@ -515,7 +520,7 @@ const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 function evidenceRows(state: State, venture: VentureRecord, business: Business): Pending[] {
   const records = listRecords(state, 'venture-evidence', venture.id);
   const clients = new Map(listRecords(state, 'venture-client', venture.id).map(item => [item.id, item]));
-  const agent = agentName(state, venture);
+  const agent = runAgentName(state, venture);
   return evidenceQuestions(state, venture.id).map((record: EvidenceRecord): Pending => {
     const subject = `evidence:${part(record.id)}`;
     const words = fieldWords(record.field);
@@ -651,13 +656,22 @@ const LOCKED_LINE: Readonly<Record<VentureBusinessRef['opens'], string>> = {
   'key-missing': 'This computer lost its key. Open it with your recovery code.',
 };
 
+/**
+ * What a row says about a business that is not the open one. Only a business that needs its passphrase or its recovery
+ * code is locked; one this computer opens by itself is simply not open (seen live, 15 Nov 2026: after a second
+ * business was made, Today said the first one "is locked", though one press opens it).
+ */
+const NOT_OPEN = ' is not open';
+const LOCKED = ' is locked';
+const closedWords = (opens: VentureBusinessRef['opens']) => (opens === 'with-this-computer' ? NOT_OPEN : LOCKED);
+
 function lockedRows(others: VentureBusinessRef[], fallbackAt: string): Pending[] {
   return others.map(business => {
     const name = business.name ?? business.id;
     const subject = `locked:${part(business.id)}`;
     return {
       subject, perform: {}, navigate: `Open ${name} from the business menu.`,
-      row: { ...base({ id: business.id, name }, 'locked', subject, business.opens, business.openedAt ?? fallbackAt), title: `${name} is locked.`, line: LOCKED_LINE[business.opens], actions: [action('open', 'Open', true)] },
+      row: { ...base({ id: business.id, name }, 'locked', subject, business.opens, business.openedAt ?? fallbackAt), title: `${name}${closedWords(business.opens)}.`, line: LOCKED_LINE[business.opens], actions: [action('open', 'Open', true)] },
     };
   });
 }
@@ -714,7 +728,8 @@ function summaryOf(rows: QueueRow[]): Pick<QueueList, 'summary' | 'needsYou' | '
   const open = rows.filter(row => row.kind !== 'locked');
   const locked = rows.filter(row => row.kind === 'locked');
   const businesses = new Set(open.map(row => row.businessId)).size;
-  const lockedText = locked.length === 1 ? `${locked[0].businessName} is locked` : `${locked.length} more businesses are locked`;
+  // One business: its own row's words (locked, or just not open). Several: none of them is open, whatever each needs.
+  const lockedText = locked.length === 1 ? locked[0].title.replace(/\.$/, '') : `${locked.length} more businesses are not open`;
   if (!open.length) return { summary: locked.length ? `Nothing needs you here. ${lockedText}.` : 'Nothing needs you.', needsYou: 0, businesses: 0 };
   const count = open.length === 1 ? '1 needs you' : `${open.length} need you`;
   const across = businesses > 1 ? `, across ${businesses} businesses` : '';

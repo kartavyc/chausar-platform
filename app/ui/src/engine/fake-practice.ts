@@ -11,12 +11,14 @@
  */
 
 import { bindFakeClientAi } from './fake-client-ai-consent';
+import { PRACTICE_REASON } from '../../../../platform/runtime/venture/core/launch-stage';
 
 import {
   EngineError, type BlueprintViewLite, type CheckLite, type DeliveryLite, type EpisodeLite, type ImprovementReadinessLite,
   type ImprovementRunLite, type ImprovementStatusLite, type JudgeAutoView, type JudgePreview, type ModelStatusLite, type PlaybookLite,
   type ScenarioLite, type ServiceType, type SimulationRunLite, type VentureRunEvent,
 } from './types';
+import { inReview } from './types';
 
 export interface PracticeHost {
   current(): string;
@@ -42,7 +44,7 @@ export const PRACTICE_WORDS = Object.freeze({
   failedCheck: 'Fix the failed check first; the quality check reads only drafts that pass the code checks.',
   notReady: 'The quality check reads a draft once it is ready for your review.',
   outline: 'The quality check reads drafts an agent wrote; this is a template outline.',
-  practice: 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.',
+  practice: PRACTICE_REASON,
   noAi: 'Connect an AI for quick work first; the quality check runs on your own AI.',
   already: 'The quality check already read this draft.',
   notWaiting: 'Ask the quality check first, then send it.',
@@ -426,7 +428,7 @@ export class FakePracticeDesk {
 
   /** Why the judge can't read this draft now (judge-run.ts notJudgeable), or null. Its own earlier verdict is left out. */
   private notJudgeable(run: DeliveryLite): EngineError | null {
-    if (run.status !== 'ready-for-review') return new EngineError('JUDGE_NOT_READY', PRACTICE_WORDS.notReady);
+    if (!inReview(run)) return new EngineError('JUDGE_NOT_READY', PRACTICE_WORDS.notReady);
     if (run.servedBy === 'template' || !run.deliverable) return new EngineError('JUDGE_NOT_READY', PRACTICE_WORDS.outline);
     if (run.practice || run.practiceNow) return new EngineError('PRACTICE_DRAFT', PRACTICE_WORDS.practice);
     const failed = (run.checks ?? []).some((c) => c.check !== 'rules-judge' && !c.passed && !c.notChecked) || (run.playbookChecks ?? []).some((c) => c.outcome === 'fail');

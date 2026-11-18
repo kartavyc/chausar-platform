@@ -5,16 +5,14 @@ import { listRecords } from '../records.ts';
 import { formatAge } from '../../owner-format.ts';
 import { serviceTypeOf } from '../delivery/shared.ts';
 import type { ServiceType, VentureDeps, VentureRecord } from '../contracts.ts';
+import { DELIVERY_AGENT_NAMES } from '../agents/order-agents-core.ts';
 
 /** This build has one agent per business: the delivery agent its playbook describes. Its id is stable. */
 export const AGENT_ID = 'delivery';
 /** The model purposes the delivery agent spends on. Rehearsal clients, judges and plan writing are not its spend. */
 export const AGENT_PURPOSES: readonly string[] = Object.freeze(['delivery', 'agent-turn']);
-const AGENT_NAMES: Readonly<Record<ServiceType, string>> = Object.freeze({
-  agency: 'Marketing agent', studio: 'Studio agent', consulting: 'Consulting agent', bookkeeping: 'Bookkeeping agent',
-  research: 'Research agent', content: 'Content agent', support: 'Support agent', other: 'Delivery agent',
-  teaching: 'Teaching agent', 'local-services': 'Bookings agent', licensed: 'Practice agent',
-});
+/** The names by service type, in the file the fake engine reads too (agents/order-agents-core.ts). */
+const AGENT_NAMES: Readonly<Record<ServiceType, string>> = DELIVERY_AGENT_NAMES as Readonly<Record<ServiceType, string>>;
 
 /** The delivery agent's name, from the plan's service type. */
 export function agentName(state: State, venture: VentureRecord): string {

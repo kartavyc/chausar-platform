@@ -144,3 +144,87 @@ test('package-contents.mjs never imports desktop-package.mjs, so packaging canno
   const trim = await readFile(new URL('../../scripts/package-trim.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(trim, /^import /m, 'the shared rule imports nothing');
 });
+
+// ---------------------------------------------------------------------------
+// The Mac build (14 Nov 2026): a Mac build is the app itself (Chausar.app). Its pieces sit in Contents/Resources, and
+// its languages are marker folders there (en.lproj, en_GB.lproj, hi.lproj), not .pak files in a locales folder.
+// ---------------------------------------------------------------------------
+
+type MacBuild = { languages?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null; bundle?: string[] };
+const MAC_CLEAN: Required<MacBuild> = { languages: ['en.lproj', 'en_GB.lproj', 'hi.lproj'], archive: CLEAN.archive, anthropic: CLEAN.anthropic, codex: CLEAN.codex, bundle: CLEAN.bundle };
+
+async function macBuild(t: any, overrides: MacBuild = {}) {
+  const spec = { ...MAC_CLEAN, ...overrides };
+  const root = await mkdtemp(join(tmpdir(), 'chausar-mac-contents-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = join(root, 'mac-arm64', 'Chausar.app'), resources = join(app, 'Contents', 'Resources'), unpacked = join(resources, 'app.asar.unpacked');
+  await mkdir(join(app, 'Contents', 'MacOS'), { recursive: true });
+  await writeFile(join(app, 'Contents', 'MacOS', 'Chausar'), Buffer.alloc(2048));
+  await mkdir(resources, { recursive: true });
+  for (const name of spec.languages) await mkdir(join(resources, name));
+  await writeFile(join(resources, 'icon.icns'), 'icon');
+  await mkdir(join(unpacked, 'node_modules', '@duckdb', 'node-api'), { recursive: true });
+  await writeFile(join(unpacked, 'node_modules', '@duckdb', 'node-api', 'index.js'), 'duck');
+  await mkdir(join(unpacked, 'node_modules', '@anthropic-ai'), { recursive: true });
+  for (const name of spec.anthropic) {
+    await mkdir(join(unpacked, 'node_modules', '@anthropic-ai', name), { recursive: true });
+    await writeFile(join(unpacked, 'node_modules', '@anthropic-ai', name, 'package.json'), '{}');
+  }
+  await mkdir(join(unpacked, 'platform', 'runtime'), { recursive: true });
+  await writeFile(join(unpacked, 'platform', 'runtime', 'worker.ts'), 'worker');
+  await writeFile(join(resources, 'app.asar'), asar(spec.archive));
+  for (const file of spec.bundle) {
+    const path = join(unpacked, 'app', 'engine', 'dist', ...file.split('/'));
+    await mkdir(join(path, '..'), { recursive: true });
+    await writeFile(path, 'bundle');
+  }
+  if (spec.codex !== null) {
+    await mkdir(join(resources, 'codex'), { recursive: true });
+    await writeFile(join(resources, 'codex', 'BUNDLE.json'), JSON.stringify({ version: spec.codex }));
+  }
+  return app;
+}
+
+test('Mac: the resources of a build are inside the app; Windows and Linux keep their resources folder', async () => {
+  const { resourcesFolder } = await import(modulePath);
+  assert.equal(resourcesFolder(join('release', 'beta', 'mac-arm64', 'Chausar.app')), join('release', 'beta', 'mac-arm64', 'Chausar.app', 'Contents', 'Resources'));
+  assert.equal(resourcesFolder(join('release', 'beta', 'mac', 'Chausar Unsigned Preview.app') + '/'), join('release', 'beta', 'mac', 'Chausar Unsigned Preview.app', 'Contents', 'Resources'));
+  assert.equal(resourcesFolder(join('release', 'beta', 'win-unpacked')), join('release', 'beta', 'win-unpacked', 'resources'));
+  assert.equal(resourcesFolder(join('release', 'beta', 'linux-unpacked')), join('release', 'beta', 'linux-unpacked', 'resources'));
+});
+
+test('Mac: a clean app has no problems; its languages are the three marker folders and its pieces are read from Contents/Resources', async t => {
+  const contents = await readPackageContents(await macBuild(t), { mode: 'beta' });
+  assert.deepEqual(contents.problems, []);
+  assert.deepEqual(contents.locales, ['en.lproj', 'en_GB.lproj', 'hi.lproj']);
+  assert.deepEqual(contents.anthropic, ['claude-agent-sdk']);
+  assert.equal(contents.codexVersion, '0.166.0');
+  assert.equal(contents.archive.files, 4);
+  for (const piece of ['codex', 'electron', '@anthropic-ai', '@duckdb', 'locales', 'app.asar.unpacked/platform', 'app.asar', 'app/engine/dist']) assert.equal(typeof contents.sizes[piece], 'number', piece);
+  assert.equal(contents.sizes.electron, 2048, 'what is in the app but not in its resources');
+  assert.equal(contents.sizes['app/engine/dist'], 18);
+  assert.equal(contents.sizes.codex > 0, true);
+});
+
+test('Mac: each problem is named, in the Mac spellings', async t => {
+  const cases: [MacBuild, RegExp][] = [
+    [{ languages: [...MAC_CLEAN.languages, 'ta.lproj'] }, /language ta is not one of en, en_GB, hi/],
+    // What electron-builder leaves when a Mac target names only the Windows and Linux spellings.
+    [{ languages: ['hi.lproj'] }, /language en is missing/],
+    [{ anthropic: ['claude-agent-sdk', 'claude-agent-sdk-darwin-arm64'] }, /Claude Code program file: claude-agent-sdk-darwin-arm64/],
+    [{ codex: '0.154.0' }, /Codex 0\.154\.0, not 0\.166\.0/],
+    [{ codex: null }, /the bundled Codex is missing \(Contents\/Resources\/codex\/BUNDLE\.json\)/],
+    [{ bundle: ['engine-manifest.json'] }, /the engine bundle's worker \(app\/engine\/dist\/runtime\/worker\.js\) is not unpacked/],
+    [{ archive: { 'app/desktop/main.cjs': 'x' } }, /the Ink build \(app\/ui\/dist\/index\.html\) is missing/],
+  ];
+  for (const [overrides, expected] of cases) {
+    const contents = await readPackageContents(await macBuild(t, overrides), { mode: 'beta' });
+    assert.match(contents.problems.join('; '), expected);
+    assert.equal(contents.problems.length, overrides.languages?.length === 1 ? 2 : 1, JSON.stringify(contents.problems));
+  }
+  assert.deepEqual((await readPackageContents(await macBuild(t, { codex: null }), { mode: 'preview' })).problems, []);
+  // The command line takes the app folder as it takes win-unpacked.
+  const clean = spawnSync(process.execPath, [SCRIPT, await macBuild(t), '--json'], { encoding: 'utf8', windowsHide: true });
+  assert.equal(clean.status, 0, clean.stderr);
+  assert.deepEqual(JSON.parse(clean.stdout).problems, []);
+});

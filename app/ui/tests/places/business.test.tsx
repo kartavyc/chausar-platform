@@ -56,7 +56,8 @@ describe('Business: plan and playbook', () => {
     expect(within(shorts).getByRole('link', { name: 'Set price' }).getAttribute('href')).toBe('#/business/prices');
     expect(screen.getByText('Draft the sponsor script')).toBeTruthy();
     expect(screen.getByText('Anything posted in your name')).toBeTruthy();
-    expect(screen.getAllByText('assumption').length).toBeGreaterThan(0);
+    // An accepted plan's words are the owner's: "assumption" is said only on a plan still to accept (business-round3.test.tsx).
+    expect(screen.queryByText('assumption')).toBeNull();
     const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'How the work is done' }).getAttribute('aria-current')).toBe('page');
   });
@@ -418,6 +419,10 @@ describe('Business: keep this business', () => {
     expect(await screen.findByText('Windows keeps the key for your login on this computer.')).toBeTruthy();
     expect(screen.getByText(/Not made yet/)).toBeTruthy();
     expect(screen.getByLabelText('Passphrase').closest('details')!.open).toBe(false);
+    // It asks once first: the code shows once and Chausar keeps no copy.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make a recovery code' })); });
+    expect(screen.getByText('Chausar shows the recovery code once and keeps no copy. Be ready to save it somewhere safe.')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Recovery code' })).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make a recovery code' })); });
     const code = await screen.findByRole('group', { name: 'Recovery code' });
     expect(code.textContent).toBe('R4KD9QXM2HTW7PLB3NCF6YJV');
@@ -483,12 +488,12 @@ describe('Business menu: the playbook label', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm'));
   });
 
-  it("falls back to the service type's label when the engine sends no playbook", async () => {
+  it("falls back to the service type's label when the engine sends no playbook and no plan's offer", async () => {
     const engine = new FakeEngine();
     const client = createFakeClient(engine);
     const plain = { ...client, request: (async (method: string, params?: unknown) => {
       const reply = await client.request(method as 'venture.get', params as Record<string, never>);
-      if (method === 'venture.get' && reply) { const { playbook: _dropped, ...rest } = reply; return rest; }
+      if (method === 'venture.get' && reply) { const { playbook: _dropped, sells: _sells, ...rest } = reply; return rest; }
       return reply;
     }) as typeof client.request };
     window.location.hash = '#/today';
@@ -543,7 +548,9 @@ describe('Business menu', () => {
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
-    expect(hrefs).toEqual([['Settings', '#/business'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    // New business is a button, not a link: it closes this business and starts the first run steps.
+    expect(hrefs).toEqual([['Settings', '#/business'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(within(menu).getByRole('button', { name: 'New business' })).toBeTruthy();
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
@@ -689,7 +696,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Ledgerline/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
-    expect(within(menu).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#/business', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
+    expect(within(menu).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#/business', '#/business/away', '#/money?sheet=accountant:books']);
   });
 });
 

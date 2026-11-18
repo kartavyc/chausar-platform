@@ -7,15 +7,26 @@
  *       AI it is the keyword guess; with one, a synthetic AI answer from the same guess and the family's own offers. A
  *       LinkedIn export is read from the same Profile.csv rules; a resume PDF is refused as on a computer with no PDF
  *       reader.
- *   venture.needs.list                                what the business needs (core/needs-data.ts), the same data.
+ *   venture.needs.list                                what the business needs (core/needs-data.ts), the same data: the
+ *       kept plan's needs with their ways, or the field's list when none was kept.
  */
 import { EngineError, type AboutReadLite, type FamilyTileLite, type CountryLite, type ModelStatusLite, type NeedsListLite, type ToolLite, type ToolsLite, type CodexSetupLite } from './types';
-import { FAMILIES, familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith, type FamilyId } from '../../../../platform/runtime/venture/core/families';
-import { businessFamily, businessNeeds } from '../../../../platform/runtime/venture/core/needs-data';
+import { familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith, type FamilyId } from '../../../../platform/runtime/venture/core/families';
+import { NEED_IDS, businessFamily, businessNeeds, keptNeeds, neededGroups, ownerNeeds } from '../../../../platform/runtime/venture/core/needs-data';
+import type { FindSourceView } from '../../../../platform/runtime/venture/customers/find-words';
 import { PROFESSIONS } from '../../../../platform/runtime/venture/core/professions';
 import { profileEntry, profileTextFromCsv } from '../../../../platform/runtime/venture/core/profile-csv';
 import { pdfText } from '../../../../platform/runtime/venture/core/pdf-text-core';
 import { isRefusal } from '../../../../platform/runtime/venture/refusal-brand';
+import { keptTeamWith } from '../../../../platform/runtime/venture/agents/team-proposal';
+import { aboutBefore, cardOffersHeld, cardOffersKept, cardTeamKept, saidSoFar, type AboutBefore } from '../../../../platform/runtime/venture/core/about-before';
+import { ownIdea, ownOfferFrom } from '../../../../platform/runtime/venture/core/own-offer';
+import { fallbackBusinessName, keptBusinessName, ownBusinessName } from '../../../../platform/runtime/venture/core/business-name';
+import { followUpReply } from '../../../../platform/runtime/venture/core/about-reply';
+import { unitPart } from '../../../../platform/runtime/venture/core/offer-units';
+import { fakeOrderAgents } from './fake-order-agents';
+import { PROFESSION_COMPLIANCE } from '../../../../platform/runtime/venture/core/compliance-data';
+import { fakeTeamCheck } from './fake-hire';
 
 export const FIRST_RUN_METHODS: ReadonlySet<string> = new Set([
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
@@ -40,7 +51,15 @@ const SETUP = {
  * review's real program (the path that is hashed and run, not the one shown from ~).
  */
 const OWN_PROGRAM = String.raw`C:\Users\owner\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`;
-const DIALOG = { title: 'Use this Codex?', detail: (version: string, path: string) => `Chausar will run Codex ${version} from ${path} for your AI work.`, buttons: ['Use this Codex', 'Cancel'] } as const;
+const DIALOG = {
+  title: 'Use Codex with Chausar?',
+  detail: (version: string, path: string) => [
+    "Codex is OpenAI's tool that your ChatGPT plan runs through. It is already on this computer.",
+    'Chausar will use it for your AI work. Chausar never sees your password.',
+    `Version ${version}, at ${path}`,
+  ].join('\n\n'),
+  buttons: ['Use this Codex', 'Cancel'],
+} as const;
 const NOT_CHOSEN = "Nothing changed. Codex wasn't chosen.";
 /** A synthetic one-time code in Codex's own shape. Never a real code. */
 export const FAKE_DEVICE_CODE = ['WXYZ', '12345'].join('-');
@@ -55,11 +74,13 @@ export interface FirstRunHost {
   hosted: () => boolean;
   /** The draft desk's AI status (venture.ai.status). */
   aiStatus: () => ModelStatusLite;
-  /** The open business: its idea, country and the family kept with it, or null. */
-  venture: () => { idea: string; country: { code: string; paymentRails?: readonly string[] } | null; familyId: string | null } | null;
+  /** The open business: its idea, country, the family and the needs kept with it, and its lead sources; or null. */
+  venture: () => { idea: string; country: { code: string; paymentRails?: readonly string[] } | null; familyId: string | null; needs?: readonly string[]; leadSources?: readonly FindSourceView[]; mapNote?: string | null } | null;
   countries: readonly CountryLite[];
   /** The fake's own idea classifier (fake.ts classify), as the engine passes classifyIdea. */
   classify: (idea: string) => string;
+  /** The built-in plans' own labels ("Service business"), as the engine's SERVICE_TYPE_LABELS: never a business name. */
+  planLabels: readonly string[];
 }
 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
@@ -99,6 +120,44 @@ function professionPick(familyId: FamilyId | null, words: string): AboutReadLite
   const found = PROFESSIONS.find((item) => item.family === familyId && item.label.toLowerCase().split(/[(),]| or /).map((part) => part.replace(/[^a-z]+/g, ' ').trim()).some((part) => part.length >= 4 && text.includes(` ${part} `)));
   return found ? { id: found.id, label: found.label } : null;
 }
+/** A stand-in way to earn for the offers named, as plain as the real one must be: no prices, no links. */
+function standInWay(offers: string[]): { customer: string; reach: string; teamDoes: string; youDo: string; firstWeek: string[] } {
+  return {
+    customer: 'Small businesses and people nearby who need this done well.',
+    reach: 'A short list of likely customers, then a first message you send to each one.',
+    teamDoes: 'Drafts each message and quote, keeps the list of leads and reminds you what is due.',
+    youDo: 'Set your prices, approve and send each message, and do the work only you can do.',
+    firstWeek: [`Make ${offers[0]} ready to sell, with your own price.`, 'Approve the first list of likely customers.', 'Send the first messages.'],
+  };
+}
+
+/** A stand-in for what the stand-in way needs from outside: it finds customers, writes to them and is paid. */
+const STAND_IN_NEEDS = ['find-customers', 'write-to-customers', 'payments'];
+
+/**
+ * A stand-in for the small team the AI proposes beside the way (agents/team-proposal.ts), written as the real one is
+ * asked to be: one act to a job and to a duty, said to the owner ("you"). The same keptTeamWith checks it and gives each
+ * card its digest, so venture.agents.hire.team takes these cards as it takes the engine's.
+ */
+function standInTeam(): unknown[] {
+  return [
+    { name: 'Asha', job: 'Lists likely customers for you.', duties: ['Lists likely customers from public sources', 'Flags the ones that fit your offer'], reads: ['plan', 'trackers'] },
+    { name: 'Kabir', job: 'Drafts quotes for your approval.', duties: ['Drafts a quote for each enquiry', 'Prepares a first message for your approval'], reads: ['plan', 'clients'] },
+    { name: 'Meera', job: 'Keeps track of replies.', duties: ['Tracks who replied', 'Summarises open orders each week'], reads: ['clients', 'orders', 'trackers'] },
+  ];
+}
+
+/**
+ * A stand-in for the business name the AI proposes (core/business-name.ts): the place the owner named after "in" and
+ * the field's first word, held to the engine's own check; no name when the words name no place.
+ */
+function standInName(words: string, label: string): string | null {
+  const place = /\bin ([A-Z][a-z]+(?: [A-Z][a-z]+)?)\b/.exec(words)?.[1];
+  return place ? keptBusinessName(`${place} ${label.split(' ')[0]} Studio`) : null;
+}
+/** A refusal from the shared checks, said as the engine says it. */
+function refused(error: unknown): never { const known = error as { code: string; message: string }; throw new EngineError(known.code, known.message); }
+
 /** The field tiles with their professions in the catalogue's order, as core/about.ts aboutFamilies lists them. */
 function familiesWithProfessions(): FamilyTileLite[] {
   return familyTiles().map((tile) => ({ ...tile, professions: PROFESSIONS.filter((item) => item.family === tile.id).map(({ id, label }) => ({ id, label })) }));
@@ -240,9 +299,12 @@ export class FakeFirstRun {
   takeAiReads(): AboutCallLite[] { const reads = this.aiReads; this.aiReads = []; return reads; }
 
   private read(p: Record<string, unknown>): AboutReadLite {
-    exact(p, ['text', 'attachment']);
+    exact(p, ['text', 'attachment', 'before']);
     if (p.text === undefined && p.attachment === undefined) throw invalid('Write a few words about your work, or add your resume or LinkedIn export.');
-    const text = p.text === undefined ? '' : plain(p.text, 'What you do', 10, 2000);
+    // A follow-up, as core/about.ts: what came before, checked by the engine's own aboutBefore; its message may be short.
+    let before: AboutBefore | null = null;
+    if (p.before !== undefined) { try { before = aboutBefore(p.before); } catch (error) { refused(error); } }
+    const text = p.text === undefined ? '' : plain(p.text, 'What you do', before ? 1 : 10, 2000);
     if (/linkedin\.com\//i.test(text)) throw invalid(PROFILE_LINK_WORDS);
     let fileText = '';
     let file: AboutReadLite['file'];
@@ -264,12 +326,27 @@ export class FakeFirstRun {
       file = { name, included: true, line: null };
     }
     const status = this.host.aiStatus();
-    const familyId = keywordFamilyWith(`${text}\n${fileText}`, this.host.classify);
+    // Everything the owner said in this talk (core/about-before.ts saidSoFar): the guess and the idea come from all of it.
+    const said = saidSoFar(before, text);
+    const guessed = keywordFamilyWith(`${said}\n${fileText}`, this.host.classify);
+    const ai = status.tiers.fast.presetId !== 'built-in-templates';
+    // As the engine: a follow-up answer that names no field keeps the field on the card.
+    const familyId = guessed ?? (ai && before ? before.plan.familyId : null);
     const offers = familyId ? familyOf(familyId).offers.map((offer) => ({ ...offer })) : [];
-    const idea = familyId ? familyIdeaWith(familyId, text || offers.map((offer) => offer.name).join(', '), this.host.classify) : null;
-    if (status.tiers.fast.presetId === 'built-in-templates') return { family: this.family(familyId), profession: null, offers, country: null, evidence: null, idea, source: 'keywords', ...(file ? { file } : {}) };
+    const idea = familyId ? familyIdeaWith(familyId, said || offers.map((offer) => offer.name).join(', '), this.host.classify) : null;
+    if (status.tiers.fast.presetId === 'built-in-templates') {
+      // As core/about.ts: clear work outside the listed fields keeps the owner's words with no field, and the owner
+      // names what they sell (core/own-offer.ts); in a follow-up the card's offers hold, since no AI changes them.
+      const own = familyId ? null : ownIdea(said);
+      const row = own ? ownOfferFrom(said) : null;
+      const held = cardOffersHeld(before, familyId, familyId ? offers : row ? [row] : [], 3);
+      const kept = familyId ? familyIdeaWith(familyId, said || held.map((offer) => offer.name).join(', '), this.host.classify) : own;
+      // As core/about.ts: work outside the fields is named from the owner's own words, where code can take a name.
+      const named = own ? fallbackBusinessName(said, held) : null;
+      return { family: this.family(familyId), profession: null, offers: held, country: null, evidence: null, idea: kept, source: 'keywords', ...(file ? { file } : {}), ...(own ? { ownOffers: true as const } : {}), ...(named ? { name: named } : {}) };
+    }
     if (!status.tiers.fast.usable) throw new EngineError('TIER_UNAVAILABLE', status.tiers.fast.reason);
-    const source = `${text}\n${fileText}`;
+    const source = `${said}\n${fileText}`;
     const found = this.host.countries.filter((country) => country.code !== 'XX').flatMap((country) => {
       const phrase = new RegExp(`\\b(?:I (?:live|am based|work) in (?:the )?|Location: [^\\n]*)${country.name}\\b`, 'i').exec(source)?.[0];
       return phrase ? [{ country, evidence: phrase }] : [];
@@ -277,13 +354,49 @@ export class FakeFirstRun {
     const country = found.length === 1 ? found[0]! : null;
     // A1 final check: the AI read the owner, as the engine's draft desk records the call (handed over at venture.create).
     const callId = `modelcall_about_${this.aiReads.length + 1}`;
-    const answered = familyId ? offers.slice(0, 3) : [];
+    // A follow-up keeps the offers still ticked on the card: the stand-in AI returns them as they are, and the engine's
+    // own cardOffersKept holds the card's names and applies a rename the message asks for ("Call the first offer ...",
+    // core/offer-rename.ts), as it does for the real AI.
+    // Each with the unit the card prices it in (core/offer-units.ts), written only where it is not per project.
+    const live = before?.plan.offers.filter((offer) => offer.kept).map((offer) => ({ name: offer.name, line: offer.line, ...unitPart(offer.unit) })) ?? [];
+    const wrote = live.length ? live.slice(0, 3) : familyId ? offers.slice(0, 3) : [];
+    const answered = cardOffersKept(before, text, wrote, 3);
+    // As core/about.ts: the words the AI read are the idea as the owner wrote them, and they say who will do each order
+    // (agents/order-agents.ts); the team is held to those agents and to work a hired agent can really do.
+    const words = said.replace(/\s+/g, ' ').trim();
+    const order = words.length >= 10 && words.length <= 2000 ? fakeOrderAgents(words, this.host.classify) : idea ? fakeOrderAgents(idea, this.host.classify) : null;
+    const context = { offers: answered, orderAgents: order };
+    // The card's agents hold through a follow-up (core/about-before.ts cardTeamKept, as the engine holds them).
+    const kept = before?.plan.team.length ? cardTeamKept(before, text, keptTeamWith(fakeTeamCheck, before.plan.team.map(({ left: _left, ...card }) => card), context), (agent) => keptTeamWith(fakeTeamCheck, [agent], context)[0] ?? null) : null;
+    // The name, as core/about.ts: the AI's (a stand-in here; a follow-up returns the card's) when it is no plan label,
+    // else a plain one from the owner's words (core/business-name.ts). A read with offers is never left with a label.
+    const proposed = before ? before.plan.name : familyId ? standInName(source, this.family(familyId)!.label) : null;
+    const name = ownBusinessName(proposed, this.host.planLabels) ?? fallbackBusinessName(said, answered);
     this.aiReads.push({ callId, offers: answered.map((offer) => ({ name: offer.name, line: offer.line })) });
+    // As core/about.ts ideaFor: the words the AI read are the idea as the owner wrote them.
+    const read = familyId && words.length >= 10 && words.length <= 2000 ? words : idea;
+    const way = familyId && answered.length ? before?.plan.way ?? standInWay(answered.map((offer) => offer.name)) : null;
+    const team = way ? kept ?? keptTeamWith(fakeTeamCheck, standInTeam(), context) : [];
+    const profession = professionPick(familyId, source);
+    // As core/about.ts ownKindOfWork: a field, no pick, and no profession of the field that switches a tool off.
+    const ownKind = familyId !== null && profession === null && !PROFESSION_COMPLIANCE.some((item) => item.family === familyId && item.switchedOff.length > 0);
     return {
-      family: this.family(familyId), profession: professionPick(familyId, source), offers: answered, country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
-      idea, source: 'ai', callId, ...(file ? { file } : {}),
-      // C5 task 6: a stand-in for the AI's own short reply (two sentences, no digits), as core/about.ts keeps it.
-      ...(familyId ? { reply: `You work in ${this.family(familyId)!.label}. I suggested offers to start; change any of them on the right.` } : {}),
+      family: this.family(familyId), profession, offers: answered, country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
+      idea: read, source: 'ai', callId, ...(file ? { file } : {}),
+      // C5 task 6: a stand-in for the AI's own reply, as core/about.ts keeps it (as written, no links).
+      ...(ownKind ? { ownKind: true as const } : {}),
+      // A follow-up's reply is what really changed, by code (core/about-reply.ts); the stand-in AI asks nothing more.
+      ...(before ? { reply: followUpReply({ before, said: text, after: { offers: answered, way, team }, reply: null }) } : familyId ? { reply: `You work in ${this.family(familyId)!.label}. I suggested offers to start; change any of them on the right.` } : {}),
+      // The name the AI proposes, beside something to sell (core/business-name.ts); a follow-up keeps the card's.
+      ...(name && answered.length ? { name } : {}),
+      // A stand-in for the way to earn the AI proposes (core/way.ts), in the shape and limits keptWay holds it to. A follow-up keeps the card's.
+      ...(way ? { way } : {}),
+      // And for the team proposed beside it, carried only with a way; a follow-up returns the card's agents as they are.
+      ...(way && team.length ? { team } : {}),
+      // The agents that will do each order, beside the way (agents/order-agents.ts).
+      ...(way && order?.agents.length ? { orderAgents: order.agents } : {}),
+      // And for what that way needs from outside, checked as the engine checks it (core/needs-data.ts keptNeeds).
+      ...(familyId && answered.length ? { needs: keptNeeds(STAND_IN_NEEDS) } : {}),
     };
   }
 
@@ -300,11 +413,16 @@ export class FakeFirstRun {
     const venture = this.host.venture();
     if (!venture) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
     const familyId = businessFamily(venture.familyId, venture.idea, this.host.classify);
+    // As core/needs.ts: the kept plan's needs when it has any, else the field's list.
+    const kept = ownerNeeds(venture.needs);
+    // As core/needs.ts: customers who are not places on a map get the map's one line on the need to find customers.
+    const groups = kept.length ? neededGroups(kept, venture.country?.code ?? null, venture.country?.paymentRails ?? [], venture.leadSources ?? [], venture.mapNote ? { 'find-customers': venture.mapNote } : {}) : [];
     return {
       family: familyId ? { id: familyId, label: familyOf(familyId).label } : null,
-      needs: businessNeeds(familyId, venture.country?.code ?? null, venture.country?.paymentRails ?? []).map((need) => ({ ...need, connect: { ...need.connect } })),
+      needs: groups.length ? [] : businessNeeds(familyId, venture.country?.code ?? null, venture.country?.paymentRails ?? []).map((need) => ({ ...need, connect: { ...need.connect } })),
+      groups: groups.map((group) => ({ id: group.id, ways: group.ways.map((way) => ({ ...way, connect: { ...way.connect } })), note: group.note })),
+      // As core/needs.ts: what the owner ticks and unticks, the needs kept now and the whole fixed list.
+      chosen: kept, choices: [...NEED_IDS],
     };
   }
 }
-
-export { FAMILIES };

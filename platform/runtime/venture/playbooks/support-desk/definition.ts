@@ -40,5 +40,4 @@ const raw:PlaybookDefinition={
  tools:['support.match','support.ticket','mail.read','ideas.add'],planPicks:{offers:['monthly-support','help-pages'],approvals:['reply-approved','owner-sends'],connectors:['mail-import','mail-app']},draftStep:()=> 'draft',startTile:SUPPORT_TILE,
  scope:{inScope:['customer mail','support replies','help pages'],outOfScope:['automatic refunds','legal advice','automatic sending'],pointElsewhere:'The shop owner handles money and legal decisions.'},notBuilt:['Automatic customer sending.','Live WhatsApp replies and a website chat inbox.'],words:()=>[],
 };
-export const SUPPORT_DESK_RAW=raw;
 export const SUPPORT_DESK_DEFINITION=definePlaybook(raw);

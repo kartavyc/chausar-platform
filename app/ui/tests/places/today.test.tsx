@@ -57,7 +57,7 @@ async function readFirst(row: HTMLElement) {
 
 const lockedLedgerline: Seed = {
   id: 'q-locked-ledgerline', businessId: 'ledgerline', businessName: 'Ledgerline', kind: 'locked', createdAt: '2026-10-21T10:11:00.000Z',
-  title: 'Ledgerline is locked.', line: 'Open it to see what needs you.', actions: [{ id: 'open', label: 'Open', primary: true }],
+  title: 'Ledgerline is not open.', line: 'Open it to see what needs you.', actions: [{ id: 'open', label: 'Open', primary: true }],
 };
 const missingDraft: Seed = {
   id: 'q-draft-missing', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Editor', kind: 'draft', createdAt: '2026-10-21T08:30:00.000Z',
@@ -121,7 +121,7 @@ describe('Today: the header and the list', () => {
   it('a change shows the old value struck through, the new one, and its receipt; a model number says so', async () => {
     start();
     const price = await rowOf('Sponsor slot price');
-    expect(price.querySelector('del')?.textContent).toBe('₹25,000');
+    expect(price.querySelector('del')?.textContent).toBe('₹15,000');
     expect(within(price).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     const question = await rowOf('Which title for episode 15?');
     expect(question.textContent).toContain('model estimate');
@@ -434,9 +434,12 @@ describe('Today: setup and locked rows', () => {
   it('a business this computer can open opens from its locked row', async () => {
     const { client } = start({ engine: new FakeEngine({ queue: [...QUEUE.filter((r) => r.kind !== 'locked'), lockedLedgerline] }) });
     const spy = vi.spyOn(client, 'request');
-    const row = await rowOf('Ledgerline is locked.');
+    const row = await rowOf('Ledgerline is not open.');
     await click(within(row).getByRole('button', { name: 'Open' }));
-    expect(spy).toHaveBeenCalledWith('workspace.open', { folder: 'ledgerline' });
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('workspace.open', { folder: 'ledgerline' }));
+    // One safe switch: nothing is asked between the lock and the open.
+    const sent = spy.mock.calls.map(([method]) => method as string);
+    expect(sent.slice(sent.indexOf('workspace.lock'), sent.indexOf('workspace.open') + 1)).toEqual(['workspace.lock', 'workspace.open']);
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-locked-ledgerline"]')).toBeNull());
     await waitFor(() => expect(within(screen.getByRole('navigation')).getByRole('button', { name: /Ledgerline/ })).toBeTruthy());
   });
@@ -553,7 +556,8 @@ describe('Today: the date and the greeting in the owner zone (one-shot B2)', () 
         window.location.hash = '#/today';
         render(<ClockProvider now={LATE}><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
         const title = await screen.findByRole('heading', { level: 1 });
-        expect(title.textContent).toBe('Good evening');
+        // Round 5 (re-check 012): the small hours say Hello, never "Good evening"; the computer's own 19:11 would.
+        expect(title.textContent).toBe('Hello');
         expect(title.closest('header')!.textContent).toContain('Tuesday, 3 November');
         expect(title.closest('header')!.textContent).not.toContain('2 November');
       } finally {

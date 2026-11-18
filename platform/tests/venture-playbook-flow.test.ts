@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import type { HarnessLimits, PlaybookStep } from '../runtime/venture/contracts.ts';
 import { playbookHash, playbookSteps, validatePlaybook } from '../runtime/venture/delivery/playbook.ts';
 import { DEFAULT_LIMITS } from '../runtime/venture/delivery/harness/loop.ts';
-import { advanceFlow, DEADLINE_LINE, GATE_TIMEOUT_LINE, startFlow, walkFlow, type StepOutcome } from '../runtime/venture/delivery/flow.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { CA_FIRM_ID } from '../runtime/venture/playbooks/ca-firm/registration.ts';
 import { YOUTUBE_ID } from '../runtime/venture/playbooks/youtube/registration.ts';
@@ -154,90 +153,11 @@ test('flow: optional steps are never approvals, checks or outside steps, never b
   assert.throws(() => validatePlaybook(edit(skipped, 'verify', { next: [{ on: 'failed', to: 'polish' }], maxLoops: 1 })), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('flow: the fixture check step fails, goes back to the draft at most twice, then the run ends blocked; attempts are numbered', () => {
-  const steps = looping();
-  validatePlaybook(steps);
-  const flow = walkFlow(steps, id => (id === 'verify' ? { outcome: 'failed', reason: 'A required section is missing.' } : { outcome: 'done' }), { startedAt: T0 });
-  assert.deepEqual(flow.trail.map(entry => `${entry.stepId}#${entry.attempt}:${entry.outcome}`), [
-    'gather#1:done', 'draft#1:done', 'verify#1:failed', 'draft#2:done', 'verify#2:failed', 'draft#3:done', 'verify#3:failed',
-  ]);
-  assert.equal(flow.end?.state, 'blocked');
-  assert.equal(flow.end?.stepId, 'verify');
-  assert.match(flow.end!.reason!, /draft/);
-  assert.equal(flow.attempts.draft, 3);
-  // onExceeded failed ends the run failed instead.
-  assert.equal(walkFlow(edit(steps, 'draft', { onExceeded: 'failed' }), id => (id === 'verify' ? { outcome: 'failed' } : { outcome: 'done' }), { startedAt: T0 }).end?.state, 'failed');
-  // A check that passes the second time goes on to the end.
-  const fixed = walkFlow(steps, (id, attempt) => (id === 'verify' && attempt === 1 ? { outcome: 'failed' } : { outcome: 'done' }), { startedAt: T0 });
-  assert.deepEqual(fixed.trail.map(entry => `${entry.stepId}#${entry.attempt}`), ['gather#1', 'draft#1', 'verify#1', 'draft#2', 'verify#2', 'approve#1', 'send#1']);
-  assert.deepEqual(fixed.end, { state: 'done', reason: null, stepId: 'send' });
-});
 
-test('flow: a blocked step says why, and a step with no edge for its outcome ends the run', () => {
-  const steps = straight();
-  const flow = startFlow(steps, undefined, T0);
-  assert.throws(() => advanceFlow(steps, flow, { outcome: 'blocked' } as StepOutcome, T0), code('INVALID_VENTURE_REQUEST'));
-  assert.throws(() => advanceFlow(steps, flow, { outcome: 'blocked', reason: '   ' }, T0), code('INVALID_VENTURE_REQUEST'));
-  const blocked = advanceFlow(steps, flow, { outcome: 'blocked', reason: 'The client has not sent the bank statement.' }, T0);
-  assert.deepEqual(blocked.end, { state: 'blocked', reason: 'The client has not sent the bank statement.', stepId: 'gather' });
-  // An ended flow takes no more outcomes.
-  assert.throws(() => advanceFlow(steps, blocked, { outcome: 'done' }, T0), code('INVALID_VENTURE_REQUEST'));
-  const failed = advanceFlow(steps, flow, { outcome: 'failed' }, T0);
-  assert.equal(failed.end?.state, 'failed');
-  assert.match(failed.end!.reason!, /gather/);
-  // The flow before was not changed: each step makes a new one.
-  assert.equal(flow.end, null);
-});
 
-test('flow: a step that runs out of time fails over in order, then fails', () => {
-  const steps = edit([...straight().slice(0, 1), step('quick-read', 'gather'), step('notes-only', 'gather'), ...straight().slice(1)], 'gather', { timeoutMs: 60_000, failover: ['quick-read', 'notes-only'] });
-  // The fail-over steps sit in the straight list too; their own done goes on to the next step as usual.
-  validatePlaybook(steps);
-  const flow = walkFlow(steps, id => (id === 'gather' ? { outcome: 'timeout' } : { outcome: 'done' }), { startedAt: T0 });
-  assert.deepEqual(flow.trail.slice(0, 3).map(entry => `${entry.stepId}#${entry.attempt}:${entry.outcome}`), ['gather#1:timeout', 'quick-read#1:done', 'notes-only#1:done']);
-  assert.equal(flow.end?.state, 'done');
-  // A fail-over that times out too, with nothing left to fail over to, ends the run failed.
-  const slow = walkFlow(steps, id => (id === 'draft' ? { outcome: 'timeout' } : { outcome: 'done' }), { startedAt: T0 });
-  assert.equal(slow.end?.state, 'failed');
-  assert.match(slow.end!.reason!, /ran out of time/);
-});
 
-test('flow: a gate that times out ends with its default, never approved', () => {
-  for (const fallback of ['blocked', 'failed'] as const) {
-    const steps = edit(straight(), 'approve', { gate: { timeoutMs: 3_600_000, default: fallback } });
-    validatePlaybook(steps);
-    const flow = walkFlow(steps, id => (id === 'approve' ? { outcome: 'timeout' } : { outcome: 'done' }), { startedAt: T0 });
-    assert.deepEqual(flow.end, { state: fallback, reason: GATE_TIMEOUT_LINE, stepId: 'approve' });
-    assert.ok(!flow.trail.some(entry => entry.stepId === 'send'), 'nothing after the gate ran');
-  }
-});
 
-test('flow: past the run deadline the run ends blocked before the next step', () => {
-  const steps = straight();
-  const flow = startFlow(steps, { deadlineMs: 3_600_000 }, T0);
-  const late = advanceFlow(steps, flow, { outcome: 'done' }, T0 + 3_600_001);
-  assert.deepEqual(late.end, { state: 'blocked', reason: DEADLINE_LINE, stepId: 'gather' });
-  assert.equal(advanceFlow(steps, flow, { outcome: 'done' }, T0 + 60_000).end, null);
-});
 
-test('flow: no shipped playbook has an edge, a cap, a timeout, a gate or a deadline in W4', async () => {
-  const env = await business(PLAIN_IDEA);
-  const blueprint = listRecords(env.store.read(), 'venture-blueprint').at(-1)!;
-  const shipped: [string, readonly PlaybookStep[]][] = [
-    ['eight fixed steps', playbookSteps(blueprint)],
-    ...[YOUTUBE_ID, CA_FIRM_ID, SOCIAL_AGENCY_ID].map(id => [id, flagshipDelivery(id)!.steps] as [string, readonly PlaybookStep[]]),
-  ];
-  for (const [name, steps] of shipped) {
-    for (const item of steps) {
-      for (const field of ['next', 'maxLoops', 'onExceeded', 'timeoutMs', 'failover', 'gate'] as const) assert.equal(item[field], undefined, `${name} ${item.id} ${field}`);
-    }
-    // Walked with every step done, a shipped playbook goes straight down its list, as runs do today.
-    const flow = walkFlow([...steps], () => ({ outcome: 'done' }), { startedAt: T0 });
-    assert.deepEqual(flow.trail.map(entry => entry.stepId), steps.map(item => item.id), name);
-    assert.equal(flow.end?.state, 'done');
-  }
-  assert.equal((DEFAULT_LIMITS as HarnessLimits).deadlineMs, undefined);
-});
 
 test('flow: an approval covers one pass of the outside step; a loop back through it needs the approval again', () => {
   // The two probes: the outside step fails or is done, goes back to the draft, and the draft leads on to it again.
@@ -252,4 +172,19 @@ test('flow: an approval covers one pass of the outside step; a loop back through
   // Going back through the approval is fine: each pass is approved again.
   const again = [step('gather', 'gather'), step('draft', 'write', { maxLoops: 5 }), step('approve', 'approve'), step('send', 'operator', { next: [{ on: 'failed', to: 'draft' }] })];
   assert.equal(validatePlaybook(again).validated, true);
+});
+
+test('flow: no shipped playbook has an edge, a cap, a timeout, a gate or a deadline in W4', async () => {
+  const env = await business(PLAIN_IDEA);
+  const blueprint = listRecords(env.store.read(), 'venture-blueprint').at(-1)!;
+  const shipped: [string, readonly PlaybookStep[]][] = [
+    ['eight fixed steps', playbookSteps(blueprint)],
+    ...[YOUTUBE_ID, CA_FIRM_ID, SOCIAL_AGENCY_ID].map(id => [id, flagshipDelivery(id)!.steps] as [string, readonly PlaybookStep[]]),
+  ];
+  for (const [name, steps] of shipped) {
+    for (const item of steps) {
+      for (const field of ['next', 'maxLoops', 'onExceeded', 'timeoutMs', 'failover', 'gate'] as const) assert.equal(item[field], undefined, `${name} ${item.id} ${field}`);
+    }
+  }
+  assert.equal((DEFAULT_LIMITS as HarnessLimits).deadlineMs, undefined);
 });

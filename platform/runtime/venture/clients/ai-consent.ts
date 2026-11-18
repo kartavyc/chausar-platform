@@ -2,7 +2,6 @@ import { check, newId, type Context, type State, type StateStore } from '../../c
 import type { ClientAiConsent, ClientAiConsentView, VentureDeps } from '../contracts.ts';
 import { exactPayload, findRecord, identifier, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { clientAiConsentView } from './ai-consent-core.ts';
-export { CLIENT_AI_DISCLOSURE, clientAiConsentView } from './ai-consent-core.ts';
 
 const watchers = new WeakMap<StateStore, Map<string, Set<() => void>>>();
 /** Each live driver registers its abort signal here; these process-local callbacks carry no client data. */

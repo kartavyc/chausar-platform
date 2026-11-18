@@ -3,10 +3,11 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
-import { EngineError, type EngineClient, type ModelStatusLite } from '../../src/engine/types';
+import { EngineError, type EngineClient, type ModelStatusLite, type ToolLite, type ToolsLite } from '../../src/engine/types';
 import firstRun from '../../src/text/en/first-run.json';
 import { answerSideWork, confirmProfession } from './first-run-steps';
 import { ClockProvider } from '../../src/shell/clock';
+import { AI_PLAN_RISK } from '../../../../platform/runtime/venture/models/plan-risk';
 
 /**
  * W6 first run: Connect your AI (6C1), About you as A that becomes B (6C2, DECISIONS D16a) and Connect what your
@@ -34,36 +35,156 @@ function start(engine = new FakeEngine({ fresh: true })) {
   render(<App client={client} language="en" />);
   return { engine, calls };
 }
-async function press(name: string | RegExp) { const button = await screen.findByRole('button', { name }, { timeout: 4000 }); await act(async () => { fireEvent.click(button); }); }
-async function skipAi() { await press('Skip for now: use templates'); }
+/** Presses a button once it can be pressed: step 1's sign-in buttons wait for the first look at this computer. */
+async function press(name: string | RegExp) {
+  const button = await screen.findByRole('button', { name }, { timeout: 4000 });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false), { timeout: 4000 });
+  await act(async () => { fireEvent.click(button); });
+}
+
+const CHATGPT = 'Sign in with ChatGPT';
+const CLAUDE = 'Sign in with Claude';
+const NO_CLAUDE = 'Install Claude Code with its own installer, then check again.';
+type Call = [string, Record<string, unknown>];
+const made = (calls: Call[], method: string) => calls.filter(([name]) => name === method);
+const firstOf = (calls: Call[], method: string) => calls.findIndex(([name]) => name === method);
+
+/** What the owner sees in the main region: not what a closed fold holds, and not what only a screen reader hears. */
+function seen(root: Element = screen.getByRole('main')): string {
+  const out: string[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || parent.closest('.sr-only, [hidden]')) continue;
+    const fold = parent.closest('details');
+    if (fold && !fold.open && parent.closest('summary')?.parentElement !== fold) continue;
+    out.push((node.textContent ?? '').trim());
+  }
+  return out.filter(Boolean).join(' ');
+}
+const moreOptions = async () => (await screen.findByText('More options', { selector: 'summary' }, { timeout: 4000 })).closest('details')!;
+async function openMore() {
+  const fold = await moreOptions();
+  if (!fold.open) await act(async () => { fireEvent.click(fold.querySelector('summary')!); });
+  return fold;
+}
+async function skipAi() {
+  const fold = await openMore();
+  await act(async () => { fireEvent.click(within(fold).getByRole('button', { name: 'Continue without AI for now' })); });
+}
+/** The fake computer with the tools answered another way: Claude Code found too, or Codex as the engine refuses one. */
+function startWith(change: (tool: ToolLite) => ToolLite, engine = new FakeEngine({ fresh: true }), refuse: Readonly<Record<string, EngineError>> = {}) {
+  window.location.hash = '#/today';
+  const fake = createFakeClient(engine);
+  const calls: Call[] = [];
+  const client: EngineClient = { ...fake, request: (async (method: string, params?: Record<string, unknown>) => {
+    calls.push([method, structuredClone(params ?? {})]);
+    if (refuse[method]) throw refuse[method];
+    const answer = await fake.request(method as never, params as never) as unknown;
+    if (method !== 'venture.ai.tools') return answer;
+    const tools = answer as ToolsLite;
+    return { ...tools, tools: tools.tools.map(change) };
+  }) as EngineClient['request'] };
+  render(<App client={client} language="en" />);
+  return { engine, calls };
+}
+const claudeFound = (signedIn: 'yes' | 'no') => (tool: ToolLite): ToolLite => (tool.cli === 'claude-code'
+  ? { ...tool, found: true, signedIn, login: { state: 'idle', code: null, link: null, line: null }, ...(signedIn === 'yes' ? { tested: 'passed' as const } : {}) }
+  : tool);
 
 afterEach(() => { vi.restoreAllMocks(); });
 
-describe('first run, step 1: Connect your AI', () => {
-  it('shows the three ways in, the tools as found, and the way on with templates', async () => {
+describe('first run, step 1: a simple sign-in', () => {
+  it('shows the title, one line and two sign-in buttons, ChatGPT the one filled button, and nothing technical', async () => {
     timeZone('Asia/Kolkata');
-    start();
+    startWith(claudeFound('no'));
     expect(await screen.findByRole('heading', { level: 1, name: 'Connect your AI' })).toBeTruthy();
-    expect(await screen.findByText('Codex installed')).toBeTruthy();
-    expect(screen.getByText('Not installed yet')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign in with Codex' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Add a key' })).toBeTruthy();
+    const chatgpt = await screen.findByRole('button', { name: CHATGPT });
+    const claude = screen.getByRole('button', { name: CLAUDE });
+    expect(chatgpt.getAttribute('data-variant')).toBe('primary');
+    expect(claude.getAttribute('data-variant')).toBe('secondary');
+    const main = screen.getByRole('main');
+    // The fold with the tools' full consent shows once this computer has been looked at.
+    await within(main).findByText("What's sent");
+    // Nothing to fix under either button: both can work. What each does carry, at rest and in small type, is the
+    // platform's own risk in the engine's own words (the founder's rule; found missing on 15 Nov 2026).
+    expect(main.querySelectorAll('[data-choice-line]')).toHaveLength(0);
+    const risks = [...main.querySelectorAll('[data-plan-risk]')];
+    expect(risks.map((line) => [line.closest('[data-choice]')!.getAttribute('data-choice'), line.textContent])).toEqual([['codex', AI_PLAN_RISK.codex], ['claude-code', AI_PLAN_RISK['claude-code']]]);
+    expect(chatgpt.getAttribute('aria-describedby')).toBe(risks[0]!.id);
+    expect(claude.getAttribute('aria-describedby')).toBe(risks[1]!.id);
+    // It is plain to see: not inside the closed "What's sent" fold.
+    for (const line of risks) expect(line.closest('details')).toBeNull();
+    expect((await moreOptions()).open).toBe(false);
+    const words = seen(main);
+    expect(words).not.toMatch(/Codex|Claude Code/);
+    expect(words).not.toMatch(/\d+\.\d+\.\d+/);
+    expect(words).not.toMatch(/installed|[a-f0-9]{64}|[\\/]/i);
+    for (const gone of ['Use this Codex', 'Use Codex', 'Sign in with Codex', 'Add a key', 'Skip for now: use templates', 'Stop looking']) expect(words).not.toContain(gone);
+    expect(words).toContain('Your Chausar team runs on your own ChatGPT or Claude plan. Chausar never sees your password.');
     const steps = screen.getByRole('list', { name: 'Setup steps' });
     expect(within(steps).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['1Connect your AI', '2Your work', '3Your business']);
+    // The screen's words at rest with both tools here: 93 measured before the two risk lines (28 words), 121 with them.
+    expect(words).toContain(AI_PLAN_RISK.codex);
+    expect(words.split(/\s+/).length).toBeLessThanOrEqual(121);
   });
 
-  it("starts Codex's own sign-in and shows its code and link, then uses the signed-in Codex", async () => {
-    const { calls } = start();
-    await press('Sign in with Codex');
-    expect(calls.some(([method, params]) => method === 'venture.ai.login.start' && params.cli === 'codex')).toBe(true);
+  it('keeps its words few: the sample computer showed 150 words at rest before the simple sign-in, and 120 at most now', async () => {
+    start();
+    // The sample computer has no Claude Code, so the one line under that button is counted too (102 measured), and
+    // the ChatGPT button carries the platform's own risk line (15 words): 117 measured, held at 120.
+    await screen.findByRole('button', { name: CLAUDE, description: NO_CLAUDE }, { timeout: 4000 });
+    await screen.findByText("What's sent");
+    expect(seen()).toContain(AI_PLAN_RISK.codex);
+    // A tool that is not here shows how to get it, not the risk of a plan the owner cannot use yet.
+    expect(seen()).not.toContain(AI_PLAN_RISK['claude-code']);
+    expect(seen().split(/\s+/).length).toBeLessThanOrEqual(120);
+  });
+
+  it('the risk lines are the engine\'s own words: the text pack holds them exactly', () => {
+    expect(firstRun['first-run.ai.risk.codex']).toBe(AI_PLAN_RISK.codex);
+    expect(firstRun['first-run.ai.risk.claude-code']).toBe(AI_PLAN_RISK['claude-code']);
+  });
+
+  it('a Codex waiting for the owner\'s yes shows no version, file or separate step: the same two buttons', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.reviewCodex();
+    start(engine);
+    const chatgpt = await screen.findByRole('button', { name: CHATGPT });
+    await waitFor(() => expect(screen.getByRole('button', { name: CLAUDE, description: NO_CLAUDE })).toBeTruthy());
+    // Nothing to fix under it: only the platform's own risk line, as on any ChatGPT button that can work.
+    expect(chatgpt.closest('[data-choice]')!.querySelectorAll('[data-choice-line]')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: CHATGPT, description: AI_PLAN_RISK.codex })).toBe(chatgpt);
+    const words = seen();
+    expect(words).not.toMatch(/Codex|0\.166\.0|AppData|Use it\?/);
+    expect(screen.queryByRole('button', { name: 'Use this Codex' })).toBeNull();
+  });
+
+  it('one click runs the owner\'s yes, then the sign-in, then the connection, in that order', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.reviewCodex();
+    const { calls } = start(engine);
+    await press(CHATGPT);
+    // The tool's own sign-in waits for the owner: its code, one progress line and the way out.
     expect(await screen.findByText(FAKE_DEVICE_CODE, {}, { timeout: 4000 })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: "Finish signing in on OpenAI's page" })).toBeTruthy();
+    expect(screen.getByText('Waiting for you to finish signing in').getAttribute('role')).toBe('status');
     expect(screen.getByRole('button', { name: 'Open the sign-in page again' })).toBeTruthy();
-    // The fake Codex finishes after three looks; the tool's own status then says signed in.
-    expect(await screen.findByText('Signed in', {}, { timeout: 8000 })).toBeTruthy();
-    await press('Use Codex');
-    expect(calls.some(([method, params]) => method === 'venture.ai.connect' && params.presetId === 'codex-cli' && typeof params.consentDigest === 'string')).toBe(true);
-    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel sign-in' })).toBeTruthy();
+    expect(seen()).not.toMatch(/Codex/);
+    // The fake Codex finishes after three looks; nothing more is pressed.
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 10000 })).toBeTruthy();
+    const trust = firstOf(calls, 'venture.ai.setup.trust'), login = firstOf(calls, 'venture.ai.login.start'), connect = firstOf(calls, 'venture.ai.connect');
+    expect(trust).toBeGreaterThan(-1);
+    expect(login).toBeGreaterThan(trust);
+    expect(connect).toBeGreaterThan(login);
+    expect(calls[trust]![1]).toEqual({ cli: 'codex', sha256: 'c'.repeat(64) });
+    expect(calls[login]![1]).toEqual({ cli: 'codex' });
+    expect(calls[connect]![1]).toMatchObject({ presetId: 'codex-cli' });
+    expect(typeof calls[connect]![1].consentDigest).toBe('string');
+    for (const method of ['venture.ai.setup.trust', 'venture.ai.login.start', 'venture.ai.connect']) expect(made(calls, method)).toHaveLength(1);
+    // The owner's yes was still asked by the app's own dialog, once.
+    expect(engine.firstRun.dialogs).toHaveLength(1);
     expect(screen.getByText('Connected: ChatGPT plan')).toBeTruthy();
     // C1 task 11: step 1 reads "Your AI" with its check; what was connected is its title and its words for screen readers.
     const first = within(screen.getByRole('list', { name: 'Setup steps' })).getAllByRole('listitem')[0]!;
@@ -71,58 +192,122 @@ describe('first run, step 1: Connect your AI', () => {
     expect(first.querySelector('svg')).toBeTruthy();
     expect(first.getAttribute('title')).toBe('Connected: ChatGPT plan');
     expect(first.textContent).toBe('Your AIConnected: ChatGPT plan');
-  }, 15000);
+  }, 20000);
 
-  it('never starts a sign-in for a tool that already says it is signed in', async () => {
+  it('a tool already signed in connects on the one click and never starts a sign-in', async () => {
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.signIn();
     const { calls } = start(engine);
-    expect(await screen.findByText('Signed in')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Sign in with Codex' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Use Codex' })).toBeTruthy();
-    expect(calls.some(([method]) => method === 'venture.ai.login.start')).toBe(false);
+    await press(CHATGPT);
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
+    expect(made(calls, 'venture.ai.login.start')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.setup.trust')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.connect').map(([, params]) => params.presetId)).toEqual(['codex-cli']);
+  });
+
+  it('Cancel sign-in stops the tool\'s sign-in, and nothing is connected', async () => {
+    const { calls } = start();
+    await press(CHATGPT);
+    expect(await screen.findByText(FAKE_DEVICE_CODE, {}, { timeout: 4000 })).toBeTruthy();
+    await press('Cancel sign-in');
+    await waitFor(() => expect(screen.queryByText(FAKE_DEVICE_CODE)).toBeNull());
+    expect(made(calls, 'venture.ai.login.cancel').map(([, params]) => params)).toEqual([{ cli: 'codex' }]);
+    expect(screen.queryByRole('button', { name: 'Cancel sign-in' })).toBeNull();
+    expect((screen.getByRole('button', { name: CHATGPT }) as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(made(calls, 'venture.ai.connect')).toHaveLength(0);
+    expect(screen.getByRole('heading', { level: 1, name: 'Connect your AI' })).toBeTruthy();
+  });
+
+  it('Sign in with Claude connects a signed-in Claude Code the same way', async () => {
+    const { calls } = startWith(claudeFound('yes'));
+    await press(CLAUDE);
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
+    expect(made(calls, 'venture.ai.connect').map(([, params]) => params.presetId)).toEqual(['claude-code-cli']);
+    expect(screen.getByText('Connected: Claude plan')).toBeTruthy();
   });
 });
 
-describe('first run, step 1: the Codex Chausar runs (A2)', () => {
-  it('shows the owner’s own Codex as found and asks first; it can be signed in only after the owner chooses it', async () => {
+describe('first run, step 1: a choice that cannot work says the engine\'s one line under its button', () => {
+  const lineUnder = (name: string) => screen.getByRole('button', { name }).closest('[data-choice]')!.querySelectorAll('[data-choice-line]');
+
+  it('a tool that is not on this computer: its fix words, and a click only looks again', async () => {
+    const { calls } = start();
+    expect(await screen.findByRole('button', { name: CLAUDE, description: NO_CLAUDE }, { timeout: 4000 })).toBeTruthy();
+    expect(lineUnder(CLAUDE)).toHaveLength(1);
+    expect(lineUnder(CLAUDE)[0]!.textContent).toBe(NO_CLAUDE);
+    expect(screen.queryByRole('alert')).toBeNull();
+    const looks = made(calls, 'venture.ai.tools').length;
+    await press(CLAUDE);
+    await waitFor(() => expect(made(calls, 'venture.ai.tools').length).toBe(looks + 1));
+    await waitFor(() => expect((screen.getByRole('button', { name: CLAUDE }) as HTMLButtonElement).disabled).toBe(false));
+    expect(made(calls, 'venture.ai.login.start')).toHaveLength(0);
+    expect(lineUnder(CLAUDE)[0]!.textContent).toBe(NO_CLAUDE);
+  });
+
+  it('a Codex the engine refuses (too old): the engine\'s words, no file path, and no sign-in', async () => {
+    const TOO_OLD = 'This is Codex 0.150.0. Chausar works with Codex 0.166.0. Update it, then check again.';
+    const { calls } = startWith((tool) => (tool.cli === 'codex'
+      ? { ...tool, signedIn: 'unknown', setup: { state: 'refused', origin: null, path: String.raw`~\AppData\Roaming\npm\codex.exe`, version: '0.150.0', sha256: 'd'.repeat(64), line: TOO_OLD } }
+      : tool));
+    expect(await screen.findByRole('button', { name: CHATGPT, description: TOO_OLD }, { timeout: 4000 })).toBeTruthy();
+    expect(lineUnder(CHATGPT)).toHaveLength(1);
+    expect(seen()).not.toMatch(/AppData|codex\.exe/);
+    await press(CHATGPT);
+    await waitFor(() => expect((screen.getByRole('button', { name: CHATGPT }) as HTMLButtonElement).disabled).toBe(false));
+    expect(made(calls, 'venture.ai.login.start')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.setup.trust')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.connect')).toHaveLength(0);
+  });
+
+  it('the browser version: "Do this inside the Chausar app." under the button, and nothing is started', async () => {
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.reviewCodex();
+    engine.firstRun.codexDialog('missing');
     const { calls } = start(engine);
-    expect(await screen.findByText('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Sign in with Codex' })).toBeNull();
-    await press('Use this Codex');
-    expect(calls.find(([method]) => method === 'venture.ai.setup.trust')?.[1]).toEqual({ cli: 'codex', sha256: 'c'.repeat(64) });
-    expect(await screen.findByRole('button', { name: 'Sign in with Codex' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Use this Codex' })).toBeNull();
+    await press(CHATGPT);
+    expect(await screen.findByRole('button', { name: CHATGPT, description: 'Do this inside the Chausar app.' })).toBeTruthy();
+    expect(lineUnder(CHATGPT)).toHaveLength(1);
+    expect(screen.getByRole('alert').textContent).toBe('Do this inside the Chausar app.');
+    expect(made(calls, 'venture.ai.login.start')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.connect')).toHaveLength(0);
   });
+
   // A2 second review: Cancel in main's own dialog changes nothing, and the step says so calmly, not as an error.
-  it('Cancel in Chausar\'s own dialog keeps the question and says nothing changed, calmly', async () => {
+  it('Cancel in Chausar\'s own dialog says nothing changed, calmly, and starts nothing', async () => {
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.reviewCodex();
     engine.firstRun.codexDialog('cancel');
-    start(engine);
-    await screen.findByText('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?');
-    await press('Use this Codex');
+    const { calls } = start(engine);
+    await press(CHATGPT);
     const said = await screen.findByText("Nothing changed. Codex wasn't chosen.");
     expect(said.getAttribute('role')).toBe('status');
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Use this Codex' })).toBeTruthy();
+    expect(lineUnder(CHATGPT)).toHaveLength(1);
+    expect((screen.getByRole('button', { name: CHATGPT }) as HTMLButtonElement).disabled).toBe(false);
+    expect(made(calls, 'venture.ai.login.start')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.connect')).toHaveLength(0);
   });
-});
 
-describe('first run, step 1: "Signed in" is earned (A2)', () => {
-  it('a Codex that says it is signed in but fails the tiny test shows why, and no Signed in or Use', async () => {
+  it('a Codex that says it is signed in but fails the tiny test shows why, and a click looks again without connecting (A2)', async () => {
+    const FAILED = 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.';
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.signIn();
-    engine.firstRun.failTest('Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
-    start(engine);
-    expect(await screen.findByText('Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.')).toBeTruthy();
-    expect(screen.queryByText('Signed in')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Use Codex' })).toBeNull();
+    engine.firstRun.failTest(FAILED);
+    const { calls } = start(engine);
+    expect(await screen.findByRole('button', { name: CHATGPT, description: FAILED }, { timeout: 4000 })).toBeTruthy();
+    expect(lineUnder(CHATGPT)).toHaveLength(1);
+    expect(screen.getAllByText(FAILED)).toHaveLength(1);
+    const looks = made(calls, 'venture.ai.tools').length;
+    await press(CHATGPT);
+    await waitFor(() => expect(made(calls, 'venture.ai.tools').length).toBe(looks + 1));
+    await waitFor(() => expect((screen.getByRole('button', { name: CHATGPT }) as HTMLButtonElement).disabled).toBe(false));
+    expect(made(calls, 'venture.ai.login.start')).toHaveLength(0);
+    expect(made(calls, 'venture.ai.connect')).toHaveLength(0);
+    expect(screen.getByRole('heading', { level: 1, name: 'Connect your AI' })).toBeTruthy();
   });
 
-  it('a Codex that fails on Use says so inside the Codex card, in place of its button, with Try again (B4)', async () => {
+  it('a connection the engine refuses says so under the button, and the same button tries again (B4)', async () => {
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.signIn();
     const fake = createFakeClient(engine);
@@ -132,21 +317,53 @@ describe('first run, step 1: "Signed in" is earned (A2)', () => {
       : fake.request(method as never, params as never))) as EngineClient['request'] };
     window.location.hash = '#/today';
     render(<App client={client} language="en" />);
-    await press('Use Codex');
-    const card = screen.getByRole('region', { name: firstRun['first-run.ai.codex.name'] });
-    await waitFor(() => expect(within(card).getByRole('alert').textContent).toBe("Chausar's reviewed setup for Codex isn't on this computer yet."));
-    expect(within(card).queryByRole('button', { name: 'Use Codex' })).toBeNull();
+    await press(CHATGPT);
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("Chausar's reviewed setup for Codex isn't on this computer yet."));
+    expect(lineUnder(CHATGPT)).toHaveLength(1);
+    expect(screen.getByRole('button', { name: CHATGPT, description: "Chausar's reviewed setup for Codex isn't on this computer yet." })).toBeTruthy();
     refuse = false;
-    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: firstRun['first-run.ai.tryAgain'] })); });
-    await waitFor(() => expect(screen.queryByRole('region', { name: firstRun['first-run.ai.codex.name'] })).toBeNull());
+    await press(CHATGPT);
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
   });
 
-  it('a key not yet working says so in the key card, not under the page (B4)', async () => {
+  it('a look at this computer that fails says so once, with Try again', async () => {
+    const { calls } = startWith((tool) => tool, new FakeEngine({ fresh: true }), { 'venture.ai.tools': new EngineError('MODEL_UNAVAILABLE', 'Chausar could not look at this computer. Try again.') });
+    const alert = await screen.findByRole('alert', {}, { timeout: 4000 });
+    expect(alert.textContent).toBe('Chausar could not look at this computer. Try again.');
+    const looks = made(calls, 'venture.ai.tools').length;
+    await press(firstRun['first-run.ai.tryAgain']);
+    await waitFor(() => expect(made(calls, 'venture.ai.tools').length).toBeGreaterThan(looks));
+  });
+});
+
+describe('first run, step 1: More options holds the key and the way on without AI', () => {
+  it('is closed at rest, and holds exactly the two other ways', async () => {
     start();
-    await press(firstRun['first-run.ai.key.add']);
-    await press(firstRun['first-run.ai.keyContinue']);
-    const card = screen.getByRole('region', { name: firstRun['first-run.ai.key.name'] });
-    await waitFor(() => expect(within(card).getByRole('alert').textContent).toBe(firstRun['first-run.ai.keyFirst']));
+    const fold = await moreOptions();
+    expect(fold.open).toBe(false);
+    expect(within(fold).getAllByRole('button').map((button) => button.textContent)).toEqual(['Use an AI key instead', 'Continue without AI for now']);
+    // "Open a business you already have" stays where the first run puts it, outside the fold.
+    expect(fold.contains(screen.getByRole('button', { name: 'Open a business you already have' }))).toBe(false);
+  });
+
+  it('Use an AI key instead opens the same key form; a key not yet working says so by its button (B4)', async () => {
+    start();
+    const fold = await openMore();
+    await act(async () => { fireEvent.click(within(fold).getByRole('button', { name: 'Use an AI key instead' })); });
+    const panel = await within(fold).findByRole('region', { name: firstRun['first-run.ai.key.name'] });
+    expect(await within(panel).findByRole('heading', { name: 'Your AI' })).toBeTruthy();
+    await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: firstRun['first-run.ai.keyContinue'] })); });
+    await waitFor(() => expect(within(panel).getByRole('alert').textContent).toBe(firstRun['first-run.ai.keyFirst']));
+    // One filled button a view: while the key form is open, its Continue is the filled one.
+    expect(screen.getByRole('button', { name: CHATGPT }).getAttribute('data-variant')).toBe('secondary');
+  });
+
+  it('Continue without AI for now goes on with templates', async () => {
+    const { calls } = start();
+    await skipAi();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
+    expect(within(screen.getByRole('list', { name: 'Setup steps' })).getAllByRole('listitem')[0]!.textContent).toBe('No AI yet');
+    expect(made(calls, 'venture.ai.connect')).toHaveLength(0);
   });
 });
 
@@ -295,8 +512,9 @@ describe('first run, step 3: Connect what your business needs', () => {
     expect(within(rows[0]!).getByRole('button', { name: 'Set up' })).toBeTruthy();
     // A planned service says what it waits on and offers nothing to connect.
     expect(within(rows[4]!).getByText('Planned')).toBeTruthy();
-    expect(within(rows[4]!).queryByRole('button', { name: 'Set up' })).toBeNull();
-    for (const row of rows) await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Skip' })); });
+    expect(within(rows[4]!).queryByRole('button')).toBeNull();
+    // No row has a Skip of its own: Go to Today is the one click that skips them all.
+    expect(within(list).queryByRole('button', { name: 'Skip' })).toBeNull();
     await press('Go to Today');
     await waitFor(() => expect(window.location.hash).toBe('#/today'));
     expect(await screen.findByRole('navigation', {}, { timeout: 4000 })).toBeTruthy();
@@ -304,12 +522,12 @@ describe('first run, step 3: Connect what your business needs', () => {
 });
 
 describe('the fresh first run, walked to Today (6J4 guide walk)', () => {
-  it('after Use Codex, Today has no Connect your AI card: the AI came along into the business', async () => {
+  it('after Sign in with ChatGPT, Today has no Connect your AI card: the AI came along into the business', async () => {
     timeZone('Asia/Kolkata');
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.signIn();
     start(engine);
-    await press('Use Codex');
+    await press(CHATGPT);
     await press(/^Teaching and coaching/);
     await press('Keep this plan');
     await answerSideWork();
@@ -456,8 +674,9 @@ describe('first run: a first name in About you (C4 task 2)', () => {
 });
 
 /*
- * One-shot C4 task 4: a Codex that fails offers three ways on in its own card (Try again, Use Claude Code instead when
- * Claude Code is signed in here, Continue with templates), and the services step says how many are set up.
+ * One-shot C4 task 4: a Codex that fails still leaves three ways on (the same button to try again, Sign in with Claude
+ * when Claude Code is signed in here, Continue without AI for now under More options), and the services step says how
+ * many are set up.
  */
 describe('first run: ways on after a Codex failure, and the services count (C4 task 4)', () => {
   const FAILED = 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.';
@@ -465,40 +684,27 @@ describe('first run: ways on after a Codex failure, and the services count (C4 t
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.signIn();
     engine.firstRun.failTest(FAILED);
-    window.location.hash = '#/today';
-    const fake = createFakeClient(engine);
-    const calls: [string, Record<string, unknown>][] = [];
-    const client: EngineClient = { ...fake, request: (async (method: string, params?: Record<string, unknown>) => {
-      calls.push([method, structuredClone(params ?? {})]);
-      const answer = await fake.request(method as never, params as never) as unknown;
-      if (method !== 'venture.ai.tools' || !claudeSignedIn) return answer;
-      const tools = answer as { tools: { cli: string }[] };
-      return { ...tools, tools: tools.tools.map((tool) => (tool.cli === 'claude-code' ? { ...tool, found: true, signedIn: 'yes', login: { state: 'idle', code: null, link: null, line: null } } : tool)) };
-    }) as EngineClient['request'] };
-    render(<App client={client} language="en" />);
-    return calls;
+    return startWith(claudeSignedIn ? claudeFound('yes') : (tool) => tool, engine).calls;
   }
 
-  it('with Claude Code signed in: Try again, Use Claude Code instead (which connects it) and Continue with templates', async () => {
+  it('with Claude Code signed in: Sign in with Claude connects it', async () => {
     const calls = startFailed(true);
-    const card = (await screen.findByText(FAILED)).closest('section')!;
-    expect(within(card).getByRole('button', { name: 'Try again' })).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Continue with templates' })).toBeTruthy();
-    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Use Claude Code instead' })); });
+    expect(await screen.findByText(FAILED)).toBeTruthy();
+    await press(CLAUDE);
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
     expect(calls.some(([method, params]) => method === 'venture.ai.connect' && params.presetId === 'claude-code-cli')).toBe(true);
-    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
   });
 
-  it('with Claude Code absent: two ways on', async () => {
+  it('with Claude Code absent: the way on without AI is under More options', async () => {
     startFailed(false);
-    const card = (await screen.findByText(FAILED)).closest('section')!;
-    expect(within(card).getByRole('button', { name: 'Try again' })).toBeTruthy();
-    expect(within(card).queryByRole('button', { name: 'Use Claude Code instead' })).toBeNull();
-    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Continue with templates' })); });
+    expect(await screen.findByText(FAILED)).toBeTruthy();
+    await skipAi();
     expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
   });
 
-  it('the services step says how many are set up, and skipping one sets none up', async () => {
+  // Simplified on the founder's word (14 Nov 2026): no count and no Skip on each row. Set up opens the card's own
+  // guide under its row, so setup never moves; one line says all of it is optional, and Go to Today is always there.
+  it('the services step opens a card\'s setup in place, and never leaves setup', async () => {
     timeZone('Asia/Kolkata');
     start();
     await skipAi();
@@ -506,9 +712,18 @@ describe('first run: ways on after a Codex failure, and the services count (C4 t
     await press('Keep this plan');
     await answerSideWork();
     const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' }, { timeout: 4000 });
-    const total = within(list).getAllByRole('button', { name: 'Set up' }).length;
-    expect(screen.getByText(`0 of ${total} set up. You can do this later in Connections.`)).toBeTruthy();
-    await act(async () => { fireEvent.click(within(list).getAllByRole('button', { name: 'Skip' })[0]!); });
-    expect(screen.getByText(`0 of ${total} set up. You can do this later in Connections.`)).toBeTruthy();
+    expect(screen.getByText('All optional. They stay in Connections for later.')).toBeTruthy();
+    expect(screen.queryByText(/set up\. You can do this later/)).toBeNull();
+    const calendar = within(list).getAllByRole('listitem')[0]!;
+    await act(async () => { fireEvent.click(within(calendar).getByRole('button', { name: 'Set up' })); });
+    const flow = await within(calendar).findByRole('group', { name: 'Set up Google Calendar' });
+    // The fake's sample cards do not hold this one; first-run-needs.test.tsx reads a card's guide here.
+    expect(await within(flow).findByText("This connection isn't listed.")).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Connect what your business needs' })).toBeTruthy();
+    expect(window.location.hash).toBe('#/today');
+    expect(screen.queryByRole('navigation')).toBeNull();
+    await act(async () => { fireEvent.click(within(flow).getByRole('button', { name: 'Close' })); });
+    expect(within(calendar).queryByRole('group', { name: 'Set up Google Calendar' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Go to Today' })).toBeTruthy();
   });
 });

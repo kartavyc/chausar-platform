@@ -1,5 +1,8 @@
 // Chausar venture launcher: the customer engine's lead rules (package P2-connectors).
-// - A lead needs the page it was seen on (its source URL). No source, no lead.
+// - A lead needs where it came from. Anything found on the web (by an agent, a search, a connected tool) needs the
+//   page it was seen on (its source URL): no page, no lead. A lead the owner adds themselves, inside the app, may
+//   instead say it in the owner's own words ("referred by Asha", "met at the trade fair"), kept as the owner's
+//   statement (sourceNote) and shown as theirs ("You said: ..."). Exactly one of the two; never neither.
 // - An email counts as verified only after an MX lookup finds a mail server. A failure, a null MX or a timeout is
 //   "not verified", never "probably fine". The resolver is injectable; the real one is node:dns.
 // - The blocklist is checked before any draft, ahead of every other rule. Opt-outs go on it for good.
@@ -17,6 +20,8 @@ import { check, newId, type Context } from '../../contracts.ts';
 import type { IsoTime, OutreachChannel, OutreachKind, PipelineStage, StageMove, TieBand } from '../contracts.ts';
 import { digest, isAppChannel } from '../records.ts';
 import { redactUrl } from '../core/secrets.ts';
+import { leadFound, leadSourceOf } from './lead-source.ts';
+export { LEAD_SOURCE_WORDS, leadFound, leadWhere } from './lead-source.ts';
 
 export type MxRecord = { exchange: string; priority: number };
 export type MxResolver = (domain: string) => Promise<MxRecord[]>;
@@ -31,7 +36,8 @@ export type OutreachDraft = {
   subject: string;
   text: string; // the body, then the footer with the business name, postal address and unsubscribe line
   footer: { businessName: string; postalAddress: string; unsubscribe: string };
-  sourceUrl: string;
+  /** The page the lead was found on; null for a lead the owner described in their own words. */
+  sourceUrl: string | null;
   by: 'agent' | 'owner';
   at: IsoTime;
   digest: string;
@@ -47,7 +53,10 @@ export type Lead = {
   company: string | null;
   email: string | null;
   emailDomain: string | null;
-  sourceUrl: string;
+  /** The page it was found on, or null when the owner said where it came from in words (sourceNote). One is always set. */
+  sourceUrl: string | null;
+  /** The owner's own statement of where the lead came from; null for a lead with a page. */
+  sourceNote: string | null;
   emailCheck: EmailCheck;
   status: LeadStage;
   drafts: OutreachDraft[];
@@ -66,17 +75,17 @@ const oneLine = (value: unknown, field: string, max: number, required: boolean):
   return value.trim();
 };
 
-function sourceUrlOf(value: unknown): string {
-  let url: URL | null = null;
-  try { url = typeof value === 'string' && value.trim() ? new URL(value.trim()) : null; } catch { url = null; }
-  check(url && (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.length > 0, 'LEADS_SOURCE_REQUIRED', 'Add the web page where this lead was found.');
-  // Stored without user info or secret-looking query, fragment and path parts (core/secrets.ts, W1 H17).
-  return redactUrl(url.href);
-}
+/** A stored page: without user info or secret-looking query, fragment and path parts (core/secrets.ts, W1 H17). */
+const storedPage = (url: URL): string => redactUrl(url.href);
 
-/** A new lead. The email is optional, but no outreach is drafted without a verified one. */
-export function createLead(input: { id?: string; name: unknown; company?: unknown; email?: unknown; sourceUrl?: unknown }, meta: { by: string; at: IsoTime }): Lead {
-  const sourceUrl = sourceUrlOf(input.sourceUrl);
+/**
+ * A new lead. The email is optional, but no outreach is drafted without a verified one. ownerSays: the caller is the
+ * owner inside the app (lead-methods.ts), the only one who may give where it came from in words (sourceNote) rather
+ * than as a page; every other caller needs the page.
+ */
+export function createLead(input: { id?: string; name: unknown; company?: unknown; email?: unknown; sourceUrl?: unknown; sourceNote?: unknown }, meta: { by: string; at: IsoTime; ownerSays?: boolean }): Lead {
+  const source = leadSourceOf(input, meta.ownerSays === true);
+  const sourceUrl = source.page ? storedPage(source.page) : null, sourceNote = source.note;
   const name = oneLine(input.name, 'name', 120, true)!;
   const company = oneLine(input.company, 'company', 120, false);
   let email: string | null = null, emailDomain: string | null = null;
@@ -88,7 +97,7 @@ export function createLead(input: { id?: string; name: unknown; company?: unknow
     emailDomain = match[1];
   }
   return {
-    id: input.id ?? newId('lead'), name, company, email, emailDomain, sourceUrl,
+    id: input.id ?? newId('lead'), name, company, email, emailDomain, sourceUrl, sourceNote,
     emailCheck: { status: 'unverified', at: null, line: email ? 'Not checked yet.' : 'No email yet.' },
     status: 'new', drafts: [], sends: [], moves: [], addedBy: meta.by, addedAt: meta.at,
   };
@@ -200,7 +209,7 @@ export function personOnBlocklist(blocklist: Blocklist, handles: { emails: reado
 /** Whether the blocklist covers this lead: its email, its email's domain or the site it was found on. */
 export function onBlocklist(lead: Pick<Lead, 'email' | 'emailDomain' | 'sourceUrl'>, blocklist: Blocklist): boolean {
   let sourceHost: string | null = null;
-  try { sourceHost = new URL(lead.sourceUrl).hostname.toLowerCase(); } catch { sourceHost = null; }
+  try { sourceHost = lead.sourceUrl ? new URL(lead.sourceUrl).hostname.toLowerCase() : null; } catch { sourceHost = null; }
   return isBlocked(blocklist, lead.email) || isBlocked(blocklist, lead.emailDomain) || isBlocked(blocklist, sourceHost);
 }
 
@@ -253,7 +262,8 @@ export function withFooter(body: string, footer: OutreachFooter | null): string 
  */
 export function draftOutreach(lead: Lead, input: DraftInput): { lead: Lead; draft: OutreachDraft } {
   check(!blocked(lead, input.blocklist), 'LEADS_BLOCKED', 'This person or their company asked not to be contacted, or is on your blocklist.');
-  sourceUrlOf(lead.sourceUrl);
+  // Where it came from is still required at the draft: the page, or the owner's own statement.
+  if (!lead.sourceNote) leadSourceOf({ sourceUrl: lead.sourceUrl }, false);
   check(lead.email && lead.emailCheck.status === 'verified', 'LEADS_EMAIL_UNVERIFIED', 'Check the email first. Only an email with a working mail server gets a draft.');
   const footer = outreachFooter({ kind: 'cold-email', channel: 'email', band: null, business: input.business })!;
   const subject = oneLine(input.subject, 'subject', 160, true)!;
@@ -307,16 +317,6 @@ const MAPPED_EVIDENCE: Readonly<Record<Exclude<StageEvidence['kind'], 'opt-out'>
   outcome: { kind: 'owner', line: 'Closed in your lead list.' },
 });
 
-/** Where a lead was found, for a card: the page's host and path ('directory.example/pune/cafes'). */
-export function leadWhere(sourceUrl: string): string {
-  try {
-    const url = new URL(sourceUrl);
-    return `${url.hostname}${url.pathname.replace(/\/+$/, '')}`;
-  } catch {
-    return 'a web page';
-  }
-}
-
 /**
  * Maps a lead onto the pipeline, honestly: new is Found; drafted and contacted are Asked; replied is Talking; won and
  * lost stay as they are. Blocked stays a flag on the stage the lead had reached. Every lead move that changes the
@@ -328,7 +328,7 @@ export function leadToOpportunity(lead: Lead): LeadAsCard {
   const blockMove = moves.find(move => move.to === 'blocked');
   const reached: LeadStage = lead.status !== 'blocked' ? lead.status : blockMove ? blockMove.from : 'new';
   const stage = CARD_STAGE[reached === 'blocked' ? 'new' : reached];
-  const history: StageMove[] = [{ from: null, to: 'found', at: lead.addedAt, by: lead.addedBy, evidence: { kind: 'lead', id: lead.id, line: `Found on ${leadWhere(lead.sourceUrl)}` } }];
+  const history: StageMove[] = [{ from: null, to: 'found', at: lead.addedAt, by: lead.addedBy, evidence: { kind: 'lead', id: lead.id, line: leadFound(lead) } }];
   let current: PipelineStage = 'found';
   for (const move of moves) {
     if (move.to === 'blocked' || move.from === 'blocked' || move.evidence.kind === 'opt-out') continue;

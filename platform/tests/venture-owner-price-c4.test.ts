@@ -39,7 +39,7 @@ test('an owner save in the app applies the price at once, records the decision a
   const [decision] = listRecords(env.store.read(), 'venture-decision');
   assert.equal(decision.reason, 'Price of Monthly books set to ₹2,000 a month.');
   assert.equal(decision.who, 'owner');
-  assert.equal(decision.rowId, view.decided!.undoRowId);
+  assert.equal(decision.rowId, view.decided!.undoRowId!);
   const decisions = await call<{ decisions: { line: string }[] }>(env, 'venture.decisions.list', {});
   assert.ok(decisions.decisions.some(item => item.line === 'You decided: Price of Monthly books set to ₹2,000 a month.'), JSON.stringify(decisions.decisions));
 });
@@ -50,7 +50,7 @@ test('Undo puts back exactly the previous version and records it; a second Undo 
   const view = await update(env, { offers: [{ id: 'offer_1', unitPrice: '2000' }] });
   // Showing the new price on Prices (a quote at the usual quantity) is not a use of it.
   await quote(env, { offerId: 'offer_1' });
-  const done = await undo(env, view.decided!.undoRowId);
+  const done = await undo(env, view.decided!.undoRowId!);
   assert.deepEqual(done, { restored: true, line: 'You took back the new price for Monthly books.' });
   const now = blueprints(env).at(-1)!;
   assert.equal(now.status, 'accepted');
@@ -60,7 +60,7 @@ test('Undo puts back exactly the previous version and records it; a second Undo 
   assert.equal((await list(env)).rows.filter(row => row.kind === 'price' || row.kind === 'plan').length, 0);
   const reasons = listRecords(env.store.read(), 'venture-decision').map(item => [item.action, item.reason]);
   assert.deepEqual(reasons.at(-1), ['undo', 'You took back the new price for Monthly books.']);
-  await assert.rejects(undo(env, view.decided!.undoRowId), code('UNDO_NOTHING'));
+  await assert.rejects(undo(env, view.decided!.undoRowId!), code('UNDO_NOTHING'));
 });
 
 test('Undo is refused once an order, an invoice or a quote used the new price, or the plan changed again', async () => {
@@ -70,7 +70,7 @@ test('Undo is refused once an order, an invoice or a quote used the new price, o
     await seedBlueprint(env, { status: 'accepted', price2: '1500000' });
     const view = await update(env, { offers: [{ id: 'offer_1', unitPrice: '2000' }] });
     await seedOrder(env, blueprints(env).at(-1)!);
-    await assert.rejects(undo(env, view.decided!.undoRowId), code('UNDO_TOO_LATE'));
+    await assert.rejects(undo(env, view.decided!.undoRowId!), code('UNDO_TOO_LATE'));
     assert.equal(blueprints(env).at(-1)!.id, view.blueprint.id, 'nothing changed');
   }
   // A quote for a client at another quantity.
@@ -79,7 +79,7 @@ test('Undo is refused once an order, an invoice or a quote used the new price, o
     await seedBlueprint(env, { status: 'accepted', price2: '1500000' });
     const view = await update(env, { offers: [{ id: 'offer_1', unitPrice: '2000' }] });
     await quote(env, { offerId: 'offer_1', quantity: '3' });
-    await assert.rejects(undo(env, view.decided!.undoRowId), code('UNDO_TOO_LATE'));
+    await assert.rejects(undo(env, view.decided!.undoRowId!), code('UNDO_TOO_LATE'));
   }
   // A later change of the plan.
   {
@@ -87,7 +87,7 @@ test('Undo is refused once an order, an invoice or a quote used the new price, o
     await seedBlueprint(env, { status: 'accepted', price2: '1500000' });
     const view = await update(env, { offers: [{ id: 'offer_1', unitPrice: '2000' }] });
     await update(env, { offers: [{ id: 'offer_1', unitPrice: '2100' }] });
-    await assert.rejects(undo(env, view.decided!.undoRowId), code('UNDO_TOO_LATE'));
+    await assert.rejects(undo(env, view.decided!.undoRowId!), code('UNDO_TOO_LATE'));
   }
 });
 

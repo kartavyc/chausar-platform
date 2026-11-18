@@ -11,6 +11,7 @@ import { Panel, type TileSpan } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { withoutRate, type DepartmentData } from './departments';
 import s from './Team.module.css';
+import { deptKey } from '../../text/dept';
 
 /**
  * A department's counts in words, only the ones above zero: "1 working · 1 waiting on you · 1 run stopped · 2 idle".
@@ -51,7 +52,7 @@ export function DeptIcon({ dept, large }: { dept: DepartmentData['dept']; large?
 export function DepartmentPanel({ data, span, onChanged }: { data: DepartmentData; span?: TileSpan | undefined; onChanged?: (() => void) | undefined }) {
   const t = useT();
   const headId = useId();
-  const name = t(`dept.${data.dept}`);
+  const name = t(deptKey(data.dept));
   const proof = data.spend ? proofOf({ receiptId: data.spend.receiptId }) : null;
   const empty = data.members.length === 0;
   // Nothing to say for a department nobody is in, that did no job and spent nothing (the engine's share is 0).
@@ -80,15 +81,13 @@ export function DepartmentPanel({ data, span, onChanged }: { data: DepartmentDat
       )}
       {data.members.length > 0
         ? <AgentList members={data.members} label={t('team.dept.agents', { dept: name })} dept={data.dept} ground="lift" onChanged={onChanged} />
-        : <EmptyState title={t('team.dept.none', { dept: name })} actions={[{ label: t('team.dept.noneLink'), href: waysFor(data.dept) }]} />}
+        : <EmptyState title={t('team.dept.none', { dept: name })} actions={[{ label: t('story.add'), href: ADD_AGENT_HREF }]} />}
     </Panel>
   );
 }
 
-/** The ways to earn, for a department that has no agents yet (spec 8): the Start gallery, opened on that department. */
-export function waysFor(dept: DepartmentData['dept']): string {
-  return `#/onboarding?dept=${dept}`;
-}
+/** For a department that has no agents yet: Team's hire sheet, where one is added (index.tsx TEAM_ADD_AGENT_HREF). */
+export const ADD_AGENT_HREF = '#/team?sheet=hire:new';
 
 /**
  * What calls still running hold of a spend, in the engine's words ("including ₹18.00 held for running work"), proved

@@ -32,7 +32,6 @@ export const LOCAL_APPS: readonly LocalApp[] = Object.freeze([
   { id: 'kimo', name: 'Kimo', binary: 'kimo', note: 'Transcripts and captions on this computer, through its command line.', licence: 'MIT' },
   { id: 'filmcraft', name: 'FilmCraft', binary: 'filmcraft', note: 'Video editing on this computer, through its command line.', licence: 'MIT or Apache-2.0' },
 ]);
-export const LOCAL_APP_IDS: readonly LocalAppId[] = Object.freeze(LOCAL_APPS.map(app => app.id));
 
 export const LOCAL_APP_WORDS = Object.freeze({
   manualPath: 'Install it yourself; Chausar never installs it.',

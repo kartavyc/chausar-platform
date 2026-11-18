@@ -1,22 +1,18 @@
-// Chausar venture launcher, delivery package (P5): playbook, draft replies, rehearsal, launch ladder,
-// real delivery runs and the capability list. The host loads this file on first use of a method it owns.
+// Chausar venture launcher, delivery package (P5): playbook, draft replies, rehearsal, launch ladder
+// and real delivery runs. The host loads this file on first use of a method it owns.
 import { ChausarError } from '../../contracts.ts';
 import { decideAgentApproval } from '../agent-runtime/approvals.ts';
 import type { VentureHandler, VentureHandlerTable } from '../contracts.ts';
-import { capabilitiesHandler } from './capabilities.ts';
 import { filesAddHandler, filesListHandler, filesTranscribeHandler } from './harness/files.ts';
-import { delegateGetHandler } from './harness/delegate-get.ts';
 import { workGetHandler } from './harness/work-get.ts';
-import { improveAdoptHandler, improveGetHandler, improveRollbackHandler, improveRunHandler, improveStatusHandler } from './improve.ts';
+import { improveAdoptHandler, improveRollbackHandler, improveRunHandler, improveStatusHandler } from './improve.ts';
 import { deliveryJudgeHandler, deliveryJudgeSendHandler, judgeAutoGetHandler, judgeAutoSetHandler, withJudgeNotices } from './judge-run.ts';
 import { launchAdvanceHandler, launchStatusHandler } from './launch.ts';
 import { playbookHandler } from './playbook.ts';
 import { playbookGuidanceHandler } from './guidance-report.ts';
-import { filesPosterHandler } from './poster.ts';
-import { optionsRerankHandler } from './rerank.ts';
 import { drillsListHandler, drillsRunHandler } from './drills.ts';
 import { deliveryListHandler, deliveryReviewHandler, deliveryRunHandler } from './runs.ts';
-import { simulationFromSignalHandler, simulationGetHandler, simulationRunHandler, simulationScenariosHandler } from './simulate.ts';
+import { simulationRunHandler, simulationScenariosHandler } from './simulate.ts';
 import { transcriptionGetHandler, transcriptionSetHandler } from '../playbooks/youtube/transcribe.ts';
 
 type RunMethod = 'venture.delivery.run';
@@ -30,21 +26,16 @@ export const handlers: VentureHandlerTable = {
   'venture.delivery.playbook': playbookHandler,
   'venture.simulation.scenarios': simulationScenariosHandler,
   'venture.simulation.run': simulationRunHandler,
-  'venture.simulation.get': simulationGetHandler,
-  'venture.simulation.fromSignal': simulationFromSignalHandler,
   'venture.launch.status': launchStatusHandler,
   'venture.launch.advance': launchAdvanceHandler,
   'venture.delivery.run': noticed(deliveryRunHandler),
   'venture.delivery.review': deliveryReviewHandler,
   'venture.delivery.list': async (deps, ctx, payload) => withJudgeNotices(deps, ctx, await deliveryListHandler(deps, ctx, payload)),
-  'venture.capabilities': capabilitiesHandler,
   'venture.files.add': filesAddHandler,
   'venture.files.list': filesListHandler,
-  'venture.delegate.get': delegateGetHandler,
   'venture.work.get': workGetHandler,
   'venture.improve.status': improveStatusHandler,
   'venture.improve.run': improveRunHandler,
-  'venture.improve.get': improveGetHandler,
   'venture.improve.adopt': improveAdoptHandler,
   // Ink v2 wave 2: the judge on real orders and going back a playbook version (2C1), a transcript made here (2E2).
   'venture.delivery.judge': deliveryJudgeHandler,
@@ -61,16 +52,13 @@ export const handlers: VentureHandlerTable = {
   'venture.delivery.changes': async (deps, ctx, payload) => (await import('./changes.ts')).deliveryChangesHandler(deps, ctx, payload),
   // 4J2 review: Make a copy of a draft that went out.
   'venture.delivery.copy': async (deps, ctx, payload) => (await import('./copy.ts')).deliveryCopyHandler(deps, ctx, payload),
-  // 4J3 a still from the cut; 4J14 reranking scored options; 4J15 drills; 4J16 the guidance report.
-  'venture.files.poster': filesPosterHandler,
-  'venture.options.rerank': optionsRerankHandler,
+  // 4J15 drills; 4J16 the guidance report.
   'venture.drills.run': drillsRunHandler,
   'venture.drills.list': drillsListHandler,
   'venture.playbook.guidance': playbookGuidanceHandler,
 };
 
 // For tests and the other screens' fixtures.
-export { capabilityList } from './capabilities.ts';
 export { runChecks } from './checks.ts';
 export { deliveryTask, renderDeliverable, renderForJudge, templateOutline, validateDraft } from './deliverable.ts';
 export { computeLaunchStatus } from './launch.ts';

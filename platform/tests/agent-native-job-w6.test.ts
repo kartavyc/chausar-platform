@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createNativeJob } from '../runtime/venture/agent-runtime/native-job.ts';
 import { agreeClientAiConsent, getClientAiConsent, withdrawClientAiConsent } from '../runtime/venture/clients/ai-consent.ts';
-import { kitBusiness, installKitFixture, owner } from './fixtures/venture/kit-business.ts';
+import { deliver, draft, kitBusiness, installKitFixture, owner } from './fixtures/venture/kit-business.ts';
 import { findRecord, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { deliveryRunDetails } from '../runtime/venture/views/runs.ts';
 import { teamListHandler } from '../runtime/venture/views/team.ts';
@@ -14,6 +14,7 @@ import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { setSpendPolicy } from '../runtime/venture/money/spend.ts';
 import { deliveryReviewHandler, runView } from '../runtime/venture/delivery/runs.ts';
 import { writeCapsToday } from '../runtime/venture/delivery/harness/write-caps.ts';
+import { finishJob } from '../runtime/venture/delivery/run-machine.ts';
 
 test('full draft check feedback stays available for repair while failed checks still block owner acceptance', async t => {
   const env=await fixture(t);await env.allow();
@@ -32,11 +33,13 @@ test('full draft check feedback stays available for repair while failed checks s
     const proposed:any=await job.service.handle(owner,{jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'propose_action',arguments:{kind:'send-handoff',draftId:saved.draftId,draftDigest:saved.digest,to:env.client.email,subject:'Your draft'}}});
     assert.equal(proposed.error,undefined,'an internal review card preserves the manual correction workflow');
     if(current==='fail'||current==='unchecked'){
-      await ventureAction(env.deps,owner,'prepare','test.finished',tx=>{const run=tx.find('venture-delivery-run',env.run.id)!;tx.replace({...run,agentJob:{...run.agentJob!,reviewReady:true}});});
+      await ventureAction(env.deps,owner,'prepare','test.finished',tx=>{const run=tx.find('venture-delivery-run',env.run.id)!;tx.replace(finishJob(run));});
       await assert.rejects(deliveryReviewHandler(env.deps,owner,{runId:env.run.id,verdict:'accepted'}),error=>{
         assert.equal((error as any).code,'INVALID_VENTURE_REQUEST');
         assert.match((error as Error).message,current==='fail'?/unsupported claim/:/Review the source/);return true;
       });
+      // A finished job saves no more drafts, so the fixture puts its job back at work for the next repair round.
+      await ventureAction(env.deps,owner,'prepare','test.repairing',tx=>{const run=tx.find('venture-delivery-run',env.run.id)!;tx.replace({...run,status:'finishing' as const});});
     }
   }
 });
@@ -125,7 +128,7 @@ async function fixture(t: { after(fn: () => void): void }) {
   const run = await ventureAction(env.deps, owner, 'prepare', 'test.run', tx => {
     tx.touch({ launchStage: 'approve-each' });
     return tx.put({ ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash,
-      status: 'waiting-for-you', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null,
+      status: 'working', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null,
       renderedText: null, checks: [], verdict: null, editedText: null });
   });
   const options = { agentId: 'writer', sections: ['Reply'], check: () => undefined };
@@ -145,6 +148,30 @@ async function agent(job: Awaited<ReturnType<typeof createNativeJob>>) {
     return answer.result.structuredContent.data;
   };
 }
+// Found on Windows, 16 Nov 2026 (screen 189): a one-line cake order used 99,694 tokens in. Measured live with the
+// founder's own Codex on a Mac, 17 Nov 2026, on the same kind of order: every model request already weighs about 9,000
+// tokens before any tool answer (Codex's own instructions and tools; Chausar's prompt is about 200 of them), and each
+// job made six or seven requests. One of them was always the same repair: the AI greeted the client by first name
+// ("Asha"), claims-grounded refused the name as a claim with no source, and the AI drafted again, a whole request
+// (about 15,000 tokens) more. The client's own name is in the client's record the AI was given; a name that is not
+// there is still refused.
+test('a draft that greets the client by first name passes claims-grounded, and another name still fails', async t => {
+  t.after(installKitFixture());
+  const env = await kitBusiness();
+  assert.equal(env.client.name, 'Asha Rao');
+  const grounded = async (text: string) => {
+    const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A plain voice sheet.',
+      intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });
+    const run = await deliver(env, order.id, draft('Voice sheet', { 'Voice sheet': [text] }));
+
+    return run.checks.find(item => item.check === 'claims-grounded');
+  };
+  assert.deepEqual(await grounded('Hi Asha, here is a warm, plain voice sheet.'), { check: 'claims-grounded', passed: true, detail: 'Every figure, date, name and certification in the draft matches the client\'s files or the run\'s evidence.' });
+  const other = await grounded('Hi Meena, here is a warm, plain voice sheet.');
+  assert.equal(other?.passed, false);
+  assert.match(other!.detail, /"Meena"/);
+});
+
 test('native toolbox requires consent, stores a receipt-backed proposal and surfaces it on Today without sending', async t => {
   const env = await fixture(t);
   await assert.rejects(createNativeJob(env.deps, owner, env.run.id, env.options), { code: 'CLIENT_AI_CONSENT_REQUIRED' });
@@ -167,20 +194,26 @@ test('native toolbox requires consent, stores a receipt-backed proposal and surf
   const client = await call('read_client');
   await call('propose_action', { kind: 'send-handoff', draftId: saved.draftId, draftDigest: saved.digest, to: client.email, subject: 'Your draft' });
   const stored = findRecord(env.store.read(), 'venture-delivery-run', env.run.id)!;
-  assert.equal(stored.status, 'ready-for-review');
+  assert.equal(stored.status, 'finishing');
   assert.equal(stored.agentJob?.proposal?.body, stored.renderedText);
   // Review of A1 (row 9): while the job still runs the draft is not on Today; it arrives once the job hands over.
   let today = await queueListHandler(env.deps, owner, { scope: 'current' });
   assert.equal(today.rows.some(row => row.viewRef?.id === env.run.id), false);
-  await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace({ ...run, agentJob: { ...run.agentJob!, reviewReady: true } }); });
+  // While its job is alive, a new draft takes back the draft it handed over: working again until it proposes the new one.
+  const revised = await call('draft_document', { draft: { title: 'A revised draft', sections: [{ heading: 'Reply', parts: [
+    { kind: 'text', text: 'Please review this revised draft.', ref: '' }, { kind: 'figure', text: '', ref },
+  ] }], questionsForClient: [] } });
+  assert.equal(findRecord(env.store.read(), 'venture-delivery-run', env.run.id)!.status, 'working');
+  await call('propose_action', { kind: 'send-handoff', draftId: revised.draftId, draftDigest: revised.digest, to: client.email, subject: 'Your draft' });
+  assert.equal(findRecord(env.store.read(), 'venture-delivery-run', env.run.id)!.status, 'finishing');
+  await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace(finishJob(run)); });
   today = await queueListHandler(env.deps, owner, { scope: 'current' });
   assert.ok(today.rows.some(row => row.viewRef?.id === env.run.id && row.kind === 'draft'));
   assert.equal(env.store.read().actions.length, 0);
   assert.equal(stored.verdict, null);
-  await call('draft_document', { draft: { title: 'A revised draft', sections: [{ heading: 'Reply', parts: [
-    { kind: 'text', text: 'Please review this revised draft.', ref: '' }, { kind: 'figure', text: '', ref },
-  ] }], questionsForClient: [] } });
-  assert.equal(findRecord(env.store.read(), 'venture-delivery-run', env.run.id)!.status, 'waiting-for-you');
+  // The job is done: it saves no more drafts into the draft the owner is reading.
+  await assert.rejects(call('draft_document', { draft: { title: 'A late draft', sections: [{ heading: 'Reply', parts: [{ kind: 'text', text: 'Too late.', ref: '' }] }], questionsForClient: [] } }));
+  assert.equal(findRecord(env.store.read(), 'venture-delivery-run', env.run.id)!.status, 'ready-for-review');
 });
 test('withdrawal and regrant cannot revive an old running job', async t => {
   const env = await fixture(t); await env.allow();
@@ -274,13 +307,12 @@ test('one-shot A1 row 9: a saved draft the AI is still finishing never says it w
   const job = await createNativeJob(env.deps, owner, env.run.id, env.options); t.after(() => job.close());
   const call = await agent(job);
   const saved = await call('draft_document', { draft: { title: 'Reply', sections: [{ heading: 'Reply', parts: [{ kind: 'text', text: 'A calm voice sheet for Sunrise Bakery.', ref: '' }] }], questionsForClient: [] } });
-  // The agent hands the draft over (propose_action); the job itself is still running, so reviewReady is not set yet.
+  // The agent hands the draft over (propose_action); the job itself is still running, so the run is finishing, not ready yet.
   const proposed: any = await job.service.handle(owner, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'propose_action', arguments: { kind: 'send-handoff', draftId: saved.draftId, draftDigest: saved.digest, to: env.client.email, subject: 'Your draft' } } });
   assert.equal(proposed.error, undefined);
   const state = env.store.read(), venture = listRecords(state, 'venture-record')[0]!;
   const stored = findRecord(state, 'venture-delivery-run', env.run.id)!;
-  assert.equal(stored.status, 'ready-for-review');
-  assert.notEqual(stored.agentJob?.reviewReady, true, 'the job has not handed over yet');
+  assert.equal(stored.status, 'finishing', 'the job has not finished yet');
   // Review of A1: nothing says it waits on the owner while the AI is still working. Not on Today, not counted, and
   // the order and the run say the agent is finishing.
   const view = runView(stored, venture, Date.now(), state);
@@ -303,7 +335,7 @@ test('one-shot A1 row 9: a saved draft the AI is still finishing never says it w
   assert.ok(team.agents.length > 0);
   assert.equal(team.agents.some(agent => agent.state === 'waiting'), false, 'no agent tile says Waiting on you');
   // Once the job hands over, the draft waits on the owner.
-  await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace({ ...run, agentJob: { ...run.agentJob!, reviewReady: true } }); });
+  await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace(finishJob(run)); });
   const after = env.store.read(), ready = findRecord(after, 'venture-delivery-run', env.run.id)!;
   assert.equal(runView(ready, venture, Date.now(), after).acceptBlocked === 'AI work must finish before you can approve this draft.', false);
   assert.equal(runView(ready, venture, Date.now(), after).awaitingYou, true);

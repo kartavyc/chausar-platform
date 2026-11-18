@@ -11,7 +11,7 @@
   "kit-sales.proposal.drafting": "ड्राफ़्ट बन रहा है",
   "kit-sales.proposal.again": "फिर से ड्राफ़्ट बनाएँ",
   "kit-sales.proposal.cancel": "रद्द करें",
-  "kit-sales.proposal.noOffers": "आपके प्लान में अभी कोई ऑफ़र नहीं है। उन्हें बिज़नेस, प्लान में जोड़ें।",
+  "kit-sales.proposal.noOffers": "आपके प्लान में अभी कोई ऑफ़र नहीं है। उन्हें सेटिंग, काम कैसे होता है में जोड़ें।",
   "kit-sales.proposal.status.waiting": "आपका इंतज़ार",
   "kit-sales.proposal.status.approved": "मंज़ूर",
   "kit-sales.proposal.status.outside": "ड्राफ़्ट नहीं बना",
@@ -76,8 +76,8 @@
   "kit-sales.share.save": "हिस्सा सेव करें",
   "kit-sales.share.remove": "हिस्सा लेना बंद करें",
   "kit-sales.share.type": "पहले हिस्सा लिखें।",
-  "kit-sales.error.OFFER_UNPRICED": "पहले इस ऑफ़र का दाम बिज़नेस, दाम में तय करें।",
-  "kit-sales.error.PILOT_UNPRICED": "पायलट कभी मुफ़्त नहीं होता। पहले इस ऑफ़र का दाम बिज़नेस, दाम में तय करें।",
+  "kit-sales.error.OFFER_UNPRICED": "पहले इस ऑफ़र का दाम सेटिंग, दाम में तय करें।",
+  "kit-sales.error.PILOT_UNPRICED": "पायलट कभी मुफ़्त नहीं होता। पहले इस ऑफ़र का दाम सेटिंग, दाम में तय करें।",
   "kit-sales.error.PILOT_WINDOW": "पायलट 2 से 6 हफ़्ते चलता है, और सफलता की तारीख़ उसके अंदर पड़ती है।",
   "kit-sales.error.PILOT_NOT_OFFERED": "यह ऑफ़र पायलट की तरह नहीं दिया जाता। कोई दूसरा ऑफ़र चुनें।",
   "kit-sales.error.BLUEPRINT_NOT_ACCEPTED": "पहले अपना प्लान मंज़ूर करें।",
@@ -85,5 +85,9 @@
   "kit-sales.error.INVALID_AMOUNT": "हर रक़म रुपये में लिखें, जैसे 20000।",
   "kit-sales.error.SHARE_BASE_MISSING": "पहले वह रक़म दर्ज करें जिसका यह हिस्सा है, उसे दिखाने वाली फ़ाइल के साथ।",
   "kit-sales.error.SHARE_BASE_UNPROVEN": "यह रक़म दिखाने वाली फ़ाइल जोड़ें, जैसे ऑफ़र लेटर।",
-  "kit-sales.error.APP_APPROVAL_REQUIRED": "यह अपने कंप्यूटर पर Chausar ऐप में करें।"
+  "kit-sales.error.APP_APPROVAL_REQUIRED": "यह अपने कंप्यूटर पर Chausar ऐप में करें।",
+  "kit-sales.goNoGo.rule": "जब सबसे ज़्यादा संभावित नुकसान आपकी सीमा से ऊपर हो, तो आगे न बढ़ें।",
+  "kit-sales.goNoGo.remove": "हटाएँ",
+  "kit-sales.goNoGo.removeAsk": "यह कार्ड हटाएँ?",
+  "kit-sales.goNoGo.removeKeep": "रहने दें"
 }

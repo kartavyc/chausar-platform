@@ -4,6 +4,6 @@ export const LESSON_TILE: StartTile = {
   category: 'shops-and-firms', icon: 'book',
   line: 'Batches, attendance, worksheets, quizzes, progress notes and fees for tutors and teachers.',
   youDo: { hoursMin: 6, hoursMax: 20, line: 'Teach the classes, check the work and send parent messages.' },
-  team: { roleIds: ['planner', 'writer', 'keeper', 'billing'], line: 'Plans lessons, drafts worksheets and quizzes, counts attendance and scores.' },
+  team: { roleIds: ['planner', 'writer', 'chausar', 'billing'], line: 'Plans lessons, drafts worksheets and quizzes, counts attendance and scores.' },
   pay: { minRupees: 1500, maxRupees: 8000, per: 'a learner a month' },
 };

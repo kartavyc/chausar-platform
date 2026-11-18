@@ -3,7 +3,6 @@
 import { EngineError as ChausarError } from './types';
 function check(value: unknown, code: string, message: string): asserts value { if (!value) throw new ChausarError(code, message); }
 type DatedRule = { id: string; value?: string; [key: string]: unknown };
-type Cue = { id: string; startMs: number; endMs: number; text: string };
 export type YoutubeWordSource = Omit<CleanupInput, 'document'> & { label: string; document: EditDocument; vadMeasured: boolean };
 // Chausar 5B1: typed transcript edits. Tomada (AGPL), ideas only; no source copied.
 
@@ -126,8 +125,6 @@ export function applyEditOps(document: EditDocument, ops: readonly EditOp[], opt
   return { document: next, undo: structuredClone(document), digest: editDigest(next), applied, refused, removedMs, removedShare: removedMs / document.durationMs, removedPercent: Math.round(removedMs * 10000 / document.durationMs) / 100, addedMs, addedShare: addedMs / document.durationMs, addedPercent: Math.round(addedMs * 10000 / document.durationMs) / 100,
     summary: `Cut ${count} ${count === 1 ? 'passage' : 'passages'}, ${seconds} s shorter.` };
 }
-/** Restore the complete pre-request snapshot as one undo step. */
-export function undoEdit(result: EditResult): EditDocument { return structuredClone(result.undo); }
 
 
 // Chausar 5B1 dictionary corrections. Tomada (AGPL), ideas only; no source copied.
@@ -160,8 +157,6 @@ export function applyDictionaryFixes(words: readonly string[], dictionary: reado
   }
   return { words: next, undo: [...words], applied, refused };
 }
-/** One correction request restores as one item. */
-export function undoDictionary(result: DictionaryResult): string[] { return [...result.undo]; }
 
 // Chausar 5B1 script coverage. Kimo (MIT), alignment ideas; original implementation.
 const normal = (word: string) => word.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
@@ -358,18 +353,6 @@ export const TRANSCRIPT_MODELS = Object.freeze({
   final: { id: 'small', revision: REVISION, sha256: '1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b', bytes: 487601967, licence: 'MIT' },
   refined: { id: 'medium', revision: REVISION, sha256: '6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208', bytes: 1533763059, licence: 'MIT' },
 });
-/** Metadata is accepted only for the pinned bytes; never infer the model from a filename. */
-export function tierTranscript(input: { tier: TranscriptTier; whisperVersion: string; modelSha256: string; segments: readonly Cue[]; voiceActivity: readonly { startMs: number; endMs: number }[] }) {
-  check(Object.hasOwn(TRANSCRIPT_MODELS, input.tier), 'INVALID_VENTURE_REQUEST', 'Choose draft, final or refined transcription.');
-  const model = TRANSCRIPT_MODELS[input.tier];
-  check(input.modelSha256 === model.sha256, 'MODEL_HASH_MISMATCH', 'The model file differs from the pinned table. Choose the verified model before transcribing.');
-  check(typeof input.whisperVersion === 'string' && input.whisperVersion.trim().length > 0 && input.whisperVersion.length <= 200
-    && Array.isArray(input.segments) && input.segments.length <= 20000 && Array.isArray(input.voiceActivity) && input.voiceActivity.length <= 20000
-    && input.voiceActivity.every(region => Number.isSafeInteger(region.startMs) && Number.isSafeInteger(region.endMs) && region.startMs >= 0 && region.endMs > region.startMs),
-  'TRANSCRIPT_MEASUREMENTS_REQUIRED', 'Keep the whisper version and measured voice-activity regions with the transcript.');
-  const segments = input.segments.filter(segment => input.voiceActivity.some(region => segment.startMs < region.endMs && segment.endMs > region.startMs)).map(segment => ({ ...segment }));
-  return { tier: input.tier, whisperVersion: input.whisperVersion, modelSha256: model.sha256, revision: model.revision, model: model.id, segments, dropped: input.segments.length - segments.length };
-}
 /** The owner downloads the named bytes in their browser; Chausar never downloads without this exact confirmation. */
 export function modelDownloadHandoff(tier: TranscriptTier, confirmed: boolean, hosted: boolean) {
   check(!hosted, 'TIER_UNAVAILABLE', 'Download models yourself in the desktop app. Upload an SRT or VTT transcript here.');
@@ -600,7 +583,7 @@ export function groupCues(words: readonly TimedWord[], profile: CaptionProfileId
 // ---------------------------------------------------------------------------
 
 /** One word of one cue changed: the text only. Every cue keeps its time, and its lines keep their word counts. */
-export function editCueWord(cues: readonly CaptionCue[], cueId: string, wordIndex: number, text: string): CaptionCue[] {
+function editCueWord(cues: readonly CaptionCue[], cueId: string, wordIndex: number, text: string): CaptionCue[] {
   const cue = cues.find(item => item.id === cueId);
   check(cue && cue.words && Number.isInteger(wordIndex) && wordIndex >= 0 && wordIndex < cue.words.length, 'INVALID_VENTURE_REQUEST', 'That word is not in that cue.');
   const word = String(text).replace(/\s+/g, ' ').trim();

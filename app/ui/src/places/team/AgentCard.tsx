@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
+import { usePlanWords } from '../today/plan-words';
 import { openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
 import { Inner, Lift } from '../../parts/Card';
@@ -16,6 +17,7 @@ import { RING, Result, busyFirst, elapsedOf, stateWords, toneOf } from './shared
 import s from './Team.module.css';
 import c from './AgentChat.module.css';
 import x from './AgentExtras.module.css';
+import { fixedWords } from '../today/plan-words';
 
 /** Past this many agents, idle ones fold behind "Show n idle" (catalogue U2). */
 export const MOST_SHOWN = 8;
@@ -45,6 +47,7 @@ export interface AgentCardProps {
  */
 export function AgentCard({ member, dept, ground, helps, onChanged, helpers }: AgentCardProps) {
   const t = useT();
+  const words = usePlanWords();
   const nameId = useId();
   const { agent, run, state } = member;
   const waiting = run?.state === 'waiting';
@@ -59,7 +62,8 @@ export function AgentCard({ member, dept, ground, helps, onChanged, helpers }: A
             <button type="button" id={nameId} className={s.name} data-open="" onClick={(event) => openSheet('agent', agent.id, event.currentTarget)}>
               {agent.name}
             </button>
-            <p className={s.role}>{agent.role}</p>
+            {/* Re-check 7: the Delivery agent's job is Chausar's words, said in the owner's language; a hired agent's role stays as written. */}
+            <p className={s.role}>{words(agent.role)}</p>
             {helps && <p className={s.helps}>{t('team.helps', { name: helps })}</p>}
           </div>
         </div>
@@ -71,10 +75,10 @@ export function AgentCard({ member, dept, ground, helps, onChanged, helpers }: A
               data-waiting={waiting ? '' : undefined}
               onClick={(event) => openSheet('run', run.runId, event.currentTarget)}
             >
-              {waiting ? stateWords(t, 'waiting') : agent.now}
+              {waiting ? stateWords(t, 'waiting') : fixedWords(t)(agent.now)}
             </button>
-          ) : agent.now}
-          {waiting && <> {run.purpose}</>}
+          ) : fixedWords(t)(agent.now)}
+          {waiting && <> {fixedWords(t)(run.purpose)}</>}
         </p>
         <HealthLine health={agent.health} agentId={agent.id} onCleared={onChanged} />
         {run?.progress && (

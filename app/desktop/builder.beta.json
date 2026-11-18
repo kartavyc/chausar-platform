@@ -41,14 +41,6 @@
       ]
     },
     {
-      "from": "platform/semantic-qualification/src",
-      "to": "platform/semantic-qualification/src",
-      "filter": [
-        "**/*"
-      ]
-    },
-    "platform/semantic-qualification/package.json",
-    {
       "from": "platform/helpers",
       "to": "platform/helpers",
       "filter": [
@@ -63,7 +55,6 @@
       ]
     },
     "scripts/postgres-runtime.mjs",
-    "fixtures/**/*",
     "package.json",
     "node_modules/**/*",
     "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
@@ -72,8 +63,6 @@
     "package.json",
     "node_modules/**/*",
     "platform/runtime/**/*",
-    "platform/semantic-qualification/src/**/*",
-    "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
     "scripts/postgres-runtime.mjs",
     "app/engine/dist/**/*"
@@ -126,6 +115,27 @@
     "include": "app/desktop/installer.nsh",
     "installerIcon": "app/desktop/icons/icon.ico",
     "uninstallerIcon": "app/desktop/icons/icon.ico"
+  },
+  "mac": {
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "icon": "app/desktop/icons/icon.icns",
+    "electronLanguages": [
+      "en",
+      "en_GB",
+      "hi"
+    ],
+    "hardenedRuntime": true,
+    "entitlements": "app/desktop/entitlements.mac.plist",
+    "entitlementsInherit": "app/desktop/entitlements.mac.plist",
+    "signIgnore": [
+      "/Contents/Resources/codex/"
+    ],
+    "extendInfo": {
+      "NSMicrophoneUsageDescription": "Chausar uses the microphone only when you start push to talk or live captions."
+    }
   },
   "linux": {
     "target": [

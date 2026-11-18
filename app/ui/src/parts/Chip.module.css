@@ -65,38 +65,6 @@
 .deptDot[data-dept='money'] { background: var(--money); }
 .deptDot[data-dept='ops'] { background: var(--ops); }
 
-/* A card's kind, right of the card head. */
-.kind {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(var(--sp-1) * 1.5);
-  flex: none;
-  min-height: 28px;
-  padding: 0 var(--sp-3);
-  border-radius: var(--r-chip);
-  background: var(--wash);
-  color: var(--fg2);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-/* On a phone the kind is its icon alone, named by its words. */
-.kindIcon {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r-chip);
-  background: var(--wash);
-  color: var(--fg2);
-}
-
-.kind[data-tone='wait'], .kindIcon[data-tone='wait'] { background: var(--wait-soft); color: var(--wait); }
-.kind[data-tone='fail'], .kindIcon[data-tone='fail'] { background: var(--fail-soft); color: var(--fail); }
-
 /* Posture: how much an agent may do alone. */
 .posture {
   display: inline-flex;
@@ -136,7 +104,6 @@
 /* Hindi words run longer: chips wrap to two lines rather than cut a word. */
 .chip:lang(hi),
 .dept:lang(hi),
-.kind:lang(hi),
 .posture:lang(hi) {
   min-height: 24px;
   padding-top: var(--sp-1);

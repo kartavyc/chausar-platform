@@ -73,9 +73,10 @@ const LEAD: Record<LeadStage, StateEntry> = {
 };
 
 const DELIVERY: Record<DeliveryStatus, StateEntry> = {
-  'waiting-for-you': { key: 'state.delivery.waiting-for-you', tone: 'wait' },
+  // The AI is at work in both: nothing waits on the owner, so neither is amber.
+  working: { key: 'state.delivery.working', tone: 'working' },
+  finishing: { key: 'state.delivery.finishing', tone: 'working' },
   'needs-answer': { key: 'state.delivery.needs-answer', tone: 'wait' },
-  'brief-waiting': { key: 'state.delivery.brief-waiting', tone: 'wait' },
   'ready-for-review': { key: 'state.delivery.ready-for-review', tone: 'wait' },
   accepted: { key: 'state.delivery.accepted', tone: 'done' },
   edited: { key: 'state.delivery.edited', tone: 'done' },

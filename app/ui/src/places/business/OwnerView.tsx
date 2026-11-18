@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Confirm, useSecondAsk } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import type { OwnerView as Owner } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
@@ -25,7 +26,7 @@ const sameValues = (a: OwnerValues, b: OwnerValues) => JSON.stringify(a) === JSO
  * Business > About you (W4 4J21, from 4J9's core/owner.ts; spec C21): the owner's first name, used only for Today's
  * greeting, and the services the business does not sell, which drafts to clients never offer (4E2 reads them). Save
  * sends both, as typed, to venture.owner.set; the engine checks the name (any script) and says its rule when it refuses.
- * "Take my name back" removes it and shows Forget's line about backups. Unsent edits are kept in the vault as they are
+ * "Erase my name" asks once, then removes it and shows Forget's line about backups. Unsent edits are kept in the vault as they are
  * typed ("Saved"), and a draft left behind is offered back when the page opens. W6 (3 November 2026): below it, the
  * business's size (SizeSetting), shown only when a rule of the business's profession counts size. One-shot A5: between
  * them, the profession the business's rules follow (ProfessionSetting), changeable here; a change reads the size again.
@@ -42,6 +43,7 @@ export function OwnerView() {
   const [said, setSaid] = useState<string[] | null>(null);
   /** A5: bumped when the profession changes, so the size setting reads the new profession's question. */
   const [round, setRound] = useState(0);
+  const erase = useSecondAsk();
   const values = useMemo(() => valuesOf(name, services), [name, services]);
   const draft = useSettingsDraft<OwnerValues>('owner', values, touched);
 
@@ -103,10 +105,16 @@ export function OwnerView() {
           <div className={s.end}>
             <span className={b.buttons}>
               <Button variant="primary" type="submit" disabled={busy || (!touched && said !== null)} disabledReason={!busy && !touched && said === null ? t('business.owner.changeFirst') : undefined} aria-busy={busy || undefined}>{t('business.owner.save')}</Button>
-              {owner.data?.firstName && <Button variant="quiet" disabled={busy} onClick={() => void send({ firstName: null })}>{t('business.owner.takeBack')}</Button>}
+              {owner.data?.firstName && !erase.asking && <Button ref={erase.button} variant="quiet" disabled={busy} onClick={erase.ask}>{t('business.owner.erase')}</Button>}
             </span>
             <DraftWord saved={draft.saved} refused={draft.refused} shown={touched} />
           </div>
+          {/* Found on the real app, 16 November 2026: one press erased the name, under words that read like an undo. */}
+          {owner.data?.firstName && erase.asking && (
+            <Confirm action={t('business.owner.erase')} tone="danger" busy={busy} onCancel={erase.cancel} onConfirm={() => { void send({ firstName: null }).finally(erase.done); }}>
+              <p className={b.line}>{t('business.owner.eraseAsk', { name: owner.data.firstName })}</p>
+            </Confirm>
+          )}
         </form>
       </TileSection>
       <ProfessionSetting onChanged={() => setRound((was) => was + 1)} />

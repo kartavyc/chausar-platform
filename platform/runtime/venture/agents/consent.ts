@@ -37,7 +37,7 @@ export function chatRoute(status: ModelStatusView): ChatRoute | null {
  */
 export function chatConsentText(route: ChatRoute): string {
   const vendor = routedVendor(route);
-  return `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${vendorWords(vendor)}. Keys, passphrases and bank or card numbers are never sent.`;
+  return `Chats send your message and what Chausar reads to answer it (the earlier messages of the same chat, run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${vendorWords(vendor)}. Keys, passphrases and bank or card numbers are never sent.`;
 }
 
 /**
@@ -105,7 +105,8 @@ export async function chatsConsentHandler(deps: VentureDeps, ctx: Context, paylo
   internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.');
   const seen = body.digest;
   readAs(deps, ctx, 'approve');
-  return ventureAction(deps, ctx, 'approve', 'chats.consent', tx => {
+  let fresh = false;
+  const given = await ventureAction(deps, ctx, 'approve', 'chats.consent', tx => {
     const { view, route } = chatConsentState(deps, ctx, tx.state, tx.venture!);
     if (!route) return view;
     check(view.digest === seen, 'APPROVAL_STALE', 'What chats send changed since you read it. Read it again.');
@@ -113,8 +114,15 @@ export async function chatsConsentHandler(deps: VentureDeps, ctx: Context, paylo
     const record = tx.put<ChatConsentRecord>({
       ...tx.base('venture-chat-consent'), textDigest: view.digest!, presetId: route.presetId, connectionId: route.connectionId, model: route.model, by: ctx.memberId,
     });
-    return { state: 'given', text: view.text, digest: view.digest, at: record.at };
+    fresh = true;
+    // The plan on Today says whether the review waits for this consent, so it reads again.
+    tx.emit('queue.changed', {});
+    return { state: 'given' as const, text: view.text, digest: view.digest, at: record.at };
   });
+  // A daily review held today for this consent runs now, not the next morning (chief/review.ts). Loaded here, as the
+  // routine runner loads it, so this file does not pull the chief's package in.
+  if (fresh) await import('../chief/review.ts').then(review => review.reviewAfterConsent(deps, ctx)).catch(() => undefined);
+  return given;
 }
 
 /** C7: the route a chat to this preset would take, from its newest connected row; null when it is not connected. */

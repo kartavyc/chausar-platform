@@ -16,7 +16,6 @@ import { creditBeforeTax, monthWords } from './goal-plans.ts';
 import { saleLines } from './tax-working.ts';
 
 export const EXPORT_FORMATS = ['csv', 'tally-xml', 'gstr1-csv'] as const;
-export type MoneyExportFormat = typeof EXPORT_FORMATS[number];
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const SALES_LEDGER = 'Sales';
@@ -104,10 +103,10 @@ export function gstr1File(state: State, venture: VentureRecord, month: string, b
   const plan = listRecords(state, 'venture-blueprint', venture.id).find(item => item.id === venture.acceptedBlueprintId) ?? null;
   const office = plan?.backOffice ?? null;
   if (!office || office.taxMode !== 'gst' || office.taxRegistered.value !== true) {
-    throw new ChausarError('GST_NOT_REGISTERED', 'This file is for a GST-registered business. Turn on I charge GST under Business, Prices if you are.');
+    throw new ChausarError('GST_NOT_REGISTERED', 'This file is for a GST-registered business. Turn on I charge GST under Settings, Prices if you are.');
   }
   const gstin = office.taxId ?? '';
-  check(gstinValid(gstin), 'GST_NOT_REGISTERED', 'Add your GSTIN under Business, Prices first.');
+  check(gstinValid(gstin), 'GST_NOT_REGISTERED', 'Add your GSTIN under Settings, Prices first.');
   const invoices = issuedIn(state, venture, month);
   const built = saleLines(state, venture, invoices, gstin);
   const byNumber = new Map(invoices.map(invoice => [invoice.number as string, invoice]));

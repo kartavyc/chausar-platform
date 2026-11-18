@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { EngineClient } from '../../src/engine/types';
+import { skipAi } from './first-run-steps';
 
 /**
  * One-shot A5 (founder answer 3a; checklist "onboarding never shows a profession's rules"): the AI's read picks the
@@ -44,7 +45,7 @@ describe('first run: "Which of these are you?" (A5)', () => {
   it('lists the AI\'s pick first and chosen, then the field\'s other professions, and the rules step gets the profession', async () => {
     timeZone('Asia/Kolkata');
     const { calls } = await start({ ai: true });
-    await press('Skip for now: use templates');
+    await skipAi();
     fireEvent.change(await screen.findByRole('textbox', { name: BOX }), { target: { value: ADVOCATE } });
     await press('Send');
     await press('Keep this plan');
@@ -71,7 +72,7 @@ describe('first run: "Which of these are you?" (A5)', () => {
   it('after a tile nothing is chosen: Continue waits for a pick, and a home chef sees FSSAI and the size question', async () => {
     timeZone('Asia/Kolkata');
     const { calls } = await start();
-    await press('Skip for now: use templates');
+    await skipAi();
     await press(/^Local services/);
     await press('Keep this plan');
     const group = await who();
@@ -94,7 +95,7 @@ describe('first run: "Which of these are you?" (A5)', () => {
   it('"None of these" keeps the field, so the rules step shows the field as it did before', async () => {
     timeZone('Asia/Kolkata');
     const { calls } = await start();
-    await press('Skip for now: use templates');
+    await skipAi();
     await press(/^Teaching and coaching/);
     await press('Keep this plan');
     const group = await who();

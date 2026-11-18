@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -68,15 +68,26 @@ test('Codex targets follow the Codex launcher, and electron-builder folder names
   assert.equal(codexTarget('win32', 'arm64'), 'aarch64-pc-windows-msvc');
   assert.equal(codexTarget('linux', 'x64'), 'x86_64-unknown-linux-musl');
   assert.equal(codexTarget('linux', 'arm64'), 'aarch64-unknown-linux-musl');
-  assert.throws(() => codexTarget('darwin', 'arm64'), /Windows and Linux/);
-  assert.throws(() => codexTarget('linux', 'ia32'), /Windows and Linux/);
+  // The Mac build (the founder's decision, 14 Nov 2026): the same launcher names the darwin triples.
+  assert.equal(codexTarget('darwin', 'arm64'), 'aarch64-apple-darwin');
+  assert.equal(codexTarget('darwin', 'x64'), 'x86_64-apple-darwin');
+  assert.throws(() => codexTarget('linux', 'ia32'), /Windows, Linux and macOS/);
+  assert.throws(() => codexTarget('darwin', 'ia32'), /Windows, Linux and macOS/);
+  assert.throws(() => codexTarget('freebsd', 'x64'), /Windows, Linux and macOS/);
   assert.equal(bundleFolderName('win32', 'x64'), 'vendor/codex-bundle/win-x64');
   assert.equal(bundleFolderName('linux', 'x64'), 'vendor/codex-bundle/linux-x64');
+  // electron-builder's ${os} word for macOS is mac (builder.beta.json: vendor/codex-bundle/${os}-${arch}).
+  assert.equal(bundleFolderName('darwin', 'arm64'), 'vendor/codex-bundle/mac-arm64');
+  assert.equal(bundleFolderName('darwin', 'x64'), 'vendor/codex-bundle/mac-x64');
 });
 
 test('the CLI takes only a source package and an optional target, never a destination', () => {
   assert.deepEqual(parseCodexBundleArguments(['--from', 'C:/npm/node_modules/@openai/codex']), { from: 'C:/npm/node_modules/@openai/codex' });
   assert.deepEqual(parseCodexBundleArguments(['--from', '/x', '--platform', 'linux', '--arch', 'x64']), { from: '/x', platform: 'linux', architecture: 'x64' });
+  assert.deepEqual(parseCodexBundleArguments(['--from', '/x', '--platform', 'darwin', '--arch', 'arm64']), { from: '/x', platform: 'darwin', architecture: 'arm64' });
+  let usage = '';
+  try { parseCodexBundleArguments(['--to', '/elsewhere']); } catch (error: any) { usage = error.message; }
+  assert.match(usage, /--platform win32\|linux\|darwin /);
   for (const args of [[], ['--from'], ['--from', '/x', '--from', '/y'], ['--to', '/elsewhere'], ['--from', '/x', '--check']]) assert.throws(() => parseCodexBundleArguments(args));
 });
 
@@ -155,6 +166,47 @@ test('staging refuses a different Codex version, a wrong target or architecture,
   await assert.rejects(stageCodexBundle({ source: linked.root, destination: linked.destination, platform: 'win32', architecture: 'x64' }), /link/);
 });
 
+test('staging again replaces an unchanged earlier bundle of the same version, quietly; anything else there is refused and left as it is', async t => {
+  const stage = (fixture: { root: string; destination: string }, extra: Record<string, unknown> = {}) => stageCodexBundle({ source: fixture.root, destination: fixture.destination, platform: 'win32', architecture: 'x64', ...extra });
+  const leftovers = async (fixture: { root: string }) => (await readdir(fixture.root)).filter(name => name.includes('.staging-'));
+  // The same version over itself: verified, then replaced, with nothing left beside it.
+  const again = await vendorFixture(t);
+  const first = await stage(again);
+  const second = await stage(again);
+  assert.deepEqual(second, first);
+  assert.deepEqual(await verifyCodexBundle({ directory: again.destination, platform: 'win32', architecture: 'x64' }), first);
+  assert.deepEqual(await leftovers(again), []);
+  // A rebuild that records the setup replaces one staged without it.
+  const answer = (args: string[]) => (args.at(-1) === '--version' ? 'codex-cli 0.166.0\n' : 'text\n');
+  const recorded = await stage(again, { probe: async (_command: string, args: string[]) => ({ exitCode: 0, stdout: answer(args) }), now: () => new Date('2026-11-14T10:00:00.000Z') });
+  assert.equal(recorded.evidence.recordedAt, '2026-11-14T10:00:00.000Z');
+  assert.deepEqual(await verifyCodexBundle({ directory: again.destination, platform: 'win32', architecture: 'x64', requireSetup: true }), recorded);
+  // A staging that fails part way keeps the earlier bundle whole, and leaves nothing beside it.
+  await assert.rejects(stage(again, { probe: async () => ({ exitCode: 1, stdout: '' }) }), /did not answer/);
+  assert.deepEqual(await verifyCodexBundle({ directory: again.destination, platform: 'win32', architecture: 'x64', requireSetup: true }), recorded);
+  assert.deepEqual(await leftovers(again), []);
+  // A file changed since staging: not this script's bundle any more, so it is not removed.
+  const changed = await vendorFixture(t);
+  await stage(changed);
+  await writeFile(join(changed.destination, 'bin/codex.exe'), 'changed by hand');
+  await assert.rejects(stage(changed), /not empty.*changed after the Codex bundle was staged/);
+  assert.equal(await readFile(join(changed.destination, 'bin/codex.exe'), 'utf8'), 'changed by hand');
+  // A file nobody staged beside a good bundle: refused, and it stays.
+  const extra = await vendorFixture(t);
+  await stage(extra);
+  await writeFile(join(extra.destination, 'notes.txt'), 'mine');
+  await assert.rejects(stage(extra), /not empty.*not listed in BUNDLE\.json/);
+  assert.equal(await readFile(join(extra.destination, 'notes.txt'), 'utf8'), 'mine');
+  // A bundle of another version: refused, never replaced without being looked at.
+  const older = await vendorFixture(t);
+  await stage(older);
+  const manifestPath = join(older.destination, 'BUNDLE.json');
+  await writeFile(manifestPath, (await readFile(manifestPath, 'utf8')).replace('"version": "0.166.0"', '"version": "0.154.0"'));
+  await assert.rejects(stage(older), /not empty/);
+  assert.match(await readFile(manifestPath, 'utf8'), /0\.154\.0/);
+  assert.deepEqual(await leftovers(older), []);
+});
+
 test('A2 review: verification checks the recorded setup and the left-out folder, and a beta needs the setup unless told otherwise', async t => {
   const answer = (args: string[]) => ({ exitCode: 0, stdout: args.at(-1) === '--version' ? 'codex-cli 0.166.0\n' : 'text\n' });
   const { root, destination } = await vendorFixture(t);
@@ -187,4 +239,111 @@ test('verification refuses a bundle with a missing LICENSE or NOTICE, a changed 
     await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), damage === 'extra' ? /not listed/ : damage === 'changed' ? /changed/ : new RegExp(damage), damage);
   }
   await assert.rejects(verifyCodexBundle({ directory: join(tmpdir(), 'chausar-no-such-codex-bundle'), platform: 'win32', architecture: 'x64' }), /package:codex/);
+});
+
+// ---------------------------------------------------------------------------
+// The Mac build (the founder's decision, 14 Nov 2026): the beta bundles Codex for macOS on arm64 and x64 too. The
+// fixture follows the real packages, checked the same day from the npm registry (@openai/codex@0.166.0-darwin-arm64 and
+// -darwin-x64, unpacked outside the code folder): vendor/<target>/ holds codex-package.json (layout 1, entrypoint
+// bin/codex), bin/codex and bin/codex-code-mode-host (Mach-O for that chip), codex-path/rg, and on arm64 the voice
+// folder (codex-resources/voice, with its own bin, lib, plugins and licenses), which is left out. The real arm64
+// package was staged with this script and its program answered the three check commands; these tests hold the shape.
+// ---------------------------------------------------------------------------
+
+/** A disposable 64-bit Mach-O header (little-endian) for validation only; never executed and never part of a package. */
+function machHeader(cpu = 0x0100000c) {
+  const bytes = Buffer.alloc(4096); bytes.writeUInt32LE(0xfeedfacf, 0); bytes.writeUInt32LE(cpu, 4);
+  return bytes;
+}
+const MAC = { arm64: { target: 'aarch64-apple-darwin', cpu: 0x0100000c }, x64: { target: 'x86_64-apple-darwin', cpu: 0x01000007 } } as const;
+async function macVendorFixture(t: any, architecture: 'arm64' | 'x64' = 'arm64', layout: Record<string, unknown> = {}, cpu: number = MAC[architecture].cpu) {
+  const root = await mkdtemp(join(tmpdir(), 'chausar-codex-mac-bundle-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const { target } = MAC[architecture];
+  const vendor = join(root, `node_modules/@openai/codex-darwin-${architecture}/vendor/${target}`);
+  for (const folder of ['bin', 'codex-path', 'codex-resources/voice/bin', 'codex-resources/voice/lib', 'codex-resources/voice/plugins', 'codex-resources/voice/licenses']) await mkdir(join(vendor, folder), { recursive: true });
+  await writeFile(join(vendor, 'bin/codex'), machHeader(cpu), { mode: 0o755 });
+  await writeFile(join(vendor, 'bin/codex-code-mode-host'), machHeader(cpu), { mode: 0o755 });
+  await writeFile(join(vendor, 'codex-path/rg'), machHeader(cpu), { mode: 0o755 });
+  await writeFile(join(vendor, 'codex-resources/voice/bin/codex-voice-host'), machHeader(cpu), { mode: 0o755 });
+  await writeFile(join(vendor, 'codex-resources/voice/lib/libopus.0.dylib'), 'library', { mode: 0o755 });
+  await writeFile(join(vendor, 'codex-resources/voice/plugins/libgstopus.dylib'), 'library', { mode: 0o755 });
+  await writeFile(join(vendor, 'codex-resources/voice/licenses/LGPL-2.1.txt'), 'licence text');
+  await writeFile(join(vendor, 'codex-resources/voice/NOTICE.md'), '# Native voice libraries');
+  await writeFile(join(vendor, 'codex-package.json'), JSON.stringify({ layoutVersion: 1, version: '0.166.0', target, variant: 'codex', entrypoint: 'bin/codex', resourcesDir: 'codex-resources', pathDir: 'codex-path', ...layout }));
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.166.0', license: 'Apache-2.0' }));
+  return { root, vendor, destination: join(root, 'staged') };
+}
+// The header check wants the execute bit, which a Windows disk does not keep: there the same staging is refused in
+// words, and the full Mac staging runs on macOS and Linux.
+const KEEPS_EXECUTE_BIT = process.platform !== 'win32';
+
+test('Mac: the darwin platform package is found nested or beside @openai/codex, for arm64 and x64', async t => {
+  for (const architecture of ['arm64', 'x64'] as const) {
+    const { root, vendor } = await macVendorFixture(t, architecture);
+    assert.equal(await codexVendorFolder(root, 'darwin', architecture), vendor);
+    const other = architecture === 'arm64' ? 'x64' : 'arm64';
+    await assert.rejects(codexVendorFolder(root, 'darwin', other), new RegExp(`no Codex ${MAC[other].target} files`));
+  }
+  const hoisted = await mkdtemp(join(tmpdir(), 'chausar-codex-mac-hoisted-test-'));
+  t.after(() => rm(hoisted, { recursive: true, force: true }));
+  const codex = join(hoisted, 'node_modules/@openai/codex'), beside = join(hoisted, 'node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin');
+  await mkdir(codex, { recursive: true }); await mkdir(beside, { recursive: true });
+  assert.equal(await codexVendorFolder(codex, 'darwin', 'arm64'), beside);
+});
+
+test('Mac: staging copies the darwin Codex with the program named codex (no .exe), LICENSE, NOTICE and a manifest, and leaves voice out', async t => {
+  for (const architecture of ['arm64', 'x64'] as const) {
+    const { root, destination } = await macVendorFixture(t, architecture);
+    if (!KEEPS_EXECUTE_BIT) { await assert.rejects(stageCodexBundle({ source: root, destination, platform: 'darwin', architecture }), /bin\/codex: .*correct permissions/); continue; }
+    const manifest = await stageCodexBundle({ source: root, destination, platform: 'darwin', architecture });
+    assert.equal(manifest.target, MAC[architecture].target);
+    assert.equal(manifest.entrypoint, 'bin/codex');
+    assert.equal(manifest.version, '0.166.0');
+    assert.deepEqual(Object.keys(manifest.files).sort(), ['LICENSE', 'NOTICE', 'bin/codex', 'bin/codex-code-mode-host', 'codex-package.json', 'codex-path/rg']);
+    assert.deepEqual(manifest.leftOut, ['codex-resources/voice']);
+    // The copy is byte for byte (OpenAI's own signature is part of each file) and every program keeps its execute bit.
+    for (const name of ['bin/codex', 'bin/codex-code-mode-host', 'codex-path/rg']) {
+      assert.deepEqual(await readFile(join(destination, name)), machHeader(MAC[architecture].cpu), name);
+      assert.ok(((await stat(join(destination, name))).mode & 0o111) !== 0, `${name} keeps its execute bit`);
+    }
+    assert.deepEqual((await readdir(destination)).sort(), ['BUNDLE.json', 'LICENSE', 'NOTICE', 'bin', 'codex-package.json', 'codex-path']);
+    assert.equal(manifest.files['bin/codex'].sha256, sha256(machHeader(MAC[architecture].cpu)));
+    assert.ok(((await stat(join(destination, 'bin/codex'))).mode & 0o111) !== 0, 'the staged program keeps its execute bit');
+    assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'darwin', architecture }), manifest);
+    // A bundle staged for one Mac is not the other Mac's, nor another system's.
+    const other = architecture === 'arm64' ? 'x64' : 'arm64';
+    await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'darwin', architecture: other }), new RegExp(`not Codex 0\\.166\\.0 for ${MAC[other].target}`));
+    await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'linux', architecture }), /not Codex 0\.166\.0 for/);
+    await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'darwin', architecture, requireSetup: true }), new RegExp(`no recorded setup; stage it on a darwin-${architecture} computer`));
+  }
+});
+
+test('Mac: staging records the setup with the same quiet check commands as Windows and Linux', async t => {
+  if (!KEEPS_EXECUTE_BIT) return;
+  const { root, destination } = await macVendorFixture(t, 'arm64');
+  const asked: { command: string; args: string[] }[] = [];
+  const probe = async (command: string, args: string[]) => { asked.push({ command, args }); return { exitCode: 0, stdout: args.at(-1) === '--version' ? 'codex-cli 0.166.0\n' : 'text\n' }; };
+  const manifest = await stageCodexBundle({ source: root, destination, platform: 'darwin', architecture: 'arm64', probe, now: () => new Date('2026-11-14T10:00:00.000Z') });
+  assert.deepEqual(asked.map(item => item.args), [['--version'], [...QUIET_ARGS, 'exec', '--help'], [...QUIET_ARGS, 'features', 'list']]);
+  // The staged copy itself answers, in the folder it is built in beside the destination, before it is moved into place.
+  assert.ok(asked.every(item => item.command.startsWith(`${destination}.staging-`) && item.command.endsWith(join('bin', 'codex'))), 'the staged program itself answers');
+  assert.deepEqual((await readdir(root)).filter(name => name.includes('.staging-')), [], 'and nothing is left beside the bundle');
+  assert.equal(manifest.evidence.recordedAt, '2026-11-14T10:00:00.000Z');
+  await verifyCodexBundle({ directory: destination, platform: 'darwin', architecture: 'arm64', requireSetup: true });
+});
+
+test('Mac: staging refuses a program for the other Mac chip, a Windows layout, and a launcher script in place of the program', async t => {
+  const wrongChip = await macVendorFixture(t, 'arm64', {}, MAC.x64.cpu);
+  await assert.rejects(stageCodexBundle({ source: wrongChip.root, destination: wrongChip.destination, platform: 'darwin', architecture: 'arm64' }), KEEPS_EXECUTE_BIT ? /bin\/codex: .*architecture/ : /bin\/codex: /);
+  const exeEntry = await macVendorFixture(t, 'arm64', { entrypoint: 'bin/codex.exe' });
+  await assert.rejects(stageCodexBundle({ source: exeEntry.root, destination: exeEntry.destination, platform: 'darwin', architecture: 'arm64' }), /entrypoint must be bin\/codex$/);
+  const wrongTarget = await macVendorFixture(t, 'arm64', { target: 'x86_64-apple-darwin' });
+  await assert.rejects(stageCodexBundle({ source: wrongTarget.root, destination: wrongTarget.destination, platform: 'darwin', architecture: 'arm64' }), /target/);
+  // The Codex inside the ChatGPT app keeps a small launcher script at bin/codex and the program in a nested app. That
+  // is not the npm package this script stages, and it is refused in words rather than shipped.
+  const launcher = await macVendorFixture(t, 'arm64');
+  await writeFile(join(launcher.vendor, 'bin/codex'), `#!/bin/sh\n${'# launcher\n'.repeat(500)}exec "$0.real" "$@"\n`, { mode: 0o755 });
+  await assert.rejects(stageCodexBundle({ source: launcher.root, destination: launcher.destination, platform: 'darwin', architecture: 'arm64' }), KEEPS_EXECUTE_BIT ? /bin\/codex: the program must be a macOS Mach-O executable.*@openai\/codex npm package/ : /bin\/codex: /);
+  await assert.rejects(readdir(launcher.destination), { code: 'ENOENT' }, 'a refused staging writes nothing');
 });

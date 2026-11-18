@@ -5,7 +5,7 @@
  * places.ts).
  */
 
-import { useId, type ReactNode } from 'react';
+import { useContext, useId, useState, type ReactNode } from 'react';
 import { useT } from '../text';
 import { useResource } from '../engine/context';
 import { Icon } from '../parts/Icon';
@@ -17,6 +17,8 @@ import { NotificationCentre } from './NotificationCentre';
 import { HelpSheet } from './HelpSheet';
 import { WhatsNewSheet } from './WhatsNew';
 import type { PlaceId } from './routes';
+import { NewBusinessContext } from '../places/onboarding/started';
+import { refusalWords } from '../parts/custody';
 import s from './sheets.module.css';
 import { LoadingPlace } from '../parts/Skeleton';
 
@@ -117,8 +119,9 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   );
 }
 
-/** The places under the phone's More tab, in the rail's order, then a new business (Start). W4 4C2 moved Clients here,
- *  since Chats took its tab; C1 task 10 moved Team here, since Money took its tab. */
+/** The places under the phone's More tab, in the rail's order; a new business follows them as a button (it is not a
+ *  place: it closes this business and starts the first run steps). W4 4C2 moved Clients here, since Chats took its tab;
+ *  C1 task 10 moved Team here, since Money took its tab. */
 const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: string }[] = [
   { place: 'team', href: '#/team', icon: 'users', key: 'place.team' },
   { place: 'clients', href: '#/clients', icon: 'contact', key: 'place.clients' },
@@ -126,7 +129,6 @@ const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: 
   { place: 'connections', href: '#/connections', icon: 'plug', key: 'place.connections' },
   // C1 task 7: Settings, its list on a phone.
   { place: 'business', href: '#/business', icon: 'settings', key: 'place.business' },
-  { place: 'onboarding', href: '#/onboarding', icon: 'plus', key: 'more.start' },
 ];
 
 /**
@@ -136,7 +138,19 @@ const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: 
 function MoreSheet({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const route = useRoute();
+  const newBusiness = useContext(NewBusinessContext);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const title = t('more.title');
+  /** Start a new business: this one closes and the first run steps show; a refusal to close it is said here. */
+  async function startNew() {
+    setProblem(null);
+    setBusy(true);
+    const refused = await newBusiness();
+    if (refused === null) return;
+    setProblem(refusalWords(refused, t));
+    setBusy(false);
+  }
   return (
     <Sheet label="" title={title} name={title} onClose={onClose} returnFocus={returnFocus}>
       <nav aria-label={t('more.places')}>
@@ -150,7 +164,15 @@ function MoreSheet({ onClose, returnFocus }: SheetComponentProps) {
               </a>
             </li>
           ))}
+          <li>
+            <button type="button" className={`${s.moreLink} ${s.moreButton}`} disabled={busy} onClick={() => void startNew()}>
+              <span className={s.moreIcon}><Icon name="plus" size={18} /></span>
+              <span className={s.moreWord}>{t('more.start')}</span>
+              <Icon name="chevron-right" size={16} className={s.moreChevron} />
+            </button>
+          </li>
         </ul>
+        {problem && <p className={s.moreProblem} role="alert">{problem}</p>}
       </nav>
     </Sheet>
   );

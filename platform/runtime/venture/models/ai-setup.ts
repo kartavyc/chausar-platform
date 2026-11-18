@@ -1,5 +1,6 @@
-// A4 fix round (founder, 4 Nov): a business made from the Start gallery reuses the AI the owner already set up in another
-// business on this computer. Only the AI setup carries over: the Codex or Claude Code connection (its preset, route,
+// A4 fix round (founder, 4 Nov): a new business reuses the AI the owner already set up in another business on this
+// computer. Since 15 Nov 2026 that happens before the vault, in the new business's draft (venture.ai.reuse,
+// draft/handlers.ts), so the same conversational onboarding serves a second business. Only the AI setup carries over: the Codex or Claude Code connection (its preset, route,
 // model and jobs) and the models chosen for the agents. Nothing else does: no keys (a command-line AI has none), no
 // client, note, memory, file, call, chat consent or client consent, no Gmail connection and no outside tools. The new
 // business keeps its own folder and vault.
@@ -7,10 +8,12 @@
 // The newest setup is kept per computer, beside the business folders (the host's AiSetupPort, custody/ai-setup.json),
 // whenever a business connects Codex or Claude Code or saves its agents' models, so "the most recent one" is simply the
 // last written. Reading it back is checked field by field; anything else in the file is refused.
-import { listRecords } from '../records.ts';
+import { listRecords, type VentureTx } from '../records.ts';
 import type { ModelConnectionRecord, ModelPresetId, ModelTier, VentureDeps } from '../contracts.ts';
 import { defaultAiSettings, type AiSettings, type AiTaskSettings } from '../agent-runtime/settings.ts';
 import { savedBy } from './ai-setup-file.ts';
+import { cliGates, presetTiers } from './gates.ts';
+import { endpointFor, presetSpec } from './presets.ts';
 
 /** The setup kept per computer. */
 export type AiSetupNote = {
@@ -107,4 +110,31 @@ export function settingsFrom(note: AiSetupNote): AiSettings {
   const claude = { ...base.claude, quick: { ...note.models.claude.quick }, main: { ...note.models.claude.main } };
   if (note.models.claude.fallbackModel) claude.fallbackModel = note.models.claude.fallbackModel; else delete claude.fallbackModel;
   return { ...base, codex: { ...base.codex, quick: { ...note.models.codex.quick }, main: { ...note.models.codex.main } }, claude };
+}
+
+/** A reused connection's monthly cap, as venture.models.connect sets one by default (USD 5). */
+const DEFAULT_CAP_MICROS = '5000000';
+
+/**
+ * A4 review rounds 2 and 3: the newest setup kept on this computer, when every AI in it passes every gate
+ * venture.models.connect runs (the tool's own fresh check included), with the words the owner agreed to there, and
+ * asks only jobs its preset suggests; else none. Never throws: a setup that cannot be reused is no setup.
+ */
+export async function reusableSetup(deps: VentureDeps, port: AiSetupPort | undefined): Promise<AiSetupNote | null> {
+  const note = port ? readAiSetup(await port.read().catch(() => null)) : null;
+  if (!note) return null;
+  try {
+    // Each AI's own gates, the tools' fresh checks among them, all at once: one tool's check does not wait for the
+    // other's (seen on Windows, 15 Nov 2026: venture.ai.reuse took 38.7 s). Any refusal still refuses the whole setup.
+    const connections = await Promise.all(note.connections.map(async item => { await cliGates(deps, item.presetId, item.consentDigest); return { ...item, tiers: presetTiers(item.presetId, item.tiers) }; }));
+    return { ...note, connections };
+  } catch { return null; }
+}
+
+/** The reused setup's connections, each with the agreement the owner gave in the other business and when. Inside one venture action. */
+export function putReusedConnections(tx: VentureTx, note: AiSetupNote): void {
+  for (const item of note.connections) {
+    tx.put<ModelConnectionRecord>({ ...tx.base('venture-model-connection'), presetId: item.presetId, routeKind: item.routeKind, model: item.model, endpoint: endpointFor(presetSpec(item.presetId)), tiers: [...item.tiers], consentDigest: item.consentDigest, consentedAt: item.consentedAt, monthlyCapMicros: DEFAULT_CAP_MICROS, status: 'connected' });
+    tx.emit('model-connected', { presetId: item.presetId, tiers: [...item.tiers] });
+  }
 }

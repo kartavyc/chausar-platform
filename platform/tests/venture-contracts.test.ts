@@ -46,17 +46,21 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 383 unique valid names with owners and well-formed subsets', () => {
+test('VENTURE_METHODS: 403 unique valid names with owners and well-formed subsets', () => {
   // 126 through wave 2, the 138 wave 4 names package 4-0 added (W4_METHODS), 4J8's venture.blueprint.suggest and 4J5's
   // venture.bills.stop; and the 34 wave 5 names package 5-0 added (W5_METHODS: venture.order.chain, salesProposal.draft
   // and .get, goNoGo.card, ideas.add, .move and .grade, brandKit.get and .set, assets.list, .rerun and .reuse,
   // voiceConsent.record, .revoke and .list, report.render, .share, .shareRotate and .shareDisable, monitors.list, .add
   // and .remove, mail.import and .threads, localApps.list, webhook.set, speechOut.providers, ca.confirmCitations,
-  // ca.signoff.get, ca.differential.add, ca.dataPack.export, desk.list, .get and .act); 5A2 added goNoGo.list, 5A5 report.list.
+  // ca.signoff.get, ca.dataPack.export, desk.list, .get and .act); 5A2 added goNoGo.list, 5A5 report.list.
   // Wave 6 adds country suggestion, three client-consent methods, exact native approval,
   // two AI settings methods and MCP credentials; the three per-turn delivery methods are removed. 6C1 adds the tools'
   // own sign-in (tools, login.start, login.cancel), 6C2 About you (about.read, .pick, .families), 6C7 needs.list.
-  assert.equal(VENTURE_METHODS.length, 421); // the one-shot batches: C2 venture.find, C3 venture.work.list, C4 3, C5 7 and C6 venture.payment.receipt, C7 19 // C2 added venture.find // C3 added venture.work.list // C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove // A2 added venture.ai.setup.trust (the owner's Codex choice) // W6 Batch 6 added 12 (MCP registry and OAuth, packs, web, people, Telegram, phone, webhook send); Batch 7 added 21 (chat states, retire, CRM, facts); Batches 8 and 9 added 20 (mini apps 10, flows 2, layout 2, talk 6); Batch 10 added 6 (feedback)
+  // Finding customers, for every business: venture.leads.find.view, .propose and .tools and the chief's standing plan added 3 (428 before heritage cut 4).
+  // Heritage cut 4 removed nineteen that no screen, desktop call or script reached: ai.calls, compose.decide, .fill, .get and .update,
+  // simulation.get and .fromSignal, capabilities, improve.get, delegate.get, flows.list and .act, files.poster, options.rerank,
+  // auto.readiness, shadow.summary, ca.differential.add, trackers.remove and agents.hire.cancel.
+  assert.equal(VENTURE_METHODS.length, 411); // round 6 added venture.earlier.list (Today's Earlier) // a later business added venture.ai.reuse (the AI already connected here, in the new draft) // the setup team added venture.agents.hire.team // the one-shot batches: C2 venture.find, C3 venture.work.list, C4 3, C5 7 and C6 venture.payment.receipt, C7 19 // C2 added venture.find // C3 added venture.work.list // C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove // A2 added venture.ai.setup.trust (the owner's Codex choice) // W6 Batch 6 added 12 (MCP registry and OAuth, packs, web, people, Telegram, phone, webhook send); Batch 7 added 21 (chat states, retire, CRM, facts); Batches 8 and 9 added 20 (mini apps 10, flows 2, layout 2, talk 6); Batch 10 added 6 (feedback)
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);
@@ -65,13 +69,13 @@ test('VENTURE_METHODS: 383 unique valid names with owners and well-formed subset
 });
 
 test('DRAFT_METHODS: onboarding methods with app-only model calls and country suggestion', () => {
-  // Wave 6 adds the tools' own sign-in (6C1) and About you (6C2) before the vault.
-  assert.equal(DRAFT_METHODS.length, 16);
+  // Wave 6 adds the tools' own sign-in (6C1) and About you (6C2) before the vault; a later business adds venture.ai.reuse.
+  assert.equal(DRAFT_METHODS.length, 12);
   assert.deepEqual([...DRAFT_METHODS], [...ONBOARDING_METHODS]);
   for (const method of DRAFT_METHODS) assert.equal(PRE_VAULT_METHODS.includes(method), false, method);
   for (const method of DRAFT_METHODS) assert.equal(METHOD_OWNERS[method], method.startsWith('venture.ai.') ? 'models' : 'core', method);
-  assert.deepEqual(DRAFT_METHODS.filter(method => APP_ONLY_METHODS.includes(method)), ['venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill', 'venture.country.suggest', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read']);
-  for (const code of ['COMPOSE_NOT_FOUND', 'COMPOSE_REFUSED', 'COMPOSE_NOT_A_SERVICE']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(code), code);
+  assert.deepEqual(DRAFT_METHODS.filter(method => APP_ONLY_METHODS.includes(method)), ['venture.ai.connect', 'venture.country.suggest', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.ai.reuse']);
+  assert.ok((VENTURE_ERRORS as readonly string[]).includes('COMPOSE_NOT_FOUND'));
   assert.ok((VENTURE_RECORD_KINDS as readonly string[]).includes('venture-composition'));
   assert.ok((VENTURE_EVENTS as readonly string[]).includes('plan-composed'));
 });

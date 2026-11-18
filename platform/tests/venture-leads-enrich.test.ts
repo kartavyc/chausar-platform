@@ -1,8 +1,8 @@
 // Chausar enrichment and dedupe behavior. Ideas from revenue-squad and scraper-kit (MIT); no copied code.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { enrichSite } from '../runtime/venture/playbooks/lead-generation/enrich.ts';
-import { dedupeProspects } from '../runtime/venture/playbooks/lead-generation/dedupe.ts';
+import { enrichSite } from '../runtime/venture/customers/sources/enrich.ts';
+import { dedupeProspects } from '../runtime/venture/customers/sources/dedupe.ts';
 test('enrichment honours robots, reads homepage plus three same-host contact pages and keeps three useful emails', async () => {
   const visited: string[] = [];
   const result = await enrichSite('https://lotus.example', { resolve: async () => [{ address: '93.184.216.34', family: 4 }], send: async target => {

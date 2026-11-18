@@ -75,7 +75,7 @@ test('before any vault, venture.countries and venture.preview reach the venture 
   assert.equal((await engine.request('workspace.status', {})).open, false);
 });
 
-test('before any vault, the nine draft methods reach the draft desk, not the vault check', async t => {
+test('before any vault, the draft methods reach the draft desk, not the vault check', async t => {
   const transport = recordingTransport();
   const engine = await engineOn(t, transport);
   for (const method of DRAFT_METHODS) {
@@ -101,7 +101,10 @@ test('after workspace.create, every other venture method called with {} reaches 
   // Batches 8 and 9 added twenty (6H1, 6H2, 6H3, 6I1).
   // 6J2 added six feedback methods. One-shot A2 added venture.ai.setup.trust, which the engine answers (and refuses here).
   // C2 added venture.find. C3 added venture.work.list, which the engine answers. C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove.
-  assert.equal(methods.length, 401);
+  // The setup team added venture.agents.hire.team; finding customers added venture.leads.find.view, .propose and .tools; the chief's standing plan added venture.chief.plan.get, .plan.move and .review.set: 408 before heritage cut 4.
+  // Heritage cut 4 removed fourteen of these that nothing reached (and five draft methods, which are not counted here).
+  // Round 6 added venture.earlier.list, what Today's Earlier lists.
+  assert.equal(methods.length, 395);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
 });

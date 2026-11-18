@@ -151,9 +151,12 @@
   white-space: nowrap;
 }
 
+/* Links in the foot keep a gap and wrap: two side by side once read as one ("Each callSet a rupee rate"). */
 .tileFoot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: var(--sp-1) var(--sp-3);
   margin-top: auto;
   padding-top: var(--sp-3);
   font-size: var(--text-label);

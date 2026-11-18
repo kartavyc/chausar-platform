@@ -36,6 +36,7 @@ const PHONE_WORDS = {
   hours: 'Choose how long a phone stays paired, from 1 to 24 hours.',
   off: 'Phone access is off. Make a pairing link to open Chausar on your phone.',
   link: 'Open this link on your phone within 10 minutes. It works once.',
+  waiting: 'Phone access is on: a pairing link is waiting and no phone is paired. It turns off by itself when the link runs out.',
 };
 const BOT_TOKEN = /^\d{6,12}:[A-Za-z0-9_-]{30,64}$/;
 const CHAT_ID = /^-?\d{1,20}$/;
@@ -390,8 +391,12 @@ export class FakeNotifyDesk {
     return view(next, 'Telegram took the test alert.');
   }
 
-  private phones = new Map<string, boolean>();
-  /** phone.ts phoneAccessHandler on a computer at 192.168.1.20 with no Tailscale: a sample link and its QR code; nothing listens. */
+  /** Each business's pairing links made and not run out, by when each runs out. No phone ever pairs with the fake. */
+  private phoneLinks = new Map<string, number[]>();
+  /**
+   * phone.ts phoneAccessHandler on a computer at 192.168.1.20 with no Tailscale: a sample link and its QR code; nothing
+   * listens. As phone-access.ts, the listener is on only while an unused link is in time, and closes by itself after.
+   */
   private phoneAccess(p: Record<string, unknown>) {
     exact(p, ['action', 'via', 'hours']);
     check(!this.host.hosted(), 'TIER_UNAVAILABLE', PHONE_WORDS.hosted);
@@ -399,21 +404,26 @@ export class FakeNotifyDesk {
     check(p.action === undefined || p.action === 'link' || p.action === 'stop', 'INVALID_VENTURE_REQUEST', 'Send action as link or stop.');
     check(p.action === 'link' || (p.via === undefined && p.hours === undefined), 'INVALID_VENTURE_REQUEST', 'Only a pairing link takes via and hours.');
     const view = (link: { link: string; expiresAt: string } | null) => {
-      const on = this.phones.get(business) === true;
+      const at = Date.parse(this.host.now());
+      const waiting = (this.phoneLinks.get(business) ?? []).filter((expiresAt) => expiresAt > at);
+      this.phoneLinks.set(business, waiting);
+      const on = waiting.length > 0;
       return {
-        on, addresses: [{ via: 'wifi' as const, address: FAKE_WIFI }], phones: 0, link: link?.link ?? null, expiresAt: link?.expiresAt ?? null,
-        line: link ? PHONE_WORDS.link : !on ? PHONE_WORDS.off : 'Phone access is on. 0 phones are paired. Some approvals still need this computer.',
+        on, addresses: [{ via: 'wifi' as const, address: FAKE_WIFI }], phones: 0, waiting: waiting.length, closesAt: on ? new Date(Math.max(...waiting)).toISOString() : null,
+        link: link?.link ?? null, expiresAt: link?.expiresAt ?? null,
+        line: link ? PHONE_WORDS.link : !on ? PHONE_WORDS.off : PHONE_WORDS.waiting,
         qr: link ? (({ size, rows }) => ({ size, rows }))(qrMatrix(link.link)) : null,
       };
     };
-    if (p.action === 'stop') { this.phones.set(business, false); return view(null); }
+    if (p.action === 'stop') { this.phoneLinks.delete(business); return view(null); }
     if (p.action !== 'link') return view(null);
     const via = p.via ?? 'wifi';
     check(via === 'wifi' || via === 'tailscale', 'INVALID_VENTURE_REQUEST', 'Send via as wifi or tailscale.');
     const hours = p.hours ?? 12;
     check(Number.isInteger(hours) && (hours as number) >= 1 && (hours as number) <= 24, 'INVALID_VENTURE_REQUEST', PHONE_WORDS.hours);
     check(via === 'wifi', 'PHONE_NO_NETWORK', PHONE_WORDS.noTailscale);
-    this.phones.set(business, true);
-    return view({ link: FAKE_PAIR_LINK, expiresAt: new Date(Date.parse(this.host.now()) + 10 * 60_000).toISOString() });
+    const expiresAt = Date.parse(this.host.now()) + 10 * 60_000;
+    this.phoneLinks.set(business, [...(this.phoneLinks.get(business) ?? []), expiresAt]);
+    return view({ link: FAKE_PAIR_LINK, expiresAt: new Date(expiresAt).toISOString() });
   }
 }

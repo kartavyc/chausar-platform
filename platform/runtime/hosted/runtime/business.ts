@@ -1,8 +1,8 @@
 // Chausar hosted tier: one business's engine. Each business is its own Engine over its own encrypted vault, with a
 // folder named by its business id inside its tenant's folder. The vault is either an experimental file in that folder,
 // or one PostgreSQL row whose slot is made from the tenant and business ids; the folder then holds only the vault's
-// writer lock. Both runtime adapters use this class: the local runtime keeps many of them awake in one process; a Rivet
-// actor would keep one in its per-instance vars.
+// writer lock. The local runtime keeps many of them awake in one process; a Rivet actor would keep one in its
+// per-instance vars.
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { join, relative, resolve, isAbsolute } from 'node:path';
 import { check, type Context, internalCheck } from '../../contracts.ts';

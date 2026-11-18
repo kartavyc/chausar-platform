@@ -85,6 +85,7 @@ export function PipelineTab({ board, leads }: { board: Resource<PipelineView>; l
         actions={[
           { label: t('clients.pipeline.toNetwork'), href: '#/clients/network' },
           { label: t('clients.leads.add'), onSelect: () => openSheet('lead', 'new') },
+          { label: t('clients.find.open'), onSelect: () => openSheet('find', 'new') },
         ]}
       />
     );

@@ -11,6 +11,8 @@
 import { REFERENCE_RATE, REFERENCE_SOURCE } from '../../../../platform/runtime/venture/money/reference-rate';
 import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { formatDayRange } from '../../../../platform/runtime/owner-format';
+import { leadSourceOf } from '../../../../platform/runtime/venture/customers/lead-source';
+import { fakeOwnPlanLead } from './fake-own-plan';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
@@ -22,7 +24,7 @@ import {
   type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type VentureRunEvent, type CurrencyLead,
 } from './types';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
-import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
+import { currencyLeadOf, monthSpendLine, rateShown, rupeesLead, spendLead } from './fake-lead';
 import type { WriteCapKind } from './types';
 import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
 
@@ -91,9 +93,9 @@ function rateTyped(rate: SampleRupeeRate): string {
 }
 function rateWords(rate: SampleRupeeRate): string {
   const [year, month, day] = rate.setOn.split('-');
-  const decimals = rateTyped(rate).split('.')[1] ?? '00';
-  if (rate.source) return `₹${(rate.perUsd / 10_000n).toLocaleString('en-IN')}.${decimals} per $1 (${rate.source} of ${Number(day)} ${MONTH_NAMES[Number(month) - 1]} ${year})`;
-  return `₹${(rate.perUsd / 10_000n).toLocaleString('en-IN')}.${decimals} per $1 (your rate, set ${day} ${MONTH_NAMES[Number(month) - 1]} ${year})`;
+  const on = `${Number(day)} ${MONTH_NAMES[Number(month) - 1]} ${year}`;
+  // The rate in the owner form, two decimals (money/spend.ts rupeeRateShown); the exact figure is the one typed back.
+  return rate.source ? `${rateShown(rate.perUsd)} per $1 (${rate.source} of ${on})` : `${rateShown(rate.perUsd)} per $1 (your rate, set ${on})`;
 }
 /** Micro-dollars in rupees beside the dollars, as the engine's rupeesBeside: to the nearest paisa, a half paisa up. */
 function rupeesBeside(micros: string, rate: SampleRupeeRate): string {
@@ -215,9 +217,9 @@ export class FakeExtrasDesk {
 
   private overview(biz: string): MoneyOverview {
     const owed = this.host.owed();
-    // The AI spend line's rupees at the owner's rate now (none without one), and 4Z3: the line as the owner's currency
+    // The AI spend line's rupees at the rate in use now (rateOf; none without one), and 4Z3: the line as the owner's currency
     // leads it (money/overview.ts), as the engine works both out from the spend settings.
-    const rate = this.rupees[biz] ?? null;
+    const rate = this.rateOf(biz);
     const lines = clone(OVERVIEW[biz] ?? []).map((line) => {
       const month = MONTH_SPEND[biz];
       if (line.id !== 'spent' || !month) return line;
@@ -225,10 +227,20 @@ export class FakeExtrasDesk {
       return {
         ...rest, ...(rate ? { rupees: rupeesBeside(String(month.micros), rate) } : {}),
         lead: spendLead(month.micros, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto'), line.estimate ? ', includes estimates' : ''),
-        ...(rate ? {} : { needsRate: true }),
       };
     });
-    if (this.countryMoney.dynamic(!!OVERVIEW[biz])) return this.countryMoney.overview(lines.find(line => line.id === 'spent'));
+    if (this.countryMoney.dynamic(!!OVERVIEW[biz])) {
+      const view = this.countryMoney.overview(lines.find(line => line.id === 'spent'));
+      // A business with no sample month spent nothing: the line leads as money/overview.ts leads it, the words on the
+      // owner's own AI plan (fake-own-plan.ts), else the figure.
+      return {
+        ...view, lines: view.lines.map((line) => {
+          if (line.id !== 'spent' || line.lead) return line;
+          const ownPlan = this.host.ask ? fakeOwnPlanLead((method, params) => this.host.ask!(method, params), 0, false) : null;
+          return { ...line, lead: ownPlan ?? spendLead(0, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto')) };
+        }),
+      };
+    }
     return { lines: [{ id: 'owed', label: 'Clients owe you', value: owed.value, ...(owed.receiptId ? { receiptId: owed.receiptId } : {}) }, ...lines] };
   }
 
@@ -236,7 +248,7 @@ export class FakeExtrasDesk {
   private withLead(biz: string, policy: SpendPolicyView): SpendPolicyView {
     const currencyLead = this.leadChoice[biz] ?? 'auto';
     const leads = Boolean(policy.inrPerUsd) && rupeesLead(currencyLead);
-    const perUsd = this.rupees[biz]?.perUsd ?? null;
+    const perUsd = this.rateOf(biz)?.perUsd ?? null;
     // The limit lines as the owner's currency leads them (money/spend.ts policyView), absent with no limit.
     const { capLead: _cap, askFirstLead: _ask, ...rest } = policy;
     return {
@@ -284,7 +296,7 @@ export class FakeExtrasDesk {
    */
   private withMeters(biz: string, policy: SpendPolicyView): SpendPolicyView {
     const caps = this.ownCaps[biz] ?? { agents: [], routines: [] };
-    const rate = this.rupees[biz] ?? null;
+    const rate = this.rateOf(biz);
     const leads = Boolean(rate) && rupeesLead(this.leadChoice[biz] ?? 'auto');
     const row = (scope: 'agent' | 'routine', id: string, name: string, micros: number, receiptId: string, plan: number, cap: string | undefined) => {
       const capped = cap === undefined ? null : BigInt(cap);
@@ -339,12 +351,36 @@ export class FakeExtrasDesk {
       capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
     };
     this.policies[biz].writeCaps ??= (['drafts', 'books-lines', 'messages'] as const).map((kind, i) => ({ kind, configuredCap: [30, 500, 40][i]!, cap: [30, 500, 40][i]!, used: 0, raised: false, line: this.writeCapLine(kind, [30, 500, 40][i]!) }));
+    // As money/spend.ts policyView: the rate in use (rateOf) as typed back and in words, and the limits in rupees at it.
+    const rate = this.rateOf(biz);
+    const policy = this.policies[biz];
+    policy.inrPerUsd = rate ? rateTyped(rate) : null;
+    policy.rupeeRate = rate ? rateWords(rate) : null;
+    delete policy.capRupees;
+    delete policy.askFirstRupees;
+    if (rate && policy.capMicros !== null) policy.capRupees = rupeesBeside(policy.capMicros, rate);
+    if (rate && policy.askFirstMicros !== null) policy.askFirstRupees = rupeesBeside(policy.askFirstMicros, rate);
     // C5 task 15: the offer of the reference rate, in the engine's words; gone once it is in use.
-    const inUse = this.rupees[biz]?.source === REFERENCE_SOURCE && this.rupees[biz]?.setOn === REFERENCE_RATE.on;
+    const inUse = rate?.source === REFERENCE_SOURCE && rate.setOn === REFERENCE_RATE.on;
     const [refYear, refMonth, refDay] = REFERENCE_RATE.on.split('-');
-    if (inUse) delete this.policies[biz].reference;
-    else this.policies[biz].reference = { perUsd: REFERENCE_RATE.perUsd, on: REFERENCE_RATE.on, line: `Use the reference rate of ${Number(refDay)} ${MONTH_NAMES[Number(refMonth) - 1]} ${refYear}: ₹${REFERENCE_RATE.perUsd} per US dollar`, source: REFERENCE_RATE.citation.source, url: REFERENCE_RATE.citation.url };
-    return this.policies[biz];
+    if (inUse) delete policy.reference;
+    else policy.reference = { perUsd: REFERENCE_RATE.perUsd, on: REFERENCE_RATE.on, line: `Use the reference rate of ${Number(refDay)} ${MONTH_NAMES[Number(refMonth) - 1]} ${refYear}: ₹${REFERENCE_RATE.perUsd} per US dollar`, source: REFERENCE_RATE.citation.source, url: REFERENCE_RATE.citation.url };
+    return policy;
+  }
+
+  /**
+   * The rate rupee figures use, as money/spend.ts rupeeRateFor: the owner's own, and for a business that bills in rupees
+   * with none set, the dated reference rate shipped with this release. So a rupee business reads its spend in rupees
+   * from its first day; elsewhere there is no rate until the owner sets one.
+   */
+  /** Your AI's "This month" line for a business, as the engine's models.status words it from the same rate. */
+  monthLine(biz: string, micros: bigint, estimate: boolean): string {
+    const rate = this.rateOf(biz);
+    return monthSpendLine(micros, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto'), estimate);
+  }
+
+  private rateOf(biz: string): SampleRupeeRate | null {
+    return this.rupees[biz] ?? (this.countryMoney.rupeeBusiness() ? { perUsd: rupeeRate(REFERENCE_RATE.perUsd), setOn: REFERENCE_RATE.on, source: REFERENCE_SOURCE } : null);
   }
 
   private writeCapLine(kind: WriteCapKind, cap: number): string {
@@ -413,20 +449,18 @@ export class FakeExtrasDesk {
     if (p.useReference !== undefined && p.useReference !== true) throw invalid('Send useReference as true, or leave it out.');
     if (p.useReference === true && p.inrPerUsd !== undefined) throw invalid('Choose the reference rate or type your own, not both.');
     const perUsd = p.inrPerUsd === undefined ? undefined : p.inrPerUsd === null ? null : rupeeRate(p.inrPerUsd);
+    // The rate in use sent back unchanged (the form sends the field as it stands) keeps what is held, as the engine does:
+    // the owner's own rate keeps its day, and a reference rate (kept, or standing in for a rupee business) stays one.
+    const inUse = this.rateOf(biz);
     const rate: SampleRupeeRate | null = p.useReference === true ? { perUsd: rupeeRate(REFERENCE_RATE.perUsd), setOn: REFERENCE_RATE.on, source: REFERENCE_SOURCE }
-      : perUsd === undefined ? held : perUsd === null ? null : { perUsd, setOn: held && held.perUsd === perUsd && !held.source ? held.setOn : this.host.now().slice(0, 10) };
-    policy.inrPerUsd = rate ? rateTyped(rate) : null;
-    policy.rupeeRate = rate ? rateWords(rate) : null;
-    delete policy.capRupees;
-    delete policy.askFirstRupees;
-    if (rate && policy.capMicros !== null) policy.capRupees = rupeesBeside(policy.capMicros, rate);
-    if (rate && policy.askFirstMicros !== null) policy.askFirstRupees = rupeesBeside(policy.askFirstMicros, rate);
+      : perUsd === undefined || (inUse !== null && inUse.perUsd === perUsd) ? held : perUsd === null ? null : { perUsd, setOn: this.host.now().slice(0, 10) };
     // 4Z3: which currency leads; left out, the choice already set is kept.
     if (p.currencyLead !== undefined) this.leadChoice[biz] = currencyLeadOf(p.currencyLead);
     policy.setAt = this.host.now();
     this.rupees[biz] = rate;
     this.policies[biz] = policy;
-    return clone(policy);
+    // The rate in use, its words, the limits in rupees and the reference offer follow the rate now held (policyOf).
+    return clone(this.policyOf(biz));
   }
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -570,7 +604,7 @@ export class FakeExtrasDesk {
     if(!input.name.trim()||input.name.trim().length>120)throw invalid('name must be one line of text.');
     const at=this.host.now(),id=`lead-new-${++this.seq}`,draftId=`draft-lead-${++this.seq}`,words=influencerEmailText(p.body,this.host.businessName(biz),p.postalAddress);
     const draft:OutreachDraftView={id:draftId,leadId:id,to:input.email,subject:p.subject,text:words.text,footer:words.footer,sourceUrl:input.sourceUrl,by:'owner',at,digest:this.host.digest({id:draftId,to:input.email,subject:p.subject,text:words.text})};
-    const lead:LeadView={id,name:input.name,company:null,email:input.email,emailDomain:domain,sourceUrl:input.sourceUrl,emailCheck:{status:'verified',at,line:`A mail server answers for ${domain}.`},status:'drafted',drafts:[draft],sends:[],moves:[{from:'new',to:'drafted',at,by:'owner',evidence:{kind:'draft',id:draftId}}],addedBy:'owner',addedAt:at};
+    const lead:LeadView={id,name:input.name,company:null,email:input.email,emailDomain:domain,sourceUrl:input.sourceUrl,sourceNote:null,emailCheck:{status:'verified',at,line:`A mail server answers for ${domain}.`},status:'drafted',drafts:[draft],sends:[],moves:[{from:'new',to:'drafted',at,by:'owner',evidence:{kind:'draft',id:draftId}}],addedBy:'owner',addedAt:at};
     (this.leads[biz]??=[]).unshift(lead);return{leadId:id,draftId};
   }
   eraseInfluencerLeads(biz:string,ids:readonly string[]):void{this.leads[biz]=(this.leads[biz]??[]).filter(lead=>!ids.includes(lead.id));}
@@ -590,10 +624,10 @@ export class FakeExtrasDesk {
   private addLead(biz: string, p: Record<string, unknown>): LeadView {
     const name = text(p.name);
     if (name.length < 2 || name.length > 120) throw invalid('A name must be between 2 and 120 characters.');
-    const sourceUrl = text(p.sourceUrl);
-    let url: URL | null = null;
-    try { url = new URL(sourceUrl); } catch { url = null; }
-    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) throw new EngineError('LEADS_SOURCE_REQUIRED', 'A lead needs the web page you found them on, like https://example.in/team.');
+    // The engine's own rule and words (customers/lead-source.ts): the page, or, from the owner in the app, their words.
+    let source: ReturnType<typeof leadSourceOf>;
+    try { source = leadSourceOf({ sourceUrl: p.sourceUrl, sourceNote: p.sourceNote }, true); } catch (error) { throw new EngineError((error as { code?: string }).code ?? 'LEADS_SOURCE_REQUIRED', (error as Error).message); }
+    const sourceUrl = source.page ? source.page.href : null, sourceNote = source.note;
     const email = text(p.email).toLowerCase() || null;
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw invalid('Use an email address like name@example.com.');
     if (this.isBlocked(biz, email)) throw new EngineError('LEADS_BLOCKED', 'This address is on your blocklist, so Chausar will not add it.');
@@ -601,7 +635,7 @@ export class FakeExtrasDesk {
     const at = this.host.now();
     const checked = domain !== null && MAIL_DOMAINS.has(domain);
     const lead: LeadView = {
-      id: `lead-new-${++this.seq}`, name, company: text(p.company) || null, email, emailDomain: domain, sourceUrl,
+      id: `lead-new-${++this.seq}`, name, company: text(p.company) || null, email, emailDomain: domain, sourceUrl, sourceNote,
       emailCheck: !email ? { status: 'unverified', at: null, line: 'No email yet.' }
         : checked ? { status: 'verified', at, line: `A mail server answers for ${domain}.` }
           : { status: 'failed', at, line: `No mail server answers for ${domain}, so Chausar will not draft to it.` },

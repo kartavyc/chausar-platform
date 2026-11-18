@@ -268,6 +268,7 @@ test('chief: one message wakes one agent; an @name or a leading name routes it, 
   const env = await chiefBusiness();
   await chatConsent(env);
   const tasks = scriptChief(env, []);
+  env.models.respond['agent-chat'] = () => ({ reply: 'Here is how I would go about it.', figures: [] });
   const routed = await env.chief('venture.chief.thread.send', { text: '@Editor cut a trailer from episode 14' });
   assert.equal(routed.added[1].parts[0].text, "Sent to Story editor. The reply is in Story editor's chat.");
   assert.deepEqual(routed.added[1].routedTo, { agent: 'story-editor', name: 'Story editor' });
@@ -382,6 +383,7 @@ test('chief: whenever more than one agent is named the chief asks, never guesses
   const env = await chiefBusiness();
   await chatConsent(env);
   const tasks = scriptChief(env, []);
+  env.models.respond['agent-chat'] = () => ({ reply: 'Here is how I would go about it.', figures: [] });
   const both = await env.chief('venture.chief.thread.send', { text: 'How are the editor and the packager doing?' });
   assert.equal(both.ask, 'Which agent: Story editor or Packager?');
   const mixed = await env.chief('venture.chief.thread.send', { text: '@Editor, check with the packager first' });
@@ -538,51 +540,30 @@ test('chief: the ways tool lists the ways to earn, hours as model estimates, wit
   assert.equal(JSON.stringify(result.data).includes('₹'), false, 'what clients pay has no receipt here, so it is left out');
 });
 
-// One-shot A4 (A3 leftover, seen live on Codex): the chief has read tools only, so it never acts. A sentence where it says
-// it did is taken out and an offer said instead; offers, reads and conditions stay.
-test('chief: a claim of an action it never took is taken out, and it offers to propose it instead (A4)', async () => {
+// The chief has read tools only, so it never acts, and its instructions tell it never to say it did. Its words are no
+// longer cut (founder, 11 Nov 2026): a reply stays as the AI wrote it. What really happened is said by code alone.
+test("chief: the AI's words stay whole; nothing is taken out of a reply and no offer line is added", async () => {
   const env = await chiefBusiness();
   await chatConsent(env);
-  scriptChief(env, [answer([text('Your books show no invoices yet. I passed a brief to Studio agent. I can send a reminder once you approve.')])]);
+  const whole = 'Your books show no invoices yet. I passed a brief to Studio agent. I can send a reminder once you approve.';
+  scriptChief(env, [answer([text(whole)])]);
   const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
-  assert.deepEqual(sent.added[1].parts, [
-    { kind: 'text', text: 'Your books show no invoices yet. I can send a reminder once you approve.' },
-    { kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." },
-  ]);
-  // A4 review (M2): "we" is business history, not a claim by the AI, so it is not in this list.
-  for (const claim of ["I've emailed the client.", 'I have already booked the shoot.', 'I went ahead and scheduled it for Monday.', 'I proposed a reminder.']) {
-    scriptChief(env, [answer([text(claim)])]);
+  assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: whole }]);
+  for (const words of ["I've emailed the client.", 'I checked your books: nothing is due.', 'Shall I draft it? You would approve it on Today.']) {
+    scriptChief(env, [answer([text(words)])]);
     const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
-    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }], claim);
+    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: words }], words);
   }
-  for (const honest of ['I checked your books: nothing is due.', 'If I sent it now, it would go before the weekend.', 'Shall I draft it? You would approve it on Today.']) {
-    scriptChief(env, [answer([text(honest)])]);
-    const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
-    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: honest }], honest);
-  }
+  assert.match(CHIEF_INSTRUCTIONS, /You never act, so never say you did\./);
 });
 
-// One-shot A4 (live on Codex; review M2): a brief the chief proposes is passed to the agent at once by code, and code's own
-// line says so. The model's own sentences about it are still checked and taken out; with code's line there, no offer is
-// added for them, so the reply never says it can't do what it just did.
-test("chief: only code says a brief was passed; the model's own claims go, with no offer when code's line covers them (A4)", async () => {
+// A brief the chief proposes is passed to the agent at once by code, and code's own line says so, after the AI's words.
+test("chief: code's own line says a brief was passed, after the AI's words", async () => {
   const env = await chiefBusiness();
   await chatConsent(env);
-  scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks. I've emailed Asha the plan.")], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks for the budgets episode.' })])]);
+  scriptChief(env, [answer([text('Story editor is the right one for five hooks.')], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks for the budgets episode.' })])]);
   const sent = await env.chief('venture.chief.thread.send', { text: 'Ask the story editor for five hooks.' });
-  const words = sent.added[1].parts.map((part: { text?: string }) => part.text);
-  assert.deepEqual(words, [
-    "I can't do that myself. I can propose it, and you approve it on Today.",
-    'I passed a brief to Story editor.',
-  ]);
-  // A sentence naming the agent briefed is taken out too; code's line is the one that says what happened.
-  scriptChief(env, [answer([text('I asked Story editor to draft five hooks for you.')], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks.' })])]);
-  const named = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'Hooks please.' });
-  assert.deepEqual(named.added[1].parts.map((part: { text?: string }) => part.text), ['I passed a brief to Story editor.']);
-  // With no brief passed, the same claim goes.
-  scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks.")])]);
-  const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
-  assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }]);
+  assert.deepEqual(sent.added[1].parts.map((part: { text?: string }) => part.text), ['Story editor is the right one for five hooks.', 'I passed a brief to Story editor.']);
 });
 
 // One-shot C4 task 31 (98.w1): the chief leads with the answer. Its fixed instructions say the first sentence answers

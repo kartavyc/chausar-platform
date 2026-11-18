@@ -14,8 +14,7 @@ import { calendarReader } from './extract-calendar.ts';
 import { mailReader } from './extract-mail.ts';
 
 export { MAX_CELLS, MAX_LINE_CHARS, MAX_PEOPLE, PROJECTION_FORMAT } from './extract-core.ts';
-export type { ExtractOptions, MailTally, MeetingTally, MessageTally, Projection, ProjectedPerson, Tally } from './extract-core.ts';
-export { MAX_MESSAGES } from './extract-mail.ts';
+export type { ExtractOptions, Projection } from './extract-core.ts';
 
 function readerFor(kind: NetworkImportKind, drops: Drops, problems: Problems, options: ExtractOptions): KindReader {
   switch (kind) {

@@ -46,6 +46,30 @@ test('--packaged <dir> takes the packaged program and the worker inside that bui
   }
 });
 
+// The Mac build (14 Nov 2026): a Mac build is the app itself. Its program is Contents/MacOS/<the app's name> and its
+// worker is under Contents/Resources/app.asar.unpacked.
+test('Mac: --packaged takes the app folder, the program inside it and the worker in its resources', async t => {
+  for (const name of ['Chausar', 'Chausar Unsigned Preview']) {
+    const root = await mkdtemp(join(tmpdir(), 'chausar-smoke-mac-test-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const app = join(root, 'mac-arm64', `${name}.app`);
+    await mkdir(join(app, 'Contents', 'MacOS'), { recursive: true });
+    await mkdir(join(app, 'Contents', 'Resources', 'app.asar.unpacked', 'platform', 'runtime'), { recursive: true });
+    assert.throws(() => parseSmokeArguments(['--packaged', app], { platform: 'darwin' }), /has no Contents\/MacOS\//);
+    await writeFile(join(app, 'Contents', 'MacOS', name), 'synthetic');
+    assert.deepEqual(parseSmokeArguments(['--packaged', app], { platform: 'darwin' }), {
+      packaged: resolve(app),
+      worker: join(resolve(app), 'Contents', 'Resources', 'app.asar.unpacked', 'platform', 'runtime', 'worker.ts'),
+      packageJson: join(resolve(app), 'Contents', 'Resources', 'app.asar.unpacked', 'package.json'),
+    });
+    assert.deepEqual(parseElectronSmokeArguments(['--packaged', app], { platform: 'darwin' }), {
+      check: false, packaged: { folder: resolve(app), program: join(resolve(app), 'Contents', 'MacOS', name) },
+    });
+    // The folder that holds the app is not the app.
+    assert.throws(() => parseSmokeArguments(['--packaged', join(root, 'mac-arm64')], { platform: 'darwin' }), /point --packaged at the app \(release\/beta\/mac-arm64\/Chausar\.app, say\)/);
+  }
+});
+
 test('--packaged refuses a missing value, a path that is not a folder, a folder with no program, and any other option', async t => {
   const build = await packagedBuild(t, 'win32');
   const file = join(build, 'Chausar.exe');

@@ -103,18 +103,21 @@ describe('Today v2: the greeting', () => {
     expect(title.textContent).toBe('Good evening');
   });
 
-  it('picks the greeting by the hour: morning, afternoon, evening', () => {
-    expect([5, 8, 11, 12, 14, 16, 17, 19, 23, 0, 4].map(greetingKey)).toEqual([
+  // Round 5 (re-check 012): "Good evening" at 1:13 am. Evening ends at midnight; the small hours say a plain Hello.
+  it('picks the greeting by the hour: morning, afternoon, evening until midnight, hello in the small hours', () => {
+    expect([5, 8, 11, 12, 14, 16, 17, 19, 23, 0, 1, 4].map(greetingKey)).toEqual([
       'today.greeting.morning', 'today.greeting.morning', 'today.greeting.morning',
       'today.greeting.afternoon', 'today.greeting.afternoon', 'today.greeting.afternoon',
-      'today.greeting.evening', 'today.greeting.evening', 'today.greeting.evening', 'today.greeting.evening', 'today.greeting.evening',
+      'today.greeting.evening', 'today.greeting.evening', 'today.greeting.evening',
+      'today.greeting.hello', 'today.greeting.hello', 'today.greeting.hello',
     ]);
   });
 
-  it.each([[8, 'Good morning'], [14, 'Good afternoon'], [19, 'Good evening']] as const)('at %i:00 it says %s', async (hour, words) => {
-    start({ now: at(hour) });
-    expect(await screen.findByRole('heading', { level: 1, name: words })).toBeTruthy();
-  });
+  it.each([[8, 0, 'Good morning'], [14, 0, 'Good afternoon'], [19, 0, 'Good evening'], [23, 59, 'Good evening'], [0, 1, 'Hello'], [1, 13, 'Hello'], [4, 59, 'Hello'], [5, 0, 'Good morning']] as const)(
+    'at %i:%i on the business\'s clock it says %s', async (hour, minute, words) => {
+      start({ now: at(hour, minute) });
+      expect(await screen.findByRole('heading', { level: 1, name: words })).toBeTruthy();
+    });
 
   it("the line under it is the engine's summary, then how many agents are working, with the count in bold", async () => {
     start();
@@ -143,7 +146,10 @@ describe('Today v2: the goal card', () => {
     expect(spy.mock.calls.some(([method]) => (method as string) === 'venture.goals.get')).toBe(true);
     expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000');
     expect(goal.textContent).toContain('Invoiced this month');
-    expect(within(goal).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
+    expect(goal.querySelector('[data-figure] [data-receipt]')).not.toBeNull();
+    // Fix round 4 (sample item 7): Ledgerline's own books, never Lumen Studio's payments receipt (R-0402, ₹86,200).
+    expect(within(goal).queryByRole('button', { name: receiptMark('R-0402') })).toBeNull();
+    expect(goal.textContent).not.toContain('₹86,200');
     expect(within(goal).queryByRole('img')).toBeNull();
     expect(within(goal).queryByRole('button', { name: 'Change the goal' })).toBeNull();
     expect(goal.textContent).not.toContain('%');
@@ -350,7 +356,8 @@ describe('Today v2: needs you', () => {
     const head = within(needsYou()).getByRole('heading', { level: 2, name: 'Needs you' });
     expect(head.parentElement!.textContent).toContain('12');
     const show = within(needsYou()).getByRole('group', { name: 'Show' });
-    for (const name of ['All 12', 'To approve 7', 'From your agents 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked']) {
+    // The kinds add up to All: a locked business is in neither count, and has its own chip (today-round3.test.tsx).
+    for (const name of ['All 12', 'To approve 7', 'From your agents 4', 'Setup 1', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked']) {
       expect(within(show).getByRole('button', { name }), name).toBeTruthy();
     }
     expect(within(show).getAllByRole('button')).toHaveLength(7);
@@ -371,8 +378,8 @@ describe('Today v2: needs you', () => {
   it('opens with Setup pressed from #/today?show=setup', async () => {
     start({ hash: '#/today?show=setup' });
     await loaded();
-    expect(within(needsYou()).getByRole('button', { name: 'Setup 2' }).getAttribute('aria-pressed')).toBe('true');
-    expect(rowIds()).toEqual(['q-setup-ai', 'q-locked-sitara']);
+    expect(within(needsYou()).getByRole('button', { name: 'Setup 1' }).getAttribute('aria-pressed')).toBe('true');
+    expect(rowIds()).toEqual(['q-setup-ai']);
   });
 
   it('a business chip shows only that business', async () => {
@@ -528,7 +535,7 @@ describe('Today v2: previews on the cards', () => {
     expect(paper.textContent).toContain('GST working for September');
     expect(paper.querySelector('[data-receipt="w-gst-sep"][data-receipt-source="ca"]')).not.toBeNull();
     const price = cardOf('q-price-sponsor');
-    expect(price.querySelector('del')?.textContent).toBe('₹25,000');
+    expect(price.querySelector('del')?.textContent).toBe('₹15,000');
     expect(within(price).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     expect(price.querySelector('[data-preview]')).toBeNull();
     expect(cardOf('q-setup-ai').querySelector('[data-preview]')).toBeNull();
@@ -715,6 +722,29 @@ describe('Today v2: working now and earlier', () => {
       expect(itemOf(words).closest('[data-engine-line]'), words).toBeNull();
       expect(itemOf(words).closest('[data-figure-group]'), words).toBeTruthy();
     }
+  });
+
+  // Round 6 (re-check 026): after the plan was accepted, prices set and a search found customers, Earlier said "Nothing
+  // has happened yet.", as it read the journal alone. It draws what venture.earlier.list sends: a decision in its own
+  // words with no line under it, and a search that ended with its result line, each as the engine's words.
+  it('Earlier lists decisions and a finished search as the engine sends them, never "Nothing has happened yet."', async () => {
+    const fake = createFakeClient(new FakeEngine({ now: ENGINE_NOW }));
+    const entries = [
+      { id: 's1', at: '2026-10-23T13:30:00.000Z', from: 'search', title: 'Find possible customers: company offices in Indore', line: 'Found 10 possible customers in Indore. Nothing was sent.', state: 'applied' },
+      { id: 'd1', at: '2026-10-23T13:00:00.000Z', from: 'decision', title: 'You chose Approve: Plan accepted.', line: null, state: 'applied' },
+    ];
+    const client: EngineClient = { ...fake, request: ((method: string, params?: unknown) => (method === 'venture.earlier.list'
+      ? Promise.resolve({ entries })
+      : fake.request(method as never, params as never))) as EngineClient['request'] };
+    start({ client });
+    const earlier = await screen.findByRole('region', { name: 'Earlier' });
+    await waitFor(() => expect(within(earlier).getAllByRole('listitem')).toHaveLength(2));
+    expect(earlier.textContent).not.toContain('Nothing has happened yet.');
+    const [search, decision] = within(earlier).getAllByRole('listitem');
+    expect(within(search!).getByText('Find possible customers: company offices in Indore').closest('[data-engine-line]')).toBeTruthy();
+    expect(within(search!).getByText('Found 10 possible customers in Indore. Nothing was sent.').closest('[data-engine-line]')).toBeTruthy();
+    expect(within(decision!).getByText('You chose Approve: Plan accepted.').closest('[data-engine-line]')).toBeTruthy();
+    expect(decision!.querySelectorAll('p')).toHaveLength(1);
   });
 
   it("each run's detail is read once for the page: the team's live tiles and Working now share it", async () => {

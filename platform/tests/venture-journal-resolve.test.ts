@@ -12,7 +12,7 @@ import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS } from
 import type { ConnectorPostRecord, JournalEntry, JournalRecord, QueueList, SiteEditRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
-import { applyAction, approveAction, journalled, proposeAction, type ProposeInput } from '../runtime/venture/journal/index.ts';
+import { applyAction, approveAction, journalled, proposeAction, type ProposeInput } from '../runtime/venture/journal/journal.ts';
 import { connectorQueueRows } from '../runtime/venture/build/posting.ts';
 import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { previewShownWhole, VIEW_MAX_LINES } from '../runtime/venture/delivery/shared.ts';

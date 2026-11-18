@@ -156,7 +156,7 @@ test('no CA request for unregulated work, practice drafts, failed checks, templa
   const template = await seedRun(env, order, { status: 'ready-for-review', servedBy: 'template', renderedText: 'Outline' });
   const failed = await seedRun(env, order, { status: 'ready-for-review', servedBy: 'model', renderedText: 'Draft', checks: [{ check: 'house-style', passed: false, detail: 'An em dash.' }] });
   const practice = await seedRun(env, order, { status: 'ready-for-review', servedBy: 'model', renderedText: 'Draft', practice: true });
-  const waiting = await seedRun(env, order, { status: 'waiting-for-you', servedBy: 'model' });
+  const waiting = await seedRun(env, order, { status: 'working', servedBy: 'model' });
   for (const run of [template, failed, practice, waiting]) assert.equal(await requestSignoffForRun(env.deps, owner, viewOf(env, run.id)), null, run.servedBy);
   assert.deepEqual(listRecords(env.store.read(), 'venture-ca-firm').filter(item => item.entry === 'signoff-request'), []);
 
@@ -172,8 +172,8 @@ test('no CA request for unregulated work, practice drafts, failed checks, templa
 test('native delivery completion asks the CA after review readiness, and a failure there never fails the run', async () => {
   const source = await readFile(new URL('../runtime/venture/delivery/runs.ts', import.meta.url), 'utf8');
   const completion = source.slice(source.indexOf("if (result.status === 'completed')"), source.indexOf('} catch (error)', source.indexOf("if (result.status === 'completed')")));
-  assert.ok(completion.includes("current.status !== 'ready-for-review'"));
-  const ready = completion.indexOf('reviewReady: true'), signoff = completion.indexOf('module.requestSignoffForRun(deps, ctx, run)');
+  assert.ok(completion.includes("!allows('finishJob', current)"));
+  const ready = completion.indexOf('tx.replace(finishJob(current))'), signoff = completion.indexOf('module.requestSignoffForRun(deps, ctx, run)');
   assert.ok(ready >= 0 && signoff > ready, 'CA request follows settled native quality and review readiness');
   assert.match(completion, /await import\('\.\.\/playbooks\/ca-firm\/delivery-signoff\.ts'\)\.then\(module => module\.requestSignoffForRun\(deps, ctx, run\)\)\.catch\(\(\) => null\);/);
 });

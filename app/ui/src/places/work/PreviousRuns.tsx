@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
+import { fixedWords } from '../today/plan-words';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Avatar, type AvatarState } from '../../parts/Avatar';
@@ -102,7 +103,7 @@ function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
   return (
     <Row
       id={`run-${run.runId}`} dense mark={<Avatar name={run.agent} state={RINGS[run.state]} size={32} />}
-      title={run.purpose} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
+      title={fixedWords(t)(run.purpose)} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
       onOpen={(origin) => { again.opened(); openSheet('run', run.runId, origin); }}
     >
       {again.ask}

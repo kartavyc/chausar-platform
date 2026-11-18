@@ -124,7 +124,7 @@ const FACT_RULES: readonly FactRule[] = Object.freeze([
   },
   {
     pattern: /\b(?:gstin|gst number|gst registration|registered for gst|gst registered|tax registration|vat number)\b/i,
-    holds: ({ venture }) => (venture.country ? "Chausar already holds the business's tax registration from its interview. Read it in Business." : null),
+    holds: ({ venture }) => (venture.country ? "Chausar already holds the business's tax registration from its interview. Read it in Settings, Prices." : null),
   },
   {
     pattern: /\b(?:which|what) currency\b/i,

@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -7,7 +7,9 @@ import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Tile } from '../../parts/Tile';
 import { PriceGuideList } from '../../parts/PriceSources';
-import type { BlueprintLite, BlueprintPatchLite, OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types';
+import type { BlueprintLite, BlueprintPatchLite, OfferLite, OfferUnit, PriceGuideView, ReceiptLite } from '../../engine/types';
+import { OFFER_UNITS } from '../../../../../platform/runtime/venture/core/offer-units';
+import { Select } from '../../parts/Select';
 import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
@@ -22,7 +24,10 @@ import { LoadingPlace } from '../../parts/Skeleton';
  * task 33 (founder decision 1): the owner's own Save is the one press on that exact price, so it applies at once and
  * the engine's line comes back with Undo, until a quote, an order or an invoice uses it. A price from anywhere else waits
  * on Today (B4 task 7: one press, with an Undo). Nothing is added up or formatted here. A price that is a share of an amount
- * the client confirms later is the price editor's advanced option, one fold away (W5 5A2, SharePrice.tsx).
+ * the client confirms later is the price editor's advanced option, one fold away (W5 5A2, SharePrice.tsx). The unit an
+ * offer is priced in (per month, per piece, per visit) is the owner's to choose too: a change is the unit alone, never
+ * an amount. It is the owner's own setting as the price is, so it applies at once with the engine's line and Undo
+ * (seen on Windows, 15 Nov 2026: a unit changed and changed back made the owner accept the whole plan again).
  */
 export function PricesView() {
   const t = useT();
@@ -31,7 +36,7 @@ export function PricesView() {
   if (plan.error) return <p className={s.problem} role="alert">{t('business.failed', { message: plan.error.message })}</p>;
   if (plan.data === undefined) return <LoadingPlace shape="settings" />;
   if (plan.data === null) {
-    return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
+    return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.week.onToday'), href: '#/today' }]} />;
   }
   const { blueprint, offerReceipts, priceGuide } = plan.data;
   return (
@@ -78,6 +83,10 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // Save pressed with nothing typed. Said only while the box is empty and the offer is as it was: it leaves when the
+  // owner types, and when the offer's price or unit changes (it used to stay under an offer whose price had saved).
+  const [needPrice, setNeedPrice] = useState(false);
+  useEffect(() => { setNeedPrice(false); }, [offer.pricing.unitPriceMinor, offer.pricing.quantityUnit]);
   // C4 task 33: the engine's decided line for the owner's own price, with the row its Undo takes; then the Undo's line.
   const [decided, setDecided] = useState<{ line: string; undoRowId: string | null } | null>(null);
   const priced = offer.pricing.unitPriceMinor !== null;
@@ -98,9 +107,10 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!typed.trim()) { setProblem(t('business.typePrice')); return; }
+    if (!typed.trim()) { setProblem(null); setNeedPrice(true); return; }
     setBusy(true);
     setProblem(null);
+    setNeedPrice(false);
     setDecided(null);
     try {
       const view = await client.request('venture.blueprint.update', { patch: { offers: [{ id: offer.id, unitPrice: typed.trim() }] }, ownerSave: true });
@@ -114,6 +124,32 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
       setBusy(false);
     }
   }
+
+  /**
+   * The unit the offer is priced in (the engine's core/offer-units.ts): sent alone; the engine keeps the price as typed.
+   * The owner's own Save, as a price is: on an accepted plan it applies at once and the engine's line comes with Undo.
+   */
+  async function setUnit(unit: OfferUnit) {
+    setBusy(true);
+    setProblem(null);
+    setNeedPrice(false);
+    setDecided(null);
+    try {
+      const view = await client.request('venture.blueprint.update', { patch: { offers: [{ id: offer.id, unit }] }, ownerSave: true });
+      if (view.decided) setDecided(view.decided);
+      await quoteAgain(client);
+      onChanged();
+    } catch (error) {
+      setProblem(t('business.saveFailed', { message: messageOf(error) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const unitChoice = (
+    <Select aria-label={t('business.unitOf', { offer: offer.name.value })} value={offer.pricing.quantityUnit} disabled={busy} onChange={(event) => void setUnit(event.currentTarget.value as OfferUnit)}>
+      {OFFER_UNITS.map((unit) => <option key={unit} value={unit}>{t(`business.unit.${unit}`)}</option>)}
+    </Select>
+  );
 
   async function undo(rowId: string) {
     setBusy(true);
@@ -138,7 +174,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
         <div className={s.priceBlock} data-figure-group="">
           <div className={s.price}>
             <Figure value={total} receiptId={receipt.id} size="tile" />
-            <span className={s.unit}>{t(`business.unit.${offer.pricing.quantityUnit}`)}</span>
+            {unitChoice}
           </div>
           <Fold summary={t('business.howWorkedOut')} className={s.fold}>
             <div className={s.foldBody}>
@@ -159,13 +195,14 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
           {/* W5 5A2: an offer priced as a share reads as the owner set it (SharePrice.tsx). */}
           {offer.pricing.share ? <ShareAtRest offer={offer} /> : <span className={s.quiet}>{priced ? t('business.notPriced') : t('business.priceNotSet')}</span>}
           {priced && <Button size="sm" disabled={busy} onClick={() => void workOut()}>{t('business.workOut')}</Button>}
+          {!offer.pricing.share && unitChoice}
         </div>
       )}
       <form className={s.priceForm} onSubmit={(event) => void save(event)}>
         <Field
           label={t('business.priceField', { offer: offer.name.value, currency })}
           hint={t('business.priceNote')} inputMode="decimal" autoComplete="off" value={typed}
-          onChange={(event) => setTyped(event.currentTarget.value)}
+          onChange={(event) => { setTyped(event.currentTarget.value); setNeedPrice(false); }}
         />
         <div className={s.formEnd}><Button variant="primary" type="submit" disabled={busy}>{t('business.savePrice')}</Button></div>
       </form>
@@ -176,6 +213,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
           {decided.undoRowId && <> <Button size="sm" disabled={busy} onClick={() => void undo(decided.undoRowId!)}>{t('approval.undo')}</Button></>}
         </p>
       )}
+      {needPrice && !typed.trim() && !problem && <p className={s.problem} role="alert">{t('business.typePrice')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </Tile>
   );
@@ -187,6 +225,11 @@ const bpsOf = (percent: string) => String(Math.round(Number(percent) * 100));
 /**
  * C5 task 13: "I charge GST". The fields appear only after the switch; every change goes through venture.blueprint.update
  * as a price does, and the engine checks the GSTIN (core/tax-fields.ts). E-invoicing stays out of scope.
+ *
+ * Found on the real app, 16 November 2026: while the plan's answer is Chausar's own assumption (the owner never said),
+ * Today asks the owner to confirm it, and a tick left off was no answer, so the card never left. Until the owner has
+ * said, this asks, with No and Yes: No is one press, sent as the owner's own answer (ownerSave; core/owner-tax.ts), and
+ * the engine's line comes back; Yes opens the rate, the GSTIN and Save. Once said, it is the tick, the owner's setting.
  */
 function GstSwitch({ office, onChanged }: { office: BlueprintLite['backOffice']; onChanged: () => void }) {
   const t = useT();
@@ -197,23 +240,46 @@ function GstSwitch({ office, onChanged }: { office: BlueprintLite['backOffice'];
   const [gstin, setGstin] = useState(office.taxId ?? '');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  async function send(patch: BlueprintPatchLite) {
+  /** The engine's line for the owner's own answer ("You said you do not charge GST."). */
+  const [said, setSaid] = useState<string | null>(null);
+  const unanswered = office.taxRegistered.label !== 'told-by-you';
+  async function send(patch: BlueprintPatchLite, own = false) {
     setBusy(true);
     setProblem(null);
-    try { await client.request('venture.blueprint.update', { patch }); await quoteAgain(client); onChanged(); return true; }
+    setSaid(null);
+    try {
+      const view = await client.request('venture.blueprint.update', own ? { patch, ownerSave: true } : { patch });
+      if (view.decided) setSaid(view.decided.line);
+      await quoteAgain(client);
+      onChanged();
+      return true;
+    }
     catch (error) { setProblem(t('business.saveFailed', { message: messageOf(error) })); return false; }
     finally { setBusy(false); }
   }
   async function flip(next: boolean) {
     setOn(next);
-    if (!next && office.taxRegistered.value) await send({ taxRegistered: false });
+    setSaid(null);
+    // Off, where the owner had said yes: that answer is the owner's own too. Off over an assumption goes back to the question.
+    if (!next && office.taxRegistered.value) await send({ taxRegistered: false }, true);
   }
   return (
     <section className={s.gst} aria-labelledby={headId}>
-      <label className={s.agree} id={headId}>
-        <input type="checkbox" checked={on} disabled={busy} onChange={(event) => void flip(event.currentTarget.checked)} />
-        {t('business.gst.switch')}
-      </label>
+      {unanswered && !on ? (
+        <>
+          <p className={s.line} id={headId}>{t('business.gst.ask', { tax: office.taxLabel })}</p>
+          <div className={s.buttons}>
+            <Button disabled={busy} aria-busy={busy || undefined} onClick={() => void send({ taxRegistered: false }, true)}>{t('business.gst.no', { tax: office.taxLabel })}</Button>
+            <Button disabled={busy} onClick={() => setOn(true)}>{t('business.gst.yes', { tax: office.taxLabel })}</Button>
+          </div>
+        </>
+      ) : (
+        <label className={s.agree} id={headId}>
+          <input type="checkbox" checked={on} disabled={busy} onChange={(event) => void flip(event.currentTarget.checked)} />
+          {t('business.gst.switch')}
+        </label>
+      )}
+      {said && <p className={s.note} role="status">{said}</p>}
       {on && (
         <form className={s.form} onSubmit={(event: FormEvent) => { event.preventDefault(); const taxId = gstin.trim(); void send({ taxRegistered: true, taxRate: rate.trim(), ...(taxId ? { taxId } : {}) }); }}>
           <Field label={t('business.gst.rate')} hint={t('business.gst.rateHint')} inputMode="decimal" list="gst-rates" value={rate} disabled={busy} onChange={(event) => setRate(event.currentTarget.value)} />

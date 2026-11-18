@@ -9,6 +9,7 @@ import {CAREER_META} from './career-metadata';
 import type { BlueprintViewLite, OfferIntakeLite, PricingModel, ServiceType } from './types';
 import planPicks from './fixtures-kit-plan-picks.json';
 import registryPicks from './fixtures-playbook-picks.json';
+import { pickedBy } from '../../../../platform/runtime/venture/core/service-keywords';
 import { SEO_FAKE_META } from './fake-seo-visibility';
 import { BOOKKEEPING_FAKE_METADATA } from './fake-bookkeeping-cfo';
 import { SELLER_FAKE_METADATA } from './fake-online-seller';
@@ -36,13 +37,9 @@ const KITS = planPicks.map(plan => {
  if (!kit) throw new Error('A landed kit has no browser metadata for ' + plan.id);
  return kit;
 });
-/** Pick only a landed kit's own explicit phrases, preserving the registry's precedence. */
+/** The landed kit an idea picks, by the engine's own rule (core/service-keywords.ts pickedBy) over the registry's phrases. */
 export function fakeKitForIdea(idea: string): FakeKitMetadata | null {
- const text = idea.toLowerCase().replace(/\s+/g, ' ');
- let best: string | null = null, length = 0;
- for (const entry of registryPicks) for (const pick of entry.picks) {
-  if (pick.length > length && text.includes(pick)) { best = entry.id; length = pick.length; }
- }
+ const best = pickedBy(idea, registryPicks)?.id ?? null;
  return KITS.find(kit => kit.registration.id === best) ?? null;
 }
 /** Internal validation still needs a kit schema when the public plan omits an empty ask. */

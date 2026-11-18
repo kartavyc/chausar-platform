@@ -98,18 +98,6 @@ export function insertFacts(state: State, inputs: FactInput[], learnedAt: string
 export class MemoryService {
   store: StateStore;
   constructor(store: StateStore) { this.store = store; }
-  query(ctx: Context, filter: FactFilter = {}) { return selectFacts(this.store, ctx, filter); }
-  history(ctx: Context, entityId: string) { authorize(this.store, ctx); return structuredClone(this.store.read().facts.filter(f => f.entityId === entityId && canSeeFact(this.store, ctx, f))); }
-  suggestCustomerMatch(ctx: Context, leftId: string, rightId: string) {
-    authorize(this.store, ctx); const selected = selectFacts(this.store, ctx).facts;
-    const identity = (id: string) => { const facts = selected.filter(f => f.fields.customerId === id); check(facts.length > 0, 'CUSTOMER_NOT_FOUND', 'Both customers must exist under your current access.'); return { gstins: [...new Set(facts.map(f => f.fields.gstin).filter(gstinValid))], pans: [...new Set(facts.map(f => f.fields.pan).filter((v): v is string => typeof v === 'string' && /^[A-Z]{5}\d{4}[A-Z]$/.test(v)))] }; };
-    const left = identity(leftId), right = identity(rightId);
-    if (left.gstins.length === 1 && right.gstins.length === 1 && left.gstins[0] === right.gstins[0]) return { leftId, rightId, relation: 'same-tax-registration', confidence: 'exact-reviewed-field', requiresApproval: true, reason: 'Identical valid GST registrations; customer merges still require approval.' };
-    const leftPans = [...left.pans, ...left.gstins.map(g => g.slice(2, 12))], rightPans = [...right.pans, ...right.gstins.map(g => g.slice(2, 12))];
-    if (leftPans.some(p => rightPans.includes(p))) return { leftId, rightId, relation: 'same-owner-separate-registrations', confidence: 'exact-reviewed-field', requiresApproval: true, reason: 'A PAN links an owner; it does not merge branch registrations or unpaid balances.' };
-    if (leftPans.length && rightPans.length) return { leftId, rightId, relation: 'cannot-match-tax-identities', confidence: 'conflicting-reviewed-fields', requiresApproval: true, reason: 'The published tax identities disagree. No automatic match is allowed.' };
-    return { leftId, rightId, relation: 'abstain', confidence: 'insufficient-evidence', requiresApproval: true, reason: 'Names, phone numbers and email are suggestions only; no reviewed common tax identity is available.' };
-  }
   async append(ctx: Context, inputs: FactInput[], options: { testLearnedAt?: string } = {}) {
     authorize(this.store, ctx, 'prepare');
     check(!options.testLearnedAt || this.store.read().workspace.demo, 'TEST_CLOCK_FORBIDDEN', 'A labelled demo workspace is required for the test clock.');
@@ -121,19 +109,5 @@ export class MemoryService {
     authorize(this.store, ctx, 'prepare'); const old = this.store.read().facts.find(f => f.id === factId);
     check(old && canSeeFact(this.store, ctx, old), 'FACT_NOT_FOUND', 'This fact is unavailable under your current access.');
     return this.append(ctx, [{ entityId: old.entityId, sourceId: old.sourceId, sourceRow: old.sourceRow, kind: old.kind, validFrom: old.validFrom, validTo: old.validTo, branch: old.branch, fields: { ...old.fields, ...fields } }], options);
-  }
-  async setSourcePrecedence(ctx: Context, kind: string, sourceIds: string[]) {
-    authorize(this.store, ctx, 'admin'); check(sourceIds.every(s => typeof s === 'string') && new Set(sourceIds).size === sourceIds.length, 'INVALID_SOURCE_RULE', 'Give a unique ordered source list, or an empty list to require agreement.');
-    return this.store.update(state => { authorize(this.store, ctx, 'admin'); const rule = { id: newId('rule'), kind, sourceIds: [...sourceIds], at: now(), by: ctx.memberId }; state.sourceRules.push(rule); markStale(state, 'Source precedence changed.'); audit(state, 'source-rule.published', { kind, sources: sourceIds }); return rule; });
-  }
-  async merge(ctx: Context, entityIds: string[], targetId: string) {
-    authorize(this.store, ctx, 'admin'); check(entityIds.length >= 2 && new Set(entityIds).size === entityIds.length && entityIds.includes(targetId), 'INVALID_MERGE', 'A merge needs unique customers and a target among them.');
-    const known = new Set(selectFacts(this.store, ctx).facts.map(f => f.fields.customerId)); check(entityIds.every(id => known.has(id)), 'CUSTOMER_NOT_FOUND', 'Every merged customer must exist in your current access.');
-    return this.store.update(state => { authorize(this.store, ctx, 'admin'); const merge = { id: newId('merge'), type: 'merge', entityIds: [...entityIds], targetId, at: now(), by: ctx.memberId }; state.merges.push(merge); resolveCustomer(state, entityIds[0], merge.at); markStale(state, 'Customer identity changed.'); audit(state, 'customer.merged', { mergeId: merge.id }); return merge; });
-  }
-  async undoMerge(ctx: Context, mergeId: string) {
-    authorize(this.store, ctx, 'admin'); check(this.store.read().merges.some(m => m.id === mergeId && m.type === 'merge'), 'MERGE_NOT_FOUND', 'The merge was not found.');
-    check(!this.store.read().merges.some(m => m.type === 'undo' && m.mergeId === mergeId), 'ALREADY_UNDONE', 'This merge was already undone.');
-    return this.store.update(state => { authorize(this.store, ctx, 'admin'); const event = { id: newId('merge_undo'), type: 'undo', mergeId, at: now(), by: ctx.memberId }; state.merges.push(event); markStale(state, 'Customer merge was undone.'); audit(state, 'customer.merge-undone', { mergeId }); return event; });
   }
 }

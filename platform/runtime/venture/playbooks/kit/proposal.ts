@@ -31,6 +31,7 @@ import type { KitOffer, PlaybookDefinition } from './define.ts';
 import { kitDefinitionOf, parkOutsideScope, scopeOf } from './exit.ts';
 import { scopeInputPhrase } from './scope-input-phrases.ts';
 import { PILOT_AFTER_ASKS, PILOT_UNPRICED_LINE, pilotOf, type PilotTerms } from './pilot.ts';
+import { UNIT_WORDS } from '../../core/offer-units.ts';
 import type {
   SalesPilotTerms, SalesProposalBody, SalesProposalCheck, SalesProposalInvestment, SalesProposalScope, SalesProposalSection, SalesProposalSectionId,
   SalesProposalView,
@@ -55,7 +56,8 @@ const OUTSIDE_LINE = 'This is outside what your business does, so nothing was dr
 const APPROVED_LINE = 'Approved. Open it in Clients to send it yourself; Chausar never sends it.';
 const APPROVED_VIEW_LINE = 'You approved it. Send it yourself from here; Chausar never sends it.';
 const SENT_BY_YOU = 'Chausar never sends it.';
-const UNIT: Readonly<Record<Offer['pricing']['quantityUnit'], string>> = Object.freeze({ month: 'per month', project: 'per project', hour: 'per hour' });
+/** How a price in each unit is said (core/offer-units.ts): "per piece". */
+const UNIT: Readonly<Record<Offer['pricing']['quantityUnit'], string>> = UNIT_WORDS;
 
 /**
  * An amount typed in words, as people write money: a currency sign or code before digits (₹, Rs, INR), or digits before

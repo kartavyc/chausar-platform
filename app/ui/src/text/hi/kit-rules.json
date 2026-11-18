@@ -75,5 +75,6 @@
   "kit-rules.chain.state.waiting": "इंतज़ार",
   "kit-rules.chain.state.not-started": "शुरू नहीं हुआ",
   "kit-rules.chain.state.stopped": "रुका हुआ",
-  "kit-rules.chain.boundary": "मंज़ूर करने से लेखन का अगला चरण शुरू होता है। भेजने और प्रकाशित करने के लिए अलग मंज़ूरी चाहिए।"
+  "kit-rules.chain.boundary": "मंज़ूर करने से लेखन का अगला चरण शुरू होता है। भेजने और प्रकाशित करने के लिए अलग मंज़ूरी चाहिए।",
+  "kit-rules.back": "काम"
 }

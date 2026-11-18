@@ -10,11 +10,11 @@ import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { flagshipDelivery, type FlagshipDelivery } from '../playbooks/steps.ts';
 import { AGENT_ID, agentName } from '../views/shared.ts';
 import { holderOf, retirements } from './retired.ts';
+// What the one delivery agent of the eight fixed steps does (views/team.ts says the same), where the fake engine reads it too.
+import { DELIVERY_JOB } from './order-agents-core.ts';
 
 /** Keeper's id on Team (4A1): the engine's own jobs, run as code. */
 export const KEEPER_ID = 'keeper';
-/** What the one delivery agent of the eight fixed steps does (views/team.ts says the same). */
-const DELIVERY_JOB = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
 /** Step kinds whose guidance the owner may change from chat: an agent's own steps and the writing step. */
 const GUIDED_KINDS: readonly PlaybookStep['kind'][] = ['gather', 'question', 'work', 'write'];
 

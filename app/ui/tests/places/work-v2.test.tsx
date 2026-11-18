@@ -59,6 +59,15 @@ const withAgain = (change: Partial<QueueRow['actions'][number]>): Intercept => a
   const rows = sent.rows.map((row) => (row.id !== 'q-run-again-thumbs' ? row : { ...row, actions: row.actions.map((a) => (a.id === 'run-again' ? { ...a, ...change } : a)) }));
   return { ...sent, rows };
 };
+/**
+ * Ledgerline's finished Bookkeeper run as the engine lists it in Ledgerline. The engine and the fake list the open
+ * business's runs only, so a list holding two businesses' runs is made here, for the chips that handle one.
+ */
+async function ledgerlineRuns(): Promise<RunSummary[]> {
+  const engine = new FakeEngine();
+  await engine.request('workspace.open', { folder: 'ledgerline' });
+  return ((await engine.request('venture.runs.list', { state: 'all' })) as { runs: RunSummary[] }).runs;
+}
 const doneRun = (runId: string, purpose: string): RunSummary => ({
   runId, businessId: 'lumen', agent: 'Editor', purpose, state: 'done', startedAt: '2026-10-20T07:00:00.000Z', elapsed: '3 min', result: 'Done.', receiptId: 'R-0412',
 });
@@ -115,7 +124,7 @@ describe('Work v2: the filter chips', () => {
   });
 
   it('offers a chip per business only when runs come from more than one, and a chosen business shows only its runs', async () => {
-    await start();
+    await start('#/work', { intercept: { 'venture.runs.list': withRuns(...await ledgerlineRuns()) } });
     const businesses = await screen.findByRole('group', { name: 'Business' });
     expect(within(businesses).getAllByRole('button').map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
     expect(within(businesses).getByRole('button', { name: 'Lumen Studio' })).toBeTruthy();
@@ -297,7 +306,7 @@ describe('Work v2: the failed run', () => {
 
 describe('Work v2: finished', () => {
   it('lists done runs with their result and receipt, or "model estimate" and no receipt', async () => {
-    await start();
+    await start('#/work', { intercept: { 'venture.runs.list': withRuns(...await ledgerlineRuns()) } });
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const books = await tileOf('Matched September bank lines to invoices', finished);
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
@@ -316,7 +325,7 @@ describe('Work v2: finished', () => {
 
   it('All lists the newest five, and "All finished jobs" leads to Done with every one', async () => {
     const more = ['Cut episode 9', 'Cut episode 10', 'Cut episode 11', 'Cut episode 12', 'Cut episode 13'].map((purpose, i) => doneRun(`f${i}`, purpose));
-    await start('#/work', { intercept: { 'venture.runs.list': withRuns(...more) } });
+    await start('#/work', { intercept: { 'venture.runs.list': withRuns(...await ledgerlineRuns(), ...more) } });
     const finished = await screen.findByRole('region', { name: 'Finished' });
     await within(finished).findByText('Matched September bank lines to invoices');
     expect(within(finished).getAllByRole('listitem')).toHaveLength(5);

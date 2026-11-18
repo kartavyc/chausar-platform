@@ -1,6 +1,6 @@
 # Ink, Chausar's React frontend
 
-One app for desktop (Electron) and the web, built to `app/ui/dist`. Spec: `chausar-private/docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md`. Plan: `chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. Visual reference: mockup A "Ink".
+One app for desktop (Electron) and the web, built to `app/ui/dist`. The first spec and plan are in the private repository (`chausar-private/docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md`, `chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`); later waves are listed in `AGENTS.md`. What each place shows is in `docs/venture/ink.md`.
 
 ## Commands (from the repo root)
 
@@ -17,13 +17,13 @@ Serving the built app: Ink is the only app. `npm start` (local server, Ink at `/
 
 ```
 index.html, public/theme.js    page shell; theme.js sets data-theme before the first paint
-assets/fonts                   7 OFL faces, notices and manifest (from the lane branch)
-src/tokens                     tokens.css (spec section 5 values), fonts.css, motion.css, base.css
+assets/fonts                   7 OFL faces, notices and manifest
+src/tokens                     tokens.css, fonts.css, fonts-hi.css, motion.css, base.css
 src/text                       en/*.json, hi/*.json (common.json plus one file per place), t() and plurals
 src/engine                     types.ts (shared contract), client.ts, events.ts, context.tsx, fake*.ts, fixtures*.ts
 src/shell                      App, Rail, BusinessMenu, routes, navigation, keys, sheets, places registry
 src/parts                      Row, ApprovalRow, Change, Receipt, ModelEstimate, Button, Sheet, RunSheet, Steps,
-                               JobList, EmptyState, Field, Gate, Provenance, ConnectorLabel, StatusLine, PageTitle
+                               EmptyState, Field, Gate, Provenance, ConnectorLabel, StatusLine, PageTitle
 src/places/<place>/index.tsx   one folder per place, exporting Place (and optionally sheets)
 tests                          one file per area; parts, shell, engine, text, tokens, source rules, axe (a11y.test.tsx),
                                text contrast from the tokens (contrast.test.ts), the desktop IPC allowlist

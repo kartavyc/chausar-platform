@@ -18,13 +18,14 @@ import { Receipt } from '../../parts/Receipt';
 import { splitFigure } from '../../parts/Figure';
 import { Row } from '../../parts/Row';
 import type { SpendRow } from '../../engine/types';
-import { Amount, EngineWords, Failed, SET_RATE_HREF, Section } from './parts';
+import { Amount, EngineWords, Failed, Section } from './parts';
 import { Meter } from './Meter';
 import { SpendPolicy } from './SpendPolicy';
 // W6 6G5 (D44): each agent's and each routine's spend this month with its own limit, one step away.
 import { SpendMeters, SpendMetersToggle } from './SpendMeters';
 import { WriteLimits } from '../connections/WriteLimits';
 import { onRuns } from './words';
+import { fixedWords } from '../today/plan-words';
 import s from './Money.module.css';
 
 export function Spend() {
@@ -36,12 +37,11 @@ export function Spend() {
   const [byWho, setByWho] = useState(false);
   const metersId = useId();
   const rows = spend.data?.rows ?? [];
-  // 4Z3: the month's total as the engine says it leads (rupees or dollars first); C4 T23: in that currency alone. Without
-  // a rupee rate, the dollars and the way to set one.
+  // 4Z3: the month's total as the engine says it leads (rupees or dollars first); C4 T23: in that currency alone.
+  // Re-check 7: "On your own AI plan" is Chausar's own words, said in the owner's language; a figure stays as sent.
   const total = spend.data && (
     <p className={s.total}>
-      <EngineWords><Amount text={spend.data.totalLead?.figure ?? spend.data.total} /></EngineWords>
-      {spend.data.needsRate && <> <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a></>}
+      <EngineWords><Amount text={fixedWords(t)(spend.data.totalLead?.figure ?? spend.data.total)} /></EngineWords>
     </p>
   );
 

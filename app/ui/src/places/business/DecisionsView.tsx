@@ -99,7 +99,9 @@ export function DecisionsView() {
                   )}
                   // The engine's own words; an amount it named in what was decided has no receipt here (NOTES item 30).
                   title={href ? <a href={href} data-engine-line="">{decision.line}</a> : <span data-engine-line="">{decision.line}</span>}
-                  line={decision.rule ? t('business.decisions.rule', { rule: decision.rule }) : decision.reason !== decision.line ? <span data-engine-line="">{decision.reason}</span> : undefined}
+                  // The engine's line already holds the reason for a member's decision ("You decided: ..."), so it is
+                  // said once: the reason shows beneath only when the line does not hold it.
+                  line={decision.rule ? t('business.decisions.rule', { rule: decision.rule }) : decision.reason && !decision.line.includes(decision.reason) ? <span data-engine-line="">{decision.reason}</span> : undefined}
                   actions={auto && stepId ? (
                     <Button disabled={busy} onClick={() => void stopAllowing(decision, auto.agentId, stepId, auto.purpose)}>{t('business.decisions.stopAllowing')}</Button>
                   ) : undefined}

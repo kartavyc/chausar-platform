@@ -64,6 +64,14 @@ test('B1 fix 1: a branded refusal carries owner: true as plain data, through JSO
   assert.deepEqual(ownerError(refusal), { code: 'GSC_EXPORT_INVALID', message: 'Give the Search Console export.', owner: true });
 });
 
+test('the chat consent reaches the window whole: the engine\'s own words are not cut at the short bound', async () => {
+  const { chatConsentText } = await import('../runtime/venture/agents/consent.ts');
+  const text = chatConsentText({ presetId: 'openrouter', model: 'anthropic/claude-sonnet-5-5', connectionId: null, label: 'OpenRouter', withKey: true });
+  assert.ok(text.length > 512 && text.endsWith('Keys, passphrases and bank or card numbers are never sent.'));
+  assert.deepEqual(publicError(ownerError(new ChausarError('CHAT_CONSENT_REQUIRED', text))), { code: 'CHAT_CONSENT_REQUIRED', message: text, owner: true });
+  assert.deepEqual(publicError(ownerError(new ChausarError('CHAT_CONSENT_STALE', `Your AI connection changed since you agreed, so chats wait until you agree again. ${text}`))).message.endsWith('are never sent.'), true);
+});
+
 class Child extends EventEmitter {
   connected = true; sent: any[] = [];
   send(value: any, callback: (error?: Error) => void) { this.sent.push(value); callback(); }

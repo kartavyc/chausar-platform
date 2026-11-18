@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../text';
 import { Button, type ButtonSize } from './Button';
 import s from './Confirm.module.css';
@@ -19,6 +19,23 @@ export interface ConfirmProps {
   label?: string | undefined;
   /** Left out: Cancel, B1's one word for it. */
   cancelLabel?: string | undefined;
+}
+
+/**
+ * A button that asks once before it acts. `button` goes on the asking button, which the place leaves out while
+ * `asking`; `ask` is its press; `cancel` takes the ask away and gives the button the focus back; `done` takes the ask
+ * away after the action (the place says what happened).
+ */
+export function useSecondAsk() {
+  const [asking, setAsking] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const back = useRef(false);
+  useEffect(() => {
+    if (asking || !back.current) return;
+    back.current = false;
+    button.current?.focus();
+  }, [asking]);
+  return { asking, button, ask: () => setAsking(true), cancel: () => { back.current = true; setAsking(false); }, done: () => setAsking(false) };
 }
 
 /**
