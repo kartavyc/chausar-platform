@@ -6,10 +6,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
 import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS, VENTURE_RECORD_KINDS } from '../runtime/venture/contracts.ts';
-import type { ClientRecord, EvidenceItem, EvidenceRecord, ToolCallRecord, VentureDeps } from '../runtime/venture/contracts.ts';
+import type { ClientRecord, EvidenceItem, ToolCallRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { EVIDENCE_TYPES, scoreEvidence } from '../runtime/venture/evidence/types.ts';
-import { evidenceQuestions, recordEvidence, recordPlanEvidence } from '../runtime/venture/evidence/ledger.ts';
+import { evidenceQuestions, recordEvidence } from '../runtime/venture/evidence/ledger.ts';
 import { handlers as coreHandlers } from '../runtime/venture/core/index.ts';
 import { handlers as moneyHandlers } from '../runtime/venture/money/index.ts';
 import { modelLine } from '../runtime/venture/core/words.ts';
@@ -180,30 +180,7 @@ test('venture.evidence.list: every item or one subject, newest first, in the sha
 });
 
 // ---------------------------------------------------------------------------
-// 5. The hooks: a kept plan's AI-written business fields
-// ---------------------------------------------------------------------------
-
-test('a kept plan records its AI-written business fields as inferred evidence the owner applied by keeping the plan', async () => {
-  const { deps, store } = await setup();
-  const plan = {
-    name: modelLine('Night Shift Walkers', []), oneLiner: modelLine('Dog walks for nurses in Leeds.', []), customer: { value: 'Nurses in Leeds', label: 'told-by-you' as const, by: 'owner' as const },
-    offers: [{ id: 'offer_1', name: modelLine('Walks for 2 dogs', []), description: modelLine('Regular walks on long shifts.', []) }],
-  };
-  await ventureAction(deps, owner, 'admin', 'test.plan', tx => recordPlanEvidence(tx, plan));
-  const items = listRecords(store.read(), 'venture-evidence') as EvidenceRecord[];
-  assert.deepEqual(items.map(item => [item.field, item.type, item.claim, item.strength, item.applied]), [
-    ['name', 'model-inferred', 'inferred', 'weak', true],
-    ['oneLiner', 'model-inferred', 'inferred', 'weak', true],
-    ['customer', 'owner-entered', 'observed', 'verified', true],
-    ['offer_1.name', 'model-inferred', 'inferred', 'weak', true],
-    ['offer_1.description', 'model-inferred', 'inferred', 'weak', true],
-  ]);
-  assert.ok(items.every(item => item.subject === 'business'));
-  assert.match(items[0].source, /you kept/);
-});
-
-// ---------------------------------------------------------------------------
-// 6. Registration
+// 5. Registration
 // ---------------------------------------------------------------------------
 
 test('the two evidence methods are registered everywhere a venture method must be', async () => {
@@ -227,7 +204,7 @@ test('the two evidence methods are registered everywhere a venture method must b
 });
 
 // ---------------------------------------------------------------------------
-// 7. The number guard labels instead of refusing
+// 6. The number guard labels instead of refusing
 // ---------------------------------------------------------------------------
 
 test('model numbers are labelled estimates on plan lines and quality check reasons, never given a receipt', () => {

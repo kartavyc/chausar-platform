@@ -57,11 +57,20 @@ function entryDates(state: State, ventureId: string): IsoDate[] {
   return days;
 }
 
-/** billed, received and earned from one day to another, each with its calculator receipt. */
-async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRecord, from: IsoDate, to: IsoDate, notes: Set<string>): Promise<BooksFigure[]> {
+/**
+ * billed, received and earned from one day to another, each with its calculator receipt. A figure whose inputs did not
+ * change opens the receipt it already has, and nothing is written for it. For a screen (proveEmpty false) a figure
+ * that counts nothing is zero with no receipt: nothing is proved or kept for an empty sum, so a read writes nothing.
+ * For an answer that cites its figures (the chief's), an empty sum keeps its receipt too, once.
+ */
+async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRecord, from: IsoDate, to: IsoDate, notes: Set<string>, proveEmpty: boolean): Promise<BooksFigure[]> {
   const figures: BooksFigure[] = [];
   for (const { operation, label } of BOOKS_OPERATIONS) {
-    const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from, to }, currency: venture.country.currency });
+    const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from, to }, currency: venture.country.currency }, { reuse: true, skipEmpty: !proveEmpty });
+    if (receipt === null) {
+      figures.push({ operation, label, receiptId: null, minor: '0', display: formatMoney('0', venture.country.currency), stale: false });
+      continue;
+    }
     check(typeof receipt?.id === 'string' && typeof receipt.totalMinor === 'string' && /^-?\d+$/.test(receipt.totalMinor),
       'INVALID_VENTURE_REQUEST', 'The books gave an answer Chausar could not read.');
     check(receipt.currency === venture.country.currency, 'CURRENCY_CONFLICT', 'The books receipt must use this business currency.');
@@ -81,8 +90,17 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
  * ('2026-09'); from and to give exact days instead, and a missing one is taken from 'all'. Every default day is on the
  * owner's calendar. 4J4: when the period is one whole calendar month, previous gives the month before it, each figure
  * with its receipt, for "last month" beside this one; otherwise previous is null.
+ * It is a read: it never proves or keeps anything it has already kept, and a figure that counts nothing has no receipt
+ * (receiptId null), so empty books answer at once with nothing written.
  */
-export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BooksSummary> {
+export function booksSummary(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BooksSummary> {
+  return summarise(deps, ctx, payload, false);
+}
+/** The same summary for an answer that cites every figure (the chief's money tool): an empty sum has its receipt too. */
+export function booksSummaryProved(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BooksSummary> {
+  return summarise(deps, ctx, payload, true);
+}
+async function summarise(deps: VentureDeps, ctx: Context, payload: unknown, proveEmpty: boolean): Promise<BooksSummary> {
   const body = exactPayload(payload, ['period', 'from', 'to']);
   const { state, venture } = readVenture(deps, ctx);
   const custom = body.from !== undefined || body.to !== undefined;
@@ -99,10 +117,10 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
   check(from <= to, 'INVALID_VENTURE_REQUEST', 'The start date must be on or before the end date.');
 
   const currencyNotes = new Set<string>();
-  const figures = await booksFigures(deps, ctx, venture, from, to, currencyNotes);
+  const figures = await booksFigures(deps, ctx, venture, from, to, currencyNotes, proveEmpty);
   const whole = from.slice(0, 7) === to.slice(0, 7) && calendarMonth(from.slice(0, 7)).from === from && calendarMonth(from.slice(0, 7)).to === to;
   const before = whole ? calendarMonth(previousMonth(from.slice(0, 7))) : null;
-  const previous = before ? { month: before.month, label: before.display, period: { from: before.from, to: before.to }, figures: await booksFigures(deps, ctx, venture, before.from, before.to, currencyNotes) } : null;
+  const previous = before ? { month: before.month, label: before.display, period: { from: before.from, to: before.to }, figures: await booksFigures(deps, ctx, venture, before.from, before.to, currencyNotes, proveEmpty) } : null;
 
   const clients = listRecords(state, 'venture-client', venture.id);
   const openInvoices = newestFirst(listRecords(state, 'venture-invoice', venture.id))

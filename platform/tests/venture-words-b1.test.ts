@@ -1,19 +1,21 @@
 // One-shot B1 (W6-ALL-IDEAS section 4, "Stiff or confused replies" and "Tool jargon"): an agent's reply to a standing
-// order and the launch checklist in plain words.
+// order in plain words, and the plan's own setup moves say what to do, not which tool to open.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STANDING_REPLY } from '../runtime/venture/agents/proposals.ts';
-import { CHECKLIST_ITEMS } from '../runtime/venture/core/checklist.ts';
+import { seedPlan } from '../runtime/venture/chief/plan-core.ts';
 import { KEEPER_WORDS as AWAY_JOB_WORDS } from '../runtime/venture/delivery/away.ts';
 
 test('an agent answers a standing order plainly', () => {
   assert.equal(STANDING_REPLY, "Got it. I've proposed it as a new rule for you to approve.");
 });
 
-test('the launch checklist says what to do, not which tool to open', () => {
-  // B1 fix round 1 (spec 9): the checklist itself, not its source text.
-  assert.equal(CHECKLIST_ITEMS.find(item => item.id === 'builder')?.label, 'Build your website');
-  assert.equal(CHECKLIST_ITEMS.some(item => /Lovable|Replit/.test(item.label)), false);
+test('the plan a new business starts with says what to do, not which tool to open', () => {
+  // B1 fix round 1 (spec 9): the words themselves, not their source text. The launch checklist they stood in is gone;
+  // the chief's standing plan starts every business now (chief/plan-core.ts).
+  const plan = seedPlan({ today: '2026-11-11', accepted: false, ready: false, missing: [], clients: 0, invoicesIssued: 0, payments: 0, firstWeek: [], proposals: {} }, '2026-11-11T00:00:00.000Z');
+  assert.deepEqual(plan.moves.map(move => move.text), ['Accept your plan', 'Set your prices', 'Add your first client', 'Send your first invoice', 'Record your first payment']);
+  assert.equal(plan.moves.some(move => /Lovable|Replit|GitHub/.test(move.text)), false);
 });
 
 // Hands-on bug 19: the run sheet said "in rehearsal" for a normal order. That is the agent's setting (How much it asks
@@ -66,9 +68,7 @@ test('the engine calls an agent task a job and spells practice one way', async (
   const { RUN_SCOPE_POSTURE } = await import('../runtime/venture/views/runs.ts');
   assert.equal(RUN_SCOPE_POSTURE.shadow, 'with the agent practicing on real orders');
   const { EXPERIMENTAL_NOTE } = await import('../runtime/venture/money/books.ts');
-  const { EXPERIMENTAL_STORAGE_NOTICE } = await import('../runtime/venture/delivery/capabilities.ts');
   assert.equal(EXPERIMENTAL_NOTE, "Test version: practice here, don't send real invoices yet.");
-  assert.equal(EXPERIMENTAL_STORAGE_NOTICE, EXPERIMENTAL_NOTE);
 });
 
 // B1 fix round 1 (the founder's default): "Settled chats" are "Old chats", and the change line says so.

@@ -22,11 +22,11 @@ export const READS = [
   'venture.client.aiConsent.get', 'venture.client.aiDefault.get', 'venture.client.list', 'venture.compliance.get', 'venture.connectors.list',
   'venture.countries', 'venture.crm.client', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.list',
   'venture.crm.lists', 'venture.decisions.list', 'venture.delivery.changes', 'venture.delivery.list',
-  'venture.desk.get', 'venture.desk.list', 'venture.drills.list', 'venture.events', 'venture.evidence.list',
+  'venture.desk.get', 'venture.desk.list', 'venture.drills.list', 'venture.earlier.list', 'venture.events', 'venture.evidence.list',
   'venture.feedback.get', 'venture.files.list', 'venture.find', 'venture.get', 'venture.goNoGo.list', 'venture.goals.get',
   'venture.ideas.list', 'venture.improve.status', 'venture.invoice.get', 'venture.invoice.list',
   'venture.invoice.recurringList', 'venture.journal.chain', 'venture.journal.list', 'venture.judge.auto.get',
-  'venture.knowledge.list', 'venture.launch.status', 'venture.layout.get', 'venture.leads.list',
+  'venture.knowledge.list', 'venture.launch.status', 'venture.layout.get', 'venture.leads.find.tools', 'venture.leads.find.view', 'venture.leads.list',
   'venture.localApps.list', 'venture.mail.threads', 'venture.mcpRegistry.list', 'venture.memory.list',
   'venture.models.cli.status', 'venture.models.presets', 'venture.models.roles', 'venture.models.status',
   'venture.money.across', 'venture.money.aging', 'venture.money.cash', 'venture.money.flow', 'venture.money.margins',
@@ -54,6 +54,7 @@ export const READS = [
   'venture.trackers.list',
   'venture.trackers.get',
   'venture.events.get',
+  'venture.chief.plan.get',
 ] as const satisfies readonly MethodName[];
 
 export type ReadMethod = (typeof READS)[number];
@@ -98,6 +99,8 @@ type Entry = {
   /** A reload was asked for while one was on its way: it runs once more after it. */
   again: boolean;
   dropped: boolean;
+  /** Its answer was about a business that is gone (#forgetBusiness): the next reader to join reads it afresh. */
+  forgotten?: boolean;
 };
 
 const LOADING: ReadState<never> = Object.freeze({ data: undefined, error: undefined, loading: true });
@@ -111,6 +114,10 @@ export class ReadStore {
   #off: (() => void) | null = null;
   /** The business the engine's events last named: a write's own signal names it too. */
   #business = '';
+  /** How many holds are on (a business being left): while any is, no read is sent. */
+  #holds = 0;
+  /** The entries asked to load while held. */
+  #heldBack = new Set<Entry>();
 
   constructor(client: EngineClient) {
     this.#client = client;
@@ -142,6 +149,8 @@ export class ReadStore {
     }
     const reader: Reader = { changed, refreshOn };
     entry.readers.add(reader);
+    // Shared with a reader from before a business was left: its answer was forgotten, so it is read now.
+    if (entry.forgotten) this.#load(entry);
     const mine = entry;
     return () => {
       mine.readers.delete(reader);
@@ -154,6 +163,52 @@ export class ReadStore {
         if (!this.#entries.size) this.#quiet();
       });
     };
+  }
+
+  /**
+   * A business is being left (locked, switched away from, or closed for a new one): from now no read is sent, whatever
+   * asks for one, so nothing arrives at the engine between its lock and its open (seen live on Windows, 15 Nov 2026:
+   * the window's own reads in that gap made the open answer VAULT_BUSY). What the pages show stays as it is. `release`:
+   * the business is still open after all, and every read that was asked for goes once. `drop`: it is gone, so those
+   * reads are never sent; only an entry that never had an answer still loads, for whatever screen shows next.
+   *
+   * `drop` also forgets every answer about the business that is gone (#forgetBusiness). The app is drawn again on the
+   * business opened next, and its first drawing read whatever the store still held: for a moment Today showed the
+   * cards of the business just left, and each card asked the newly opened business for its own row (seen on Windows,
+   * 15 Nov 2026: one venture.queue.view refused QUEUE_ITEM_NOT_FOUND at every switch).
+   */
+  hold(): { release(): void; drop(): void } {
+    this.#holds += 1;
+    let over = false;
+    const end = (business: 'open' | 'gone') => {
+      if (over) return;
+      over = true;
+      this.#holds -= 1;
+      if (business === 'gone') this.#forgetBusiness();
+      if (this.#holds > 0) return;
+      const waiting = [...this.#heldBack];
+      this.#heldBack.clear();
+      for (const entry of waiting) if (business === 'open' || entry.asked === 0) this.#load(entry);
+    };
+    return { release: () => end('open'), drop: () => end('gone') };
+  }
+
+  /**
+   * Every answer about a business (a `venture.` read that was asked at least once) is forgotten. A page still on
+   * screen keeps showing what it showed (useResource holds its last answer) and asks nothing by this; a page drawn
+   * after it finds no answer, and reads afresh as it joins. A reply still on its way for a forgotten answer is not
+   * kept. Reads that are not about a business (the app's preferences, the list of businesses) stay as they are, and so
+   * does the entry itself: an engine event reads it again as ever.
+   */
+  #forgetBusiness(): void {
+    for (const entry of this.#entries.values()) {
+      if (!entry.method.startsWith('venture.') || entry.asked === 0) continue;
+      entry.state = LOADING;
+      entry.forgotten = true;
+      // A reply on its way was asked of the business that is gone: it is no longer the newest ask, so it is not kept.
+      entry.asked += 1;
+      this.#heldBack.delete(entry);
+    }
   }
 
   /** Read one entry again (a place's reload). */
@@ -196,9 +251,11 @@ export class ReadStore {
 
   #load(entry: Entry): void {
     if (entry.dropped) return;
+    if (this.#holds > 0) { this.#heldBack.add(entry); return; }
     if (entry.busy) { entry.again = true; return; }
     entry.busy = true;
     entry.again = false;
+    entry.forgotten = false;
     const mine = ++entry.asked;
     if (!entry.state.loading) this.#set(entry, { ...entry.state, loading: true });
     const settle = (next: (state: ReadState<unknown>) => ReadState<unknown>) => {
@@ -224,9 +281,33 @@ export class ReadStore {
   }
 }
 
-export interface Reads { store: ReadStore; client: EngineClient }
+/**
+ * 15 Nov 2026 (the first walk of the built Windows app): what the places ask about a business while the start-up check
+ * is out (BootScreen). The app's frame is mounted, hidden, during the check, and each of its places asked at once: 18
+ * requests refused VAULT_LOCKED at every start, before any business was open. While a hold is on, a `venture.` request
+ * waits here and nothing else does (the check's own workspace requests, the app's preferences).
+ */
+export interface Hold {
+  /** A business is open, or the check could not say: everything held goes to the engine now, in the order asked. */
+  release(): void;
+  /** No business is open: each held request is refused the way the engine would refuse it, and is never sent. */
+  refuse(): void;
+}
+type Held = { send: () => void; refuse: () => void };
+const HELD = (method: string) => method.startsWith('venture.');
+/** The engine's own words and code for a business that is not open (platform/runtime/engine.ts). */
+const closed = () => new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
+
+export interface Reads { store: ReadStore; client: EngineClient; hold: () => Hold }
 
 const made = new WeakMap<EngineClient, Reads>();
+/** The store of a client as a place holds it (useEngine's wrapped client), beside `made` for the raw one. */
+const stores = new WeakMap<EngineClient, ReadStore>();
+
+/** Holds every read of this client's store while a business is being left (ReadStore.hold). Either client will do. */
+export function holdReads(client: EngineClient): { release(): void; drop(): void } {
+  return (stores.get(client) ?? readsFor(client).store).hold();
+}
 
 const timedOut = (error: unknown) => (error as { code?: unknown } | null)?.code === 'REQUEST_TIMEOUT';
 
@@ -238,9 +319,23 @@ const timedOut = (error: unknown) => (error as { code?: unknown } | null)?.code 
 export function readsFor(raw: EngineClient): Reads {
   let reads = made.get(raw);
   if (reads) return reads;
-  const store = new ReadStore(raw);
+  // The hold (see Hold above): one at a time per client; a second ask while one is on joins it. Both the read store and
+  // a place's own request go through it.
+  let held: Held[] | null = null;
+  const settleHeld = (how: keyof Held) => { const waiting = held ?? []; held = null; for (const one of waiting) one[how](); };
+  const hold = (): Hold => { held ??= []; return { release: () => settleHeld('send'), refuse: () => settleHeld('refuse') }; };
+  const ask = ((method: MethodName, params?: unknown) => {
+    const waiting = held;
+    if (!waiting || !HELD(method)) return raw.request(method, params as ParamsOf<MethodName>) as Promise<unknown>;
+    return new Promise((resolve, reject) => {
+      waiting.push({ send: () => { try { (raw.request(method, params as ParamsOf<MethodName>) as Promise<unknown>).then(resolve, reject); } catch (error) { reject(error); } }, refuse: () => reject(closed()) });
+    });
+  }) as EngineClient['request'];
+  const store = new ReadStore(new Proxy(raw, {
+    get: (target, property, receiver) => (property === 'request' ? ask : Reflect.get(target, property, receiver)),
+  }));
   const request = ((method: MethodName, params?: unknown) => {
-    const sent = raw.request(method, params as ParamsOf<MethodName>) as Promise<unknown>;
+    const sent = ask(method, params as ParamsOf<MethodName>) as Promise<unknown>;
     if (kindOf(method, params) !== 'write') return sent;
     return sent.then(
       (answer) => { store.written(); return answer; },
@@ -250,7 +345,8 @@ export function readsFor(raw: EngineClient): Reads {
   const client = new Proxy(raw, {
     get: (target, property, receiver) => (property === 'request' ? request : Reflect.get(target, property, receiver)),
   });
-  reads = { store, client };
+  reads = { store, client, hold };
   made.set(raw, reads);
+  stores.set(client, store);
   return reads;
 }

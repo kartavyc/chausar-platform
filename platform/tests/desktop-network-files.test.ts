@@ -134,7 +134,7 @@ test('main.cjs registers the network:pickFile channel, and the preload exposes i
     loadURL(url: string) { this.webContents.mainFrame.url = url; }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
-  class Harness extends EventEmitter { state = 'ready'; async start() {} async request() { return {}; } async updateJobLifecycle() { return { applied: true }; } async stop() { return { graceful: true }; } }
+  class Harness extends EventEmitter { state = 'ready'; async start() {} async request() { return {}; } async stop() { return { graceful: true }; } }
   const electron = {
     app, BrowserWindow: Window, Tray: class { setToolTip() {} setContextMenu() {} destroy() {} }, powerMonitor: new EventEmitter(), Menu: { buildFromTemplate: (items: any) => items },
     nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, shell: {},
@@ -237,22 +237,29 @@ test('the worker stops when its parent goes away, mid-read', async () => {
   const path = join(directory, 'long.mbox');
   try {
     const { open } = await import('node:fs/promises');
-    const handle = await open(path, 'w');
-    await handle.write('From a@b Thu Oct 02 04:00:00 +0000 2026\nDate: Thu, 2 Oct 2026 04:00:00 +0000\nFrom: A <a@b.example>\nTo: o@o.example\n\n');
-    const block = 'a body line of the mail that goes on and on\n'.repeat(23_000);
-    for (let i = 0; i < 80; i += 1) await handle.write(block);
-    await handle.close();
     const { fork } = require('node:child_process');
-    const child = fork(WORKER, [], { execArgv: ['--experimental-strip-types'], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json' });
-    const exited = new Promise<number>(resolve => child.once('exit', () => resolve(Date.now())));
-    let replied = false;
-    child.once('message', () => { replied = true; });
-    child.send({ path, kind: 'mail-headers', ownerAddresses: ['o@o.example'], maxSourceBytes: 1e12 });
-    await new Promise(resolve => setTimeout(resolve, 400));
-    const dropped = Date.now();
-    child.disconnect();
-    const lived = (await Promise.race([exited, new Promise<number>(resolve => setTimeout(() => resolve(Date.now() + 1e6), 5000))])) - dropped;
-    child.kill();
+    const block = 'a body line of the mail that goes on and on\n'.repeat(23_000);
+    // A fast disk reads the first file before the channel is dropped, so the file grows until the read outlasts the wait.
+    let replied = true;
+    let lived = Infinity;
+    for (const blocks of [80, 320, 1280]) {
+      const handle = await open(path, 'w');
+      await handle.write('From a@b Thu Oct 02 04:00:00 +0000 2026\nDate: Thu, 2 Oct 2026 04:00:00 +0000\nFrom: A <a@b.example>\nTo: o@o.example\n\n');
+      for (let i = 0; i < blocks; i += 1) await handle.write(block);
+      await handle.close();
+      const child = fork(WORKER, [], { execArgv: ['--experimental-strip-types'], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json' });
+      const exited = new Promise<number>(resolve => child.once('exit', () => resolve(Date.now())));
+      replied = false;
+      child.once('message', () => { replied = true; });
+      child.send({ path, kind: 'mail-headers', ownerAddresses: ['o@o.example'], maxSourceBytes: 1e12 });
+      await new Promise(resolve => setTimeout(resolve, 400));
+      if (replied) { child.kill(); await exited; continue; }
+      const dropped = Date.now();
+      child.disconnect();
+      lived = (await Promise.race([exited, new Promise<number>(resolve => setTimeout(() => resolve(Date.now() + 1e6), 5000))])) - dropped;
+      child.kill();
+      break;
+    }
     assert.equal(replied, false, 'it was still reading when the channel went');
     assert.ok(lived < 250, `the worker lived ${lived} ms after its channel to the app went`);
   } finally {

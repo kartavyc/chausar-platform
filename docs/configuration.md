@@ -51,9 +51,6 @@ Read by: desktop (the Electron app), worker (its engine process), server (the lo
 | `CHAUSAR_HOSTED_TRIAL_VAULT_BYTES` | The largest vault one hosted trial may keep, in bytes (1 MB to 256 MB). | Unset: the built-in size. | hosted |
 | `CHAUSAR_HOSTED_TRUST_PROXY` | How many trusted proxies stand in front of the hosted server (true means 1). | Unset: 0, the socket address is the client. | hosted |
 | `CHAUSAR_INK_ROOT` | The absolute folder of the built Ink app, set by the desktop for the engine's web host. | Unset: app/ui/dist beside the source. | desktop, engine |
-| `CHAUSAR_JOB_LEASE_MS` | The lease of a typed background job, in milliseconds (with the other two job variables). | Unset: typed jobs are off in that process. | engine |
-| `CHAUSAR_JOB_MAX_ACTIVE` | How many typed background jobs run at once (with the other two job variables). | Unset: typed jobs are off in that process. | engine |
-| `CHAUSAR_JOB_WORKER_ID` | The id this process uses to lease typed background jobs (with the other two job variables). | Unset: typed jobs are off in that process. | engine |
 | `CHAUSAR_PERF_STAND_IN` | A JSON file of stand-in measures for perf-budgets.mjs, read by that script only, so its test runs no measure. | Unset: the real measures run. | scripts |
 | `CHAUSAR_PORT` | The local web server's port. | Unset: 4317. | server |
 | `CHAUSAR_POSTGRES_URL` (secret) | The local server's PostgreSQL address, for real (non-demo) storage. | Unset: real storage cannot start; the demo uses file storage. | server |

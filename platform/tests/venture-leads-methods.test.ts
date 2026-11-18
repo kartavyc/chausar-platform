@@ -9,6 +9,7 @@ import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/ven
 import type { LeadView, OutreachDraftView, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers } from '../runtime/venture/build/index.ts';
+import { LEAD_SOURCE_WORDS, leadToOpportunity } from '../runtime/venture/customers/leads.ts';
 import { code, owner, phone, setup, type Env } from './venture-views-env.ts';
 import { net, personNamed } from './venture-network-env.ts';
 import { withPeople } from './venture-pipeline-env.ts';
@@ -46,7 +47,7 @@ test('the lead methods belong to the build package; only recording a send needs 
 test('venture.leads.add: a source page is required, and the email is checked for a mail server', async () => {
   const env = await setup();
   const { deps, asked } = withMx(env);
-  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Cafe Aroma', email: 'owner@aroma.example' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Cafe Aroma', email: 'owner@aroma.example' }), code('LEADS_SOURCE_REQUIRED'));
   await assert.rejects(call(deps, 'venture.leads.add', { name: 'Cafe Aroma', sourceUrl: 'not a page' }), code('LEADS_SOURCE_REQUIRED'));
 
   const lead = await call<LeadView>(deps, 'venture.leads.add', { name: 'Asha Rao', company: 'Cafe Aroma', email: 'Owner@Aroma.example', sourceUrl: SOURCE }, agent);
@@ -63,6 +64,38 @@ test('venture.leads.add: a source page is required, and the email is checked for
   const listed = await call<{ leads: LeadView[] }>(deps, 'venture.leads.list', {});
   assert.deepEqual(listed.leads.map(item => item.name), ['Meera', 'Ravi', 'Asha Rao'], 'newest first');
   assert.equal(listRecords(env.store.read(), 'venture-lead').length, 3);
+});
+
+// Found on Windows, 16 Nov 2026 (screen 211): Add a lead asks "Where you found them" and took only a web address,
+// so a referral or someone met at a fair could not be added. Where a lead came from still has to be said: a page for
+// anything found on the web (every agent, every search), or the owner's own words, kept as the owner's statement.
+test('the owner may say where a lead came from in their own words; an agent still needs the page', async () => {
+  const env = await setup();
+  const { deps } = withMx(env);
+  const referred = await call<LeadView>(deps, 'venture.leads.add', { name: 'Ravi Menon', company: 'Menon Traders', email: 'owner@aroma.example', sourceNote: '  Referred by Asha at the trade fair ' });
+  assert.deepEqual([referred.sourceUrl, referred.sourceNote, referred.addedBy, referred.emailCheck.status], [null, 'Referred by Asha at the trade fair', 'owner', 'verified']);
+  const paged = await call<LeadView>(deps, 'venture.leads.add', { name: 'Asha Rao', sourceUrl: SOURCE });
+  assert.deepEqual([paged.sourceUrl, paged.sourceNote], [SOURCE, null]);
+  // Only the owner, inside the app, states a source in words. An agent (the MCP channel) and the phone give the page.
+  const page = (error: any) => code('LEADS_SOURCE_REQUIRED')(error) && error.message === LEAD_SOURCE_WORDS.page;
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran', sourceNote: 'Referred by Asha' }, agent), page);
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran', sourceNote: 'Referred by Asha' }, phone), page);
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran' }, agent), page);
+  // The owner with neither is told both ways; words that say nothing, or a web address passed as words, are refused.
+  const either = (error: any) => code('LEADS_SOURCE_REQUIRED')(error) && error.message === LEAD_SOURCE_WORDS.either;
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran' }), either);
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran', sourceUrl: 'a friend told me' }), either);
+  for (const sourceNote of ['', '  ', 'ab', '12345', 'x'.repeat(201), 'two\nlines']) await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran', sourceNote }), either);
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran', sourceNote: 'https://directory.example/pune' }), (error: any) => code('LEADS_SOURCE_REQUIRED')(error) && error.message === LEAD_SOURCE_WORDS.pageAsWords);
+  await assert.rejects(call(deps, 'venture.leads.add', { name: 'Kiran', sourceUrl: SOURCE, sourceNote: 'Referred by Asha' }), code('INVALID_VENTURE_REQUEST'));
+  assert.equal(listRecords(env.store.read(), 'venture-lead').length, 2);
+  // Its pipeline card says whose word it is; a page's card says where it was found, as before.
+  assert.equal(leadToOpportunity(referred as never).history[0]!.evidence.line, 'You said: Referred by Asha at the trade fair');
+  assert.equal(leadToOpportunity(paged as never).history[0]!.evidence.line, 'Found on directory.example/pune/cafes');
+  // It can be drafted to like any lead (a verified email, the footer), and the draft says it has no page.
+  const made = await call<{ lead: LeadView; draft: OutreachDraftView }>(deps, 'venture.leads.draft', { leadId: referred.id, subject: 'Hello from Ledger Cafe Books', body: 'Asha said you may need monthly books.', postalAddress: '12 Lake Road, Pune 411001' });
+  assert.deepEqual([made.draft.sourceUrl, made.lead.status], [null, 'drafted']);
+  for (const words of Object.values(LEAD_SOURCE_WORDS)) assert.doesNotMatch(words, /\u2014/);
 });
 
 test('venture.leads.draft: blocklist first, a verified email, the postal address only from the owner, then a draft that sends nothing', async () => {

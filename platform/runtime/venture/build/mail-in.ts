@@ -17,7 +17,7 @@ import { ingestSupportMail } from '../playbooks/support-desk/ingest.ts';
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { InboundRecord, UploadFormat, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, identifier, listRecords, readVenture, requireAppChannel, singleLine, ventureAction } from '../records.ts';
-import { addressesOf, contentTypeOf, decodeTransfer, freshText, headerOf, messageIdsOf, mimeParts, readableText, readHeaders, type MailHeaders, type MimePart } from '../network/mail-text.ts';
+import { addressesOf, contentTypeOf, freshText, headerOf, messageIdsOf, mimeParts, readableText, readHeaders, type MailHeaders, type MimePart } from '../network/mail-text.ts';
 import { isBulk, mailboxOf } from '../network/mailbox.ts';
 import { HELD_SUBJECT, triageMail } from '../network/inbound.ts';
 import { screenNote, screenUntrusted } from '../policy/untrusted.ts';
@@ -334,10 +334,4 @@ export function threadForAgent(state: State, venture: VentureRecord, threadId: s
       attachments: (message.attachments ?? []).map(item => ({ id: item.id, name: item.name, format: item.contentBase64 ? item.format : null, bytes: item.bytes })),
     })),
   };
-}
-
-/** Decodes a stored attachment to text for a reader, when it is a text kind. */
-export function attachmentText(attachment: MailAttachment): string | null {
-  if (!attachment.contentBase64 || (attachment.format !== 'csv' && attachment.format !== 'transcript')) return null;
-  return decodeTransfer(Buffer.from(attachment.contentBase64, 'base64'), null).toString('utf8').slice(0, 20_000);
 }

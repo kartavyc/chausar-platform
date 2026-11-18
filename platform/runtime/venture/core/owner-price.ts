@@ -5,6 +5,11 @@
 // invoice uses the new price (UNDO_TOO_LATE after). A price from anywhere else (an agent, the AI, the phone), a change
 // that also touches words or tax, or a save that joins another change still waiting keeps its Today row and its Accept.
 // Every amount is the owner's typed price, written by formatMoney; nothing here adds anything up.
+//
+// The unit an offer is priced in (core/offer-units.ts) is the owner's own setting in the same way (seen on Windows, 15
+// Nov 2026: changing a unit on Prices, even straight back, made the owner accept the whole plan again, on a card that
+// said "No prices, offers or steps changed"). The owner's own unit, saved in the app, applies at once under the same
+// rule, with the same Undo. A Save that changes nothing writes no version at all.
 import { authorize, check, type Context } from '../../contracts.ts';
 import { formatMoney } from '../../owner-format.ts';
 import { activateTerm, currentVenture, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
@@ -12,6 +17,7 @@ import type { BlueprintRecord, Offer, QueueUndoResult, VentureDeps, VentureRecor
 import { recordDecision } from '../journal/decisions.ts';
 import { blueprintsOf } from './lookups.ts';
 import { blueprintDigest, ensureTerms } from './blueprint.ts';
+import { UNIT_WORDS as PRICED_WORDS, type OfferUnit } from './offer-units.ts';
 
 /** The Undo's row id: one per applied version, so the Undo names exactly the version it takes back. */
 export const ownerPriceRowId = (ventureId: string, blueprintId: string) => `price-set:${ventureId}:${blueprintId}`;
@@ -22,7 +28,7 @@ export const OWNER_PRICE_WORDS = Object.freeze({
   nothing: 'Nothing to undo here.',
 });
 
-const UNIT_WORDS: Readonly<Record<string, string>> = Object.freeze({ month: 'a month', project: 'a project', hour: 'an hour' });
+const UNIT_WORDS: Readonly<Record<string, string>> = Object.freeze({ month: 'a month', project: 'a project', hour: 'an hour', year: 'a year', visit: 'a visit', piece: 'a piece', set: 'a set', minute: 'a minute', word: 'a word', page: 'a page' });
 
 /** "₹2,000 a month", from the owner's price in minor units. */
 function priceWords(offer: Offer, currency: string): string {
@@ -35,14 +41,14 @@ const names = (offers: readonly Offer[]) =>
   (offers.length === 1 ? offers[0].name.value : `${offers.slice(0, -1).map(offer => offer.name.value).join(', ')} and ${offers.at(-1)!.name.value}`);
 
 /**
- * Whether a venture.blueprint.update request is the owner's own price: the Prices page's Save says so (ownerSave), from the app, by a member who
- * can approve, with only offer prices in it and no suggestion it was based on. Any other caller's price waits on Today. The state decides the rest (applyOwnerPrice).
+ * Whether a venture.blueprint.update request is the owner's own price or unit: the Prices page's Save says so (ownerSave), from the app, by a member who
+ * can approve, with only offer prices and units in it and no suggestion it was based on. Any other caller's price or unit waits on Today. The state decides the rest (applyOwnerPrice).
  */
 export function ownerPriceShape(ctx: Context, body: Record<string, unknown>, patch: Record<string, unknown>): boolean {
   if (body.ownerSave !== true || !isAppChannel(ctx) || !['owner', 'cofounder'].includes(ctx.role) || Object.hasOwn(body, 'basedOn')) return false;
   if (Object.keys(patch).length !== 1 || !Array.isArray(patch.offers)) return false;
   return (patch.offers as unknown[]).every(change => !!change && typeof change === 'object'
-    && Object.keys(change).every(key => key === 'id' || key === 'unitPrice') && Object.hasOwn(change, 'unitPrice'));
+    && Object.keys(change).every(key => key === 'id' || key === 'unitPrice' || key === 'unit') && (Object.hasOwn(change, 'unitPrice') || Object.hasOwn(change, 'unit')));
 }
 
 /** The offers whose price differs between two versions. */
@@ -50,23 +56,48 @@ function changedPrices(before: BlueprintRecord, after: BlueprintRecord): Offer[]
   return after.offers.filter(offer => (before.offers.find(item => item.id === offer.id)?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor);
 }
 
+/** The offers whose unit differs between two versions. */
+function changedUnits(before: BlueprintRecord, after: BlueprintRecord): Offer[] {
+  return after.offers.filter(offer => { const was = before.offers.find(item => item.id === offer.id); return !!was && was.pricing.quantityUnit !== offer.pricing.quantityUnit; });
+}
+
+const pricedWords = (offer: Offer) => PRICED_WORDS[offer.pricing.quantityUnit as OfferUnit] ?? `per ${offer.pricing.quantityUnit}`;
+
+/**
+ * Whether the owner's own Save changed nothing on the accepted plan (the price or the unit it already has): then
+ * venture.blueprint.update writes no new version, so nothing waits to be accepted for no change.
+ */
+export function ownerPriceUnchanged(venture: VentureRecord, latest: BlueprintRecord, next: BlueprintRecord): boolean {
+  return latest.status === 'accepted' && venture.acceptedBlueprintId === latest.id && !changedPrices(latest, next).length && !changedUnits(latest, next).length;
+}
+
 /**
  * Inside venture.blueprint.update's transaction, once `next` is sealed: when the version it was made from is the accepted
- * plan and the new one changes prices only, `next` is stored accepted and the decision recorded. Returns the line and the
- * Undo's row id, or null when the change waits on Today as before (`next` is then left a draft).
+ * plan and the new one changes prices and units only, `next` is stored accepted and the decision recorded. Returns the
+ * line and the Undo's row id, or null when the change waits on Today as before (`next` is then left a draft).
  */
 export function applyOwnerPrice(tx: VentureTx, venture: VentureRecord, latest: BlueprintRecord, next: BlueprintRecord): { line: string; undoRowId: string } | null {
   if (latest.status !== 'accepted' || venture.acceptedBlueprintId !== latest.id) return null;
   const changes = changedPrices(latest, next);
-  if (!changes.length) return null;
+  // A unit changed beside its own new price is said with the price ("₹2,000 a year"); alone, it is its own line.
+  const units = changedUnits(latest, next).filter(offer => !changes.includes(offer));
+  if (!changes.length && !units.length) return null;
   const currency = next.backOffice.currency;
   next.status = 'accepted';
   const undoRowId = ownerPriceRowId(venture.id, next.id);
-  const said = changes.length === 1 ? `${changes[0].name.value} set to ${priceWords(changes[0], currency)}` : `${names(changes)} set to new prices`;
-  recordDecision(tx, { subject: `plan:${venture.id}`, action: 'approve', ruleId: null, reason: `Price of ${said}.`, rowId: undoRowId });
-  const line = changes.length === 1
-    ? `You set the price of ${changes[0].name.value} to ${priceWords(changes[0], currency)}.`
-    : `You set new prices for ${names(changes)}.`;
+  let reason: string, line: string;
+  if (changes.length && units.length) {
+    const all = next.offers.filter(offer => changes.includes(offer) || units.includes(offer));
+    reason = `New prices and units for ${names(all)}.`;
+    line = `You set new prices and units for ${names(all)}.`;
+  } else if (changes.length) {
+    reason = `Price of ${changes.length === 1 ? `${changes[0].name.value} set to ${priceWords(changes[0], currency)}` : `${names(changes)} set to new prices`}.`;
+    line = changes.length === 1 ? `You set the price of ${changes[0].name.value} to ${priceWords(changes[0], currency)}.` : `You set new prices for ${names(changes)}.`;
+  } else {
+    reason = units.length === 1 ? `${units[0].name.value} priced ${pricedWords(units[0])}.` : `${names(units)} priced in new units.`;
+    line = units.length === 1 ? `You set ${units[0].name.value} to be priced ${pricedWords(units[0])}.` : `You set new units for ${names(units)}.`;
+  }
+  recordDecision(tx, { subject: `plan:${venture.id}`, action: 'approve', ruleId: null, reason, rowId: undoRowId });
   return { line, undoRowId };
 }
 
@@ -125,7 +156,10 @@ export async function undoOwnerPrice(deps: VentureDeps, ctx: Context, rowId: str
     tx.touch({ blueprintId: restored.id });
     acceptOwnerPrice(tx, restored);
     const changes = changedPrices(previous, applied);
-    line = `You took back the new price${changes.length === 1 ? '' : 's'} for ${names(changes.length ? changes : applied.offers)}.`;
+    const units = changes.length ? [] : changedUnits(previous, applied);
+    line = units.length
+      ? `You took back the new unit${units.length === 1 ? '' : 's'} for ${names(units)}.`
+      : `You took back the new price${changes.length === 1 ? '' : 's'} for ${names(changes.length ? changes : applied.offers)}.`;
     recordDecision(tx, { subject: `plan:${venture.id}`, action: 'undo', ruleId: null, reason: line, rowId });
     tx.emit('queue.changed', { rowId });
   });

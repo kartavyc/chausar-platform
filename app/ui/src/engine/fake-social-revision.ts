@@ -100,7 +100,7 @@ export function fakeSocialRevision(host: W4DeskHost): FakeDeskKind & {receipt(id
                 fail('INVALID_VENTURE_REQUEST', 'Choose a revision action.');
             if (ghost && shown.roundsUsed >= 2 && (!shown.quote || b.quoteDigest !== shown.quote.digest))
                 fail('OFFER_EXTRA_ROUND', shown.quote ? 'This extra round costs ' + shown.quote.display + '. Approve its exact quote first.' : 'Set your extra-round price before a third revision.');
-            if (!['ready-for-review', 'accepted', 'edited'].includes(run.status))
+            if (!['ready-for-review', 'accepted', 'edited'].includes(run.status)) // the engine's requestRevision: a draft waiting for its verdict, or a decided one for one social post
                 fail('DELIVERY_NOT_READY', 'This draft is not waiting for your review.');
             if(run.editedText){const surrounding=(text:string)=>{const indexes=new Set(actualSocialPostLocations(text).map(post=>post.lineIndex));return text.split(/\r?\n/).filter((_,index)=>!indexes.has(index)).join('\n');};if(surrounding(run.editedText)!==surrounding(run.renderedText??''))fail('SOCIAL_REVISION_SHAPE','This pack has edits outside its posts. Keep those edits in the structured draft before refining one post.');}
             const revise = (host as W4DeskHost & {
@@ -109,7 +109,7 @@ export function fakeSocialRevision(host: W4DeskHost): FakeDeskKind & {receipt(id
             if (!revise)
                 fail('NOT_BUILT_YET', 'This model preview is not connected.');
             const previewInput={stageId:'drafts',request:words,socialRevision:{postId,n,originalText:run.editedText??run.renderedText??''}};
-            revise!(runId, r => ({ ...r, status: 'waiting-for-you', awaitingYou: true,preview:{digest:host.digest(previewInput).padStart(64,'0'),input:previewInput} } as DeliveryLite));
+            revise!(runId, r => ({ ...r, status: 'working', verdict: null, awaitingYou: true,preview:{digest:host.digest(previewInput).padStart(64,'0'),input:previewInput} } as DeliveryLite));
             const decisions = { ...prior.decisions };
             for(const [index,post] of posts(run).entries()){const answer=effective(run,run.id+'.post-'+(index+1),post,prior);if(answer?.decision==='approved')decisions['post-'+(index+1)]=answer;}
             decisions[key] = { digest: '', decision: null, comment: null, at: host.now(), by: 'owner' };

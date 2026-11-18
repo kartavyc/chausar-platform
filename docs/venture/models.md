@@ -114,11 +114,10 @@ Since 18 October onboarding starts by connecting an AI, before any vault exists.
 | `venture.ai.connect` | The same checks as `venture.models.connect`, app only; refuses `built-in-templates` (no AI is simply no connection here); the key goes to the draft shelf |
 | `venture.ai.disconnect` | Disconnects a draft connection |
 | `venture.ai.status` | The draft status, with `scope: 'before-vault'` and `idleUntil` (null while paused or with nothing connected) |
-| `venture.ai.calls` | The draft "What was sent" list, newest first, failed calls included |
 
 When the business is kept, its keys are persisted under the new workspace before the business write can succeed. The draft connections and calls move into the vault with the same ids and times, and the host receives the keys after that write commits. A failed write restores the previous protected values. The send setting moves to "send question shapes" then, as it does when an AI is connected in the vault. Once a vault holds a business, these methods refuse `VENTURE_EXISTS`; the vault's own methods take over.
 
-New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `compose` (main tier) builds the plan from blocks. Both carry only the owner's own sentence and the country, never client data. Routes are chosen by tier, so the open box needs both: the Connect screen moves on only when the quick and the plan tier can both serve. The recommended pair connects Haiku 5.5 first, then Sonnet 5.5; GPT-6 Luna, Claude Code and Codex each serve both tiers.
+The reads made before the vault, About you and the country suggestion, run on the fast tier with the purpose `decide`. They carry only the owner's own words; a file the owner drops with them goes as background only, marked as client data and sent once as the owner's own file drop. The purpose `compose` is only on call records a vault already holds from the plan composer, which was removed on 14 November 2026. Calls made before the vault are listed under "What was sent" once the business is kept (`venture.models.calls`). Routes are chosen by tier: the Connect screen moves on only when the quick and the plan tier can both serve. The recommended pair connects Haiku 5.5 first, then Sonnet 5.5; GPT-6 Luna, Claude Code and Codex each serve both tiers.
 
 ### The Connect rows and their words
 

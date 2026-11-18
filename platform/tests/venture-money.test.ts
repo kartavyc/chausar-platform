@@ -868,7 +868,7 @@ test('delivery writes a sale fact and the books summary proves billed, received 
     ['earned', 'Earned (without tax)', '249900', '₹2,499', false],
   ]);
   for (const f of summary.figures) {
-    const receipt = env.calculator.receipt(owner, f.receiptId);
+    const receipt = env.calculator.receipt(owner, f.receiptId!);
     assert.equal(receipt.operation, f.operation);
     assert.equal(receipt.totalMinor, f.minor);
   }

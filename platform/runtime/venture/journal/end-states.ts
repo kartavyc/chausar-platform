@@ -63,9 +63,6 @@ export async function reportEndState(deps: VentureDeps, ctx: Context, input: End
   return ventureAction(deps, ctx, 'prepare', 'journal.end', tx => reportEndIn(tx, input));
 }
 
-/** How far an entry went after applied, for the journal list; undefined when no end state was reported. */
-export const endStateOf = (record: Journalled): JournalEndState | undefined => record.ends?.[record.ends.length - 1]?.state;
-
 // ---------------------------------------------------------------------------
 // Several targets
 // ---------------------------------------------------------------------------

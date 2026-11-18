@@ -8,5 +8,5 @@ export function capabilityWords(t: (key: string) => string, key: string, current
 }
 
 export function capabilityPageWords(t: (key: string) => string, current: string): string {
-  return capabilityWords(t, 'page.none', capabilityWords(t, 'page.team', current));
+  return capabilityWords(t, 'page.hired', capabilityWords(t, 'page.none', capabilityWords(t, 'page.team', current)));
 }

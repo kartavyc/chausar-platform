@@ -17,8 +17,9 @@ import {
 } from '../runtime/venture/build/index.ts';
 import { BRIEF_HEADINGS, RLS_LINE, SIGN_IN_LINE } from '../runtime/venture/build/brief-lint.ts';
 import { briefTask, briefTemplateWords, hasClientArea, lintFor, templateFixedText } from '../runtime/venture/build/brief.ts';
-import { CAFE_COMPOSE, CAFE_COMPOSE_CLIENT_AREA, CAFE_DECIDE, CAFE_TEXT, planEntries } from './fixtures/venture/compose-unit/plans.ts';
-import { PASSPHRASE, compose as composePlan, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
+import { CAFE_COMPOSE, CAFE_COMPOSE_CLIENT_AREA, CAFE_DECIDE, CAFE_TEXT } from './fixtures/venture/compose-unit/plans.ts';
+import { engineFor } from './fixtures/venture/compose-unit/harness.ts';
+import { storedComposedBusiness } from './fixtures/venture/compose-unit/stored.ts';
 import { CANNOT_SAY, CANNOT_SAY_FIXTURE, CANNOT_SAY_WORKFLOW } from '../runtime/venture/build/github.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -1023,12 +1024,13 @@ test('a viewer can read the build status but cannot start a model call, a handof
 test('handlers are exactly the owned methods, and every code the package throws is a declared venture or engine code', async () => {
   // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
   // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
-  // speechOut.providers); W6 6F4 adds webhook.send, and 6H2 the recorded flows' list and act.
+  // speechOut.providers); W6 6F4 adds webhook.send.
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
-    'venture.connectors.check', 'venture.connectors.list', 'venture.events.calKey.set', 'venture.events.get', 'venture.events.relay.set', 'venture.flows.act', 'venture.flows.list',
-    'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.connectors.check', 'venture.connectors.list', 'venture.events.calKey.set', 'venture.events.get', 'venture.events.relay.set',
+    // Finding customers, for every business: its view, the owner's own start and a connected tool's tool list.
+    'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.find.propose', 'venture.leads.find.tools', 'venture.leads.find.view', 'venture.leads.list', 'venture.leads.recordSend',
     'venture.localApps.list', 'venture.mail.import', 'venture.mail.threads', 'venture.monitors.add', 'venture.monitors.list', 'venture.monitors.remove',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
     'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
@@ -1048,17 +1050,12 @@ test('handlers are exactly the owned methods, and every code the package throws 
 });
 
 // ---------------------------------------------------------------------------
-// Onboarding v2: the brief from a composed plan (the India cafe-bills fixture, paid through Razorpay)
+// Onboarding v2: the brief from a composed plan a vault holds (the India cafe-bills fixture, paid through Razorpay)
 // ---------------------------------------------------------------------------
 
 async function composedBrief(t: any, output: typeof CAFE_COMPOSE): Promise<BriefRecord> {
-  const { engine } = await engineFor(t, { responses: planEntries(CAFE_TEXT, CAFE_DECIDE, output) });
-  await connectPair(engine);
-  let { plan } = await composePlan(engine, CAFE_TEXT, 'IN');
-  plan = await engine.request('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_1', unitPrice: '2499' }, { id: 'offer_2', unitPrice: '4999' }] } }) as any;
-  await engine.request('workspace.create', { name: 'Cafe Bills Desk', passphrase: PASSPHRASE, pack: 'services' });
-  await engine.request('venture.create', { idea: CAFE_TEXT, countryCode: 'IN', composeId: plan.composeId, composedDigest: plan.digest });
-  const draft = (await engine.request('venture.blueprint.get', {}) as any).blueprint;
+  const { engine } = await engineFor(t);
+  const draft = (await storedComposedBusiness(engine, { name: 'Cafe Bills Desk', text: CAFE_TEXT, countryCode: 'IN', decide: CAFE_DECIDE, output, price: '2499', prices: { offer_2: '499900' } })).blueprint;
   for (const offer of draft.offers) await engine.request('venture.price.quote', { offerId: offer.id });
   await engine.request('venture.blueprint.accept', { digest: draft.digest });
   return await engine.request('venture.build.brief', { useTemplate: true }) as BriefRecord;

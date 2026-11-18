@@ -18,7 +18,7 @@ function start() {
 }
 
 describe('Today w4: the team at work by department', () => {
-  it('stories and live tiles carry the department: the tint, the badge and the name; Keeper is a story; Add agent leads to the ways to earn', async () => {
+  it('stories and live tiles carry the department: the tint, the badge and the name; Keeper is a story; Add agent opens the hire sheet on Team', async () => {
     start();
     const team = await screen.findByRole('region', { name: 'Team at work' });
     const stories = within(team).getByRole('list', { name: 'Your agents' });
@@ -40,7 +40,7 @@ describe('Today w4: the team at work by department', () => {
 
     const add = within(stories).getByRole('button', { name: 'Add agent' });
     await act(async () => { fireEvent.click(add); });
-    expect(window.location.hash).toBe('#/onboarding');
+    expect(window.location.hash).toBe('#/team?sheet=hire:new');
     assertInkRules(document.body);
     assertOnePrimary(document.body);
   });
@@ -103,7 +103,8 @@ describe('Today w4: follow-ups, replies and notes after a call (4E4)', () => {
     expect(within(card).getByRole('status').textContent).toContain('counts only the notes you mark as sent');
     await press(within(card).getByRole('button', { name: 'I sent it' }));
     expect(calls(spy, 'venture.queue.decide').at(-1)![1]).toMatchObject({ action: 'sent' });
-    await waitFor(() => expect(screen.getByText(/Recorded\. Next follow-up/)).toBeTruthy());
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Needs you' })).getByText(/Recorded\. Next follow-up/)).toBeTruthy());
     assertInkRules(document.body);
   });
 
@@ -120,7 +121,8 @@ describe('Today w4: follow-ups, replies and notes after a call (4E4)', () => {
     const unsure = await cardTitled('Is this from Kabir about Kettle Audio?');
     await press(within(unsure).getByRole('button', { name: 'Yes, it is' }));
     expect(calls(spy, 'venture.queue.decide').at(-1)![1]).toMatchObject({ action: 'approve' });
-    await waitFor(() => expect(screen.getByText(/Attached to Kabir Sethi's card\./)).toBeTruthy());
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Needs you' })).getByText(/Attached to Kabir Sethi's card\./)).toBeTruthy());
   });
 
   it('Add notes opens the notes sheet; the steps come back drafted and one is raised to Today, asking for its day', async () => {
@@ -157,7 +159,8 @@ describe('Today w4: opt-outs, dead domains and the notes consent (4E4 review)', 
     const { client } = await startOutreach({ prepare: readTwice });
     const card = await cardTitled('Tara asked not to be contacted. Block tara@kettleaudio.example and close the card too?');
     await press(within(card).getByRole('button', { name: 'Block and close' }));
-    await waitFor(() => expect(screen.getByText(/Blocked tara@kettleaudio\.example and closed the card as Lost\./)).toBeTruthy());
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Needs you' })).getByText(/Blocked tara@kettleaudio\.example and closed the card as Lost\./)).toBeTruthy());
     const refused = async (method: string, payload: unknown) => {
       try { await (client.request as (m: string, p: unknown) => Promise<unknown>)(method, payload); } catch (error) { return error as EngineError; }
       throw new Error(`${method} was not refused`);
@@ -179,7 +182,8 @@ describe('Today w4: opt-outs, dead domains and the notes consent (4E4 review)', 
     const card = await cardTitled('rediffmail.com takes no mail. Block the whole domain?');
     expect(card.textContent).toContain('rediffmail.com is a free mail service many people use. Blocking it blocks all of them.');
     await press(within(card).getByRole('button', { name: 'Only the address' }));
-    await waitFor(() => expect(screen.getByText(/Only the address stays blocked\. The domain is not\./)).toBeTruthy());
+    // Round 6: the decision also shows in Earlier, in the decision record's words; this is the card's own line.
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Needs you' })).getByText(/Only the address stays blocked\. The domain is not\./)).toBeTruthy());
   });
 
 

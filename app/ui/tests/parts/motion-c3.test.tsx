@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useRef, useState } from 'react';
-import { motionOff, scrollToView, useMotionOff, usePresence, withViewTransition } from '../../src/parts/motion';
+import { motionOff, usePresence, withViewTransition } from '../../src/parts/motion';
 
 /** A matchMedia stand-in whose reduce-motion answer a test can change, with its change listeners. */
 function stubReduce(initial: boolean) {
@@ -47,21 +47,6 @@ describe('motionOff (one-shot C3 task 2)', () => {
     stubReduce(true);
     expect(motionOff()).toBe(true);
   });
-
-  it('useMotionOff follows both settings as they change', async () => {
-    const reduce = stubReduce(false);
-    const { result } = renderHook(() => useMotionOff());
-    expect(result.current).toBe(false);
-    act(() => reduce.set(true));
-    expect(result.current).toBe(true);
-    act(() => reduce.set(false));
-    expect(result.current).toBe(false);
-    await act(async () => {
-      document.documentElement.dataset.motion = 'off';
-      await Promise.resolve();
-    });
-    expect(result.current).toBe(true);
-  });
 });
 
 describe('withViewTransition', () => {
@@ -86,20 +71,6 @@ describe('withViewTransition', () => {
     delete (document as unknown as Doc).startViewTransition;
     await withViewTransition(update);
     expect(update).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('scrollToView', () => {
-  it('is smooth only when motion is on', () => {
-    stubReduce(false);
-    const element = document.createElement('div');
-    const scroll = vi.fn();
-    element.scrollIntoView = scroll;
-    scrollToView(element);
-    expect(scroll).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'smooth' }));
-    document.documentElement.dataset.motion = 'off';
-    scrollToView(element);
-    expect(scroll).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'auto' }));
   });
 });
 

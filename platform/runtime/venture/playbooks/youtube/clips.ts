@@ -1,5 +1,5 @@
 // Chausar 5B2 clip pages, from recorded fields through the shared 5A5 schema builder.
-export {checkClips,type ClipPick} from './clip-rules.ts';
+export {checkClips} from './clip-rules.ts';
 import {requireValue,xmlEscape} from './b2-core.ts';import {jsonLdScript,type JsonLdNode} from '../kit/jsonld-core.ts';
 /** The adapter must supply fields read from recorded intake, never model-provided provenance flags. */
 export function clipPage(fields:JsonLdNode['fields']){const script=jsonLdScript({type:'VideoObject',fields});const name=fields.name as {value?:string};return '<!doctype html><html><head><meta charset="utf-8"><title>'+xmlEscape(name?.value??'Video')+'</title>'+script+'</head><body><h1>'+xmlEscape(name?.value??'Video')+'</h1></body></html>';}

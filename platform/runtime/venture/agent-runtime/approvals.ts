@@ -5,6 +5,7 @@ import { digest, exactPayload, findRecord, identifier, requireAppChannel, ventur
 import { redactSecrets } from '../core/secrets.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import type { AgentApprovalRequest } from './driver-types.ts';
+import { askApproval, settleApproval } from '../delivery/run-machine.ts';
 
 type Options = { guard(state: State): void; signal: AbortSignal; secretValues?: readonly string[] };
 /** W6 6F1: an owner's answer to an outside server's question. validate throws when the answer does not fit the question. */
@@ -60,8 +61,7 @@ async function waitForOwner(deps: VentureDeps, ctx: Context, runId: string, raw:
     await ventureAction(deps, ctx, 'prepare', 'agent.approval.clear', tx => {
       const run = tx.find('venture-delivery-run', runId);
       if (!run?.agentJob || run.agentJob.scope.jobId !== jobId || run.agentJob.pendingApproval?.digest !== bound) return;
-      const { pendingApproval: _pending, ...job } = run.agentJob;
-      tx.replace({ ...run, agentJob: job }); tx.emit('run.step', { runId }); tx.emit('queue.changed', {});
+      tx.replace(settleApproval(run)); tx.emit('run.step', { runId }); tx.emit('queue.changed', {});
     });
   }
   try {
@@ -69,7 +69,7 @@ async function waitForOwner(deps: VentureDeps, ctx: Context, runId: string, raw:
       options.guard(tx.state);
       const run = tx.find('venture-delivery-run', runId);
       check(!options.signal.aborted && run?.agentJob?.scope.jobId === jobId, 'JOB_CLOSED', 'This AI job is no longer running.');
-      tx.replace({ ...run, agentJob: { ...run.agentJob, pendingApproval: { request, digest: bound } } });
+      tx.replace(askApproval(run, { request, digest: bound }));
       tx.emit('run.waiting', { runId });
       tx.emit('queue.changed', {}); tx.emit('run.step', { runId });
     });
@@ -98,8 +98,7 @@ export async function decideAgentApproval(deps: VentureDeps, ctx: Context, paylo
     const run = tx.find('venture-delivery-run', runId), pending = run?.agentJob?.pendingApproval;
     check(!waiter.signal.aborted && run?.agentJob?.scope.jobId === waiter.jobId && pending && pending.digest === body.digest
       && digest({ jobId: waiter.jobId, request: pending.request }) === waiter.digest, 'APPROVAL_STALE', STALE);
-    const { pendingApproval: _pending, ...job } = run.agentJob;
-    tx.replace({ ...run, agentJob: job });
+    tx.replace(settleApproval(run));
     recordDecision(tx, { subject: `agent-step:${runId}:${waiter.digest}`, action: choice, ruleId: null,
       reason: choice === 'approve' ? 'Approved this exact AI step once.' : 'Declined this AI step.', rowId: null });
     tx.emit('queue.changed', {}); tx.emit('run.step', { runId });

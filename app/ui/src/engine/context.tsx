@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
-import { keyOf, readsFor, type ReadMethod } from './reads';
+import { keyOf, readsFor, type Hold, type ReadMethod } from './reads';
 import type { EngineClient, EngineError, EngineStatus, ParamsOf, ResultOf, VentureRunEvent } from './types';
 
 const EngineContext = createContext<EngineClient | null>(null);
@@ -14,6 +14,11 @@ export function EngineProvider({ client, children }: { client: EngineClient; chi
  */
 export function useEngine(): EngineClient {
   return readsFor(useRawEngine()).client;
+}
+
+/** BootScreen only: holds what the places ask about a business until the start-up check has answered (reads.ts Hold). */
+export function useBusinessHold(): () => Hold {
+  return readsFor(useRawEngine()).hold;
 }
 
 /** The client as the provider was given it. */

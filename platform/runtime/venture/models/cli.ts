@@ -7,7 +7,7 @@ import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ChausarError } from '../../contracts.ts';
 import { cliArguments } from '../../gateway.ts';
-import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, buildCodexCliArguments, parseCodexCliOutput, type CodexCliCapabilityProfile } from '../../providers/codex-cli.ts';
+import { CLI_BASE_ENV_NAMES, CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, buildCodexCliArguments, parseCodexCliOutput, type CodexCliCapabilityProfile } from '../../providers/codex-cli.ts';
 import type { Json, ModelProcessResponse, ModelTask } from '../contracts.ts';
 import { sanitizeSchema } from './schema.ts';
 import { RESPONSE_LIMIT_BYTES, isPlainRecord, readUsage, type Parsed } from './types.ts';
@@ -20,7 +20,8 @@ export const SCHEMA_PLACEHOLDER = join(tmpdir(), 'chausar-venture-schema-placeho
 export const SCHEMA_FILE_WORD = '<schema-file>';
 export const TEMP_PREFIX = 'chausar-venture-model-';
 
-const BASE_ENV_NAMES = ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA'];
+/** The shared list (providers/codex-cli.ts): it names the account too, which Claude Code needs to find its sign-in on macOS. */
+const BASE_ENV_NAMES = CLI_BASE_ENV_NAMES;
 
 /** Only the names a command-line tool needs to start and find its own login, plus fixed Claude Code settings. Never a key. */
 export function cliEnv(kind: 'claude-cli' | 'codex-cli', maxOutputTokens?: number): Record<string, string> {

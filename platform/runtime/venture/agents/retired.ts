@@ -12,7 +12,7 @@ import { departmentOfRole } from '../playbooks/departments.ts';
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
 import { OWNER_HANDOVER, RETIRED_SUFFIX, shelfLine } from './retired-words.ts';
 
-export { OWNER_HANDOVER, RETIRE_KEPT_LINE, RETIRED_LINE, RETIRED_SUFFIX, SHELF_THREAD_LINE, shelfLine } from './retired-words.ts';
+export { OWNER_HANDOVER, RETIRE_KEPT_LINE, RETIRED_LINE, RETIRED_SUFFIX, SHELF_THREAD_LINE } from './retired-words.ts';
 /** The team's own AI settings (views/shared.ts AGENT_ID): what runs new work on steps handed to the owner. */
 const TEAM_AGENT = 'delivery';
 

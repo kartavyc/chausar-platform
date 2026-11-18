@@ -275,7 +275,9 @@ test('OAuth sign-in is only for HTTPS servers marked for it, and only inside the
 test('the curated list comes from the official registry, validates as server settings, and labels sign-in honestly', () => {
   assert.ok(CURATED_MCP_SERVERS.length >= 4 && CURATED_MCP_SERVERS.length <= 12);
   for (const entry of CURATED_MCP_SERVERS) {
-    assert.match(entry.registryName, /^[a-z0-9.-]+\/[A-Za-z0-9._-]+$/);
+    // An entry is from the registry, or names the service's own page it was copied from, never neither.
+    if (entry.registryName === null) assert.match(entry.docs ?? '', /^https:\/\//);
+    else assert.match(entry.registryName, /^[a-z0-9.-]+\/[A-Za-z0-9._-]+$/);
     assert.match(entry.checkedOn, /^2026-\d{2}-\d{2}$/);
     assert.ok(['none', 'oauth', 'key'].includes(entry.signIn));
     assert.ok(['read', 'write'].includes(entry.access));

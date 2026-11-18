@@ -95,11 +95,13 @@ test('cash ahead says what issuing each draft today brings in and in which week,
   ]);
 });
 
-test('money across businesses gives the open business spend in rupees at the owner rate, with the rate in words; none without a rate', async () => {
+test('money across businesses gives the open business spend in rupees at the owner rate, with the rate in words; at the reference rate until one is set', async () => {
   const env = await goalBusiness();
   await paidCall(env, '1500000');
   const before = await env.money<AcrossMoneyView>('venture.money.across');
-  assert.equal(before.businesses[0]!.spendRupees, undefined);
+  // Fix round 4 (problem 12): a rupee business with no rate of its own uses the dated reference rate. $1.50 at 94.3996: 14160 paise.
+  assert.equal(before.businesses[0]!.spendRupees, '₹141.60');
+  assert.equal(before.businesses[0]!.spendRate, '₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)');
   await env.money('venture.spend.policy.set', { inrPerUsd: '83.50' });
   const view = await env.money<AcrossMoneyView>('venture.money.across');
   // $1.50 at 83.50: 1500000 micros x 83.50 = 125.25 rupees (₹125.25 as ₹125.25).

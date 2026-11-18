@@ -9,13 +9,14 @@ import { askChausar } from '../../shell/ask';
 import { ChausarAvatar } from '../../parts/Avatar';
 import s from './ChausarStory.module.css';
 
-export function ChausarStory() {
+/** working (round 5): Chausar runs a search for customers now (venture.runs.list searches), so its status says so. */
+export function ChausarStory({ working = false }: { working?: boolean }) {
   const t = useT();
   return (
-    <button type="button" className={s.story} aria-label={t('today.chausar.label')} onClick={() => askChausar('')}>
-      <ChausarAvatar size={60} />
+    <button type="button" className={s.story} aria-label={t(working ? 'today.chausar.labelWorking' : 'today.chausar.label')} onClick={() => askChausar('')}>
+      <ChausarAvatar size={60} {...(working ? { state: 'working' as const } : {})} />
       <span className={s.name}>{t('today.chausar.name')}</span>
-      <span className={s.status}>{t('today.chausar.status')}</span>
+      <span className={s.status}>{t(working ? 'today.chausar.working' : 'today.chausar.status')}</span>
     </button>
   );
 }

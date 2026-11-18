@@ -1,6 +1,6 @@
 {
   "pb-lead-generation.heading": "आपके संभावित क्लाइंट",
-  "pb-lead-generation.boundary": "खोजें, जाँचें और स्वयं भेजें। चौसर से कोई संदेश अपने आप नहीं जाता।",
+  "pb-lead-generation.boundary": "खोजें, जाँचें और स्वयं भेजें। Chausar से कोई संदेश अपने आप नहीं जाता।",
   "pb-lead-generation.researchForm": "स्थानीय संभावित क्लाइंट खोजें",
   "pb-lead-generation.city": "शहर",
   "pb-lead-generation.vertical": "बिज़नेस का प्रकार",
@@ -73,7 +73,7 @@
   "pb-lead-generation.error.FETCH_POLICY_REFUSED": "यह स्रोत अपने आप पढ़ने की अनुमति नहीं देता। अनुमति वाला पाठ चिपकाएँ।",
   "pb-lead-generation.error.ROBOTS_REFUSED": "यह साइट रोबोट को पढ़ने से मना करती है। पन्ना नहीं पढ़ा गया।",
   "pb-lead-generation.error.RULE_UNCONFIRMED": "क्लाइंट के काम से पहले लागू संपर्क नियम वकील से जँचवाएँ।",
-  "pb-lead-generation.error.APP_APPROVAL_REQUIRED": "यह कार्रवाई चौसर ऐप में मंज़ूर करें।",
+  "pb-lead-generation.error.APP_APPROVAL_REQUIRED": "यह कार्रवाई Chausar ऐप में मंज़ूर करें।",
   "pb-lead-generation.community": "समुदाय की पोस्ट देखें",
   "pb-lead-generation.product": "उत्पाद दो या तीन वाक्यों में",
   "pb-lead-generation.problem": "किस समस्या को खोजना है",

@@ -190,7 +190,6 @@ const drafts: Probe = {
 };
 
 /** Runs whose draft does not count for the calendar: failed or turned down (practice runs never count). */
-const DRAFTLESS: ReadonlySet<string> = new Set(['rejected', 'failed']);
 
 /** A gap in next week's social calendar: for each open order with a calendar, next week's slots no draft fills. */
 const calendar: Probe = {
@@ -199,7 +198,7 @@ const calendar: Probe = {
     const from = addDays(weekStart(today), 7), to = addDays(from, 6);
     const dateOrder = venture.country.dateOrder;
     const clients = new Map(listRecords(state, 'venture-client', venture.id).map(client => [client.id, client.name]));
-    const runs = listRecords(state, 'venture-delivery-run', venture.id).filter(run => !run.practice && run.deliverable && !DRAFTLESS.has(run.status));
+    const runs = listRecords(state, 'venture-delivery-run', venture.id).filter(run => !run.practice && run.deliverable && run.status !== 'rejected' && run.status !== 'failed');
     return listRecords(state, 'venture-order', venture.id).flatMap((order): ProbeItem[] => {
       if (order.status !== 'open') return [];
       const slots = calendarSlotsOrNone(order.intake);

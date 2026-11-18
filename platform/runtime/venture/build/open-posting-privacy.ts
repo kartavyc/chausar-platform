@@ -1,4 +1,5 @@
 // Forget removes copied post authority and session credentials before any delayed network dispatch.
+import {eraseRun,eraseCall,eraseOrder} from '../delivery/erase-runs.ts';
 import type {VentureTx} from '../records.ts';
 import type {VentureDeps} from '../contracts.ts';
 import {removeRecords} from '../network/people.ts';
@@ -11,9 +12,9 @@ export function eraseOpenPostingNaming(tx:VentureTx,clientIds:ReadonlySet<string
  // Keep only non-personal outcome metadata for a possibly sent post; pending authority is destroyed.
  for(const post of posts)tx.replace({...post,text:'',account:null,agent:null,digest:'erased',draftDigest:null,approval:null,describe:'Personal post evidence erased.',risk:null,warnings:[],outcome:post.state==='applied'?{line:'Post outcome retained without personal content.',url:null,by:post.outcome?.by??'engine'}:post.claimedAt||post.state==='outcome_unknown'?{line:'Check the platform for the outcome.',url:null,by:'engine'}:null,state:post.state==='applied'?'applied':post.claimedAt||post.state==='outcome_unknown'?'outcome_unknown':'rejected',journal:[]});
  const calls=new Set<string>(),collect=(value:unknown):void=>{if(Array.isArray(value))for(const v of value)collect(v);else if(value&&typeof value==='object')for(const[k,v]of Object.entries(value)){if(['callId','modelCallId'].includes(k)&&typeof v==='string')calls.add(v);if(['callIds','modelCallIds'].includes(k)&&Array.isArray(v))for(const id of v)if(typeof id==='string')calls.add(id);collect(v);}};
- const affected=runs.filter(r=>runIds.has(r.id));collect(affected);for(const run of affected){orders.add(run.orderId);const{judge:_judge,...rest}=run;tx.replace({...rest,status:'stopped',callId:null,preview:null,deliverable:null,renderedText:null,editedText:null,harness:null,checks:[],playbookChecks:[],verdict:null});tx.emit('run.stopped',{runId:run.id});}
- for(const call of tx.list('venture-model-call'))if(calls.has(call.id))tx.replace({...call,payloadText:'',payloadTruncated:false,error:null,erasedAt:tx.now,...(call.status==='preview'?{status:'expired' as const}:{})});
- for(const order of tx.list('venture-order'))if(affected.some(r=>r.orderId===order.id)){const{intake:_intake,...rest}=order;tx.replace({...rest,request:'',status:'cancelled'});}
+ const affected=runs.filter(r=>runIds.has(r.id));collect(affected);for(const run of affected){orders.add(run.orderId);eraseRun(tx,run);}
+ for(const call of tx.list('venture-model-call'))if(calls.has(call.id))eraseCall(tx,call);
+ for(const order of tx.list('venture-order'))if(affected.some(r=>r.orderId===order.id))eraseOrder(tx,order);
  const reports=new Set(tx.list('venture-report').filter(r=>runIds.has(r.runId)).map(r=>r.id));
  removeRecords(tx,r=>r.kind==='venture-report'&&reports.has(String(r.id))||r.kind==='venture-report-share'&&reports.has(String(r.reportId))||r.kind==='venture-share-link'&&runIds.has(String(r.deliveryId))||r.kind==='venture-upload'&&r.scope!==null&&typeof r.scope==='object'&&'orderId'in r.scope&&orders.has(String(r.scope.orderId))||(r.kind==='venture-work-receipt'||r.kind==='venture-work-table')&&r.runRef!==null&&typeof r.runRef==='object'&&'runId'in r.runRef&&runIds.has(String(r.runRef.runId)));
  if(posts.length||accounts.size)tx.emit('queue.changed',{});

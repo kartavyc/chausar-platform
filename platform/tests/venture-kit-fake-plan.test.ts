@@ -17,7 +17,7 @@ test('browser kit selections match real registry order and real plan offer order
 
 test('browser pick metadata covers the whole registry, including flagship winners', () => {
  const snapshot = JSON.parse(readFileSync(new URL('../../app/ui/src/engine/fixtures-playbook-picks.json', import.meta.url), 'utf8'));
- assert.deepEqual(snapshot, PLAYBOOK_REGISTRY.map(({id,picks})=>({id,picks})));
+ assert.deepEqual(snapshot, PLAYBOOK_REGISTRY.map(({id,serviceType,picks})=>({id,serviceType,picks})));
  assert.equal(flagshipPlan('long video into shorts and lead generation')!.id, 'youtube');
  assert.equal(flagshipPlan('youtube editing lead generation')!.id, 'lead-generation');
 });

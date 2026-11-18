@@ -7,7 +7,7 @@ import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 import { EngineError, type TrackerCellLite, type TrackerColumnLite, type TrackerDetailLite, type TrackerLite, type TrackerRowLite, type TrackersLite, type TrackerStarterLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 
-export const FAKE_TRACKER_METHODS: readonly string[] = ['venture.trackers.list', 'venture.trackers.get', 'venture.trackers.set', 'venture.trackers.remove', 'venture.trackers.rows.add', 'venture.trackers.rows.edit', 'venture.trackers.rows.remove', 'venture.trackers.rows.undo'];
+export const FAKE_TRACKER_METHODS: readonly string[] = ['venture.trackers.list', 'venture.trackers.get', 'venture.trackers.set', 'venture.trackers.rows.add', 'venture.trackers.rows.edit', 'venture.trackers.rows.remove', 'venture.trackers.rows.undo'];
 
 const MONEY_WORDS = 'A tracker keeps no money of its own. Put an amount in a receipt column (from a receipt) or an estimate column (marked model estimate).';
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
@@ -122,11 +122,6 @@ export class FakeTrackers {
         const held: Held = { tracker: { id: `tracker-${++this.seq}`, ...tracker }, rows: [] };
         this.held().push(held);
         return { tracker: this.view(held) };
-      }
-      case 'venture.trackers.remove': {
-        this.appOnly(); exact(p, ['id']); this.find(p.id);
-        this.byBusiness.set(this.host.current(), this.held().filter((item) => item.tracker.id !== p.id));
-        return { removed: true };
       }
       case 'venture.trackers.rows.add': {
         this.appOnly(); exact(p, ['trackerId', 'cells']);

@@ -4,7 +4,7 @@
 // When a practice client sends practice files and an AI serves quick work, the episode runs the agent loop: act turns
 // with tools, hand-offs the practice client answers, then the write step with tools off.
 import { check, type Context, type State } from '../../contracts.ts';
-import { copiedTokens, digest, exactPayload, findRecord, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
+import { copiedTokens, digest, exactPayload, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
 import { formatCost } from '../../owner-format.ts';
 import type {
   BlueprintRecord, CheckResult, ClientSimModelOutput, CountryProfile, Deliverable, Episode, EpisodeTurn, HarnessState, Json, JudgeAnswer, MockEffect, ModelOutcome,
@@ -26,7 +26,7 @@ import { failedPlaybookCheck, flagshipJudgeRules, runFlagshipChecks, voiceDraftC
 import { voiceRules } from '../agents/voice.ts';
 import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import type { FileLike } from './harness/files.ts';
-import { listScenarios, signalScenario } from './scenarios.ts';
+import { listScenarios } from './scenarios.ts';
 import { withExpectations } from './corrections.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
@@ -512,33 +512,8 @@ export async function simulationRunHandler(deps: VentureDeps, ctx: Context, payl
   });
 }
 
-export async function simulationGetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SimulationRunRecord> {
-  const body = exactPayload(payload, ['runId'], ['runId']);
-  const runId = identifier(body.runId, 'Run');
-  const { state, venture } = readAs(deps, ctx, 'read');
-  const run = findRecord(state, 'venture-simulation-run', runId);
-  check(run && run.ventureId === venture.id, 'SIMULATION_NOT_FOUND', 'That rehearsal was not found.');
-  return run;
-}
-
 export async function simulationScenariosHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<Scenario[]> {
   exactPayload(payload, []);
   const { state, venture } = readAs(deps, ctx, 'read');
   return listScenarios(state, venture.id, serviceTypeOf(state, venture));
-}
-
-/** venture.simulation.fromSignal: turns a rejection, an edit or a failed check into a rehearsal case, without the client's words. */
-export async function simulationFromSignalHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<Scenario> {
-  const body = exactPayload(payload, ['signalId'], ['signalId']);
-  const signalId = identifier(body.signalId, 'Signal');
-  readAs(deps, ctx, 'prepare');
-  return ventureAction(deps, ctx, 'prepare', 'simulation.fromSignal', tx => {
-    const signal = tx.find('venture-signal', signalId);
-    // C4 task 15: a signal the owner took back is no longer one to learn from.
-    check(signal && !signal.withdrawnAt, 'SIGNAL_NOT_FOUND', 'That signal was not found.');
-    const type = serviceTypeOf(tx.state, tx.venture!);
-    const scenario = signalScenario(signal, type, tx.state);
-    if (signal.scenarioId !== scenario.id) tx.replace({ ...signal, scenarioId: scenario.id });
-    return scenario;
-  });
 }

@@ -1,20 +1,16 @@
 /**
- * The fake engine's answers for Ink v2 wave 4 package 4J3: the previews on Today's cards, an order's stage steps on
- * Work, and venture.files.poster. They follow the engine's rules (platform/runtime/venture/views/previews.ts,
- * money/order-steps.ts, delivery/poster.ts): previews only on the rows that have something real to show, added after
- * the row's digest; amounts with their receipts, each naming the method that opens it (the fake serves R-0419 through
+ * The fake engine's answers for Ink v2 wave 4 package 4J3: the previews on Today's cards and an order's stage steps
+ * on Work. They follow the engine's rules (platform/runtime/venture/views/previews.ts, money/order-steps.ts,
+ * delivery/poster.ts): previews only on the rows that have something real to show, added after the row's digest;
+ * amounts with their receipts, each naming the method that opens it (the fake serves R-0419 through
  * venture.receipt.get and its CA receipt w-gst-sep through venture.ca.receipt); words a model wrote with their
- * estimate flag; no tax lines for a business not registered; never an image the engine did not take. The fake has no
- * ffmpeg, so it takes no still: the poster method answers as the engine does on a computer without ffmpeg.
+ * estimate flag; no tax lines for a business not registered; never an image the engine did not take.
  */
 
 import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
-  EngineError, type InvoiceLite, type OrderLite, type OrderStageReason, type OrderStageView, type OrderWaitsOnYou, type QueuePreview, type QueueRow, type UploadLite,
+  type InvoiceLite, type OrderLite, type OrderStageReason, type OrderStageView, type OrderWaitsOnYou, type QueuePreview, type QueueRow,
 } from './types';
-
-/** The methods this part of the fake answers (fake-w4.ts routes them here). */
-export const FAKE_4J3_METHODS: readonly string[] = ['venture.files.poster'];
 
 const X_TEXT = 'We tested five budget mics in one room. The ₹2,000 one surprised us. Full episode on the channel, link in the comments.';
 const price = { receiptId: 'R-0419', receiptKind: 'price' as const };
@@ -84,9 +80,11 @@ export const FAKE_ORDER_STEPS: Readonly<Record<string, { stages: OrderStageView[
   'o-mehta-sep': {
     stages: [
       stage('files-in', 'Files in', 'done', 'done'), stage('books', 'Books', 'done', 'done'), stage('gst', 'GST', 'not-yet', "waits for your CA's sign-off", 'with-ca', { waitsOn: 'ca' }),
-      stage('invoice', 'Invoice', 'waits', 'ready to issue, waits on you', 'to-issue'), stage('paid', 'Paid', 'not-yet', 'not yet'),
+      // INV-0041 is issued (fake-money.ts), so the Invoice step is done with its number and Paid waits for its due day,
+      // as money/order-steps.ts reads an issued invoice; nothing on it waits on the owner.
+      stage('invoice', 'Invoice', 'done', 'INV-0041', 'issued'), stage('paid', 'Paid', 'not-yet', 'due 5 Nov 2026', 'due', { due: '2026-11-05' }),
     ],
-    waitsOnYou: { count: 1, items: [{ stage: 'invoice', what: 'the invoice' }], line: '1 waits on you: the invoice.' },
+    waitsOnYou: null,
   },
   'o-iyer-oct': {
     stages: [
@@ -125,23 +123,4 @@ function fixedSteps(order: OrderLite, invoices: readonly InvoiceLite[]): { stage
 export function withFakeOrderSteps(order: OrderLite, invoices: readonly InvoiceLite[] = []): OrderLite {
   const steps = Object.hasOwn(FAKE_ORDER_STEPS, order.id) ? structuredClone(FAKE_ORDER_STEPS[order.id]) : fixedSteps(order, invoices);
   return { ...order, ...steps };
-}
-
-/** What the fake's poster method reads from the other desks. */
-export interface PosterHost {
-  hosted(): boolean;
-  ask(method: string, params: Record<string, unknown>): unknown;
-}
-
-/**
- * venture.files.poster { orderId }: the engine's refusals in its words. The fake has no ffmpeg, so a known order with a
- * cut gets the engine's answer for a computer without it; nothing is made up.
- */
-export function fakePoster(host: PosterHost, p: Record<string, unknown>): UploadLite {
-  if (typeof p.orderId !== 'string' || !p.orderId || Object.keys(p).some((key) => key !== 'orderId')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the order id.');
-  if (host.hosted()) throw new EngineError('TIER_UNAVAILABLE', "The shared hosted server can't take a still: it never reads a file on your computer. Use the desktop app.");
-  const order = (host.ask('venture.order.list', {}) as OrderLite[]).find((item) => item.id === p.orderId);
-  if (!order) throw new EngineError('ORDER_NOT_FOUND', 'That order was not found.');
-  if (!order.intake?.cutFile) throw new EngineError('INVALID_VENTURE_REQUEST', 'This order names no finished cut on this computer, so there is no still to take.');
-  throw new EngineError('POSTER_NOT_AVAILABLE', "ffmpeg isn't on this computer, so there is no still. Chausar never installs it.");
 }

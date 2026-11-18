@@ -27,6 +27,7 @@ import { CHANNEL_CAPABILITIES, SOCIAL_CHANNELS, type SocialChannel } from '../pl
 import { countCharacters, hashtagsOf } from '../playbooks/social/checks.ts';
 import { MONEY_TEXT, offerPriceText, ROW_FIGURE } from './row-receipts.ts';
 import { noticeAmounts } from './probe-figures.ts';
+import { CARD_FIXED_WORDS as CARD } from './card-words.ts';
 
 const DAY_MS = 24 * 60 * 60_000;
 /** A draft this many whole days old or more is older than 14 days. */
@@ -175,7 +176,7 @@ function sendsToOf(source: Source): QueueSendsTo | undefined {
 /** Why a run stopped, in the same words Today's row uses (views/queue.ts runError). */
 function runErrorOf(state: State, run: DeliveryRunRecord): string {
   const call = run.callId ? state.conversations.find((record: { id?: unknown } | null) => record?.id === run.callId) as { error?: { message?: unknown } | null } | undefined : undefined;
-  return typeof call?.error?.message === 'string' ? call.error.message : run.harness?.stopReason ?? 'This run stopped before it finished. Nothing was sent to the client.';
+  return typeof call?.error?.message === 'string' ? call.error.message : run.harness?.stopReason ?? CARD.jobStopped;
 }
 
 /** On a Run again row: which attempt this was (the order's runs so far) and its last error, when there was one. */

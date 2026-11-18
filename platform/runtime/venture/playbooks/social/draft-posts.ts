@@ -6,7 +6,7 @@
 //   postsOfText, where each post line is its own line), so '<run>.post-n' names one post everywhere;
 // - the slots are planned by code from the order's calendar (calendar.ts planCalendar), never by a model;
 // - for each channel, the nth post under Drafts takes the nth slot of that channel, so a post's date is its slot's.
-import type { Deliverable, IsoDate, OrderIntake } from '../../contracts.ts';
+import type { Deliverable, OrderIntake } from '../../contracts.ts';
 import { planCalendar, type CalendarSlot } from './calendar.ts';
 import { channelCapability, type SocialChannel } from './channels.ts';
 import { actualSocialPosts } from './post-label.ts';
@@ -71,11 +71,6 @@ export function assignSlots(posts: readonly SocialDraftPost[], slots: readonly C
   const order = new Map(slots.map((slot, index) => [slot.id, index]));
   filled.sort((a, b) => order.get(a.slot.id)! - order.get(b.slot.id)!);
   return { slots: [...slots], filled, problems };
-}
-
-/** The date of each post that fills a slot, by post id: the slot's date from code. */
-export function postDates(assignment: SlotAssignment): ReadonlyMap<string, IsoDate> {
-  return new Map(assignment.filled.map(item => [item.post.id, item.slot.date]));
 }
 
 /**

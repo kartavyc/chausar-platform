@@ -51,8 +51,6 @@ export function spendShown(lead: SpendLead | undefined, value: string, rupees?: 
   return lead ? { value: lead.figure, rupees: rateOnce ? lead.other : lead.beside } : { value, rupees };
 }
 
-/** C4 (T23): where "Set a rupee rate" lands: the spend settings, open on the rate. */
-export const SET_RATE_HREF = '#/money/spend?set=rate';
 
 /**
  * Words the engine composed that may hold an amount it sends with no receipt of its own: a paid call still held at its

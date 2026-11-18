@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[] } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[]; lock?: boolean[]; slowDisk?: boolean; startGate?: Promise<void> } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -25,15 +25,24 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   // C5 task 25: the crash reporter, the process's own error events and the lines main.cjs writes (a stand-in file system).
   const crashStarts: unknown[] = [], processHandlers = new Map<string, (error: unknown) => void>(), logged: { path: string; text: string }[] = [];
   const shell = { openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); }, openPath: async (path: string) => { openedPaths.push(path); return ''; }, showItemInFolder: (path: string) => { shownItems.push(path); } };
-  app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
-  // D11 release smoke: the paths main.cjs sets before ready.
+  // 15 Nov 2026 (quit when asked): the lock's answers in order (true once they run out), what each ask carried, the
+  // exit codes, and the hidden windows main.cjs makes to hear the session end (Electron's BaseWindow).
+  app.lockAsks = [] as unknown[]; app.exits = [] as number[]; app.released = 0; const watchers: any[] = [];
+  app.exit = (code: number) => { app.exits.push(code); }; app.releaseSingleInstanceLock = () => { app.released++; };
+  class Watcher extends EventEmitter { options: any; destroyed = false; constructor(options: any) { super(); this.options = options; watchers.push(this); } destroy() { this.destroyed = true; this.emit('closed'); } }
+  app.requestSingleInstanceLock = (data?: unknown) => { app.lockAsks.push(data ?? null); return options.lock?.length ? options.lock.shift() : true; }; app.whenReady = () => Promise.resolve(); app.quit = () => { app.quits++; app.loggedAtQuit.push(logged.length); };
+  // How many diagnostics lines had reached the file at each quit.
+  app.loggedAtQuit = [] as number[];
+  // D11 release smoke: the paths main.cjs sets before ready. As in Electron, a path that was set is the one read back.
   app.setPaths = [] as [string, string][]; app.setPath = (name: string, value: string) => { app.setPaths.push([name, value]); };
+  app.getPath = (name: string) => app.setPaths.findLast(([set]: [string, string]) => set === name)?.[1] ?? '/owned/app';
   class Window extends EventEmitter {
     webContents: any; options: any;
     constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.sent = []; this.webContents.send = (channel: string, value: unknown) => { this.webContents.sent.push([channel, value]); }; windows.push(this); }
     urls: string[] = [];
     loadURL(url: string) { this.webContents.mainFrame.url = url; this.urls.push(url); }
-    show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
+    shows = 0;
+    show() { this.shows++; } focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
     menuBar: boolean[] = [];
     setMenuBarVisibility(visible: boolean) { this.menuBar.push(visible); }
     // Ink v2 wave 4 (4G1): what main.cjs reads to tell the engine whether the owner is watching.
@@ -42,15 +51,15 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const startFails: boolean[] = options.startFails ?? [], order: unknown[] = options.order ?? [];
   class Harness extends EventEmitter {
-    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
+    state = 'ready'; options: any; stops = 0;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
     asked: string[] = [];
-    async start() { if (startFails.shift() === true) throw new Error('The worker did not start.'); }
+    // startGate: the worker takes this long to say it is ready (a slow first start).
+    async start() { if (options.startGate) { this.state = 'starting'; await options.startGate; this.state = 'ready'; } if (startFails.shift() === true) throw new Error('The worker did not start.'); }
     async request(method: string) { this.asked.push(method); return { method, experimental: true }; }
     // C5 task 29: the worker dies: the real harness says failed, then exit.
     die() { this.state = 'failed'; this.emit('status', { state: 'failed', healthy: false }); this.emit('exit', { code: 1, signal: null }); }
     reconnecting() { this.state = 'reconnecting'; this.emit('status', { state: 'reconnecting', healthy: false }); }
-    async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
     async stop() { this.stops++; order.push('engine stopped'); this.state = 'stopped'; return { graceful: true, forced: false }; }
     async prepareUpdateInstall(input: unknown) { order.push('prepared'); order.push(plain(input)); return { busy: false, openDataSchema: 1, backup: 'made' }; }
     watching: boolean[] = [];
@@ -68,9 +77,11 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     constructor(options: any) { super(); this.options = options; notes.push(this); }
     show() { this.shown++; } close() { this.closed++; }
   }
-  const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
+  // 15 Nov 2026: what main.cjs told the session about spell checking, with how many windows existed then.
+  const spellChecks: [boolean, number][] = [];
+  const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} }, setSpellCheckerEnabled: (on: boolean) => { spellChecks.push([on, windows.length]); } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, BaseWindow: Watcher, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -79,7 +90,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === './money-export.cjs') return require('./money-export.cjs');
     if (name === './updates.cjs' && options.updates) return options.updates;
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('pending-release.json') && options.pending) return options.pending; if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}), ...options.metadata }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
-      appendFile: async (path: string, text: string) => { logged.push({ path: String(path), text }); }, stat: async () => { throw Object.assign(new Error('No file.'), { code: 'ENOENT' }); }, rename: async () => {},
+      // slowDisk: a line takes a turn of the event loop to reach the file, as a real disk does.
+      appendFile: async (path: string, text: string) => { if (options.slowDisk) await new Promise(done => setImmediate(done)); logged.push({ path: String(path), text }); }, stat: async () => { throw Object.assign(new Error('No file.'), { code: 'ENOENT' }); }, rename: async () => {},
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
@@ -88,7 +100,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, crashStarts, processHandlers, logged, order, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, crashStarts, processHandlers, logged, order, watchers, spellChecks, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -151,35 +163,6 @@ test('quit awaits in-flight startup and never opens a window or starts a late wo
   assert.equal(d.app.quits, 0); assert.equal(d.engines.length, 0);
   release(); await flush();
   assert.equal(d.app.quits, 1); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.errors.length, 0);
-});
-
-test('desktop reports actual window, background and sleep transitions before shutdown', async () => {
-  const d = await desktop(['--background']); const engine = d.engines[0];
-  assert.deepEqual(engine.lifecycle, [
-    { awake: true, windowOpen: false, backgroundEnabled: true },
-    { awake: true, windowOpen: true, backgroundEnabled: true },
-  ]);
-  d.powerMonitor.emit('suspend'); await flush();
-  assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: true, backgroundEnabled: true });
-  d.windows[0].emit('closed'); await flush();
-  assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: false, backgroundEnabled: true });
-  d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0);
-  d.powerMonitor.emit('resume'); await flush();
-  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
-  d.app.emit('second-instance'); await flush();
-  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: true });
-  d.app.emit('before-quit', { preventDefault() {} }); await flush();
-  assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: false, backgroundEnabled: false });
-  assert.equal(engine.stops, 1);
-});
-
-test('foreground closure reports no background permission and failed acknowledgement quits visibly', async () => {
-  const d = await desktop([]); d.windows[0].emit('closed'); await flush();
-  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: false });
-  const failed = await desktop(['--background']); failed.engines[0].failLifecycle = true;
-  failed.powerMonitor.emit('suspend'); await flush();
-  assert.equal(failed.engines[0].state, 'failed'); assert.equal(failed.app.quits, 1);
-  assert.match(failed.errors[0], /could not confirm the desktop state/);
 });
 
 test('desktop tells the engine the owner is watching only while the window is shown, not minimised and focused (4G1)', async () => {
@@ -360,7 +343,6 @@ test('the installed beta registers no login item on its first start, starts real
   const menu = d.menus.at(-1);
   assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start when you sign in to this computer', false], ['Keep running in the tray', true]]);
   d.windows[0].emit('closed'); await flush();
-  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0, 'closing the window keeps Chausar in the tray');
   assert.match(d.engines[0].options.environment.PATH, /codex[\\/]bin$/, 'the bundled Codex is the last place the engine looks');
 });
@@ -369,7 +351,6 @@ test('a login start opens no window: Chausar waits in the tray until the owner o
   const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
   assert.equal(d.trays.length, 1);
   assert.equal(d.windows.length, 0);
-  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
   d.app.emit('second-instance'); await flush();
   assert.equal(d.windows.length, 1);
 });
@@ -385,7 +366,6 @@ test('the owner can turn start at login on and off and the tray off; the tick sh
   ticks()[1].click({ checked: false }); await flush(); await flush();
   assert.deepEqual(JSON.parse(JSON.stringify(ticks().map((item: any) => item.checked))), [false, false]);
   d.windows[0].emit('closed'); await flush();
-  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: false });
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 1);
 });
 
@@ -407,7 +387,8 @@ test('A5: the window reads start at login and keep running, and a change registe
   assert.equal(typeof set, 'function');
   const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
   const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
-  assert.deepEqual(plain(await get(own, undefined)), { ok: true, result: { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: false, systemOff: false } });
+  // Unasked, start at login reads off: standing configuration on the owner's computer waits for their tick (17 Nov 2026).
+  assert.deepEqual(plain(await get(own, undefined)), { ok: true, result: { supported: true, asked: false, startAtLogin: false, keepRunning: true, registered: false, systemOff: false } });
   const changed = await set(own, { startAtLogin: true });
   assert.deepEqual(plain(changed), { ok: true, result: { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: true, systemOff: false } });
   assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
@@ -415,7 +396,6 @@ test('A5: the window reads start at login and keep running, and a change registe
   const kept = await set(own, { keepRunning: false });
   assert.equal(kept.result.keepRunning, false);
   await flush();
-  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
   // Only the app's own window, and only the two ticks as true or false.
   assert.deepEqual([(await get({ sender: {}, senderFrame: own.senderFrame }, undefined)).error.code, (await set({ sender: {}, senderFrame: own.senderFrame }, { startAtLogin: false })).error.code], ['UNTRUSTED_SENDER', 'UNTRUSTED_SENDER']);
   for (const bad of [{}, { startAtLogin: 'yes' }, { startAtLogin: true, path: 'C:/x.exe' }, [true], null, 'on']) {
@@ -559,7 +539,18 @@ test('D11: --smoke-user-data sets userData only to an absolute path, before the 
   }
   assert.deepEqual((await desktop(['--smoke-user-data=chausar-smoke'], Promise.resolve(), false, { platform: 'linux' })).app.setPaths, [], 'relative on Linux too');
   const source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
-  assert.ok(source.indexOf('--smoke-user-data=') < source.indexOf('requestSingleInstanceLock()'), 'set before the lock, which lives in userData');
+  assert.ok(source.indexOf('--smoke-user-data=') < source.indexOf('requestSingleInstanceLock('), 'set before the lock, which lives in userData');
+  // Found on the first real Mac smoke (14 Nov 2026): the diagnostics folder was read from userData before the smoke
+  // folder was set, so the start phases went to the owner's real data folder and the release smoke, which waits for
+  // first paint in its own folder, never saw it (on any system). The smoke folder is set first; nothing else moves.
+  assert.ok(source.indexOf('--smoke-user-data=') < source.indexOf('createDiagnostics({'), 'set before the diagnostics folder is read from userData');
+  await new Promise(done => setTimeout(done, 20));
+  const smokePhases = linux.logged.filter(({ path }: { path: string }) => path.endsWith('startup.jsonl'));
+  assert.ok(smokePhases.length > 0, 'the smoke run wrote its start phases');
+  for (const { path } of linux.logged) assert.ok(path.replace(/[\\]/g, '/').startsWith('/tmp/chausar-smoke-2/diagnostics/'), `${path} is in the smoke folder`);
+  const plain = await desktop([], Promise.resolve(), false, { platform: 'linux' });
+  await new Promise(done => setTimeout(done, 20));
+  for (const { path } of plain.logged) assert.ok(path.replace(/[\\]/g, '/').startsWith('/owned/app/diagnostics/'), `${path} is in the data folder`);
 });
 
 // ---------------------------------------------------------------------------
@@ -660,9 +651,8 @@ test('C5 task 29: a worker that dies twice then stays: two restarts at the backo
   assert.equal(statusesOf(window).at(-1), 'ready');
   assert.deepEqual(d.errors, []);
   assert.equal(d.app.quits, 0);
-  // Each restart is a line in the timeline, and the new worker hears the host's state.
+  // Each restart is a line in the timeline.
   assert.deepEqual(linesOf(d, 'startup.jsonl').filter(line => line.op === 'engine-restart').map(({ attempt, delayMs }) => [attempt, delayMs]), [[1, 1000], [2, 5000]]);
-  assert.deepEqual(d.engines[2].lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
   // The window's requests go to the new worker; nothing was sent to it by itself, an approval above all.
   assert.deepEqual(d.engines[2].asked, []);
   const own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
@@ -803,4 +793,261 @@ test('C5 task 32: the engine says if a run is busy and makes the safety copy ove
   assert.equal(contract.METHODS.includes('updates.prepareInstall'), false);
   const source = await readFile(new URL('../runtime/worker.ts', import.meta.url), 'utf8');
   assert.match(source, /message\?\.kind === 'host-update-prepare'/);
+});
+
+// ---------------------------------------------------------------------------
+// 15 Nov 2026, the first walk of the built Windows app: quit when asked. "taskkill /PID" without /F only closes a
+// window, and the beta keeps running in the tray, so nothing polite could quit Chausar on Windows. A second launch
+// with --quit asks the running Chausar (the one that shares its user data folder, through the single-instance lock) to
+// quit the way the tray's "Quit Chausar and stop jobs" does, and exits 0 once it has gone. The end of the Windows
+// session does the same stop at once, without the update work.
+// ---------------------------------------------------------------------------
+
+/** The quit lines main.cjs wrote, without their time and milliseconds. */
+const quitLines = (d: { logged: { path: string; text: string }[] }) => linesOf(d, 'main.jsonl').map(({ ms: _ms, ...line }) => line);
+const EXE = 'C:\\Chausar\\Chausar.exe';
+
+test('quit when asked: a launch with --quit and no Chausar running exits 0 at once, with no engine, window or tray', async () => {
+  const d = await desktop(['--quit'], Promise.resolve(), true, { channel: 'beta' });
+  await flush();
+  assert.deepEqual(d.app.exits, [0]);
+  assert.equal(d.app.released, 1, 'the lock it took is given back');
+  assert.deepEqual(plain(d.app.lockAsks), [{ quit: true }]);
+  assert.deepEqual([d.engines.length, d.windows.length, d.trays.length, d.watchers.length, d.app.quits], [0, 0, 0, 0, 0]);
+  assert.deepEqual(d.logged, [], 'it writes nothing');
+});
+
+test('quit when asked: with Chausar running, --quit asks through the lock, waits until it has gone, then exits 0', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const d = await desktop(['--quit', '--smoke-user-data=C:\\Temp\\chausar-smoke-9'], Promise.resolve(), true, { channel: 'beta', lock: [false, false, true] });
+  assert.deepEqual(d.app.setPaths, [['userData', 'C:\\Temp\\chausar-smoke-9']], 'it asks only the Chausar that shares this user data folder');
+  assert.deepEqual([d.app.exits, d.app.quits], [[], 0], 'it waits: the other Chausar is still there');
+  t.mock.timers.tick(500);
+  assert.deepEqual(d.app.exits, [], 'still closing');
+  t.mock.timers.tick(500);
+  assert.deepEqual(d.app.exits, [0], 'gone: the lock is free');
+  assert.equal(d.app.released, 1);
+  assert.deepEqual(plain(d.app.lockAsks), [{ quit: true }, { quit: true }, { quit: true }], 'each look asks again, so a lost ask is repeated');
+  assert.deepEqual([d.engines.length, d.windows.length, d.trays.length], [0, 0, 0]);
+  const source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
+  assert.ok(source.indexOf('--smoke-user-data=') < source.indexOf('requestSingleInstanceLock('), 'the user data folder is set before the ask');
+});
+
+test('quit when asked: a Chausar that has not gone after the wait makes --quit exit 1, and it is never ended by force', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const d = await desktop(['--quit'], Promise.resolve(), true, { lock: Array.from({ length: 400 }, () => false) });
+  // One look every half second for 90 seconds, each tick on its own so every look runs at its time.
+  for (let look = 0; look < 179; look += 1) t.mock.timers.tick(500);
+  assert.deepEqual(d.app.exits, []);
+  t.mock.timers.tick(500);
+  assert.deepEqual(d.app.exits, [1]);
+  assert.equal(d.app.released, 0);
+  assert.equal(d.app.lockAsks.length, 181, 'it asked at the start and at every look, and nothing else');
+});
+
+test('quit when asked: the running Chausar stops its engine as the tray Quit does and opens no window; a plain second launch still opens it', async () => {
+  const asks: [string[], string, unknown][] = [[[EXE, '--quit'], 'C:\\', { quit: true }], [[EXE, '--quit', '--allow-file-access-from-files'], 'C:\\', undefined], [[EXE], 'C:\\', { quit: true }]];
+  for (const ask of asks) {
+    const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+    d.windows[0].emit('closed'); await flush();
+    d.app.emit('window-all-closed');
+    assert.equal(d.app.quits, 0, 'closing the window keeps Chausar in the tray, as before');
+    d.app.emit('second-instance', {}, ...ask);
+    assert.equal(d.app.quits, 1, JSON.stringify(ask));
+    assert.equal(d.windows.length, 1, 'no window opens');
+    let prevented = false;
+    d.app.emit('before-quit', { preventDefault: () => { prevented = true; } });
+    for (let count = 0; count < 6; count += 1) await flush();
+    assert.equal(prevented, true);
+    assert.equal(d.engines[0].stops, 1);
+    assert.equal(d.app.quits, 2, 'the engine stopped, so the quit goes on');
+    assert.deepEqual(quitLines(d), [{ op: 'quit', reason: 'asked' }, { op: 'quit-engine', reason: 'asked', graceful: true }]);
+  }
+  const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
+  d.app.emit('second-instance', {}, [EXE, '--quitting', 'quit'], 'C:\\', { quit: 'yes' });
+  assert.deepEqual([d.app.quits, d.windows.length], [0, 1], 'only the exact ask quits');
+  // The tray's own Quit says where it came from too.
+  d.menus.at(-1).at(-1).click();
+  d.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(quitLines(d), [{ op: 'quit', reason: 'tray' }, { op: 'quit-engine', reason: 'tray', graceful: true }]);
+});
+
+test('the end of the Windows session stops the engine at once: no safety copy, no installer, and the window is how Chausar hears it', async () => {
+  const order: unknown[] = [];
+  const d = await desktop([], Promise.resolve(), true, { order, metadata: UPDATE_KEYS, updates: standInUpdates(order), pending: PENDING });
+  await flush();
+  d.windows[0].emit('session-end', { reasons: ['logoff'] });
+  assert.equal(d.app.quits, 1);
+  d.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(order.slice(1), ['engine stopped'], 'nothing is copied or installed while the computer shuts down');
+  assert.equal(d.app.quits, 2);
+  assert.deepEqual(quitLines(d), [{ op: 'quit', reason: 'session-end' }, { op: 'quit-engine', reason: 'session-end', graceful: true }]);
+});
+
+test('in the tray on Windows a hidden window hears the session end and a close asked from outside; the app window takes its place', async () => {
+  const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
+  assert.equal(d.windows.length, 0);
+  assert.equal(d.watchers.length, 1, 'no window in the tray, so a hidden one listens');
+  assert.deepEqual(plain(d.watchers[0].options), { show: false, skipTaskbar: true });
+  // The owner opens Chausar: the app window listens now, and the hidden one goes without the app quitting.
+  d.app.emit('second-instance', {}, [EXE], 'C:\\', null);
+  assert.equal(d.windows.length, 1);
+  assert.equal(d.watchers[0].destroyed, true);
+  assert.equal(d.app.quits, 0);
+  // They close it again: Chausar stays in the tray (the beta default), and a new hidden window listens.
+  d.windows[0].emit('closed'); await flush();
+  d.app.emit('window-all-closed');
+  assert.equal(d.app.quits, 0);
+  assert.equal(d.watchers.length, 2);
+  d.watchers[1].emit('session-end', { reasons: ['shutdown'] });
+  assert.equal(d.app.quits, 1);
+  d.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.equal(d.engines[0].stops, 1);
+  assert.deepEqual(quitLines(d)[0], { op: 'quit', reason: 'session-end' });
+  // While Chausar quits, the hidden window closes like any other.
+  let held = false; d.watchers[1].emit('close', { preventDefault: () => { held = true; } });
+  assert.equal(held, false);
+
+  // "taskkill /PID" without /F reaches only this hidden window while Chausar is in the tray: that is a polite ask to quit.
+  const asked = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
+  let prevented = false; asked.watchers[0].emit('close', { preventDefault: () => { prevented = true; } });
+  assert.deepEqual([prevented, asked.app.quits], [true, 1]);
+  asked.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(quitLines(asked)[0], { op: 'quit', reason: 'close-request' });
+
+  // Only Windows needs it, and only while Chausar stays running without a window.
+  const linux = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta', platform: 'linux' });
+  assert.equal(linux.watchers.length, 0);
+  const preview = await desktop([]);
+  preview.windows[0].emit('closed'); await flush();
+  assert.equal(preview.watchers.length, 0, 'this one quits when its window closes');
+  preview.app.emit('window-all-closed'); assert.equal(preview.app.quits, 1);
+});
+
+// 15 Nov 2026 (the first Windows walk): Electron made the Windows spelling files for this user
+// (%APPDATA%\Microsoft\Spelling\en-US\default.acl and .exc) at every start, although the window's own spell check is off
+// (webPreferences.spellcheck: false). That switch only stops the page from asking; the session's spell checker was
+// still on, and it is what sets up the system's dictionaries. The session's own switch is turned off before any window.
+test('spell check is off for the whole session, before any window opens, so no spelling files are set up', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  assert.deepEqual(d.spellChecks, [[false, 0]]);
+  assert.equal(d.windows[0].options.webPreferences.spellcheck, false, 'and the window still asks for none');
+  const tray = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
+  assert.deepEqual(tray.spellChecks, [[false, 0]], 'also when Chausar starts in the tray');
+  assert.deepEqual((await desktop(['--quit'])).spellChecks, [], 'a launch that only asks the running Chausar to quit sets nothing up');
+});
+
+// Found on the first real run of the ask (this Mac, 15 Nov 2026): main.jsonl held "quit, asked" but not how the engine
+// stopped. The line was still on its way to the file when Chausar left. The quit now waits for its own lines.
+test('quit when asked: the line that says how the engine stopped reaches the file before Chausar leaves', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta', slowDisk: true });
+  for (let count = 0; count < 6; count += 1) await flush();
+  d.app.emit('second-instance', {}, [EXE, '--quit'], 'C:\\', { quit: true });
+  d.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 12; count += 1) await flush();
+  assert.equal(d.app.quits, 2);
+  assert.deepEqual(quitLines(d), [{ op: 'quit', reason: 'asked' }, { op: 'quit-engine', reason: 'asked', graceful: true }]);
+  const written = d.logged.findIndex(({ text }: { text: string }) => text.includes('"quit-engine"')) + 1;
+  assert.ok(written > 0 && d.app.loggedAtQuit.at(-1)! >= written, 'both quit lines were in the file when the last quit was called');
+});
+
+// Found on the first real run of the ask (this Mac, 15 Nov 2026): the asking launch looks every half second, and each
+// look asks again. The second ask called quit while the engine was still stopping, and a quit during the stop is not
+// held back, so Chausar left at once and the engine was cut off: the very thing the ask is there to prevent. An ask
+// (and the tray's Quit, and the session end) that comes while Chausar is already stopping now changes nothing.
+test('quit when asked: asked again while the engine is still stopping, Chausar does not leave early', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  d.app.emit('second-instance', {}, [EXE, '--quit'], 'C:\\', { quit: true });
+  assert.equal(d.app.quits, 1);
+  d.app.emit('before-quit', { preventDefault() {} });
+  // The engine has not stopped yet: the next looks ask again, the owner presses the tray's Quit, the session ends.
+  d.app.emit('second-instance', {}, [EXE, '--quit'], 'C:\\', { quit: true });
+  d.app.emit('second-instance', {}, [EXE, '--quit'], 'C:\\', { quit: true });
+  d.menus.at(-1).at(-1).click();
+  d.windows[0].emit('session-end', { reasons: ['logoff'] });
+  assert.equal(d.app.quits, 1, 'no second quit while the engine stops');
+  assert.equal(d.engines[0].stops, 0, 'the stop is still on its way');
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.equal(d.engines[0].stops, 1);
+  assert.equal(d.app.quits, 2, 'one quit to begin, one once the engine has stopped');
+  assert.deepEqual(quitLines(d), [{ op: 'quit', reason: 'asked' }, { op: 'quit-engine', reason: 'asked', graceful: true }]);
+});
+
+// ---------------------------------------------------------------------------
+// 15 Nov 2026, the installed Windows build in the owner's own session: a slow first start showed nothing for ten
+// seconds (the window was made only after the engine answered), and a second launch in that time ended both: the
+// second launch's single-instance check found the first not answering and with no window on screen, ended it without
+// asking, and then left too. Chausar now opens its window as soon as it knows this is not a tray start, on screen at
+// once, before the engine starts; the page says "Chausar is starting." and what it asks waits for the engine.
+// ---------------------------------------------------------------------------
+
+test('a slow start: the window is on screen before the engine has started, says Chausar is starting, and what it asks waits', async () => {
+  const contract = require('./ipc-contract.cjs');
+  let release!: () => void; const startGate = new Promise<void>(accept => { release = accept; });
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta', startGate });
+  await flush();
+  assert.equal(d.windows.length, 1, 'the window does not wait for the engine');
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  assert.ok(window.shows >= 1, 'on screen at once, not only once its page is ready');
+  assert.equal(d.trays.length, 0, 'the tray comes with the engine, as before');
+  assert.equal(d.engines[0].options.startupTimeoutMs, 60_000, 'a cold first start gets a minute before Chausar gives up');
+  // The page has loaded: it is told the engine is still starting.
+  window.webContents.emit('did-finish-load');
+  assert.deepEqual(plain(window.webContents.sent.filter(([channel]: [string]) => channel === contract.STATUS_CHANNEL)), [[contract.STATUS_CHANNEL, { state: 'starting', healthy: false }]]);
+  // What the page asks waits for the engine instead of failing.
+  let answered = false;
+  const asked = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} }).then((reply: any) => { answered = true; return reply; });
+  await flush(); await flush();
+  assert.deepEqual([answered, d.engines[0].asked], [false, []]);
+  // The owner launches Chausar again, as one does when nothing seems to happen: the window comes forward, nothing ends.
+  d.app.emit('second-instance', {}, [EXE], 'C:\\', null);
+  assert.deepEqual([d.windows.length, d.app.quits, d.app.exits], [1, 0, []]);
+  release();
+  const reply = await asked;
+  assert.equal(reply.ok, true);
+  for (let count = 0; count < 4; count += 1) await flush();
+  assert.deepEqual([d.windows.length, d.trays.length, d.engines.length, d.errors], [1, 1, 1, []], 'one window, one engine, the tray, no error');
+  // A page that loads once the engine is up is told nothing about starting.
+  window.webContents.sent.length = 0;
+  window.webContents.emit('did-finish-load');
+  assert.deepEqual(window.webContents.sent.filter(([, status]: [string, any]) => status?.state === 'starting'), []);
+});
+
+test('a slow start in the tray: no window by itself, but a second launch during the start opens one once the engine is up', async () => {
+  let release!: () => void; const startGate = new Promise<void>(accept => { release = accept; });
+  const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta', startGate });
+  await flush();
+  assert.equal(d.windows.length, 0, 'a login start stays in the tray');
+  d.app.emit('second-instance', {}, [EXE], 'C:\\', null);
+  assert.deepEqual([d.windows.length, d.app.quits], [0, 0], 'nothing to show yet, and nothing ends');
+  release();
+  for (let count = 0; count < 4; count += 1) await flush();
+  assert.deepEqual([d.windows.length, d.trays.length], [1, 1], 'the owner asked for Chausar, so its window opens when it can');
+  // Without that second launch the tray start stays in the tray.
+  const quiet = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
+  assert.equal(quiet.windows.length, 0);
+});
+
+test('a start that fails after the window opened still says so once and quits; a preview refused before its engine opens no window', async () => {
+  const failed = await desktop([], Promise.resolve(), true, { startFails: [true] });
+  assert.deepEqual([failed.errors, failed.app.quits, failed.windows.length], [['The worker did not start.'], 1, 1]);
+  const refused = await desktop(['--production']);
+  assert.deepEqual([refused.windows.length, refused.engines.length], [0, 0]);
+});
+
+test('a slow start: a window the owner closed while Chausar was starting is not opened again when the engine is up', async () => {
+  let release!: () => void; const startGate = new Promise<void>(accept => { release = accept; });
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta', startGate });
+  await flush();
+  assert.equal(d.windows.length, 1);
+  d.windows[0].emit('closed'); await flush();
+  d.app.emit('window-all-closed');
+  assert.equal(d.app.quits, 0, 'the beta keeps running in the tray');
+  release();
+  for (let count = 0; count < 4; count += 1) await flush();
+  assert.deepEqual([d.windows.length, d.trays.length, d.engines.length], [1, 1, 1], 'no second window by itself');
 });

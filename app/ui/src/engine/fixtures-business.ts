@@ -547,6 +547,8 @@ const apiConsent = (provider: string) => `Chausar will send your idea, your answ
 const cliConsent = (tool: string) => `Chausar will run ${tool} on this computer, signed in with your own account, and give it your idea, your answers, your plan's words and practice-client conversations. It never passes your books, receipts, keys or real client details under this consent. Client data needs separate permission for each client. Withdraw anytime. Outside actions still need approval. Every run is listed under What was sent. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every run.`;
 const KEY_NOTE = 'Not yet checked with a live key.';
 const CLI_NOTE = 'Not yet checked on a real task.';
+/** models/presets.ts VERIFICATION_NOTES.worked: an option whose last real task in the business worked (Ledgerline's paid calls). */
+const WORKED_NOTE = 'Its last task worked.';
 const READY_ANTHROPIC = 'Uses your Anthropic key. Not yet checked with a live key.';
 
 export const MODEL_PRESETS: ModelPresetLite[] = [
@@ -570,12 +572,12 @@ export const MODEL_STATUS: Record<string, ModelStatusLite> = {
   lumen: NOTHING_CONNECTED,
   ledgerline: {
     connections: [
-      { id: 'mc-ledgerline-1', presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', tiers: ['fast'], status: 'connected', consentedAt: '2026-10-12T09:00:00.000Z', keyLoaded: true, usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
-      { id: 'mc-ledgerline-2', presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', tiers: ['main'], status: 'connected', consentedAt: '2026-10-12T09:00:00.000Z', keyLoaded: true, usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
+      { id: 'mc-ledgerline-1', presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', tiers: ['fast'], status: 'connected', consentedAt: '2026-10-12T09:00:00.000Z', keyLoaded: true, usable: true, reason: READY_ANTHROPIC, verificationNote: WORKED_NOTE },
+      { id: 'mc-ledgerline-2', presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', tiers: ['main'], status: 'connected', consentedAt: '2026-10-12T09:00:00.000Z', keyLoaded: true, usable: true, reason: READY_ANTHROPIC, verificationNote: WORKED_NOTE },
     ],
     tiers: {
-      fast: { presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
-      main: { presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
+      fast: { presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: WORKED_NOTE },
+      main: { presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: WORKED_NOTE },
     },
     spentThisMonthDisplay: '$0.04 (estimate)', estimate: true, sendPolicy: 'shape', replay: { active: false, label: null },
   },

@@ -1,5 +1,5 @@
 // D5 task 5: what a packaged build carries, read from the unpacked folder electron-builder leaves (win-unpacked,
-// linux-unpacked). It only reads: the locale file names, the app.asar file list from the archive's own header (nothing
+// linux-unpacked, or on macOS the app itself: mac-arm64/Chausar.app). It only reads: the locale file names, the app.asar file list from the archive's own header (nothing
 // is extracted), the unpacked @anthropic-ai folders, the bundled Codex's BUNDLE.json version and the size of each piece.
 // It never starts the build. `node scripts/package-contents.mjs <unpacked dir> [--mode beta|preview|final] [--json]`
 // prints the problems and exits 1 when there are any.
@@ -58,20 +58,35 @@ async function measure(path) {
 }
 const names = async path => { try { return (await readdir(path)).sort(); } catch { return []; } };
 
+/**
+ * The Mac build (14 Nov 2026): a Mac build is the app itself (Chausar.app in mac or mac-arm64), named by its .app
+ * ending. Its pieces are in Contents/Resources; Windows and Linux keep a resources folder beside the program.
+ */
+const isMacApp = unpackedDir => /\.app[\\/]*$/i.test(unpackedDir);
+export function resourcesFolder(unpackedDir) {
+  return isMacApp(unpackedDir) ? join(unpackedDir, 'Contents', 'Resources') : join(unpackedDir, 'resources');
+}
+
 /** What the build carries and every problem, in plain words. mode beta and final need the bundled Codex; preview has none. */
 export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
-  const resources = join(unpackedDir, 'resources');
+  const mac = isMacApp(unpackedDir);
+  const resources = resourcesFolder(unpackedDir);
+  const resourcesWord = mac ? 'Contents/Resources' : 'resources';
   const unpacked = join(resources, 'app.asar.unpacked');
   const problems = [];
 
-  const locales = (await names(join(unpackedDir, 'locales'))).filter(name => name.endsWith('.pak'));
-  const languages = locales.map(name => name.slice(0, -'.pak'.length));
-  for (const language of languages) if (!TRIM.electronLanguages.includes(language)) problems.push(`locale ${language} is not one of ${TRIM.electronLanguages.join(', ')}`);
-  for (const language of TRIM.electronLanguages) if (!languages.includes(language)) problems.push(`locale ${language} is missing`);
+  // Windows and Linux: Chromium's .pak files in locales. macOS: one marker folder for each language in the app's
+  // resources (en.lproj, en_GB.lproj, hi.lproj); the language files inside Electron's own framework are not trimmed.
+  const localesFolder = mac ? resources : join(unpackedDir, 'locales');
+  const ending = mac ? '.lproj' : '.pak', wanted = mac ? TRIM.macElectronLanguages : TRIM.electronLanguages, word = mac ? 'language' : 'locale';
+  const locales = (await names(localesFolder)).filter(name => name.endsWith(ending));
+  const languages = locales.map(name => name.slice(0, -ending.length));
+  for (const language of languages) if (!wanted.includes(language)) problems.push(`${word} ${language} is not one of ${wanted.join(', ')}`);
+  for (const language of wanted) if (!languages.includes(language)) problems.push(`${word} ${language} is missing`);
 
   let archive = [];
   try { archive = await readAsarFileList(join(resources, 'app.asar')); }
-  catch (error) { problems.push(error.code === 'ENOENT' ? 'resources/app.asar is missing' : error.message); }
+  catch (error) { problems.push(error.code === 'ENOENT' ? `${resourcesWord}/app.asar is missing` : error.message); }
   if (archive.length && !archive.includes(INK_ENTRY)) problems.push(`the Ink build (${INK_ENTRY}) is missing from the archive`);
   const inkSource = archive.filter(path => path.startsWith('app/ui/src/'));
   if (inkSource.length) problems.push(`Ink source in the archive: ${inkSource.slice(0, 5).join(', ')}`);
@@ -99,12 +114,13 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
   let codexVersion = null;
   try { codexVersion = JSON.parse(await readFile(join(resources, 'codex', 'BUNDLE.json'), 'utf8')).version ?? null; } catch { codexVersion = null; }
   if (mode !== 'preview') {
-    if (codexVersion === null) problems.push('the bundled Codex is missing (resources/codex/BUNDLE.json)');
+    if (codexVersion === null) problems.push(`the bundled Codex is missing (${resourcesWord}/codex/BUNDLE.json)`);
     else if (codexVersion !== CODEX_VERSION) problems.push(`the bundled Codex is Codex ${codexVersion}, not ${CODEX_VERSION}`);
   }
 
   const total = await measure(unpackedDir);
-  const resourceBytes = (await measure(resources)).bytes, localeBytes = (await measure(join(unpackedDir, 'locales'))).bytes;
+  // macOS: the language marker folders are empty and already inside the resources, so they count for nothing here.
+  const resourceBytes = (await measure(resources)).bytes, localeBytes = mac ? 0 : (await measure(join(unpackedDir, 'locales'))).bytes;
   const sizes = {
     codex: (await measure(join(resources, 'codex'))).bytes,
     electron: total.bytes - resourceBytes - localeBytes,

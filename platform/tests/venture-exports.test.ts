@@ -47,7 +47,8 @@ test('the eleven handler tables cover every venture method, each in its owner pa
       assert.equal(METHOD_OWNERS[method as VentureMethod], id, `${id} registers ${method}, which belongs to ${METHOD_OWNERS[method as VentureMethod]}`);
       // Compliance (6C6) answers before any vault for onboarding and from the table once a business exists.
       assert.equal(PRE_VAULT_METHODS.includes(method as VentureMethod), method === 'venture.compliance.get', `${method} is answered before any vault, outside the tables`);
-      assert.equal(DRAFT_METHODS.includes(method as VentureMethod), method === 'venture.country.suggest', `${method}: only country suggestion also has an existing-business handler`);
+      // About you's list of fields is read after setup too (Settings, About you; 15 Nov 2026), as the country suggestion is.
+      assert.equal(DRAFT_METHODS.includes(method as VentureMethod), method === 'venture.country.suggest' || method === 'venture.about.families', `${method}: only the country suggestion and About you's fields also have an existing-business handler`);
       assert.equal(typeof table[method], 'function', `${id} ${method} is a function`);
     }
   }

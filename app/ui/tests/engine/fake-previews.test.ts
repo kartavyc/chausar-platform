@@ -76,6 +76,9 @@ describe('fake engine: card previews, order steps and the poster (4J3)', () => {
     // The engine's own words for the tool that made it (delivery/harness/tool-purpose.ts, books.reconcile).
     expect(done.delivered?.files[0]?.line).toBe('Matched the bank statement to the bills');
     expect(done.delivered?.changedLine).toBe("Changed during this run, not proven to be the agent's.");
+    // Run 31 is Lumen Studio's: as on the engine, a run is read in its own business only.
+    await expect(engine.request('venture.runs.get', { runId: '31' })).rejects.toMatchObject({ code: 'RUN_NOT_FOUND' });
+    await engine.request('workspace.open', { folder: 'lumen' });
     const active = await engine.request('venture.runs.get', { runId: '31' }) as RunDetail;
     expect(active.delivered).toBeUndefined();
   });
@@ -88,14 +91,5 @@ describe('fake engine: card previews, order steps and the poster (4J3)', () => {
     expect((await engine.request('venture.runs.get', { runId: '31' }) as RunDetail).poster).toBeNull();
     await engine.request('workspace.open', { folder: 'ledgerline' });
     expect('poster' in (await engine.request('venture.runs.get', { runId: '27' }) as RunDetail)).toBe(false);
-  });
-
-  it("answers venture.files.poster with the engine's refusals; the fake has no ffmpeg and makes no still", async () => {
-    const engine = new FakeEngine();
-    await expect(engine.request('venture.files.poster', { orderId: 'o-boat-14' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });
-    await expect(engine.request('venture.files.poster', { orderId: 'o-missing' })).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
-    await expect(engine.request('venture.files.poster', { uploadId: 'u-1' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });
-    const hosted = new FakeEngine({ hosted: true });
-    await expect(hosted.request('venture.files.poster', { orderId: 'o-boat-14' })).rejects.toMatchObject({ code: 'TIER_UNAVAILABLE' });
   });
 });

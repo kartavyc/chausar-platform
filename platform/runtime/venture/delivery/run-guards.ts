@@ -7,7 +7,7 @@
 import { ChausarError, type Context, type State } from '../../contracts.ts';
 import { currentVenture, formatVentureDate, isAppChannel, listRecords } from '../records.ts';
 import type {
-  AwayRecord, ConnectorModeName, DeliveryRunRecord, MicroString, PauseRecord, PlaybookRecord, RunScope, ToolName, VentureRecord,
+  AwayRecord, ConnectorModeName, MicroString, PauseRecord, PlaybookRecord, RunScope, ToolName, VentureRecord,
 } from '../contracts.ts';
 import { CONNECTOR_CATALOGUE, type CatalogueEntry } from '../build/catalogue.ts';
 import { toolDeclaration } from '../policy/effects.ts';
@@ -17,9 +17,6 @@ import { localDayAt } from '../local-day.ts';
 /** The line a routine (4J13) or anything else that would start on its own shows while the business is paused. */
 export const PAUSED_BY_YOU = 'Paused by you';
 const PAUSED_LINE = 'This business is paused, so no new work starts. Unpause it from the business menu.';
-/** Run statuses a stop applies to: the run waits on the owner or a turn is out. */
-export const STOPPABLE: readonly DeliveryRunRecord['status'][] = Object.freeze(['waiting-for-you', 'needs-answer', 'brief-waiting']);
-
 const newest = <T extends { at: string }>(records: readonly T[]): T | null =>
   records.reduce<T | null>((best, item) => (!best || item.at >= best.at ? item : best), null);
 

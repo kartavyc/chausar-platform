@@ -25,7 +25,7 @@ test('estimates: "Usually 3 to 5 min" from the last five finished runs of the sa
   await finished(minutes(5));
   await finished(minutes(30), 'another-hash');
   env.advance(1000);
-  const live = await seedRun(env, order, { status: 'waiting-for-you', playbookId: playbook.id, playbookHash: playbook.hash, harness: harness() });
+  const live = await seedRun(env, order, { status: 'working', playbookId: playbook.id, playbookHash: playbook.hash, harness: harness() });
   const summary = async () => (await call<{ runs: RunSummary[] }>(env, 'venture.runs.list', {})).runs.find(item => item.runId === live.id)!;
   assert.equal((await summary()).usually, undefined, 'two finished runs are not enough');
 

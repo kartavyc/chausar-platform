@@ -216,10 +216,10 @@ describe('Team w4: one department', () => {
     expect(within(main()).queryByRole('region', { name: 'Spend and jobs' })).toBeNull();
   });
 
-  it('a department with no agents says so in one sentence and links to the ways to earn for it', async () => {
+  it('a department with no agents says so in one sentence and links to the hire sheet', async () => {
     start('#/team?dept=money');
     expect(await within(main()).findByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(main()).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
+    expect(within(main()).getByRole('link', { name: 'Add agent' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
   });
 });
 

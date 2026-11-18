@@ -8,7 +8,6 @@
 // promise of rich results (the measurement-boundaries rule, P6). The idea (catalogue row SEO5) comes from seo-agent and
 // beyondseo (both MIT); no code of theirs was read or copied. Written for Chausar from schema.org's published vocabulary.
 import { refusalError } from '../../refusal-brand.ts';
-export const JSONLD_CORE_BROWSER_SAFE = true;
 
 /** The types a JSON-LD block may have at its top. */
 export const JSONLD_TYPES = Object.freeze(['Organization', 'LocalBusiness', 'Product', 'Offer', 'Article', 'VideoObject', 'FAQPage', 'BreadcrumbList'] as const);

@@ -20,7 +20,8 @@ const ANSWERS: readonly SideWorkAnswer[] = ['no-day-job', 'allowed', 'not-allowe
 /**
  * The day-job and compliance check (wave 6, 6C6 / D5, D21), for onboarding to mount when the profession is picked.
  * It reads venture.compliance.get { profession } (answered before any business exists too): the side-work question,
- * the line that this is the owner's responsibility, the profession's rules (each marked when it is not yet checked
+ * the line that this is the owner's responsibility (and, for a contract that does not allow side work or an owner not
+ * sure of it, the engine's line on what that means and what to do; never a block), the profession's rules (each marked when it is not yet checked
  * against its official page), what its regulator switches off, and the profession's own hard stops (all of them are on
  * Business > Your rules). Continue stays
  * locked until the owner answers. With record (the default) and a business open, Continue records the answer through
@@ -71,6 +72,9 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
   return (
     <section className={s.check} aria-label={t('compliance.title')} data-compliance={data.profession.id}>
       <OptionRows legend={data.question} legendClassName={s.question} value={answer} options={ANSWERS.map((value) => ({ id: value, label: t(`compliance.answer.${value}`) }))} onChange={setAnswer} />
+      {/* Fix round 4: a contract that does not allow side work, or an owner not sure of it, is told plainly what it means
+          and what to do, in the engine's words. It never blocks: Continue stays open and the answer is recorded as theirs. */}
+      {(answer === 'not-allowed' || answer === 'not-sure') && <p className={s.warn} role="status" data-side-work-warning={answer}>{answer === 'not-allowed' ? data.notAllowed : data.notSure}</p>}
       {/* C4 task 3: with no day job, the contract's responsibility line folds away for the engine's own line. */}
       <p className={s.note}>{answer === 'no-day-job' ? data.noDayJob : data.responsibility}</p>
       {data.size && <SizePicker ask={data.size} value={picked ?? savedSize(data.size)} disabled={busy} onChange={setPicked} />}

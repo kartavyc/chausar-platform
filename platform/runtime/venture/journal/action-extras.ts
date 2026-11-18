@@ -58,8 +58,8 @@ export const CONNECTOR_WRITE_OPERATIONS: readonly string[] = Object.freeze(['sen
   'shopify-price', 'shopify-title', 'shopify-stock',
   // Ink v2 wave 5 (5A6): one approved item to the owner's own n8n or Make webhook, and one approved command of an app they installed.
   'webhook-send', 'local-app-run', 'happenstance-search', 'probe42-lookup', 'wordpress-draft', 'books-draft', 'books-issue', 'books-settlement', 'books-setup-master', 'books-setup-opening', 'forms-submit', 'forms-sign-in',
-  // Wave 6 (6H2, D41): one exact approved submit, payment or post at a stop of a recorded flow (flows/methods.ts).
-  'flow-submit']);
+  // Finding customers (customers/find-run.ts): the one approved call to a lead tool the owner connected.
+  'lead-search']);
 export const OPERATION_UNKNOWN_LINE = 'Chausar writes to a connected service only in the ways it knows: sending a deliverable by mail, making a payment link, sending an item you approved to your connection, or running a command you approved in your own app. This is not one of them.';
 
 // ---------------------------------------------------------------------------

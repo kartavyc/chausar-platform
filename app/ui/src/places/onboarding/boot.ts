@@ -22,6 +22,11 @@ export type BootFound = { kind: 'app' } | { kind: 'first-run' } | WelcomeFound;
 
 const OPENS = { 'with-this-computer': 'now', 'needs-passphrase': 'passphrase', 'key-missing': 'key-missing' } as const;
 
+/** Failures of the check that came after the engine had said no business is open (the list could not be read). */
+const CLOSED = new WeakSet<object>();
+/** True when the check failed but had already learnt that no business is open: nothing may be asked about one. */
+export const knownClosed = (error: unknown): boolean => typeof error === 'object' && error !== null && CLOSED.has(error);
+
 export async function readBoot(client: EngineClient): Promise<BootFound> {
   const status = await client.request('workspace.status', {});
   if (status.open) return { kind: 'app' };
@@ -31,7 +36,7 @@ export async function readBoot(client: EngineClient): Promise<BootFound> {
     if (list.length === 0) return { kind: 'first-run' };
     return { kind: 'welcome', closedByOwner, complete: true, businesses: list.map((b) => ({ key: b.id, name: b.name, opens: 'now', params: { businessId: b.id } })) };
   }
-  const list = await client.request('workspace.list', {});
+  const list = await client.request('workspace.list', {}).catch((error: unknown) => { if (typeof error === 'object' && error !== null) CLOSED.add(error); throw error; });
   if (list.businesses.length === 0) return { kind: 'first-run' };
   return { kind: 'welcome', closedByOwner, complete: list.complete, businesses: list.businesses.map((b) => ({ key: b.folder, name: b.name, opens: OPENS[b.opens], params: { folder: b.folder } })) };
 }

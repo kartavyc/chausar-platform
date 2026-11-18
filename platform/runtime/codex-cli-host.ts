@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
+import { digestOfUnchanged } from './file-digest.ts';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { check, ChausarError, internalCheck } from './contracts.ts';
 import { defaultProcess, type GatewayOptions } from './gateway.ts';
-import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
+import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, unreviewedCodexFeatures, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 
 /** Operator-owned snapshots, never renderer/RPC configuration or account evidence. */
 export type CodexCliHostArtifact = {
@@ -89,7 +90,7 @@ function artifact(value: unknown, kind: keyof typeof ARTIFACT_NAMES, directory: 
   internalCheck(digest(value.sha256) && value.executableSha256 === executable.sha256 && value.version === executable.version && value.exitCode === 0, 'CLI_HOST_EVIDENCE_INVALID', 'CLI evidence must record successful probes of the exact selected executable and version.');
   return { file: path, sha256: value.sha256, executableSha256: executable.sha256, version: executable.version, exitCode: 0 };
 }
-function support(help: string, features: string, review: unknown): Pick<CodexCliCapabilityProfile, 'flags' | 'configKeys' | 'stdinPrompt' | 'sandboxModes'> {
+function support(help: string, features: string, review: unknown): Pick<CodexCliCapabilityProfile, 'flags' | 'configKeys' | 'stdinPrompt' | 'sandboxModes' | 'unreviewedFeatures'> {
   const optionLines = help.split(/\r?\n/).filter(line => /^\s+-/.test(line));
   const flags = CODEX_CLI_FLAGS.filter(flag => optionLines.some(line => new RegExp(`(?:^|[\\s,])${flag}(?=[\\s=<]|$)`).test(line)));
   const stdinPrompt = /instructions are read from stdin/i.test(help) && /(?:if|when)[^\r\n]*(['"`])-\1/i.test(help);
@@ -103,7 +104,9 @@ function support(help: string, features: string, review: unknown): Pick<CodexCli
   const featureKeys = CODEX_CLI_CONFIG.map(value => value.split('=')[0]).filter(key => key.startsWith('features.'));
   check(featureKeys.every(key => featureRows.some(row => row !== null && row[1] === key.slice('features.'.length) && row[2] !== 'removed')), 'CLI_CAPABILITY_UNSUPPORTED', 'The selected CLI feature listing is missing a required supported feature.');
   check(flags.length === CODEX_CLI_FLAGS.length && stdinPrompt && sandboxModes.includes('read-only'), 'CLI_CAPABILITY_UNSUPPORTED', 'The recorded CLI help is missing a required flag, stdin prompt or read-only sandbox.');
-  return { flags, configKeys: [...ordinaryKeys, ...featureKeys], stdinPrompt, sandboxModes };
+  // A feature this Codex turns on by default that the review did not cover is switched off by the route, never left on.
+  const unreviewedFeatures = unreviewedCodexFeatures(features);
+  return { flags, configKeys: [...ordinaryKeys, ...featureKeys], stdinPrompt, sandboxModes, ...(unreviewedFeatures.length ? { unreviewedFeatures } : {}) };
 }
 
 /** Opt-in host activation: inspect pinned public interface evidence, never login or infer. */
@@ -114,7 +117,9 @@ export async function loadCodexCliHostGateway(environment: NodeJS.ProcessEnv, de
   if (manifestPath === undefined && manifestDigest === undefined) return dependencies.gateway;
   check(typeof manifestPath === 'string' && isAbsolute(manifestPath) && basename(manifestPath) === 'codex-cli-host.json' && !/[\0\r\n]/.test(manifestPath) && digest(manifestDigest), 'CLI_HOST_EVIDENCE_INVALID', 'Configure both an absolute codex-cli-host.json path and its SHA256 pin.');
   const read = dependencies.readArtifact ?? boundedFile;
-  const executableSha256 = dependencies.executableSha256 ?? binaryDigest;
+  // The pinned program is checked before every start. Its digest is read and hashed once while the file stays the
+  // same, for a minute at most (file-digest.ts); a reader the caller passed in is asked every time.
+  const executableSha256 = dependencies.executableSha256 ?? ((path: string, maximumBytes: number) => digestOfUnchanged(path, () => binaryDigest(path, maximumBytes)));
   try {
     const bytes = await read(manifestPath, ARTIFACT_LIMIT);
     internalCheck(bytes instanceof Uint8Array && bytes.byteLength <= ARTIFACT_LIMIT && sha256(bytes) === manifestDigest, 'CLI_HOST_EVIDENCE_INVALID', 'The host manifest does not match its SHA256 pin.');

@@ -21,7 +21,7 @@ import type {
 } from '../contracts.ts';
 import { activateTerm, formatVentureDate, listRecords, type VentureTx } from '../records.ts';
 import { localDayAt, localTimeAt } from '../local-day.ts';
-import { isBlocked, leadToOpportunity, leadWhere, moveLead, onBlocklist, personOnBlocklist, type Blocklist, type Lead } from '../customers/leads.ts';
+import { isBlocked, leadFound, leadToOpportunity, moveLead, onBlocklist, personOnBlocklist, type Blocklist, type Lead } from '../customers/leads.ts';
 import { receiptFigure } from '../money/quote.ts';
 import { recordOwnerFields } from '../evidence/ledger.ts';
 import { ASK_AGAIN_DAYS, DEFAULT_PIPELINE_SETTINGS, addDays, followupPlan, sequenceFor, settledPark, shortDay } from './followups.ts';
@@ -169,7 +169,7 @@ function effective(stored: OpportunityRecord | null, lead: LeadRecord | null, pe
   return {
     id, key: beganAsLead ? leadId! : id, stored, lead, person, personId: stored?.personId ?? person?.id ?? lead!.id, createdAt: stored?.at ?? lead!.addedAt, stage, history,
     touches, sequence, next: stored?.next ?? null,
-    trigger: stored?.trigger ?? { kind: 'lead', ref: lead!.id, line: `Found on ${leadWhere(lead!.sourceUrl)}` },
+    trigger: stored?.trigger ?? { kind: 'lead', ref: lead!.id, line: leadFound(lead!) },
     blocked, clientId: stored?.clientId ?? null, lostReason: stored?.lostReason ?? null, askAgainFrom: stored?.askAgainFrom ?? null,
     linkedFrom: stored?.linkedFrom ?? null, leadId, votes: stored?.votes ?? [], lastToPerson: null, holdUntil: holds.at(-1) ?? null,
     name: person?.name ?? lead?.name ?? 'Someone', company: person?.role?.company ?? lead?.company ?? null, emails,
@@ -547,7 +547,7 @@ export function triggerOf(tx: VentureTx, person: PersonRecord, input: { kind: Op
     check(!owner || owner.id === person.id, 'PIPELINE_TRIGGER_REQUIRED', `That lead's email is ${owner?.name ?? 'someone else'}'s, not ${person.name}'s.`);
     check(!person.handles.emails.length || person.handles.emails.includes(email), 'PIPELINE_TRIGGER_REQUIRED', `That lead's email is not one of ${person.name}'s.`);
   }
-  return { kind: 'lead', ref: lead.id, line: `Found on ${leadWhere(lead.sourceUrl)}` };
+  return { kind: 'lead', ref: lead.id, line: leadFound(lead) };
 }
 
 /** Whether the blocklist covers a person's emails. */

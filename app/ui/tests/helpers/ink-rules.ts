@@ -32,7 +32,7 @@ import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
  *                        or an instruction's lines. Set only on the element that holds the quote itself
  *   [data-engine-line]   engine-written text that holds an amount without a receipt (a Today row's line, Money's
  *                        engine words): until W4 4J1, see below
- *   [data-card]          a card (approval card, stat tile, agent card); [data-row] a list row (Row, JobList, ...)
+ *   [data-card]          a card (approval card, stat tile, agent card); [data-row] a list row (Row, ...)
  *   [data-variant="primary"]  the Button part's filled primary (a locked primary still counts: it is the one)
  *
  * Money is any text that looks like an amount: a rupee, dollar or euro sign followed by a digit. Outside a figure,

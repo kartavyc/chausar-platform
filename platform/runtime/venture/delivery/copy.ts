@@ -5,10 +5,11 @@
 // like any draft. The draft that went out never changes.
 import { check, type Context } from '../../contracts.ts';
 import { exactPayload, findRecord, identifier, ventureAction } from '../records.ts';
-import type { DeliveryRunRecord, DeliveryRunView, VentureDeps } from '../contracts.ts';
+import type { DeliveryRunView, VentureDeps } from '../contracts.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import { readAs } from './shared.ts';
-import { PRACTICE_REASON, runView } from './runs.ts';
+import { PRACTICE_REASON, putNewRun, runView } from './runs.ts';
+import { handedOver, startReady } from './run-machine.ts';
 
 export const COPY_NOT_SENT_LINE = 'Only a draft that went out can be copied. This one still waits for your review.';
 
@@ -20,17 +21,17 @@ export async function deliveryCopyHandler(deps: VentureDeps, ctx: Context, paylo
   return ventureAction(deps, ctx, 'prepare', 'delivery.copy', tx => {
     const source = tx.find('venture-delivery-run', runId);
     check(source, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
-    check(source.status === 'accepted' || source.status === 'edited', 'COPY_NOT_SENT', COPY_NOT_SENT_LINE);
+    check(handedOver(source), 'COPY_NOT_SENT', COPY_NOT_SENT_LINE);
     check(!source.practice, 'PRACTICE_DRAFT', PRACTICE_REASON);
     const order = findRecord(tx.state, 'venture-order', source.orderId);
     check(order && order.ventureId === tx.venture!.id, 'ORDER_NOT_FOUND', 'That order was not found.');
     const text = source.editedText ?? source.renderedText ?? '';
-    const copy: DeliveryRunRecord = {
+    const copy = startReady({
       ...tx.base('venture-delivery-run'), orderId: source.orderId, playbookId: source.playbookId, playbookHash: source.playbookHash, ...(source.workflow ? { workflow: source.workflow } : {}),
-      status: 'ready-for-review', servedBy: 'owner', practice: false, callId: null, preview: null, deliverable: source.deliverable,
-      renderedText: text, checks: [], verdict: null, editedText: text, copiedFrom: source.id,
-    };
-    tx.put(copy);
+      servedBy: 'owner', practice: false, callId: null, preview: null, deliverable: source.deliverable,
+      renderedText: text, checks: [], editedText: text, copiedFrom: source.id,
+    });
+    putNewRun(tx, copy);
     recordDecision(tx, { subject: `run:${copy.id}`, action: 'copy', ruleId: null, reason: 'You made a copy of a draft that went out, to work on.', rowId: null });
     tx.emit('run.started', { runId: copy.id });
     tx.emit('run.waiting', { runId: copy.id });

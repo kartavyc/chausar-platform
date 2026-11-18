@@ -8,8 +8,9 @@
  * always offered as the fixed choices, as the engine does with none.
  */
 
-import { EngineError, type DecisionView, type DeliveryLite, type DraftChangesView, type QueueDecision, type QueueRow, type TriagePreview, type TriageRule } from './types';
+import { EngineError, inReview, type DecisionView, type DeliveryLite, type DraftChangesView, type QueueActionId, type QueueDecision, type QueueRow, type TriagePreview, type TriageRule } from './types';
 import type { W4DeskHost } from './fake-w4';
+import { ACTION_WORDS, DECISION_WORDS } from '../../../../platform/runtime/venture/journal/decision-words';
 
 export const FAKE_4J19_METHODS: readonly string[] = [
   'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.delivery.fix', 'venture.delivery.changes', 'venture.delivery.decideChange',
@@ -60,7 +61,21 @@ const KEY_WORDS: Record<string, Record<'asc' | 'desc', string>> = {
   money: { asc: 'least money first', desc: 'most money first' },
   business: { asc: 'business A to Z', desc: 'business Z to A' },
 };
-const ruleLine = (rule: TriageRule) => (rule.keys.length ? `Today is ordered: ${rule.keys.map((key) => KEY_WORDS[key.field]![key.order]).join(', then ')}. Nothing is hidden.` : "Today is in Chausar's own order.");
+/** The kinds of item a rule can put first, with the engine's words for each (views/triage.ts GROUP_WORDS). */
+const GROUP_WORDS: Record<string, string> = {
+  'find-customers': 'proposals that find customers', proposal: 'proposals', draft: 'drafts', question: 'questions for you', invoice: 'invoices', quote: 'quotes',
+  signoff: 'sign-offs', reply: 'replies', followup: 'follow-ups', bank: 'bank items', connector: 'connections', notice: 'notices', setup: 'setup cards',
+  price: 'prices', plan: 'your plan',
+};
+/** The wider kind each exact kind belongs to (views/triage.ts WIDER). */
+const WIDER: Readonly<Record<string, string>> = { 'find-customers': 'proposal' };
+/** views/triage.ts ruleDoes and ruleLine: the kinds that lead, then what the keys do; a wider kind after its exact one is "other". */
+const ruleDoes = (rule: TriageRule) => {
+  const first = rule.first ?? [];
+  const words = (group: string, at: number) => (first.slice(0, at).some((earlier) => WIDER[earlier] === group) ? `other ${GROUP_WORDS[group]}` : GROUP_WORDS[group]!);
+  return [...first.map((group, at) => (at === 0 ? `${words(group, at)} first` : words(group, at))), ...rule.keys.map((key) => KEY_WORDS[key.field]![key.order])].join(', then ');
+};
+const ruleLine = (rule: TriageRule) => (ruleDoes(rule) ? `Today is ordered: ${ruleDoes(rule)}. Nothing is hidden.` : "Today is in Chausar's own order.");
 
 /** The meta the engine adds to the fake's sample rows (fixtures.ts QUEUE), by row id, beside client, business and time. */
 const SAMPLE_META: Readonly<Record<string, Partial<QueueRow> & { client?: string }>> = {
@@ -147,6 +162,22 @@ export class FakeApprovalsDesk {
   noteDecision(subject: string, action: string, reason: string): void { this.record(subject, action, reason, `You decided: ${reason}`); }
   /** A4 review round 2: Chausar's own note (journal/decisions.ts who 'chausar'), its reason as its line. */
   chausarNote(subject: string, action: string, reason: string): void { this.record(subject, action, reason, reason, 'chausar'); }
+
+  /**
+   * Round 6: a Today click, as journal/decisions.ts lists the engine's venture-queue-decision: the plan's and a price's
+   * row name no place, every other row says Today.
+   */
+  noteClick(row: QueueRow, action: QueueActionId, line: string): void {
+    const plan = row.kind === 'plan' || row.kind === 'price';
+    const words = plan ? DECISION_WORDS.plan : DECISION_WORDS.today;
+    this.record(plan ? `plan:${row.businessId}` : `today:${row.id}`, action, line, words(ACTION_WORDS[action] ?? action, line));
+  }
+
+  /**
+   * Round 6: the decisions Today's Earlier lists, newest first: all but the steps of outside effects (journal/decisions.ts
+   * effects: false), which here is the step a saved rule let run, kept under its run and step id.
+   */
+  ownDecisions(): DecisionView[] { return structuredClone(this.decisions).reverse().filter((item) => !item.id.includes('/')); }
 
   private record(subject: string, action: string, reason: string, line: string, who: 'owner' | 'chausar' = 'owner'): void {
     const mine = who === 'owner';
@@ -293,10 +324,10 @@ export class FakeApprovalsDesk {
     return run;
   }
 
-  /** After failed checks: a revision naming them waits for the owner's approval (status waiting-for-you). */
+  /** After failed checks: an AI job revises the draft, naming them (status working; nothing waits on the owner). */
   private fix(p: Record<string, unknown>): DeliveryLite {
     const run = this.delivery(p.runId);
-    if (run.status !== 'ready-for-review') throw new EngineError('DELIVERY_NOT_READY', FAKE_4J19_WORDS.notReady);
+    if (!inReview(run)) throw new EngineError('DELIVERY_NOT_READY', FAKE_4J19_WORDS.notReady);
     const failed = [...(run.checks ?? []).filter((c) => !c.passed && !c.notChecked).map((c) => c.check), ...(run.playbookChecks ?? []).filter((c) => c.outcome === 'fail').map((c) => `${c.playbook}:${c.check}`)];
     if (!failed.length) throw new EngineError('INVALID_VENTURE_REQUEST', FAKE_4J19_WORDS.nothingToFix);
     let picked: string[];
@@ -306,11 +337,11 @@ export class FakeApprovalsDesk {
       picked = p.checks as string[];
       if (picked.some((id) => !failed.includes(id))) throw new EngineError('INVALID_VENTURE_REQUEST', 'That check did not fail on this draft.');
     }
-    this.revise(run.id, (item) => ({ ...item, status: 'waiting-for-you', awaitingYou: true }));
+    this.revise(run.id, (item) => ({ ...item, status: 'working', verdict: null, awaitingYou: false }));
     this.record(`run:${run.id}`, 'fix', `You asked the agent to fix: ${picked.join(', ')}.`, `You decided: You asked the agent to fix: ${picked.join(', ')}.`);
     const row = this.host.rows().find((item) => item.viewRef?.kind === 'draft' && item.viewRef.id === run.id);
     if (row) this.remove(row.id);
-    return { ...structuredClone(run), status: 'waiting-for-you', awaitingYou: true };
+    return { ...structuredClone(run), status: 'working', verdict: null, awaitingYou: false };
   }
 
   /** No agent revision ever lands in the fake, so a draft has no paragraph changes. */
@@ -321,7 +352,7 @@ export class FakeApprovalsDesk {
 
   private decideChange(p: Record<string, unknown>): DraftChangesView {
     const run = this.delivery(p.runId);
-    if (run.status !== 'ready-for-review') throw new EngineError('DELIVERY_NOT_READY', FAKE_4J19_WORDS.notReady);
+    if (!inReview(run)) throw new EngineError('DELIVERY_NOT_READY', FAKE_4J19_WORDS.notReady);
     throw new EngineError('INVALID_VENTURE_REQUEST', FAKE_4J19_WORDS.noMerge);
   }
 
@@ -329,7 +360,7 @@ export class FakeApprovalsDesk {
 
   private triagePreview(p: Record<string, unknown>): TriagePreview {
     if (typeof p.text !== 'string' || !p.text.trim() || p.text.length > 200) throw new EngineError('INVALID_VENTURE_REQUEST', 'How you want Today ordered must have 1 to 200 characters.');
-    return { rule: null, choices: structuredClone([...TRIAGE_CHOICES]), rows: structuredClone(this.host.rows()), digest: this.ruleDigest(), by: 'choices' };
+    return { rule: null, does: null, choices: structuredClone([...TRIAGE_CHOICES]), rows: structuredClone(this.host.rows()), digest: this.ruleDigest(), by: 'choices' };
   }
 
   private triageSet(p: Record<string, unknown>): { rule: TriageRule; line: string } {
@@ -338,10 +369,18 @@ export class FakeApprovalsDesk {
     if (!rule || !Array.isArray(rule.keys) || rule.keys.length > 3 || !rule.keys.every((key) => fields.includes(key.field) && (key.order === 'asc' || key.order === 'desc'))) {
       throw new EngineError('INVALID_VENTURE_REQUEST', 'A rule orders by due, client, kind, money or business only.');
     }
+    const first: unknown = rule.first ?? [];
+    if (!Array.isArray(first) || first.length > 3 || !first.every((group) => typeof group === 'string' && Object.hasOwn(GROUP_WORDS, group)) || new Set(first).size !== first.length) {
+      throw new EngineError('INVALID_VENTURE_REQUEST', 'A rule puts at most 3 kinds of item first, each once, from the kinds Today shows.');
+    }
     if (typeof rule.words !== 'string' || !rule.words.trim()) throw new EngineError('INVALID_VENTURE_REQUEST', "The rule's words must have 1 to 200 characters.");
     if (p.digest !== this.ruleDigest()) throw new EngineError('APPROVAL_STALE', FAKE_4J19_WORDS.triageStale);
-    this.rule = structuredClone(rule);
+    // As the engine keeps it (validateRule): the kinds that lead only when the rule names some, and an exact kind named
+    // after its wider kind left out (it would lead nothing).
+    const leads = (first as string[]).filter((group, at, all) => !all.slice(0, at).includes(WIDER[group]!));
+    const kept: TriageRule = { keys: structuredClone(rule.keys), ...(leads.length ? { first: leads as NonNullable<TriageRule['first']> } : {}), words: rule.words };
+    this.rule = kept;
     this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.now() });
-    return { rule: structuredClone(rule), line: ruleLine(rule) };
+    return { rule: structuredClone(kept), line: ruleLine(kept) };
   }
 }

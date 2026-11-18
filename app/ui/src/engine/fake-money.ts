@@ -299,10 +299,11 @@ export class FakeMoney {
   expectBill(vendor: string, billDate: string, dueDate: string) { return this.bills.expect(vendor, billDate, dueDate); }
 
   /** The books summary with this desk's open invoices and the period choices, for the period asked. */
-  books(base: BooksSummaryLite, period: unknown): BooksSummaryLite {
+  /** own: a business with no sample books (one made here): its figures are counted from its own records, as the engine does. */
+  books(base: BooksSummaryLite, period: unknown, own = false): BooksSummaryLite {
     const venture = (this.host.ask?.('venture.get', {}) as { venture?: { originalCountry?: unknown; country?: { currency: string } } } | null)?.venture;
     const currency = venture?.country?.currency ?? 'INR';
-    const scoped = !!venture?.originalCountry || currency !== 'INR';
+    const scoped = own || !!venture?.originalCountry || currency !== 'INR';
     const scopeNotes = (from: string, to: string) => (this.mine().some(invoice => invoice.currency !== currency && invoice.issueDate !== null && invoice.issueDate >= from && invoice.issueDate <= to)
       || this.payments.some(payment => payment.businessId === this.host.business() && payment.state !== 'pending' && payment.receivedOn >= from && payment.receivedOn <= to && this.mine().some(invoice => invoice.id === payment.invoiceId && invoice.currency !== currency)))
       ? [...base.notes, `Totals are in ${currency}. Other currencies are excluded; no conversion was made.`] : base.notes;

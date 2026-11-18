@@ -21,5 +21,6 @@
   "feedback.keep": "रहने दें",
   "feedback.id": "आपकी रिपोर्ट में आपका नाम नहीं, एक बेतरतीब आईडी {id} होती है।",
   "feedback.question": "एक छोटा सवाल",
-  "feedback.skip": "अभी नहीं"
+  "feedback.skip": "अभी नहीं",
+  "feedback.tickFirst": "पहले एक पर टिक करें"
 }

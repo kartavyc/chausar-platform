@@ -1,12 +1,12 @@
 // Chausar flagship playbooks: what each one puts on the plan (playbook wiring, design 7.8). When an idea picks a flagship
-// playbook (registry.ts), the instant plan, the template plan, the plan the AI rewrites and the plan the AI composes all
+// playbook (registry.ts), the instant plan, the template plan and the plan the AI rewrites all
 // take these words instead of the base service type's template words: the playbook's label, its summary as the one
 // line, three of its offers with the pricing each is sold by, up to four of its approvals and the starter connectors
 // its connectors map to. The base service type stays underneath, so prices, invoices and the books keep working.
 //
 // Everything here is data picked from each playbook's own playbook.ts, never new words: the picks below only say which
-// offers and approvals go on the one-page plan, and which library block each one refines, so a plan the AI composes
-// keeps its block structure (core/blocks.ts). Owner-set prices stay unpriced until the owner sets them.
+// offers and approvals go on the one-page plan, and which library block each one refines, so a composed plan a vault
+// already holds keeps its block structure (core/blocks.ts). Owner-set prices stay unpriced until the owner sets them.
 import type { CountryProfile, PricingModel, ServiceType } from '../contracts.ts';
 import type { ApprovalBlockId, OfferBlockId } from '../onboarding-contracts.ts';
 import type { RightsBasis } from '../delivery/rights.ts';

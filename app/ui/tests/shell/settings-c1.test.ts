@@ -14,7 +14,7 @@ const titles = (found: ReturnType<typeof findSettings>) => found.map((m) => en(m
 describe('the settings list', () => {
   it('is four groups in order: Business, Work, Money, Safety', () => {
     expect(SETTINGS.map((g) => g.id)).toEqual(['business', 'work', 'money', 'safety']);
-    expect(SETTINGS.map((g) => en(g.title))).toEqual(['Business', 'Work', 'Money', 'Safety']);
+    expect(SETTINGS.map((g) => en(g.title))).toEqual(['General', 'Work', 'Money', 'Safety']);
     expect(SETTINGS.map((g) => g.pages.map((p) => p.sub))).toEqual([
       ['plan', 'owner', 'voice', 'knowledge', 'build', 'app'],
       ['practice', 'routines', 'notifications', 'away', 'chats'],

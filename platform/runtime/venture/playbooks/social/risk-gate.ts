@@ -16,7 +16,7 @@ import { HOUSE_LIMITS, HOUSE_POSTING_RULES, type PostingLimits } from './post-li
 import { RULE_STALE_AFTER_DAYS, SOCIAL_RULES_REGISTER, rulesFreshness } from './register.ts';
 
 import {historyRisk,type RiskFinding,type RiskResult,type SentPost} from './risk-history.ts';
-export {similarityPermille,linkDomains,postPrint,type RiskFinding,type RiskResult,type SentPost} from './risk-history.ts';
+export {similarityPermille,linkDomains,postPrint,type RiskResult,type SentPost} from './risk-history.ts';
 /** Native platform content and dated-register checks extend the shared history calculations. */
 export function postingRisk(input: { channel: SocialChannel; name: string; text: string; now: IsoTime; history: readonly SentPost[]; limits?: Readonly<PostingLimits> }): RiskResult {
  const findings:RiskFinding[]=historyRisk({...input,limits:input.limits??HOUSE_LIMITS}).findings;

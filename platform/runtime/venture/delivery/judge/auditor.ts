@@ -8,11 +8,11 @@
 // loop has a manager, a one-step executor and a read-only auditor, counts only audited work, and keeps a round ledger.
 import { canonical } from '../../../actions.ts';
 import { digest } from '../../records.ts';
-import type { AuditRound, AuditStep, ClaimProofKind, HarnessState, WorkReceiptRecord, WorkRunRef, WorkTableRecord } from '../../contracts.ts';
+import type { AuditStep, ClaimProofKind, HarnessState, WorkReceiptRecord, WorkRunRef, WorkTableRecord } from '../../contracts.ts';
 import { tablesOfFile } from '../harness/files.ts';
 import type { ToolEnv, ToolOutcome } from '../harness/tools.ts';
 
-export type { AuditRound, AuditStep };
+export type { AuditStep };
 export type AuditEnv = Pick<ToolEnv, 'ventureId' | 'runRef' | 'files' | 'tables' | 'receipts'>;
 export type AuditVerdict = { audited: boolean; reason: string; evidence: string[] };
 

@@ -9,8 +9,9 @@ import { listRecords } from '../records.ts';
 import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import type { DeliveryRunRecord, QueueAction, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
-import { STOPPED_BY_YOU } from './harness/controls.ts';
-import { agentName, clientNameFor, lastEventAt } from '../views/shared.ts';
+import { stopLine } from './run-machine.ts';
+import { clientNameFor, lastEventAt } from '../views/shared.ts';
+import { runAgentName } from '../money/agent-meters.ts';
 import { breakerStopped, triggerWords } from './harness/breaker.ts';
 import { writeCapRows } from './harness/write-caps.ts';
 import { spendRows } from '../money/spend.ts';
@@ -36,10 +37,11 @@ export function runControlRows(deps: VentureDeps, _ctx: Context, state: State, v
     const runId = event.name === 'run.stopped' && event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? event.data.runId : undefined;
     if (typeof runId === 'string') stops.set(runId, (stops.get(runId) ?? 0) + 1);
   }
-  const agent = agentName(state, venture);
   const rows: W4RowItem[] = [];
   for (const run of runs) {
     if (orders.get(run.orderId)?.status === 'cancelled') continue;
+    // The run's one agent, as Work and its model receipt name it (money/agent-meters.ts runAgentName).
+    const agent = runAgentName(state, venture, run);
     const client = clientNameFor(state, venture.id, run.orderId);
     const subject = `runctl:${run.id}`;
     const createdAt = times.get(run.id) ?? run.at;
@@ -51,7 +53,7 @@ export function runControlRows(deps: VentureDeps, _ctx: Context, state: State, v
         kind: 'draft', subject, version: `stopped-${stops.get(run.id) ?? 0}-${run.harness?.control?.stoppedAt ?? createdAt}`, createdAt, agent,
         title: tripped ? `${agent}'s run stopped: ${triggerWords(tripped)}` : `The draft for ${client} is stopped`,
         // 4J13: a run a crash cut says so (leases.ts), never "Stopped by you".
-        line: tripped ? tripped.fix ?? BREAKER_KEPT : run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU, viewRef,
+        line: tripped ? tripped.fix ?? BREAKER_KEPT : stopLine(run)!, viewRef,
         actions: !canResumeAgentJob(state, run)
           ? [action('run-again', 'Run again', true)]
           : [action('run-again', 'Run again', false), action('resume', 'Resume', true)],

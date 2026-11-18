@@ -32,5 +32,6 @@
   "layout.go.label": "आपका AI एक पेज सुझाता है",
   "layout.go.line": "आपका AI {title} सुझाता है।",
   "layout.go.open": "{title} खोलें",
-  "layout.go.dismiss": "अभी नहीं"
+  "layout.go.dismiss": "अभी नहीं",
+  "layout.renamePart": "{name} का नाम बदलें"
 }

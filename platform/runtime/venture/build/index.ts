@@ -10,6 +10,7 @@ import { markHandoffOpened, prepareBriefFile, prepareHandoff } from './handoff.t
 import { bankAlertsGet, bankAlertsSet, bankApply, bankConsent, bankImport, bankLedger } from './bank-methods.ts';
 import { siteApply, siteRevert, siteStage } from './site-methods.ts';
 import { leadsAdd, leadsBlock, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
+import { leadsFindPropose, leadsFindTools, leadsFindView } from '../customers/find-methods.ts';
 import { shareCreate, shareList, shareRecordAnswer, shareRevoke } from './share-links.ts';
 import { postingPropose, postingSignIn } from './posting.ts';
 import { postingCheckSteps } from './posting-steps.ts';
@@ -23,7 +24,6 @@ import { webhookSend, webhookSet } from './webhook-handoff.ts';
 import { localAppsList } from './local-apps.ts';
 import { mailImport, mailThreads } from './mail-in.ts';
 import { speechProviders } from './speech-out.ts';
-import { flowsAct, flowsList } from '../flows/methods.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -57,6 +57,10 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.leads.draft': leadsDraft satisfies VentureHandler<'venture.leads.draft'>,
   'venture.leads.recordSend': leadsRecordSend satisfies VentureHandler<'venture.leads.recordSend'>,
   'venture.leads.block': leadsBlock satisfies VentureHandler<'venture.leads.block'>,
+  // Finding customers, for every business (customers/find-methods.ts). The search itself runs only from an approved card.
+  'venture.leads.find.view': leadsFindView satisfies VentureHandler<'venture.leads.find.view'>,
+  'venture.leads.find.propose': leadsFindPropose satisfies VentureHandler<'venture.leads.find.propose'>,
+  'venture.leads.find.tools': leadsFindTools satisfies VentureHandler<'venture.leads.find.tools'>,
   // Read-only preview links for clients (share-links.ts); the hosted web server serves /share/<token>.
   'venture.share.create': shareCreate satisfies VentureHandler<'venture.share.create'>,
   'venture.share.list': shareList satisfies VentureHandler<'venture.share.list'>,
@@ -88,9 +92,6 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.webhook.set': webhookSet satisfies VentureHandler<'venture.webhook.set'>,
   'venture.webhook.send': webhookSend satisfies VentureHandler<'venture.webhook.send'>,
   'venture.speechOut.providers': speechProviders satisfies VentureHandler<'venture.speechOut.providers'>,
-  // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI (flows/methods.ts).
-  'venture.flows.list': flowsList satisfies VentureHandler<'venture.flows.list'>,
-  'venture.flows.act': flowsAct satisfies VentureHandler<'venture.flows.act'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';

@@ -28,7 +28,7 @@ test('no calls today: "Nothing ran today."', async () => {
 test('fixed records give the exact minutes: tools by what they do, the wait apart, the most first; each sum has its calls', async () => {
   const env = await setup();
   const order = await business(env);
-  const run = await seedRun(env, order, { status: 'waiting-for-you', harness: { toolCalls: [toolCall('tc_read', 'files.read', 0, 1), toolCall('tc_sum', 'calc.totals', 1, 3), toolCall('tc_old', 'calc.totals', -20_000, -19_999)] } as any }, ['run.started']);
+  const run = await seedRun(env, order, { status: 'working', harness: { toolCalls: [toolCall('tc_read', 'files.read', 0, 1), toolCall('tc_sum', 'calc.totals', 1, 3), toolCall('tc_old', 'calc.totals', -20_000, -19_999)] } as any }, ['run.started']);
   env.advance(3 * 60_000); await emit(env, 'run.waiting', run.id);
   env.advance(6 * 60_000); await emit(env, 'run.step', run.id);
   const view = await today(env);
@@ -47,7 +47,7 @@ test('an owner\'s-AI job counts as waiting for that tool, without the time it wa
   const env = await setup();
   const order = await business(env);
   const job = { tools: [], messages: [], proposal: null, route: { model: 'claude-sonnet-5-5', tier: 'standard' } } as any;
-  const run = await seedRun(env, order, { status: 'waiting-for-you', agentJob: job }, ['run.started']);
+  const run = await seedRun(env, order, { status: 'working', agentJob: job }, ['run.started']);
   env.advance(3 * 60_000); await emit(env, 'run.waiting', run.id);
   env.advance(60_000); await emit(env, 'run.step', run.id);
   env.advance(40_000); await emit(env, 'run.done', run.id);
@@ -56,7 +56,7 @@ test('an owner\'s-AI job counts as waiting for that tool, without the time it wa
   assert.equal(view.line, 'Today Chausar spent most of its time waiting for Claude Code (3 min 40 s) and waiting for you (1 min).');
   const codex = await setup();
   const again = await business(codex);
-  await seedRun(codex, again, { status: 'waiting-for-you', agentJob: { ...job, route: { presetId: 'cli-codex', model: 'gpt-6', tier: 'standard' } } }, ['run.started']);
+  await seedRun(codex, again, { status: 'working', agentJob: { ...job, route: { presetId: 'cli-codex', model: 'gpt-6', tier: 'standard' } } }, ['run.started']);
   codex.advance(40_000);
   assert.equal((await today(codex)).line, 'Today Chausar spent most of its time waiting for Codex (40 s).');
 });
@@ -64,9 +64,9 @@ test('an owner\'s-AI job counts as waiting for that tool, without the time it wa
 test('two runs waiting at once are one wait; a wait from yesterday counts only from midnight', async () => {
   const env = await setup();
   const order = await business(env);
-  const first = await seedRun(env, order, { status: 'waiting-for-you' }, ['run.waiting']);
+  const first = await seedRun(env, order, { status: 'working' }, ['run.waiting']);
   env.advance(2 * 60_000);
-  const second = await seedRun(env, order, { status: 'waiting-for-you' }, ['run.waiting']);
+  const second = await seedRun(env, order, { status: 'working' }, ['run.waiting']);
   env.advance(3 * 60_000);
   await emit(env, 'run.step', first.id);
   env.advance(60_000);
@@ -77,7 +77,7 @@ test('two runs waiting at once are one wait; a wait from yesterday counts only f
 
   const long = await setup();
   const longOrder = await business(long);
-  await seedRun(long, longOrder, { status: 'waiting-for-you' }, ['run.waiting']);
+  await seedRun(long, longOrder, { status: 'working' }, ['run.waiting']);
   // START is 15:30 in India: the next day's 01:00 there is 9.5 hours later, one hour after midnight.
   long.advance(9.5 * 3_600_000);
   const next = await today(long);

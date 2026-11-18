@@ -30,7 +30,9 @@ export const OTHER_WORDS = 'other records';
  */
 const NOT_COUNTED: ReadonlySet<string> = new Set(['venture-record', 'venture-event', 'venture-model-call', 'venture-queue-view',
   'venture-notification', 'venture-journal-chain', 'venture-receipt-signature', 'venture-keeper-run', 'venture-sum-receipt',
-  'venture-evidence', 'venture-crm-change']);
+  'venture-evidence', 'venture-crm-change',
+  // The chief's standing plan: kept by code on every write it is read from, never made by the owner.
+  'venture-chief-plan']);
 
 export type BackupCount = { kind: BackupKind; words: string; count: number };
 export type BackupChange = { kind: BackupKind; words: string; added: number; changed: number; removed: number };

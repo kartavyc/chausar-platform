@@ -10,9 +10,9 @@ import { ChausarError, check } from '../../../contracts.ts';
 import { tidyWords } from '../../records.ts';
 import type { ModelTask } from '../../contracts.ts';
 import { JUDGE_POLICY } from '../judge.ts';
-import { traceIds, type JudgeTrace, type TraceEvent } from './trace.ts';
+import { traceIds, type JudgeTrace } from './trace.ts';
 
-export type { JudgeTrace, TraceEvent };
+export type { JudgeTrace };
 
 /**
  * 'required-yes': every vote must be a checked yes. 'share': at least this whole percent of the votes must be checked

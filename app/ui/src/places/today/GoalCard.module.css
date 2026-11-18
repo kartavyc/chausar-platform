@@ -30,6 +30,7 @@
   --gc-chip: var(--goal-chip);
   --gc-line: var(--goal-line);
   --gc-link: var(--goal-link);
+  --gc-accent: var(--accent);
   --ring-ground: var(--gc-bg);
   min-width: 0;
   padding: var(--sp-6);
@@ -48,6 +49,7 @@
   --gc-chip: var(--wash);
   --gc-line: var(--line);
   --gc-link: var(--link);
+  --gc-accent: var(--accent-text);
   padding: 0;
   border-radius: 0;
   background: none;
@@ -160,14 +162,15 @@
   color: var(--gc-mute);
 }
 
-/* The accent may be words on the dark card (D-STYLE section 2). */
+/* The accent may be words on the dark card (D-STYLE section 2); on the page's own ground (plain tiles) the words take
+   --accent-text, which holds there in both themes. */
 .percent {
   margin-left: auto;
   font-size: var(--fig-pct);
   line-height: var(--sp-12);
   font-weight: var(--weight-medium);
   letter-spacing: -0.03em;
-  color: var(--accent);
+  color: var(--gc-accent);
 }
 
 .bar {

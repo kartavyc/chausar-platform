@@ -153,6 +153,19 @@
   min-height: 520px;
 }
 
+/* The first real run (14 Nov 2026): beside the chat the plan card had grown long (the way to earn, the team), the chat
+   tile stretched with it, and the reply box sat two screens under the AI's question. On a wide window the chat keeps
+   its own height and stays in view while the card scrolls past it. */
+@media (min-width: 760px) {
+  .chat {
+    position: sticky;
+    top: var(--sp-4);
+    align-self: start;
+    max-height: calc(100dvh - var(--sp-8));
+    overflow-y: auto;
+  }
+}
+
 .chatHead {
   display: flex;
   flex-wrap: wrap;
@@ -181,6 +194,13 @@
 .me {
   align-self: flex-end;
   background: var(--inner);
+}
+
+/* A turn of Chausar's that carries one thing to press (Connect an AI): the words, then the button under them. */
+.turnAct {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
 }
 
 .them {
@@ -324,4 +344,37 @@ input.name:focus-visible,
   display: block;
   font-size: var(--text-label);
   color: var(--mute);
+}
+
+/* The way to earn: four short lines and the first week, under the offers. */
+.way {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.wayList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.wayRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.wayWords {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-body);
+}
+
+.waySteps {
+  margin: 0;
+  padding-inline-start: var(--sp-4);
+  color: var(--fg);
+  font-size: var(--text-body);
 }

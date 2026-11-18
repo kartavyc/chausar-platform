@@ -12,7 +12,7 @@ import { ratePercent, taxDecision } from './tax.ts';
 import type { InvoiceRecord, InvoiceView, PriceStep, VentureRecord } from '../contracts.ts';
 
 import {computeInclusivePrice,splitsInclusive,inclusiveUnit} from './price-inclusive.ts';
-export {computeInclusivePrice,splitsInclusive,inclusiveUnit,INCLUSIVE_RULES} from './price-inclusive.ts';
+export {computeInclusivePrice,splitsInclusive,inclusiveUnit} from './price-inclusive.ts';
 
 // ---------------------------------------------------------------------------
 // TDS the client deducts (India)

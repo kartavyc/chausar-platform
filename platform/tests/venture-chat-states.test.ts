@@ -182,6 +182,7 @@ test('6G1: a step or a question for the owner wakes a snoozed chat early; a plai
   assert.equal(asked.thread.state, 'active');
   await assert.rejects(env.chief('venture.chief.thread.state', { threadId: asked.thread.id, state: 'settled' }), code('INVALID_VENTURE_REQUEST'));
   // The owner's answer ends the wait.
+  env.models.respond['agent-chat'] = () => ({ reply: 'Here is how I would go about it.', figures: [] });
   const answered = await env.chief('venture.chief.thread.send', { threadId: asked.thread.id, text: '@Editor cut a trailer from episode 14' });
   assert.equal(answered.thread.waiting, false);
 

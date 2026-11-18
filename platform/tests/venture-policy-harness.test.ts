@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import type { DelegationRequest, HarnessState, PlaybookRecord, ScenarioKind, ToolName } from '../runtime/venture/contracts.ts';
 import { practiceFiles } from '../runtime/venture/delivery/harness/practice.ts';
 import { callTool, type ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';
-import { answerHandoff, applyTurn, DEFAULT_LIMITS, newHarnessState, startDelegation } from '../runtime/venture/delivery/harness/loop.ts';
+import { answerHandoff, applyTurn, DEFAULT_LIMITS, newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';
 import { buildToolEnv } from '../runtime/venture/delivery/harness/env.ts';
 import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { digest, listRecords } from '../runtime/venture/records.ts';
@@ -157,18 +157,6 @@ test('loop: any other answer declines the hold, and only the owner can approve o
 // 3. The heavy-work start is an outside effect: the owner's approval bound to the brief
 // ---------------------------------------------------------------------------
 
-test('outside effect: starting heavy work needs the owner approval bound to that exact brief', () => {
-  const brief: DelegationRequest = {
-    toolCallId: 't1.1', turn: 1, cli: 'claude-code', executable: '/x/claude', version: '2.1.0', briefText: 'Sort the bills.', uploadIds: [],
-    limits: { minutes: 10 } as DelegationRequest['limits'], digest: 'a'.repeat(64), status: 'waiting', startedAt: null, delegateRunId: null,
-  };
-  const state: HarnessState = { ...newHarnessState(['agent.delegate'], DEFAULT_LIMITS, []), phase: 'brief', delegations: [brief] };
-  assert.throws(() => startDelegation(state, '2026-10-21T10:00:00.000Z'), code('POLICY_ASK'));
-  assert.throws(() => startDelegation(state, '2026-10-21T10:00:00.000Z', { kind: 'owner-turn' }), code('POLICY_ASK'));
-  assert.throws(() => startDelegation(state, '2026-10-21T10:00:00.000Z', { kind: 'owner-action', digest: 'b'.repeat(64), memberId: 'owner' }), code('POLICY_ASK'));
-  const started = startDelegation(state, '2026-10-21T10:00:00.000Z', { kind: 'owner-action', digest: 'a'.repeat(64), memberId: 'owner' });
-  assert.equal(started.delegations?.[0].status, 'running');
-});
 
 // ---------------------------------------------------------------------------
 // 4. The context comes from the vault: launch stage, the agent's own posture, the step gates

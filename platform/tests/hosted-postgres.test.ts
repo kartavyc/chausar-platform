@@ -252,10 +252,8 @@ test('a business vault is one row, opens on another server, and the second write
   t.after(() => again.close());
   assert.equal((await again.request('venture.get', {}) as any).venture.id, made.venture.id);
 
-  const capabilities = await again.request('venture.capabilities', {}) as any[];
-  const storage = capabilities.find(row => row.id === 'durable-storage');
-  assert.equal(storage.state, 'unverified', 'PostgreSQL on the hosted server stays experimental until a real deploy is tested');
-  assert.match(storage.reason, /not yet tested on a real deploy/);
+  const books = await again.request('venture.books.summary', {}) as any;
+  assert.ok(books.notes.includes("Test version: practice here, don't send real invoices yet."), 'PostgreSQL on the hosted server stays experimental until a real deploy is tested');
 
   await again.close(); await a.close();
   await assert.rejects(BusinessEngine.open({ root: rootB, engineOptions, postgres: db.pool }, key, 'not the passphrase at all, wrong'), code('UNLOCK_FAILED'));

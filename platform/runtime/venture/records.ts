@@ -8,6 +8,9 @@ import { digest } from '../actions.ts';
 import { validDate } from '../memory.ts';
 import { APP_ONLY_METHODS, VENTURE_EVENTS, VENTURE_RECORD_KINDS } from './contracts.ts';
 import { confirmSeal, noteSealKeys, noteWrite, sealWrites } from './journal/chain.ts';
+import { normaliseRun } from './delivery/run-machine.ts';
+import type { DeliveryRunRecord } from './contracts.ts';
+import { PLAN_KINDS } from './chief/plan-core.ts';
 import type {
   AnyVentureRecord, DateOrder, IsoTime, Json, RecordBase, RecordOf, TermRecord, VentureDeps, VentureEventName, VentureEventRecord,
   VentureMethod, VentureRecord, VentureRecordKind,
@@ -73,6 +76,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-journal-chain': 'jchain', 'venture-receipt-signature': 'receiptsig',
   'venture-order-contract': 'contract', 'venture-agent-relay': 'relay',
   'venture-routine': 'routine', 'venture-routine-run': 'routinerun',
+  'venture-chief-plan': 'chiefplan',
   'venture-drill-run': 'drillrun',
   'venture-voice': 'voice', 'venture-persona': 'persona',
   'venture-knowledge': 'knowledge', 'venture-idea': 'idea',
@@ -88,7 +92,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-recruit-role': 'recruitrole', 'venture-recruit-candidate': 'candidate', 'venture-recruit-touch': 'recruittouch', 'venture-recruit-interview': 'recruitinterview',
   'venture-career-fact': 'careerfact', 'venture-career-listing': 'listing', 'venture-career-thread': 'careerthread', 'venture-translation-job': 'tjob',
   'venture-translation-segment': 'tsegment', 'venture-glossary': 'glossary', 'venture-promise-to-pay': 'ptp', 'venture-collection-stage': 'collstage',
-  'venture-books-posting': 'booksposting', 'venture-article-ledger': 'articleledger', 'venture-lead-source': 'leadsource', 'venture-newsletter-issue': 'nlissue',
+  'venture-books-posting': 'booksposting', 'venture-article-ledger': 'articleledger', 'venture-lead-source': 'leadsource', 'venture-lead-search': 'leadsearch', 'venture-newsletter-issue': 'nlissue',
   'venture-newsletter-contact': 'nlcontact', 'venture-tender-question': 'tenderq', 'venture-site-requirement': 'sitereq', 'venture-site-release': 'siterelease',
   'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding', 'venture-demo-project': 'demoproject',
   'venture-dev-permission': 'devperm', 'venture-triage-channel': 'triage', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
@@ -108,8 +112,6 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-agent-retirement': 'retirement',
   // Wave 6 (6H1)
   'venture-mini-app': 'miniapp',
-  // Wave 6 (6H2)
-  'venture-flow': 'flowver', 'venture-flow-run': 'flowrun',
   // Wave 6 (6J2)
   'venture-feedback-setting': 'fbset', 'venture-feedback-item': 'fbitem',
   // One-shot C4 (T20)
@@ -121,7 +123,9 @@ export function isVentureRecord(value: unknown): value is AnyVentureRecord {
 }
 
 export function listRecords<K extends VentureRecordKind>(state: State, kind: K, ventureId?: string): RecordOf<K>[] {
-  return state.conversations.filter(r => r?.kind === kind && (ventureId === undefined || r.ventureId === ventureId)) as RecordOf<K>[];
+  const found = state.conversations.filter(r => r?.kind === kind && (ventureId === undefined || r.ventureId === ventureId)) as RecordOf<K>[];
+  // A delivery run an older build stored is read as a run of today, here and nowhere else (delivery/run-machine.ts).
+  return kind === 'venture-delivery-run' ? found.map(run => normaliseRun(run as DeliveryRunRecord) as RecordOf<K>) : found;
 }
 
 export function findRecord<K extends VentureRecordKind>(state: State, kind: K, id: string): RecordOf<K> | undefined {
@@ -199,6 +203,9 @@ function refuseTrialRecord(deps: VentureDeps, record: AnyVentureRecord) {
   if (deps.trial && line) check(!deps.trial(), 'TRIAL_LIMIT', line);
 }
 
+/** The chief's plan keeper (chief/plan.ts keepPlan), once the first write that can move the plan has loaded it. */
+let planKeeper: ((tx: VentureTx) => void) | null = null;
+
 /**
  * The venture actor's only write path. Authorizes, runs work() on the draft state, appends declared
  * events, audits, and commits once. A throw discards the whole draft.
@@ -216,6 +223,8 @@ export async function ventureAction<T>(
     const venture = currentVenture(state);
     if (!options.create) check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
     const events: { name: VentureEventName; data: Json }[] = [];
+    /** The kinds this transaction wrote, for the chief's plan (below). */
+    const written = new Set<string>();
     const tx: VentureTx = {
       state, venture, now, ctx,
       base<K extends VentureRecordKind>(kind: K): RecordBase<K> {
@@ -230,6 +239,7 @@ export async function ventureAction<T>(
         const copy = structuredClone(record);
         state.conversations.push(copy);
         noteWrite(state, copy.id);
+        written.add(copy.kind);
         if (copy.kind === 'venture-record') tx.venture = copy as VentureRecord;
         return structuredClone(copy);
       },
@@ -241,6 +251,7 @@ export async function ventureAction<T>(
         const before = state.conversations[index];
         state.conversations[index] = copy;
         noteWrite(state, copy.id, before);
+        written.add(copy.kind);
         if (copy.kind === 'venture-record') tx.venture = copy as VentureRecord;
         return structuredClone(copy);
       },
@@ -260,6 +271,13 @@ export async function ventureAction<T>(
     noteSealKeys(state, deps);
     sealed = state;
     const result = await work(tx);
+    // Events move the chief's standing plan (chief/plan.ts keepPlan): a write of a kind the plan is read from updates it
+    // in this same commit, by code. That file reads records through this one, so it is loaded on first use and kept;
+    // a commit that wrote none of those kinds does nothing here.
+    if (tx.venture && PLAN_KINDS.some(kind => written.has(kind))) {
+      planKeeper ??= (await import('./chief/plan.ts')).keepPlan;
+      planKeeper(tx);
+    }
     // 4J10: the receipts written are signed and the journal items written are chained, in this same commit.
     sealWrites(state, tx.venture, ctx, now, opened);
     // Today's rows are read from these records, so the screens read the queue again: one queue.changed, after the rest.

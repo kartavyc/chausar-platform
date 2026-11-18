@@ -6,6 +6,24 @@ The two rules still hold everywhere. The AI never does arithmetic on money: ever
 
 The loop is small on purpose: four turns, twelve tool calls, a fixed tool list and cheap models. For a job too big for that, an agent can hand the work to the owner's own Claude Code or Codex on their computer, after the owner approves the brief ([Heavy work](#heavy-work-your-own-claude-code-or-codex)).
 
+## Real orders today: one job, one set of states
+
+A real order is no longer worked by the loop on this page. The owner's own AI tool (Codex or Claude Code) does the work as one job, and Chausar keeps the job's sources, checks, approvals and receipts. The loop below now runs only for practice runs. Where this page says a real order's run waits on a turn, a brief or a timed question, read it as history: a run an older version left in one of those states opens as stopped, with the line "An older version of Chausar started this job, and this version cannot continue it. Run it again."
+
+A real order's run is in exactly one state, and only `platform/runtime/venture/delivery/run-machine.ts` moves it:
+
+| State | What it means |
+| --- | --- |
+| `working` | The AI job is queued or running. One exact step of it may wait for your approval. |
+| `finishing` | The AI handed over a draft and its job is still finishing. You can read or reject the draft. |
+| `needs-answer` | The job asked you for a fact it cannot go on without. It waits for as long as you take. |
+| `ready-for-review` | The draft waits for you to accept, edit or reject it. |
+| `accepted`, `edited`, `rejected` | Your verdict. |
+| `failed` | The AI job failed. Run again starts a new one. |
+| `stopped` | Not running, with no verdict. The run says why: you stopped it, Chausar closed while it ran, the AI went quiet or ran past its time limit, you answered its question, its client data was erased, or a newer job replaced it. |
+
+When Chausar opens, any run whose job was still alive is stopped as interrupted, and nothing is sent again.
+
 ## How a run works
 
 ```mermaid
@@ -53,7 +71,7 @@ The experimental hosted web server ([hosted.md](hosted.md#delivery-agents-on-the
 
 - row programs (`sandbox.transform`), Python in a container (`sandbox.python`) and bills picked from PDFs (`bills.pick`) are refused with `TIER_UNAVAILABLE` and a plain reason, before their input is read, and the agent is not offered them (no row language either);
 - PDF text is never read, because the Python helper never runs on a shared server, and a PDF is refused when it is added;
-- nothing checks for Docker, not even the capability list.
+- nothing checks for Docker.
 
 Agent-written code stays off there until the founder decides whether it may run on a shared server. Bookkeeping still works from CSV and XLSX: the reconciliation needs no sandbox, only the agent's own match keys go. A playbook's grant never changes with the host; the host decides only what is offered and what runs.
 
@@ -159,14 +177,12 @@ flowchart LR
 
 **What the folder can and can't promise.** Chausar locks what it controls: the folder's contents, the environment, the arguments, the time. The tool still runs as the owner's own user account. Claude Code keeps to its working folder for edits and gets no shell, web or MCP tools; Codex's sandbox blocks writes outside the folder and the network, but may read other files the owner can read. Your vault on disk is encrypted and model keys live only in Chausar's memory, so neither is readable from outside. The executable is the first `claude` or `codex` (`.exe`, `.cmd` or `.bat` on Windows) on the engine's search path, the same one a terminal would run.
 
-**Capability rows.** "Heavy work: Claude Code" and "Heavy work: Codex" in the sandbox group:
+**The version check.** What Chausar finds for Claude Code and for Codex before it offers heavy work:
 
-| Row state | When |
+| State | When |
 |---|---|
 | Needs setup | Not found, or `--version` does not answer as the real tool does (`2.1.0 (Claude Code)`, `codex-cli 0.50.0`), or Chausar has not looked (tests). For Claude Code also while the terms gate is pending: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code, so heavy work can't hand it a job yet." |
 | Unverified | Found and checked; "Not yet tried on a real order" |
-| Available | Found and checked, and this business has a finished run of it on a real order |
-| Unavailable | On the hosted server: "Heavy work starts your own Claude Code or Codex on your computer. The shared hosted server never starts it; use the desktop app." |
 
 The check runs `--version` with no network and is reused for a minute. On the hosted server nothing looks for either tool, `agent.delegate` is refused with `TIER_UNAVAILABLE` before its input is read and is never offered, and `venture.delivery.delegate` refuses. Rehearsals and improvement runs never start it (`TIER_UNAVAILABLE`: "Heavy work runs only on a real order"), so practice clients never spend the owner's plan.
 
@@ -215,10 +231,8 @@ Without an AI both versions write the same template outlines, so the gate keeps 
 | `venture.work.get` | read | One work receipt |
 | `venture.improve.status` | read | Readiness, the version in use, the latest run, a candidate waiting |
 | `venture.improve.run` | prepare | One improvement run |
-| `venture.improve.get` | read | One improvement run |
 | `venture.improve.adopt` | app only | Switches to a kept candidate |
 | `venture.delivery.delegate` | app only | Approves or declines a heavy-work brief on a real order |
-| `venture.delegate.get` | read | What one heavy-work run left: its untrusted files and log, and its figures against the calculator |
 
 New record kinds: `venture-upload`, `venture-work-table`, `venture-work-receipt`, `venture-improvement-run`, `venture-delegate-run`. New model purposes: `agent-turn` (quick tier) and `improve` (main tier). A delivery run has `needs-answer` and `brief-waiting` statuses. New events: `delivery-brief-waiting`, `delegate-finished`. The execution tier `owner-cli` sits above containers; playbooks built from now on have it as their ceiling, and the work step holds `agent.delegate`. A playbook stored before keeps its tools until the plan changes or a `tools.grant` patch adds it.
 
@@ -263,7 +277,7 @@ The old renderer (`app/renderer/launch.js`, removed on 22 October 2026 when Ink 
 - **Agents.** One folded line at rest says whether improvement is due: "Improvement: not due yet", "ready to run" or "a change to adopt". Inside: the engine's reason, how many drafts were reviewed, the last run (what it kept, the gate's reason, its cost, and one mark per case: won, tied, lost), a kept change in the engine's own words with "Adopt this version" (`venture.improve.adopt` with the run's digest), and "Run the improvement loop" (a quiet link while a change waits). A stale change shows the engine's reason. "How agents work" names the playbook version in use.
 - **A brief to approve.** A run in `brief-waiting` reads "brief to approve" on Agents and shows the open request from `run.harness.delegations`: "The agent asks to hand this job to Claude Code", the tool and its version, the exact brief in a box as the tool gets it, the files by their own names, the time limit, and "Claude Code sends what it reads to Anthropic under your own plan" (OpenAI for Codex). No spending cap is drawn: it is money, and the screen does no money arithmetic. "Approve and start" and "Decline" call `venture.delivery.delegate` with the brief's digest. While the tool works the sheet holds a still outline and one line ("Claude Code is working on copies of the files. This can take up to 10 minutes."); a refusal shows the engine's words where the brief was, and the brief stays. A brief whose tool started and never came back offers only Decline, once the engine says it waits on the owner.
 - **Heavy work in "What the agent did".** The agent's `agent.delegate` call reads in plain words: "Wrote a brief for Claude Code" (waiting), "Handed the job to Claude Code", "You declined the brief", "Claude Code ran past its time limit" or "Claude Code stopped with an error" with the engine's reason. Under it come the file names the tool made, the figure refs the calculator made ("Figures the calculator worked out again: w2.total, w3.total.") and a Receipt link per recomputed figure. The tool's summary and its numbers never show here.
-- **What the tool made.** "What Claude Code made" opens the `venture-delegate-run` record (`venture.delegate.get`) under the row, headed "Written by Claude Code, another AI, on this computer. Chausar has not checked it." It shows the engine's outcome line, each listed figure as "same as the calculator", "differs; only the calculator's total may be cited" or the reason it was not checked, with the calculator's own figure behind its Receipt link (the tool's value is never drawn beside it), how many numbers in its summary were not worked out again, the cost the tool printed (not checked or counted), each file (text folded, opened on request; other files by name), the end of its log, folded, and the record id.
+- **What the tool made.** "What Claude Code made" opens the `venture-delegate-run` record under the row, headed "Written by Claude Code, another AI, on this computer. Chausar has not checked it." It shows the engine's outcome line, each listed figure as "same as the calculator", "differs; only the calculator's total may be cited" or the reason it was not checked, with the calculator's own figure behind its Receipt link (the tool's value is never drawn beside it), how many numbers in its summary were not worked out again, the cost the tool printed (not checked or counted), each file (text folded, opened on request; other files by name), the end of its log, folded, and the record id.
 - **Today.** "A question to answer", "A brief to approve" and "A playbook change to review" join what awaits the owner; a brief counts when the engine's `awaitingYou` says so.
 
 No screen does money arithmetic: every amount is an engine display string, and the marks are counts.

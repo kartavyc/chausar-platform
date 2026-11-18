@@ -1,6 +1,6 @@
 # Vendored native runtimes
 
-This directory deliberately contains no PostgreSQL or Python executable. The preview uses an explicitly selected experimental file vault; production PostgreSQL does not fall back to a database installed on the developer's machine. A native release must vendor genuine, licensed runtimes for each supported target and pass `node scripts/package-preflight.mjs` before invoking electron-builder.
+This directory deliberately contains no PostgreSQL or Python executable. The preview and beta builds ship nothing from here, and the desktop app keeps each business in its file vault. Only the final packaging path (`node scripts/desktop-package.mjs --mode final`) reads this directory: its gate, `scripts/package-preflight.mjs`, asks for genuine, licensed runtimes for the target before electron-builder runs. That path has not been exercised.
 
 Assemble one target platform and architecture per package checkout directly under this directory. The manifest declares that target, such as `win32` with `x64` or `darwin` with `arm64`. Runtime startup uses `process.resourcesPath/runtime-binaries` in the installed app. Required paths relative to this directory are:
 
@@ -23,6 +23,6 @@ The publisher must supply `CHAUSAR_RELEASE_PRIVATE_KEY_FILE` and `CHAUSAR_RELEAS
 
 The native credential names follow the [pinned electron-builder 26 signing documentation](https://www.electron.build/v26/docs/features/code-signing/). This project's gate selects local certificate files and refuses missing publisher credentials; electron-builder offers additional signing backends that would require their own explicit configuration and validation.
 
-The release pipeline must run the preflight and stop on its nonzero exit status, then run electron-builder with signing enabled. For example, in PowerShell, run `node scripts/package-preflight.mjs`; if `$LASTEXITCODE -ne 0`, stop before packaging. A source build from `scripts/build.mjs` is explicitly an unsigned preview and does not satisfy this gate.
+The release pipeline must run the preflight and stop on its nonzero exit status, then run electron-builder with signing enabled. For example, in PowerShell, run `node scripts/package-preflight.mjs`; if `$LASTEXITCODE -ne 0`, stop before packaging. A source copy from `scripts/build.mjs` is unsigned and does not satisfy this gate.
 
-Desktop startup is wired to launch the bundled PostgreSQL binaries on loopback when no explicit PostgreSQL URL is configured, using a private generated password file. The packaged Python path is explicit. The native runtimes are absent in this environment, so this wiring has not been qualified with a native launch. Before claiming an installed production release, verify startup and orderly shutdown on each target, test the Python helper process restrictions, sign the actual release manifest with the publisher's pinned Ed25519 key, and prove backup/rollback across an upgrade. Those qualifications are not asserted by this source tree.
+What the desktop does with this directory today: outside demo mode, and when `CHAUSAR_PYTHON` is not set, it points the engine's Python helper at the Python path above. It starts no PostgreSQL, although the gate still asks for one. No runtime is in this repository, and this page has not been tried with a real bundle.

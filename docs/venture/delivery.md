@@ -8,17 +8,16 @@ One rule shapes all of it: a draft may say work was done only when a tool run pr
 
 | File | What it does |
 | --- | --- |
-| `platform/runtime/venture/delivery/index.ts` | The twelve handlers, plus `validatePlaybook`, `renderDeliverable`, `renderForJudge`, `runChecks`, `scenariosFor` and `capabilityList` for tests |
+| `platform/runtime/venture/delivery/index.ts` | The twelve handlers, plus `validatePlaybook`, `renderDeliverable`, `renderForJudge`, `runChecks` and `scenariosFor` for tests |
 | `playbook.ts` | The seven fixed steps, `validatePlaybook`, and `venture.delivery.playbook` |
 | `deliverable.ts` | Figure and date refs, the delivery model task and its validator, the template outline, and rendering |
 | `checks.ts` | The nine deterministic checks |
 | `scenarios.ts` | Three practice clients per service type, and cases made from signals |
-| `simulate.ts` | Rehearsal: `venture.simulation.run`, `.get`, `.scenarios` and `.fromSignal` |
+| `simulate.ts` | Rehearsal: `venture.simulation.run` and `.scenarios` |
 | `judge.ts` | The judge task: four typed questions, placeholders instead of prices and dates |
 | `launch.ts` | The launch ladder: `venture.launch.status` and `.advance` |
 | `runs.ts` | Real orders: `venture.delivery.run`, `.approve`, `.review` and `.list` |
-| `capabilities.ts` | `capabilityList` and `venture.capabilities` |
-| `improve.ts` | The gated improvement loop: `venture.improve.status`, `.run`, `.get` and `.adopt` |
+| `improve.ts` | The gated improvement loop: `venture.improve.status`, `.run` and `.adopt` |
 | `harness/` | The delivery harness: tools, the agent loop, client files, the work calculator, the dictionary, the sandbox tiers ([harness.md](harness.md)) |
 | `shared.ts` | Small read helpers |
 
@@ -96,7 +95,7 @@ When shadow is closed, the reason says why, in words that match what the rehears
 
 `venture.delivery.approve { runId, digest }` reads the waiting draft outside any transaction, then asks the model port to send the approved text once (the port claims the call first, so two approvals send once). The draft is rendered and checked, and one action stores it. A failed check stores a `check-failed` signal. Before anything is sent, approve refuses with `LAUNCH_STAGE_BLOCKED` unless the stage is shadow or approve each now, so a draft made at approve each and approved after a move down to rehearsal never reaches the model. The store step checks the stage again (it can move while the call is out): at shadow the answer is stored as a practice draft whatever the stage was when the draft was made; at rehearsal nothing is stored and the run is marked `failed`.
 
-`venture.delivery.review` accepts, edits or rejects a ready draft. A practice draft refuses `accepted` with `PRACTICE_DRAFT`, and so does any agent draft while the stage is below approve each; an edit or a rejection made then is stored as a practice draft, so it is never copied to a client. A draft that failed a check can't be accepted as it stands (`INVALID_VENTURE_REQUEST`, "This draft claims work that was not done. Edit it or reject it." for a done claim, or "This draft failed a check: ... Edit it or reject it." for any other); the owner edits it, which records a signal, or rejects it. A rejection needs a reason from the list. Edits and rejections store signals. `venture.simulation.fromSignal` turns a signal into a rehearsal case built from the messy practice client, with checks focused on the reason. It never copies the client's request.
+`venture.delivery.review` accepts, edits or rejects a ready draft. A practice draft refuses `accepted` with `PRACTICE_DRAFT`, and so does any agent draft while the stage is below approve each; an edit or a rejection made then is stored as a practice draft, so it is never copied to a client. A draft that failed a check can't be accepted as it stands (`INVALID_VENTURE_REQUEST`, "This draft claims work that was not done. Edit it or reject it." for a done claim, or "This draft failed a check: ... Edit it or reject it." for any other); the owner edits it, which records a signal, or rejects it. A rejection needs a reason from the list. Edits and rejections store signals. An edit, or a rejection for any reason but "not needed", is listed as a rehearsal case as soon as it is recorded (`venture.simulation.scenarios`): the messy practice client, with checks focused on the reason. It never copies the client's request.
 
 ## Choices made where the spec left room
 
@@ -109,9 +108,8 @@ When shadow is closed, the reason says why, in words that match what the rehears
 7. **The practice client's history** holds only the agent's questions, never the rendered draft, so no amount reaches the practice client either.
 8. **Signal cases** keep five core checks (numbers, prices, outside writes, turns, done claims) and add the checks for the reason, for example `required-sections` for a missing section.
 9. **Moving to the stage you are on** changes nothing and returns the ladder. Moving down from approve each sets the venture status back to `rehearsal`.
-10. **`capabilityList`** takes three more optional arguments after the storage. The fourth is the model presets, so a model row can name the preset and its availability words; without it, Anthropic presets that serve a tier count as available and the others as unverified, as in the models table. The fifth is the container check, which the handler runs (reused for a minute) everywhere except the hosted server. The sixth is the host: `hosted-web` gives the hosted rows, where containers, the light sandbox and PDF reading say unavailable and nothing checks for Docker ([hosted.md](hosted.md#delivery-agents-on-the-hosted-server)).
-11. **The stage is checked at every step of a real order**, not only when the draft is made: at approve before anything is sent, again when the answer is stored, and at review. Moving down always wins.
-12. **Accept needs every check to pass.** The spec allows accept at approve each; this package also refuses a plain accept when a check failed, because the owner copies an accepted draft to a client in one click. Editing is always open, so the owner keeps the last word.
+10. **The stage is checked at every step of a real order**, not only when the draft is made: at approve before anything is sent, again when the answer is stored, and at review. Moving down always wins.
+11. **Accept needs every check to pass.** The spec allows accept at approve each; this package also refuses a plain accept when a check failed, because the owner copies an accepted draft to a client in one click. Editing is always open, so the owner keeps the last word.
 
 ## How it was checked
 

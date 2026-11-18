@@ -1,6 +1,6 @@
 // B1 fix round 2 (quality finding 2, spec finding 4): a refusal is flagged for the owner only when it is written for
-// the owner. The vault, sync and storage internals throw in developer words ("Sync requires a valid encrypted
-// Vault.backup envelope.", "Fresh bootstrap exceeds its explicit State byte budget."), so they throw InternalError
+// the owner. The vault and storage internals throw in developer words ("Fresh bootstrap exceeds its explicit State
+// byte budget."), so they throw InternalError
 // (owner: false). On the way out a transport sends such a refusal without the flag when the app has its own line for the
 // code (errors.json), and as the general sentence otherwise, so its words never reach a screen. Every code these files
 // can throw is listed here, either with the app's line or as a technical code, so a new one has to be placed.
@@ -15,7 +15,7 @@ import { DEVELOPER_TEXT_CODES, INTERNAL_LINE_CODES, TABLE_CODES, bannedIn, refus
 import { Vault, safeDirectory } from '../runtime/vault.ts';
 import { loopbackPostgresUrl } from '../runtime/postgres.ts';
 
-const SOURCES = ['vault.ts', 'sync.ts', 'sync-file-transport.ts', 'sync-writer-admission.ts', 'postgres.ts'] as const;
+const SOURCES = ['vault.ts', 'postgres.ts'] as const;
 const read = (name: string) => readFile(new URL(`../runtime/${name}`, import.meta.url), 'utf8');
 const errors = JSON.parse(await readFile(new URL('../../app/ui/src/text/en/errors.json', import.meta.url), 'utf8')) as Record<string, string>;
 
@@ -31,31 +31,20 @@ async function refusals(): Promise<[string, string][]> {
   }
   // The writer locks name their codes as options (busyCode, changedCode, unsafeCode).
   pairs.push(['VAULT_BUSY', 'This vault is already open, or its writer cannot be verified.'], ['LOCK_CHANGED', 'The writer lock changed.'],
-    ['SYNC_STORE_BUSY', 'Another local process holds or may hold the sync transaction lock.'], ['SYNC_LOCK_CHANGED', 'The process lock changed.'],
-    ['SYNC_WRITER_BUSY', 'Another local process holds or may hold writer admission.'], ['SYNC_WRITER_LOCK_CHANGED', 'The process lock changed.'],
     ['UNSAFE_PATH', 'A process lock must use regular files in a real directory.']);
   return pairs;
 }
 
 /**
- * The codes the owner never meets in the app: a fresh bootstrap, encrypted custody budgets, device sync set-up and its
- * protocol (sync is off until a transport is configured), and PostgreSQL storage. Through a transport each says the
- * general sentence. MIGRATION_PENDING and NO_MIGRATION stay here until D12's first real step: nothing migrates while
+ * The codes the owner never meets in the app: private artifact custody and PostgreSQL storage.
+ * Through a transport each says the general sentence. MIGRATION_PENDING and NO_MIGRATION stay here until D12's first real step: nothing migrates while
  * CURRENT_SCHEMA is 1, and that step gives MIGRATION_PENDING its app line.
  */
 const TECHNICAL = [
-  'ACCESS_REVOKED', 'ALREADY_SENT', 'APP_APPROVAL_REQUIRED', 'ARTIFACT_BACKUP_REQUIRED', 'ARTIFACT_ID_INVALID', 'ARTIFACT_INVENTORY_INCOMPLETE',
-  'ARTIFACT_LIMIT', 'ARTIFACT_REVISION_CONFLICT', 'ARTIFACT_REVISION_REQUIRED', 'BACKUP_REQUIRED', 'BOOTSTRAP_CLEANUP_REQUIRED', 'BOOTSTRAP_GUARD',
-  'BOOTSTRAP_LIMIT', 'BOOTSTRAP_OWNER_INVALID', 'BOOTSTRAP_PIN_REQUIRED', 'BOOTSTRAP_POLICY_INVALID', 'BOOTSTRAP_READBACK', 'BOOTSTRAP_RUNTIME_AUTHORITY',
-  'BOOTSTRAP_STATE_INVALID', 'BOOTSTRAP_TARGET_NOT_EMPTY', 'CORRUPT_VAULT', 'FENCE_REJECTED', 'INVALID_DEVICE_KEY', 'INVALID_POSTGRES_CONFIG',
-  'INVALID_REQUEST', 'INVALID_REVISION', 'INVALID_SLOT', 'INVALID_STATE', 'INVALID_SYNC_LEASE', 'INVALID_SYNC_SETTING', 'INVALID_SYNC_WRITER_REVIEW',
-  'LIVE_AUTHORITY_OVERWRITE_REFUSED', 'LOCK_CHANGED', 'MIGRATION_PENDING', 'MULTIWRITER_UNSUPPORTED', 'NO_MIGRATION', 'PREVIEW_NOT_FOUND', 'RESTORE_TARGET_NOT_EMPTY', 'STORAGE_REQUIRED',
-  'SYNC_ACCESS_DENIED', 'SYNC_APPROVAL_REQUIRED', 'SYNC_CAS_CONFLICT', 'SYNC_CLOCK_INVALID', 'SYNC_CLOCK_REGRESSED', 'SYNC_DEVICE_CONFIGURATION_REQUIRED',
-  'SYNC_DISABLED', 'SYNC_EMPTY', 'SYNC_FENCE_EXHAUSTED', 'SYNC_HEAD_MISMATCH', 'SYNC_LOCK_CHANGED', 'SYNC_LOG_INVALID', 'SYNC_LOG_TRUNCATED',
-  'SYNC_PAYLOAD_CHANGED', 'SYNC_PREVIEW_STALE', 'SYNC_RECONCILIATION_UNAVAILABLE', 'SYNC_REPLAY', 'SYNC_REVOKED', 'SYNC_SCOPE_DENIED',
-  'SYNC_SIGNATURE_INVALID', 'SYNC_STORE_BUSY', 'SYNC_STORE_CORRUPT', 'SYNC_TOO_LARGE', 'SYNC_UNSAFE_PATH', 'SYNC_WORKSPACE_MISMATCH',
-  'SYNC_WRITER_ADMISSION_REQUIRED', 'SYNC_WRITER_BUSY', 'SYNC_WRITER_CAS_CONFLICT', 'SYNC_WRITER_EXPIRED', 'SYNC_WRITER_LOCK_CHANGED',
-  'SYNC_WRITER_REVIEW_REQUIRED', 'SYNC_WRITER_STATE_CONFLICT', 'SYNC_WRITER_STORE_CORRUPT', 'UNTRUSTED_DEVICE', 'WRITER_LEASE_DENIED', 'WRITER_LEASE_EXPIRED',
+  'ARTIFACT_BACKUP_REQUIRED', 'ARTIFACT_ID_INVALID', 'ARTIFACT_INVENTORY_INCOMPLETE',
+  'ARTIFACT_LIMIT', 'ARTIFACT_REVISION_CONFLICT', 'ARTIFACT_REVISION_REQUIRED', 'CORRUPT_VAULT', 'INVALID_POSTGRES_CONFIG',
+  'INVALID_REQUEST', 'INVALID_REVISION', 'INVALID_SLOT', 'INVALID_STATE',
+  'LOCK_CHANGED', 'MIGRATION_PENDING', 'NO_MIGRATION', 'STORAGE_REQUIRED',
 ];
 
 test('B1 fix round 2: these sources build no refusal the owner could read as theirs', async () => {
@@ -66,9 +55,9 @@ test('B1 fix round 2: these sources build no refusal the owner could read as the
   }
 });
 
-test('B1 fix round 2: every vault, sync and storage refusal is said in the app\'s words or as the general sentence', async () => {
+test('B1 fix round 2: every vault and storage refusal is said in the app\'s words or as the general sentence', async () => {
   const pairs = await refusals();
-  assert.ok(pairs.length > 150, String(pairs.length));
+  assert.ok(pairs.length > 50, String(pairs.length));
   const codes = new Set(pairs.map(([code]) => code));
   assert.deepEqual([...codes].filter(code => !TABLE_CODES.includes(code)).sort(), [...TECHNICAL].sort(), 'each code is placed: an app line or technical');
   for (const [code, words] of pairs) {

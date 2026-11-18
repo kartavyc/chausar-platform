@@ -10,6 +10,7 @@ import { checkFetchPolicy } from '../build/fetch-policy.ts';
 import { aiFailureWords, classifyAiText, classifyClaudeResult } from '../models/ai-failure.ts';
 import { fromClaudeLimit } from '../models/plan-meter.ts';
 import { profileHost } from '../network/protected.ts';
+import { CLI_BASE_ENV_NAMES } from '../../providers/codex-cli.ts';
 
 type ClaudeQuery = AsyncIterable<SDKMessage> & { interrupt(): Promise<unknown>; close(): void; setMcpPermissionModeOverride?: (serverName: string, mode: 'default' | 'auto' | null) => Promise<unknown> };
 type McpProvenance = { name?: unknown; source?: unknown } | undefined;
@@ -89,7 +90,8 @@ async function toolAllowed(input: AgentDriverInput, root: string, name: string, 
 
 function environment(input: AgentDriverInput): Record<string, string> {
   const env: Record<string, string> = {};
-  for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA']) if (process.env[key]) env[key] = process.env[key]!;
+  // The shared list: it names the account too, which Claude Code needs to find its sign-in on macOS.
+  for (const key of CLI_BASE_ENV_NAMES) if (process.env[key]) env[key] = process.env[key]!;
   Object.assign(env, { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1', CLAUDE_CODE_DISABLE_TERMINAL_TITLE: '1', CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL: '1', ENABLE_CLAUDEAI_MCP_SERVERS: connectorsOn(input) ? 'true' : 'false' });
   if (input.credentials) { env.ANTHROPIC_API_KEY = input.credentials.apiKey; if (input.credentials.baseUrl) env.ANTHROPIC_BASE_URL = input.credentials.baseUrl; }
   return env;

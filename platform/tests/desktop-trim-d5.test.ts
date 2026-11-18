@@ -50,6 +50,33 @@ test('task 1: every builder file carries exactly en-US, en-GB and hi', async t =
     }
   }
 });
+// The Mac build (14 Nov 2026). macOS names the same three languages its own way: an app keeps one marker folder for
+// each language it speaks (en.lproj, en_GB.lproj, hi.lproj in Contents/Resources). So every builder file with a Mac
+// target names the Mac spellings for it; the top-level list stays as it is for Windows and Linux. The first real build
+// showed that electron-builder's copy of the local Electron folder drops every marker folder (they are empty), so the
+// pack hook makes exactly the ones named here (desktop-icons-a7.test.ts) and the contents check wants all three.
+test('Mac: every builder file with a Mac target names the same three languages the macOS way (en, en_GB, hi)', async t => {
+  assert.deepEqual(TRIM.macElectronLanguages, ['en', 'en_GB', 'hi']);
+  for (const [mode, config] of Object.entries(CONFIGS)) {
+    assert.ok(config.mac, `${mode} has a Mac target`);
+    assert.deepEqual(config.mac.electronLanguages, TRIM.macElectronLanguages, mode);
+    assert.deepEqual(config.electronLanguages, TRIM.electronLanguages, `${mode}: Windows and Linux are unchanged`);
+  }
+  for (const mode of ['beta', 'preview', 'final'] as const) {
+    const { electronLanguages: _dropped, ...macWithout } = CONFIGS[mode].mac;
+    for (const mac of [macWithout, { ...CONFIGS[mode].mac, electronLanguages: TRIM.electronLanguages }, { ...CONFIGS[mode].mac, electronLanguages: [...TRIM.macElectronLanguages, 'ta'] }, { ...CONFIGS[mode].mac, electronLanguages: ['hi'] }]) {
+      const variant = { ...CONFIGS[mode], mac };
+      assert.throws(() => validateTrim(variant), /macOS languages/);
+      const failure = await configFailure(t, mode, variant);
+      assert.ok(failure, `${mode}: ${JSON.stringify(mac.electronLanguages)}`);
+      assert.match(failure.reason, /macOS languages/);
+    }
+  }
+  // A file with no Mac target has nothing to name.
+  const { mac: _mac, ...noMac } = CONFIGS.preview;
+  validateTrim(noMac);
+});
+
 test('task 2: no build carries a Claude Code program file; the Agent SDK itself stays', async t => {
   assert.equal(TRIM.claudeBinary, 'none');
   assert.equal(TRIM.claudeBinaryExclusion, '!node_modules/@anthropic-ai/claude-agent-sdk-*/**');

@@ -25,9 +25,6 @@ export type EnvEntry = {
 /** Code constants whose names start CHAUSAR_ but are not environment variables. */
 export const NOT_ENV = ['CHAUSAR_USER_AGENT', 'CHAUSAR_YOUTUBE'] as const;
 
-/** The prefix desktop-package.mjs and feedback-keys.cjs strip or copy as a group (the three entries below). */
-export const ENV_PREFIXES = ['CHAUSAR_FEEDBACK_'] as const;
-
 export const ENV: readonly EnvEntry[] = [
   { name: 'CHAUSAR_AGENT_API_KEY', meaning: 'The owner\'s API key, handed to a Codex agent run that uses a key connection instead of a sign-in.', default: 'Unset: Codex uses its own sign-in.', readers: ['child'], secret: true },
   { name: 'CHAUSAR_AGENT_MCP_SOCKET', meaning: 'The local socket the agent\'s MCP bridge connects to, set by the engine for the bridge it starts.', default: 'Set by the engine; the bridge refuses to start without it.', readers: ['child'] },
@@ -72,9 +69,6 @@ export const ENV: readonly EnvEntry[] = [
   { name: 'CHAUSAR_HOSTED_TRIAL_VAULT_BYTES', meaning: 'The largest vault one hosted trial may keep, in bytes (1 MB to 256 MB).', default: 'Unset: the built-in size.', readers: ['hosted'] },
   { name: 'CHAUSAR_HOSTED_TRUST_PROXY', meaning: 'How many trusted proxies stand in front of the hosted server (true means 1).', default: 'Unset: 0, the socket address is the client.', readers: ['hosted'] },
   { name: 'CHAUSAR_INK_ROOT', meaning: 'The absolute folder of the built Ink app, set by the desktop for the engine\'s web host.', default: 'Unset: app/ui/dist beside the source.', readers: ['desktop', 'engine'] },
-  { name: 'CHAUSAR_JOB_LEASE_MS', meaning: 'The lease of a typed background job, in milliseconds (with the other two job variables).', default: 'Unset: typed jobs are off in that process.', readers: ['engine'] },
-  { name: 'CHAUSAR_JOB_MAX_ACTIVE', meaning: 'How many typed background jobs run at once (with the other two job variables).', default: 'Unset: typed jobs are off in that process.', readers: ['engine'] },
-  { name: 'CHAUSAR_JOB_WORKER_ID', meaning: 'The id this process uses to lease typed background jobs (with the other two job variables).', default: 'Unset: typed jobs are off in that process.', readers: ['engine'] },
   { name: 'CHAUSAR_PERF_STAND_IN', meaning: 'A JSON file of stand-in measures for perf-budgets.mjs, read by that script only, so its test runs no measure.', default: 'Unset: the real measures run.', readers: ['scripts'] },
   { name: 'CHAUSAR_PORT', meaning: 'The local web server\'s port.', default: 'Unset: 4317.', readers: ['server'], example: true },
   { name: 'CHAUSAR_POSTGRES_URL', meaning: 'The local server\'s PostgreSQL address, for real (non-demo) storage.', default: 'Unset: real storage cannot start; the demo uses file storage.', readers: ['server'], example: true, secret: true },

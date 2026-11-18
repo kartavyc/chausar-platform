@@ -22,6 +22,7 @@ import {POST_PLAN_GUIDANCE} from '../playbooks/social/post-plan.ts';
 import {ghostwritingSections} from '../playbooks/social/structures.ts';
 import { REPURPOSE_GUIDANCE } from '../playbooks/social/repurpose-coverage.ts';
 import { validateFlow } from './flow.ts';
+import { CARD_FIXED_WORDS as CARD } from '../views/card-words.ts';
 
 const STEP_KINDS: readonly StepKind[] = ['gather', 'question', 'work', 'compute', 'write', 'verify', 'approve', 'operator'];
 const TIER_ORDER: readonly ExecutionTier[] = ['code', 'actor', 'wasm-lite', 'wasm', 'container', 'owner-cli', 'hosted'];
@@ -41,7 +42,7 @@ export { DRAFT_CHECKS, VERIFY_CHECKS };
 const READ_TOOLS: readonly ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'handoff.client', 'handoff.owner', 'evidence.record'];
 const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate', 'evidence.record'];
 
-export const GENERIC_WORK_TITLE = 'Do the hands-on work with tools';
+export const GENERIC_WORK_TITLE = CARD.stepWork;
 
 /**
  * The plan steps the playbook takes its two titles from. A composed plan (any step has a block) finds them by block:
@@ -80,14 +81,14 @@ export function playbookSteps(blueprint: BlueprintRecord, flagship: string | nul
   check(drafting, 'INVALID_VENTURE_REQUEST', 'The plan has no drafting step.');
   const ceiling = toolCeiling(blueprint.serviceType);
   return [
-    { id: 'gather', kind: 'gather', title: "Read the client's message and files and pull out what is needed", tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS], guidance: [] },
-    { id: 'clarify', kind: 'question', title: 'Decide what is still unclear', tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: ['questions-raised'], tools: ['dictionary.resolve', 'handoff.client', 'handoff.owner'], guidance: [] },
+    { id: 'gather', kind: 'gather', title: CARD.stepGather, tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS], guidance: [] },
+    { id: 'clarify', kind: 'question', title: CARD.stepClarify, tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: ['questions-raised'], tools: ['dictionary.resolve', 'handoff.client', 'handoff.owner'], guidance: [] },
     { id: 'work', kind: 'work', title: handsOn?.title.value ?? GENERIC_WORK_TITLE, tier: 'wasm-lite', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: WORK_TOOLS.filter(tool => ceiling.includes(tool)), guidance: [] },
-    { id: 'price', kind: 'compute', title: 'Take prices from the calculator', tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: ['figures-resolve'], tools: [], guidance: [] },
+    { id: 'price', kind: 'compute', title: CARD.stepPrice, tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: ['figures-resolve'], tools: [], guidance: [] },
     { id: 'draft', kind: 'write', title: drafting.title.value, tier: 'actor', model: 'main', doneBy: 'agent', requiredSections: [...REQUIRED_SECTIONS[blueprint.serviceType]], checks: [...DRAFT_CHECKS], tools: [], guidance: [] },
-    { id: 'verify', kind: 'verify', title: 'Check the draft', tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: [...VERIFY_CHECKS], tools: [], guidance: [] },
-    { id: 'approve', kind: 'approve', title: 'You review the draft', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], guidance: [] },
-    { id: 'send', kind: 'operator', title: 'Send it to the client (you copy it for now)', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: ['no-outside-writes'], tools: [], guidance: [] },
+    { id: 'verify', kind: 'verify', title: CARD.stepVerify, tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: [...VERIFY_CHECKS], tools: [], guidance: [] },
+    { id: 'approve', kind: 'approve', title: CARD.stepApprove, tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], guidance: [] },
+    { id: 'send', kind: 'operator', title: CARD.stepSend, tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: ['no-outside-writes'], tools: [], guidance: [] },
   ];
 }
 

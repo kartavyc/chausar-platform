@@ -64,9 +64,8 @@ test('modelWords refuses advice on every model path that uses it', () => {
 });
 
 test('an agent chat answer with advice is refused, so the template answer is used instead', () => {
-  const part = (text: string) => ({ kind: 'text', text, receiptId: '', key: '' });
-  assert.throws(() => validateAnswer({ parts: [part('Your journal is ready.'), part('You should buy this stock before results.')] }), code('MODEL_OUTPUT_REJECTED'));
-  assert.equal(validateAnswer({ parts: [part('Your journal is ready.')] }).parts.length, 1);
+  assert.throws(() => validateAnswer({ reply: 'Your journal is ready.\nYou should buy this stock before results.', figures: [] }), code('MODEL_OUTPUT_REJECTED'));
+  assert.equal(validateAnswer({ reply: 'Your journal is ready.', figures: [] }).reply, 'Your journal is ready.');
 });
 
 test('brokerOrderTool spots tools that place, change or cancel orders', () => {

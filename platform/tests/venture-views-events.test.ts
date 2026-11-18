@@ -127,7 +127,7 @@ test('the venture host turns committed run events into VentureRunEvents for its 
     ...PACKAGE_LOADERS,
     views: async () => ({ handlers: { 'venture.runs.list': async (deps: VentureDeps) => {
       await ventureAction(deps, owner, 'prepare', 'test.events', tx => { tx.emit('client-added', {}); tx.emit('run.done', { runId: 'delivery_1' }); });
-      return { runs: [] };
+      return { runs: [], searches: [] };
     } } }),
   };
   const host = new VentureHost(env.store, env.deps.services, {
@@ -214,7 +214,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['firstPaint', 'getAskLater', 'getBackground', 'importCopy', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickCopy', 'pickNetworkFile', 'previewDiagnostics', 'request', 'saveBriefFile', 'saveBusinessExport', 'saveDiagnostics', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'setBackupFolder', 'shareInvoice', 'sharePack', 'shareReceipt', 'showExport', 'showSavedExport', 'showShared', 'showUpdateInstaller']);
+  assert.deepEqual(Object.keys(api).sort(), ['firstPaint', 'getAskLater', 'getBackground', 'importCopy', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickCopy', 'pickNetworkFile', 'previewDiagnostics', 'request', 'saveBriefFile', 'saveBusinessExport', 'saveDiagnostics', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'setBackupFolder', 'settled', 'shareInvoice', 'sharePack', 'shareReceipt', 'showExport', 'showSavedExport', 'showShared', 'showUpdateInstaller']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });

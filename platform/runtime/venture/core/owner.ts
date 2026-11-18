@@ -7,6 +7,8 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel, singleLine, ventureAction } from '../records.ts';
 import type { OwnerProfileRecord, OwnerView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { isFamilyId, type FamilyId } from './families.ts';
+import { keptWay, type WayToEarn } from './way.ts';
+import { ownerNeeds, type NeedId } from './needs-data.ts';
 
 /**
  * A first name of 1 to 40 characters, once the curly apostrophe is made straight: it starts with a letter in any script;
@@ -26,10 +28,16 @@ const NAME_RULE = 'Your first name can have 1 to 40 letters, with spaces, dots, 
 export const BACKUPS_LINE = 'Backups made before now still hold this person until those backups are deleted.';
 
 /** The profile's two fields for a business, empty when the owner has set nothing. */
-export function ownerProfileOf(state: State, ventureId: string): Pick<OwnerProfileRecord, 'firstName' | 'excludedServices'> & { familyId?: FamilyId } {
+export function ownerProfileOf(state: State, ventureId: string): Pick<OwnerProfileRecord, 'firstName' | 'excludedServices'> & { familyId?: FamilyId; way?: WayToEarn; needs?: NeedId[] } {
   const record = listRecords(state, 'venture-owner-profile', ventureId).at(-1);
-  // Wave 6: the family shows only once About you kept one, so older profiles read exactly as before.
-  return { firstName: record?.firstName ?? null, excludedServices: [...(record?.excludedServices ?? [])], ...(record?.familyId ? { familyId: record.familyId } : {}) };
+  // Wave 6: the family shows only once About you kept one, so older profiles read exactly as before. The way to earn
+  // (core/way.ts) shows only once one was kept.
+  return {
+    firstName: record?.firstName ?? null, excludedServices: [...(record?.excludedServices ?? [])], ...(record?.familyId ? { familyId: record.familyId } : {}),
+    ...(record?.way ? { way: { ...record.way, firstWeek: [...record.way.firstWeek] } } : {}),
+    // What the kept plan needs from outside (core/needs-data.ts) shows only once any was kept.
+    ...(record?.needs?.length ? { needs: [...record.needs] } : {}),
+  };
 }
 
 /** The services the owner said the business does not sell, in the owner's order (read by 4E2's outreach check). */
@@ -73,17 +81,25 @@ export async function ownerGet(deps: VentureDeps, ctx: Context, payload: unknown
 }
 
 /**
- * venture.owner.set { firstName?, excludedServices? } (level approve, app only): changes only the fields sent, at least
- * one. firstName null takes the name back. The profile is one record per business, replaced, so no old name is kept;
+ * venture.owner.set { firstName?, excludedServices?, familyId?, way?, needs? } (level approve, app only): changes only the fields
+ * sent, at least one. firstName null takes the name back; way null takes the kept way to earn away (core/way.ts); needs
+ * is the list of what the kept plan needs from outside, checked against the fixed list (core/needs-data.ts), and null
+ * takes it away. The profile is one record per business, replaced, so no old name is kept;
  * when a stored name goes, the answer carries Forget's backups line (kept), as earlier backups still hold it.
  */
 export async function ownerSet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OwnerView> {
   requireAppChannel(ctx, 'venture.owner.set');
-  const body = exactPayload(payload, ['firstName', 'excludedServices', 'familyId']);
+  const body = exactPayload(payload, ['firstName', 'excludedServices', 'familyId', 'way', 'needs']);
   check(Object.keys(body).length > 0, 'INVALID_VENTURE_REQUEST', 'Send your first name, the services you do not sell, or both.');
   // Wave 6 (6C2): the profession family the plan was kept with, so Connections lists what this business needs (6C7).
   check(!Object.hasOwn(body, 'familyId') || body.familyId === null || isFamilyId(body.familyId), 'INVALID_VENTURE_REQUEST', 'Choose one of the listed fields.');
   const familyId = Object.hasOwn(body, 'familyId') ? (body.familyId as FamilyId | null) : undefined;
+  // The way to earn kept with the business: whole and plain (keptWay), or null to take it away.
+  const way = Object.hasOwn(body, 'way') ? (body.way === null ? null : keptWay(body.way)) : undefined;
+  check(!Object.hasOwn(body, 'way') || body.way === null || way, 'INVALID_VENTURE_REQUEST', 'A way to earn says who pays, how you reach them, what the team does, what you do and the first week, in plain words with no prices.');
+  // What the business needs: a list, of which only the listed ids are kept, every one the owner ticked; null takes them away.
+  check(!Object.hasOwn(body, 'needs') || body.needs === null || Array.isArray(body.needs), 'INVALID_VENTURE_REQUEST', 'Send what your business needs as a list.');
+  const needs = Object.hasOwn(body, 'needs') ? ownerNeeds(body.needs) : undefined;
   const firstName = Object.hasOwn(body, 'firstName') ? (body.firstName === null ? null : firstNameOf(body.firstName)) : undefined;
   const excludedServices = Object.hasOwn(body, 'excludedServices') ? excludedServicesList(body.excludedServices) : undefined;
   return ventureAction(deps, ctx, 'approve', 'owner.set', tx => {
@@ -95,6 +111,8 @@ export async function ownerSet(deps: VentureDeps, ctx: Context, payload: unknown
       firstName: firstName === undefined ? current?.firstName ?? null : firstName,
       excludedServices: excludedServices ?? current?.excludedServices ?? [],
       ...(familyId !== undefined ? { familyId } : current?.familyId !== undefined ? { familyId: current.familyId } : {}),
+      ...(way !== undefined ? { way } : current?.way !== undefined ? { way: current.way } : {}),
+      ...(needs !== undefined ? { needs } : current?.needs !== undefined ? { needs: current.needs } : {}),
     };
     if (current) tx.replace(next); else tx.put(next);
     const removed = firstName === null && current?.firstName != null;

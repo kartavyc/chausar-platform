@@ -72,7 +72,7 @@ export function basisOf(filters: readonly Display[], notCounted: { count: number
   return { filters: [...filters], truncated, notCounted: notCounted && notCounted.count > 0 ? { ...notCounted } : null };
 }
 
-/** "3 not counted: 1 payment in another currency, with no rate to INR; 2 paid AI calls with no rupee rate set"; null for none. */
+/** "3 not counted: 1 payment in another currency, with no rate to INR; 2 paid calls no order can claim"; null for none. */
 export function notCountedOf(parts: readonly LeftOut[]): { count: number; line: Display } | null {
   const left = parts.filter(part => part.count > 0);
   const count = left.reduce((sum, part) => sum + part.count, 0);

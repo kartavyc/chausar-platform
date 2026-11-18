@@ -4,6 +4,7 @@ import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import type { BarPoint } from '../../parts/charts/types';
 import { Tile, TileHead, type TileSpan } from '../../parts/Tile';
 import type { DepartmentData } from './departments';
+import { deptKey } from '../../text/dept';
 
 /**
  * D-Team's "Jobs done this week": one bar per department, in the engine's order, each as long as the engine scaled it
@@ -17,7 +18,7 @@ export function JobsTile({ departments, total, span }: { departments: readonly D
     .filter((department) => department.jobs !== undefined)
     .map((department): BarPoint => ({
       key: department.id ?? department.dept,
-      label: t(`dept.${department.dept}`),
+      label: t(deptKey(department.dept)),
       value: String(department.jobs),
       valuePermille: department.jobsPermille ?? null,
       dept: department.dept,

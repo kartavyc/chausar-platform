@@ -23,6 +23,38 @@ describe('desktop transport', () => {
     expect(client.status()).toEqual({ state: 'ok' });
   });
 
+  // Found on the first real run of the Mac app (14 Nov 2026): Electron copies an error thrown across its context bridge
+  // with its message alone, so the code and the owner flag never reached the page and the chat consent card never
+  // showed. The preload's `settled` answers the outcome as plain data; the client reads the refusal from it.
+  it('keeps a refusal\'s code and owner flag when the real bridge drops them from a thrown error', async () => {
+    const refusals: Record<string, { code: string; message: string; owner?: true }> = {
+      request: { code: 'CHAT_CONSENT_REQUIRED', message: 'Chats send your message to Codex on this computer.', owner: true },
+      setBackground: { code: 'BACKGROUND_UNAVAILABLE', message: 'Only the installed Chausar app can start when you sign in to this computer.' },
+    };
+    // As Electron's bridge passes a rejection on: a new Error with the message, and nothing else.
+    const bare = (name: string) => vi.fn(async () => { throw new Error(refusals[name]!.message); });
+    const bridge: ChausarBridge = {
+      request: bare('request'),
+      setBackground: bare('setBackground'),
+      getAskLater: vi.fn(async () => '2026-11-14'),
+      onEngineStatus: vi.fn(() => () => {}),
+      settled: vi.fn(async (name: string) => (refusals[name] ? { ok: false as const, error: refusals[name]! } : { ok: true as const, result: '2026-11-14' })),
+    };
+    const client = createEngineClient({ bridge });
+    const refusal = await client.request('venture.chief.thread.send', { text: 'Hello' }).catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(EngineError);
+    expect((refusal as EngineError).code).toBe('CHAT_CONSENT_REQUIRED');
+    expect((refusal as EngineError).owner).toBe(true);
+    expect((refusal as EngineError).message).toBe('Chats send your message to Codex on this computer.');
+    expect(bridge.settled).toHaveBeenCalledWith('request', 'venture.chief.thread.send', { text: 'Hello' });
+    const other = await client.setBackground!({ startAtLogin: true }).catch((e: unknown) => e);
+    expect((other as EngineError).code).toBe('BACKGROUND_UNAVAILABLE');
+    // An answer comes back as it was, and the status listener is still given to the bridge itself.
+    expect(await client.getAskLater!()).toBe('2026-11-14');
+    expect(bridge.onEngineStatus).toHaveBeenCalledTimes(1);
+    expect(bridge.settled).not.toHaveBeenCalledWith('onEngineStatus', expect.anything());
+  });
+
   it('follows the engine status pushed by the desktop host', () => {
     let push: ((s: { healthy: boolean; state: string }) => void) | undefined;
     const bridge: ChausarBridge = { request: vi.fn(), onEngineStatus: (cb) => { push = cb; return () => {}; } };

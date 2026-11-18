@@ -259,7 +259,7 @@ export class FakeGoals {
 
   /** The next best step and the briefing from the open business's waiting rows, as next-step.ts ranks them. */
   private next(progress: { month: string; goalMinor: number; invoicedMinor: number } | null): Pick<GoalView, 'next' | 'briefing'> {
-    const rows = this.host.rows().filter((row) => row.businessId === this.host.current() && row.kind !== 'locked');
+    const rows = (this.host.waiting?.() ?? this.host.rows()).filter((row) => row.businessId === this.host.current() && row.kind !== 'locked');
     if (!rows.length) return { next: null, briefing: null };
     const ranked = rows.map((row, index) => ({ row, stake: this.stake(row), deadline: row.meta?.expiresAt ? Date.parse(row.meta.expiresAt) : null, index }));
     ranked.sort((a, b) => {
@@ -273,7 +273,9 @@ export class FakeGoals {
       const primary = row.actions.find((action) => action.primary);
       return primary && !NOT_A_STEP.has(primary.id) ? primary : null;
     };
-    const chosen = ranked.find((item) => stepOf(item.row) !== null);
+    // As next-step.ts: a setup card is housekeeping, the step only when no other row has one.
+    const takes = ranked.filter((item) => stepOf(item.row) !== null);
+    const chosen = takes.find((item) => item.row.kind !== 'setup') ?? takes[0];
     let next: NextBestStep | null = null;
     if (chosen) {
       const primary = stepOf(chosen.row)!;

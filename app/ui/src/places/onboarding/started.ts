@@ -17,3 +17,11 @@ export interface Leaving { autoOpen?: boolean; ask?: { folder: string; with: 'pa
 
 /** What a place calls once the business it showed is no longer open; the app goes back to Welcome back. */
 export const LeftContext = createContext<(after?: Leaving) => void>(() => {});
+
+/**
+ * "New business" (the business menu, the phone's More): every new business, first or later, goes through the same first
+ * run steps (FirstRun.tsx). The app closes the open business first, since the engine keeps one open and the steps before
+ * a business is kept need none. It answers null once the steps show, or the engine's refusal when the open business
+ * could not be closed: nothing changed then, and the caller says why.
+ */
+export const NewBusinessContext = createContext<() => Promise<unknown | null>>(async () => null);

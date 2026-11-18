@@ -68,7 +68,7 @@ describe('Business menu: a popover over the page', () => {
     start();
     const { button, menu } = await open();
     const prices = within(menu).getByRole('link', { name: 'Settings' });
-    const last = within(menu).getByRole('link', { name: 'New business' });
+    const last = within(menu).getByRole('button', { name: 'New business' });
     last.focus();
     fireEvent.focusOut(prices, { relatedTarget: last });
     expect(screen.queryByRole('dialog', { name: 'Business menu for Lumen Studio' })).toBeTruthy();
@@ -118,7 +118,7 @@ describe('Business menu: a popover over the page', () => {
     start();
     const { button, menu } = await open();
     const today = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('link', { name: /^Today/ });
-    const last = within(menu).getByRole('link', { name: 'New business' });
+    const last = within(menu).getByRole('button', { name: 'New business' });
     await act(async () => { fireEvent.focusOut(last, { relatedTarget: today }); });
     expect(screen.queryByRole('dialog', { name: 'Business menu for Lumen Studio' })).toBeNull();
     expect(document.activeElement).not.toBe(button);
@@ -168,11 +168,13 @@ describe('Business menu: the name while venture.get loads (4Z3)', () => {
 });
 
 describe('C1: the business menu, built from the settings list', () => {
-  it('its links are Settings, New business, Away and Invite your accountant; Settings and Away are the list\'s addresses', async () => {
+  it('its links are Settings, Away and Invite your accountant, with New business a button; Settings and Away are the list\'s addresses', async () => {
     start();
     const { menu } = await open();
     const links = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
-    expect(links).toEqual([['Settings', SETTINGS_HREF], ['New business', '#/onboarding'], ['Away', settingsPage('away').href], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(links).toEqual([['Settings', SETTINGS_HREF], ['Away', settingsPage('away').href], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(within(menu).getByRole('button', { name: 'New business' })).toBeTruthy();
+    expect(menu.querySelector('a[href="#/onboarding"]')).toBeNull();
     expect(within(menu).queryByRole('link', { name: 'Prices' })).toBeNull();
     expect(menu.querySelector('a[href="#/business/prices"]')).toBeNull();
   });

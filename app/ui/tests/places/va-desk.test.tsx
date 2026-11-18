@@ -22,6 +22,7 @@ const enWords:T=(key,values)=>format(CATALOGUES.en,'en',key,values);
 
 
 import {roomReceiptLabel,roomReceiptCalculation,vaScheduleWords} from '../../src/places/work/desks/RoomReceiptWords';
+import { setComputerZone } from '../../../../platform/runtime/owner-format';
 it('receipt words preserve unknown client content and every supplied numeric token',()=>{
  const figures=[{key:'unit',label:'Price per month',display:'INR 2500.00'},{key:'tax',label:'GST at 18%',display:'INR 900.00'},{key:'total',label:'Total',display:'INR 5900.00'}];
  const receipt={id:'r',at:'now',stale:false,figures,explanation:'2 x month at INR 2500.00, plus GST at 18% (INR 900.00) = INR 5900.00.'};const before=JSON.stringify(receipt),shown=roomReceiptCalculation(enWords,receipt)!;
@@ -29,7 +30,8 @@ it('receipt words preserve unknown client content and every supplied numeric tok
  expect(roomReceiptCalculation(enWords,{...receipt,explanation:receipt.explanation+' Private owner suffix.'})).toBeNull();
  expect(roomReceiptCalculation(enWords,{...receipt,explanation:receipt.explanation.replace('INR 900.00','INR 901.00')})).toBeNull();
  expect(roomReceiptLabel(enWords,{key:'total',label:'Total for the private contract',display:'INR 5900.00'})).toBe('Total for the private contract');
- expect(vaScheduleWords(enWords,{kind:'calendar',weekdays:[5],time:'17:00',timeZone:'Asia/Kolkata'},'')).toBe('Every Friday 5:00 pm, Asia/Kolkata');
+ setComputerZone('Asia/Kolkata');expect(vaScheduleWords(enWords,{kind:'calendar',weekdays:[5],time:'17:00',timeZone:'Asia/Kolkata'},'')).toBe('Every Friday at 5:00 pm');
+ setComputerZone('Europe/London');try{expect(vaScheduleWords(enWords,{kind:'calendar',weekdays:[5],time:'17:00',timeZone:'Asia/Kolkata'},'')).toBe('Every Friday at 5:00 pm, Kolkata time');}finally{setComputerZone(null);}
 });
 
 it('native split-tax receipts keep amounts and state assumptions in the translated explanation',()=>{

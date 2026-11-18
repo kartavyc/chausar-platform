@@ -1,6 +1,6 @@
 /**
- * The parts W4 feeds, drawn with test-style props for the screenshot walk: what Today's goal card and next step, the
- * Start gallery, Network's paths and pipeline, Chats and Money's charts look like once the engine sends their data.
+ * The parts W4 feeds, drawn with test-style props for the screenshot walk: what Today's goal card and next step,
+ * Network's paths and pipeline, Chats and Money's charts look like once the engine sends their data.
  * Every value here is sample data written for this page (the same kind the part tests use); the page says so at the
  * top, and none of it is in src/.
  */
@@ -15,7 +15,6 @@ import { ChatThread, type ThreadEntry } from '../src/parts/ChatThread';
 import { Composer } from '../src/parts/Composer';
 import { ClockProvider } from '../src/shell/clock';
 import { DiffCard } from '../src/parts/DiffCard';
-import { Gallery, type GalleryWay } from '../src/parts/Gallery';
 import { PathLine } from '../src/parts/PathLine';
 import { StrengthDots } from '../src/parts/StrengthDots';
 import { Bento, Tile, TileHead } from '../src/parts/Tile';
@@ -30,7 +29,7 @@ import { NextStep } from '../src/places/today/NextStep';
 import s from './specimens.module.css';
 
 const TITLES: Record<string, { title: string; line: string }> = {
-  goal: { title: 'Goal, next step and the Start gallery', line: 'Today\'s goal card with a goal set (W4 4I), the next best step beside it, the goal card asking for a goal, and the ways to earn (W4 4J, tiles in W5).' },
+  goal: { title: 'Goal and next step', line: 'Today\'s goal card with a goal set (W4 4I), the next best step beside it, and the goal card asking for a goal.' },
   network: { title: 'Network and the pipeline', line: 'Search results with strength and warm paths (W4 4D), and the pipeline in the stages W4 4E brings.' },
   chats: { title: 'Chats and agent chat', line: 'Chausar as chief of staff (W4 4C), and an agent\'s proposed instruction change (W4 4B).' },
   money: { title: 'Money charts', line: 'In and out by month, who owes you by age, cash by week and AI spend by department (W4 4J money views, 4A).' },
@@ -63,17 +62,6 @@ const SET: GoalCardData = {
 };
 const UNSET: GoalCardData = { state: 'unset', month: 'November', invoiced: { value: '₹0', receiptId: 'R-0411' }, suggested: '₹1,20,000' };
 
-const WAY: GalleryWay = {
-  id: 'wedding-videos', name: 'Wedding invitation videos', line: 'Short invitation videos for couples and their families, in their languages.', icon: 'play',
-  dept: 'prod', category: 'Video', hours: '4 to 8 h a week', youDo: 'Talk to couples, approve each video before it goes out.',
-  team: { names: ['Producer', 'Editor', 'Billing'], line: 'Writes the script, cuts the video, sends the invoice.' }, pay: { range: '₹3,000 to ₹8,000', per: 'per video' },
-};
-const WAYS: GalleryWay[] = [
-  WAY,
-  { ...WAY, id: 'gst-kirana', name: 'GST filing for kirana shops', line: 'Monthly GST returns for small shops, signed off by your CA.', icon: 'receipt-text', dept: 'money', category: 'Books and tax', hours: '6 to 10 h a week', youDo: 'Meet shop owners, send papers to your CA.', team: { names: ['Bookkeeper', 'Billing'], line: 'Reads the bills, drafts the return, tracks payment.' }, pay: { range: '₹1,500 to ₹3,000', per: 'per shop a month' } },
-  { ...WAY, id: 'tuition', name: 'Online maths tuition', line: 'Worksheets and weekly tests for school children.', icon: 'users', dept: 'sales', category: undefined, running: 'Lumen Studio', hours: '8 to 12 h a week', youDo: 'Teach the live classes.', team: { names: ['Researcher', 'Producer'], line: 'Makes worksheets, books the parents.' }, pay: { range: '₹800 to ₹2,000', per: 'per child a month' } },
-];
-
 function Goal() {
   return (
     <>
@@ -88,8 +76,6 @@ function Goal() {
         </div>
         <div className={s.c7}><GoalCard data={UNSET} onSet={noop} /></div>
       </div>
-      <h2 className={s.h2}>Ways to earn</h2>
-      <Gallery ways={WAYS} featured="wedding-videos" onStart={noop} />
     </>
   );
 }

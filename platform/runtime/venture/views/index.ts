@@ -19,11 +19,10 @@ import { awayGetHandler, awayPreviewHandler, awaySetHandler } from '../delivery/
 import { diagnosticsTodayHandler } from './diagnostics.ts';
 import { runsAllowWritesHandler } from '../delivery/harness/write-caps.ts';
 import { decisionsListHandler } from '../journal/decisions.ts';
+import { earlierListHandler } from '../journal/earlier.ts';
 import { allowSessionHandler } from '../policy/allow-session.ts';
 import { journalAcceptBreakHandler, journalChainHandler } from '../journal/chain.ts';
 import { runsAcross } from './across.ts';
-import { autoReadinessHandler } from '../policy/auto-gate.ts';
-import { shadowSummaryHandler } from '../delivery/shadow-summary.ts';
 import { queueEditHandler, queueSendBackHandler, queueSetHandler, queueSetPreviewHandler, queueUndoHandler } from './queue-actions.ts';
 import { triagePreviewHandler, triageSetHandler } from './triage.ts';
 // Wave 6 (6H3, D40): a place's layout as data.
@@ -86,6 +85,7 @@ export const handlers: VentureHandlerTable = {
   'venture.runs.allowWrites': runsAllowWritesHandler,
   // 4J1 decisions and allow for this session.
   'venture.decisions.list': decisionsListHandler,
+  'venture.earlier.list': earlierListHandler,
   'venture.policy.allowSession': allowSessionHandler,
   // 4J2 send back, edit and undo, set approval, the triage rule.
   'venture.queue.sendBack': queueSendBackHandler,
@@ -95,12 +95,10 @@ export const handlers: VentureHandlerTable = {
   'venture.queue.setPreview': queueSetPreviewHandler, // 4J2 review
   'venture.triage.set': triageSetHandler,
   'venture.triage.preview': triagePreviewHandler,
-  // 4J6 runs across businesses; 4J10 the chained journal; 4J15 auto readiness and the shadow summary.
+  // 4J6 runs across businesses; 4J10 the chained journal.
   'venture.runs.across': runsAcross,
   'venture.journal.chain': journalChainHandler,
   'venture.journal.acceptBreak': journalAcceptBreakHandler,
-  'venture.auto.readiness': autoReadinessHandler,
-  'venture.shadow.summary': shadowSummaryHandler,
   // Wave 6 (6H1): mini apps (apps/apps.ts).
   ...APP_HANDLERS,
 };

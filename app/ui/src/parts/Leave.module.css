@@ -1,10 +1,12 @@
 /* Leave and arrive (one-shot C3 task 13). A row wraps its content in .row and .inner: leaving, it fades and slips 6 px
    over the exit time, then its height closes (grid rows 1fr to 0fr) over the settle time; arriving, it fades and rises
    6 px over the sheet time, delayed by --t-stagger times its place for the first five. All on tokens, so 0 with motion
-   off. */
+   off. The one column is never wider than the list, so long words inside a row cut off or wrap as their own CSS says
+   (an auto column took the longest line's width and pushed the place sideways on a phone). */
 
 .row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 1fr;
   opacity: 1;
   transform: none;

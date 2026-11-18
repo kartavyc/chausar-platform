@@ -102,6 +102,41 @@ test('it refuses an empty folder, two installers for one platform, a key that is
   assert.equal(usage.status, 2);
 });
 
+// The Mac build (14 Nov 2026): a Mac build's update file is its zip, one for each chip. The app checks the signed
+// feed, downloads and checks that file, and shows it; the person replaces the app by hand (updates.cjs: manual on a
+// Mac). The dmg is for a first install and is not an update target; a Windows preview zip is never taken for a Mac one.
+test('Mac: the feed carries the Mac zip for each chip as a darwin release, and never a dmg or another system\'s zip', async t => {
+  const root = await folder(t), key = await keyFile(root), output = join(root, 'out', 'feed.json');
+  const dist = await installers(root, '0.2.0', ['Chausar-Beta-0.2.0-win-x64.exe', 'Chausar-Beta-0.2.0-linux-x86_64.AppImage', 'Chausar-Beta-0.2.0-mac-arm64.zip', 'Chausar-Beta-0.2.0-mac-x64.zip']);
+  for (const name of ['Chausar-Beta-0.2.0-mac-arm64.dmg', 'Chausar-Beta-0.2.0-mac-x64.dmg', 'Chausar-Beta-0.2.0-mac-arm64.zip.blockmap', 'Chausar-Preview-0.2.0-win-x64.zip', 'Chausar-Beta-0.2.0-linux-x64.tar.gz']) await writeFile(join(dist, name), 'not a feed entry');
+  const done = run(FEED, ['--artifacts', dist, '--private-key', key.path, '--output', output, '--version', '0.2.0']);
+  assert.equal(done.status, 0, done.stderr);
+  const text = await readFile(output, 'utf8'), signature = (await readFile(`${output}.sig`, 'utf8')).trim(), feed = JSON.parse(text);
+  assert.deepEqual(feed.releases.map((release: any) => `${release.manifest.platform}/${release.manifest.architecture}`).sort(), ['darwin/arm64', 'darwin/x64', 'linux/x64', 'win32/x64']);
+  for (const architecture of ['arm64', 'x64']) {
+    const { manifest } = feed.releases.find((release: any) => release.manifest.platform === 'darwin' && release.manifest.architecture === architecture);
+    const name = `Chausar-Beta-0.2.0-mac-${architecture}.zip`, bytes = await readFile(join(dist, name));
+    assert.equal(manifest.url, `https://github.com/${REPO}/releases/download/v0.2.0/${name}`);
+    assert.equal(manifest.size, bytes.length); assert.equal(manifest.sha256, createHash('sha256').update(bytes).digest('hex'));
+  }
+  // On a Mac the app's own reader is offered the zip for this chip.
+  if (process.platform === 'darwin') {
+    const choice = new ReleaseUpdater({ publicKey: key.publicKey, version: '0.1.0', stageDirectory: root }).verifyFeed(text, signature, { channel: 'stable', installId: 'e'.repeat(32) });
+    assert.equal(choice.reason, 'offered');
+    assert.equal(choice.offer?.manifest.platform, 'darwin');
+    assert.match(choice.offer?.manifest.url ?? '', new RegExp(`-mac-${process.arch}\\.zip$`));
+  }
+  const twice = await installers(join(root, 'twice'), '0.2.0', ['Chausar-Beta-0.2.0-mac-arm64.zip', 'Chausar-Preview-0.2.0-mac-arm64.zip']);
+  const both = run(FEED, ['--artifacts', twice, '--private-key', key.path, '--output', join(root, 'b.json'), '--version', '0.2.0']);
+  assert.equal(both.status, 1); assert.match(both.stderr, /Two installers for darwin\/arm64/);
+  // A folder with only a dmg has nothing the app can update from.
+  const dmgOnly = join(root, 'dmg-only');
+  await mkdir(dmgOnly);
+  await writeFile(join(dmgOnly, 'Chausar-Beta-0.2.0-mac-arm64.dmg'), 'not a feed entry');
+  const none = run(FEED, ['--artifacts', dmgOnly, '--private-key', key.path, '--output', join(root, 'c.json'), '--version', '0.2.0']);
+  assert.equal(none.status, 1); assert.match(none.stderr, /No installer \(\.exe, \.AppImage or a Mac \.zip\)/);
+});
+
 // Fix round 2 (review 2, LOW-2): the feed expires, so the release checklist beside the scripts says to re-sign it in time.
 test('the release checklist says to re-sign the feed before its 90 days run out', async () => {
   const doc = await readFile(join(ROOT, 'docs', 'desktop-releases.md'), 'utf8');

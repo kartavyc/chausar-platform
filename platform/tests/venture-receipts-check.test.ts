@@ -472,7 +472,7 @@ async function deliver(env: Awaited<ReturnType<typeof plainBusiness>>, answer: u
   await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,order.id);
   env.deps.agentRoute=async()=>({driver:scriptedAgent(()=>answer),settings:SCRIPTED_AGENT_SETTINGS});
   const waiting = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(waiting.status, 'waiting-for-you');
+  assert.equal(waiting.status, 'working');
   await waitForAgentWork(env.deps.store,waiting.id);
   return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }

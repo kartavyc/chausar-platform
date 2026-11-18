@@ -9,11 +9,11 @@
 // read. While the Claude Code terms are pending, Claude Code is only located, never run. It never reads a sign-in file,
 // a token or a key, never keeps or shows what a status command printed, and never says "signed in" without that
 // evidence. The hosted app never looks at all.
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join, sep } from 'node:path';
 import type { State } from '../../contracts.ts';
-import type { CliFinding, CliStatusView, DelegateCli, Display, IsoTime, ModelAvailability, ModelTransport } from '../contracts.ts';
+import type { CliFinding, CliStatusView, DelegateCli, Display, IsoTime, ModelAvailability, ModelPresetId, ModelTransport } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { CLI_UNLISTED_FLAGS, cliEnv, cliRouteFlags, codexCommand, type CodexHost } from './cli.ts';
 import { CLI_COMMANDS, cliGateOpen, cliVersionOf, startableProgram } from './cli-look.ts';
@@ -75,9 +75,29 @@ export type CliLook = {
   claudeTerms: 'accepted' | 'pending' | undefined;
   now: () => IsoTime;
   platform?: NodeJS.Platform;
+  /** What unchanged programs' version and help said earlier in this engine run (CliStaticChecks). Absent: nothing is kept. */
+  staticChecks?: CliStaticChecks;
 };
 
 type Ran = { ok: boolean; stdout: string; text: string; cut: boolean };
+
+/**
+ * What a program's own version and help said. They cannot change while the program file is the same, so one engine run
+ * asks them once (seen on Windows, 15 Nov 2026: every fresh look started Codex four times, each start taking seconds).
+ * Kept in the memory a look is given (CliLook.staticChecks: the model port's own, or the draft desk's, which lives as
+ * long as the engine does), per program file as the system reports it (its path, size, and modified and change times):
+ * an updated or replaced program is asked again, and nothing is kept between starts of the engine. Kept only when the
+ * version, the flags and the list of commands were all read; the sign-in is never kept, since it can change.
+ */
+export type CliStaticChecks = Map<string, { version: string; flags: 'match' | 'mismatch'; missingFlags: string[]; statusListed: boolean }>;
+/** The key of a program a look starts by itself (no entry script before its arguments), or null when it cannot be told. */
+async function staticKey(cli: DelegateCli, target: Target): Promise<string | null> {
+  if (target.lead.length) return null;
+  try {
+    const info = await stat(target.command, { bigint: true });
+    return info.isFile() ? [cli, target.command, info.size, info.mtimeNs, info.ctimeNs].join('|') : null;
+  } catch { return null; }
+}
 /** The program a look runs, what goes before the check's own arguments (an npm shim's entry script), and its folder. */
 type Target = { command: string; lead: string[]; cwd: string | undefined };
 
@@ -158,30 +178,53 @@ export async function inspectInstalledCli(cli: DelegateCli, look: CliLook): Prom
   }
 }
 
-/** The checks of one look, in its folder: the version in the real tool's own form, the route's flags, the sign-in. */
+/**
+ * The checks of one look, in its folder: the version in the real tool's own form, the route's flags, the sign-in.
+ * The version is asked first and alone: a program that does not name itself as the real tool is asked nothing more.
+ * Codex's two help pages (its exec command's flags, and its list of commands) do not depend on each other, so they are
+ * read together. What the version and the help said is asked once per unchanged program in one engine run
+ * (CliStaticChecks); the sign-in status command runs on every look.
+ */
 async function checksOf(cli: DelegateCli, look: CliLook, target: Target, finding: CliFinding): Promise<CliFinding> {
-  const version = await run(look, cli, target, ['--version'], VERSION_CHECK_TIMEOUT_MS, SHORT_READ_CHARS);
-  // Only the version line the real tool prints counts as its answer (cli-look.ts), as heavy work reads it.
-  const named = version && version.ok ? cliVersionOf(cli, version.stdout) : null;
-  if (named === null) return finding;
-  finding.answered = true;
-  finding.version = named;
+  const kept = look.staticChecks;
+  const key = kept ? await staticKey(cli, target) : null;
+  let known = key ? kept?.get(key) : undefined;
+  if (!known) {
+    const version = await run(look, cli, target, ['--version'], VERSION_CHECK_TIMEOUT_MS, SHORT_READ_CHARS);
+    // Only the version line the real tool prints counts as its answer (cli-look.ts), as heavy work reads it.
+    const named = version && version.ok ? cliVersionOf(cli, version.stdout) : null;
+    if (named === null) return finding;
+    finding.answered = true;
+    finding.version = named;
 
-  const help = await run(look, cli, target, FLAG_HELP[cli], HELP_TIMEOUT_MS, HELP_READ_CHARS);
-  if (help && help.ok && help.text.trim().length > 0) {
-    const listed = new Set(help.text.match(FLAG) ?? []);
-    // A flag the tool takes without listing it (CLI_UNLISTED_FLAGS, from evidence) is not asked of its help page.
-    const unlisted = CLI_UNLISTED_FLAGS[ROUTE_KINDS[cli]];
-    const missing = cliRouteFlags(ROUTE_KINDS[cli]).filter(flag => !listed.has(flag) && !unlisted.includes(flag));
-    // A help page longer than Chausar reads may list a flag past the cut: unknown, never a mismatch it cannot show.
-    finding.flags = missing.length === 0 ? 'match' : help.cut ? 'unknown' : 'mismatch';
-    finding.missingFlags = finding.flags === 'mismatch' ? missing : [];
+    const [help, commandsRead] = await Promise.all([
+      run(look, cli, target, FLAG_HELP[cli], HELP_TIMEOUT_MS, HELP_READ_CHARS),
+      cli === 'codex' ? run(look, cli, target, ['--help'], HELP_TIMEOUT_MS, HELP_READ_CHARS) : null,
+    ]);
+    if (help && help.ok && help.text.trim().length > 0) {
+      const listed = new Set(help.text.match(FLAG) ?? []);
+      // A flag the tool takes without listing it (CLI_UNLISTED_FLAGS, from evidence) is not asked of its help page.
+      const unlisted = CLI_UNLISTED_FLAGS[ROUTE_KINDS[cli]];
+      const missing = cliRouteFlags(ROUTE_KINDS[cli]).filter(flag => !listed.has(flag) && !unlisted.includes(flag));
+      // A help page longer than Chausar reads may list a flag past the cut: unknown, never a mismatch it cannot show.
+      finding.flags = missing.length === 0 ? 'match' : help.cut ? 'unknown' : 'mismatch';
+      finding.missingFlags = finding.flags === 'mismatch' ? missing : [];
+    }
+    const commands = cli === 'codex' ? commandsRead : help;
+    const read = !!commands && commands.ok;
+    const statusListed = read && STATUS_COMMANDS[cli].listed.test(commands.text);
+    // Kept only when everything was read: a help page that timed out or was cut is asked again by the next look.
+    if (kept && key && finding.flags !== 'unknown' && read) kept.set(key, { version: named, flags: finding.flags, missingFlags: [...finding.missingFlags], statusListed });
+    known = { version: named, flags: finding.flags === 'unknown' ? 'match' : finding.flags, missingFlags: finding.missingFlags, statusListed };
+  } else {
+    finding.answered = true;
+    finding.version = known.version;
+    finding.flags = known.flags;
+    finding.missingFlags = [...known.missingFlags];
   }
-
-  const commands = cli === 'codex' ? await run(look, cli, target, ['--help'], HELP_TIMEOUT_MS, HELP_READ_CHARS) : help;
-  if (!commands || !commands.ok || !STATUS_COMMANDS[cli].listed.test(commands.text)) return finding;
+  if (!known.statusListed) return finding;
   finding.statusCommand = true;
-  const quiet = cli === 'codex' ? codexQuietArgsFor(named) : [];
+  const quiet = cli === 'codex' ? codexQuietArgsFor(known.version) : [];
   finding.signedIn = signedInFrom(await run(look, cli, target, [...quiet, ...STATUS_COMMANDS[cli].args], STATUS_TIMEOUT_MS, SHORT_READ_CHARS));
   return finding;
 }
@@ -191,8 +234,16 @@ async function checksOf(cli: DelegateCli, look: CliLook, target: Target, finding
  * failed, never a replay) or a heavy-work run it did. Null when there is none.
  */
 export function lastCliTask(state: State, ventureId: string | null, cli: DelegateCli): CliStatusView['lastTask'] {
+  return lastPresetTask(state, ventureId, cli === 'claude-code' ? 'claude-code-cli' : 'codex-cli');
+}
+
+/**
+ * The last real task through one AI option in this business: a model call through it that finished (completed or
+ * failed, never a replay), and for Claude Code and Codex a heavy-work run too. Null when there is none.
+ */
+export function lastPresetTask(state: State, ventureId: string | null, presetId: ModelPresetId): CliStatusView['lastTask'] {
   if (!ventureId) return null;
-  const presetId = cli === 'claude-code' ? 'claude-code-cli' : 'codex-cli';
+  const cli: DelegateCli | null = presetId === 'claude-code-cli' ? 'claude-code' : presetId === 'codex-cli' ? 'codex' : null;
   let newest: CliStatusView['lastTask'] = null;
   const consider = (at: IsoTime, outcome: 'succeeded' | 'failed', named?: string) => { if (!newest || at >= newest.at) newest = { at, outcome, ...(named ? { named } : {}) }; };
   for (const call of listRecords(state, 'venture-model-call', ventureId)) {
@@ -201,7 +252,15 @@ export function lastCliTask(state: State, ventureId: string | null, cli: Delegat
     // A2: a failure the tool named keeps its owner words, so the fix says what really went wrong.
     else if (call.status === 'failed') consider(call.at, 'failed', call.error && NAMED_CODES.has(call.error.code) ? call.error.message : undefined);
   }
-  for (const run of listRecords(state, 'venture-delegate-run', ventureId)) {
+  // An order's job run on it (agent-runtime/runner.ts): the AI answered when it reported its tokens; a job that ended
+  // in a failure before any answer is a failed task. A job still running, with neither, is not a task yet.
+  for (const run of listRecords(state, 'venture-delivery-run', ventureId)) {
+    const job = run.agentJob;
+    if (job?.route?.presetId !== presetId) continue;
+    if (job.usage) consider(run.at, 'succeeded');
+    else if (job.failure) consider(run.at, 'failed');
+  }
+  for (const run of cli ? listRecords(state, 'venture-delegate-run', ventureId) : []) {
     if (run.cli !== cli || run.outcome === 'cancelled') continue;
     consider(run.at, run.outcome === 'succeeded' ? 'succeeded' : 'failed');
   }

@@ -14,7 +14,7 @@ afterEach(() => cleanup());
 describe('spec 3: the cancel buttons, the step owner line and the Keeper with nothing run', () => {
   it('a button that only closes an ask says Cancel', () => {
     for (const key of ['approval.cancel', 'business.cancel', 'connections.ai.cancel', 'team.chat.consent.cancel', 'chats.consent.notNow', 'business.voice.notNow',
-      'business.knowledge.notNow', 'team.persona.notNow', 'chats.talk.notNow', 'kit-report.share.close', 'onboarding.ways.notNow', 'apps.allow.notNow']) expect(words[key], key).toBe('Cancel');
+      'business.knowledge.notNow', 'team.persona.notNow', 'chats.talk.notNow', 'kit-report.share.close', 'apps.allow.notNow']) expect(words[key], key).toBe('Cancel');
   });
 
   it('a step you do now says so, for now (the word budget holds it to three words)', async () => {
@@ -61,9 +61,7 @@ describe('spec 5 to 8: role line, labels, consent and first run', () => {
     expect(Object.values(words).some((value) => /chief of staff/i.test(JSON.stringify(value)))).toBe(false);
   });
 
-  it('what a way pays and the SEO pack read plainly', () => {
-    expect(words['gallery.pay']).toBe('Usual pay');
-    expect(words['gallery.payPer']).toBe('Usual pay ({per})');
+  it('the SEO pack reads plainly', () => {
     expect(words['playbook-labels.seo-visibility']).toBe('Get found on Google and AI search');
   });
 

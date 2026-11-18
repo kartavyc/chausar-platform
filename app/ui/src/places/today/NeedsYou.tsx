@@ -29,14 +29,15 @@ export const COMPACT_CARDS = 0;
 /** The fold names at most this many of the rows behind it, then says how many more. */
 const FOLD_TITLES = 3;
 
-/** What each kind counts as in the filter chips. Everything that is not a question or setup is a decision. */
+/** What each kind counts as in the filter chips. Everything that is not a question or setup is a decision. A locked
+ *  business's row is none of them: it is only "open it", so it shows under All and under its own business chip. */
 type KindGroup = 'approve' | 'questions' | 'setup';
-const GROUP_OF: Readonly<Record<QueueKind, KindGroup>> = {
+const GROUP_OF: Readonly<Record<QueueKind, KindGroup | null>> = {
   draft: 'approve', price: 'approve', quote: 'approve', plan: 'approve', invoice: 'approve', signoff: 'approve', connector: 'approve', bank: 'approve', proposal: 'approve',
   // W4 4E4: a follow-up and a reply are yours to act on; a notice (notes after a call) asks a question.
   followup: 'approve', reply: 'approve', notice: 'questions',
   question: 'questions',
-  setup: 'setup', locked: 'setup',
+  setup: 'setup', locked: null,
 };
 const GROUPS: readonly KindGroup[] = ['approve', 'questions', 'setup'];
 const BUSINESS = 'business:';
@@ -48,7 +49,7 @@ export const SINCE = 'since';
 export function matchesFilter(row: Pick<QueueRow, 'kind' | 'businessId'> & { id?: string }, filter: string, since?: ReadonlySet<string>): boolean {
   if (filter === SINCE) return since === undefined || (row.id !== undefined && since.has(row.id));
   if (filter.startsWith(BUSINESS)) return row.businessId === filter.slice(BUSINESS.length);
-  if ((GROUPS as readonly string[]).includes(filter)) return (GROUP_OF[row.kind] ?? 'approve') === filter;
+  if ((GROUPS as readonly string[]).includes(filter)) return (row.kind in GROUP_OF ? GROUP_OF[row.kind] : 'approve') === filter;
   return true;
 }
 
@@ -163,7 +164,8 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
 }
 
 /** The chips: All, the three kinds with something in them (or the one pressed), then each business when there are two
- *  or more. Counts are of the rows that wait, never money. */
+ *  or more. Counts are of the rows that wait, never money. A locked business's row is only "open it": it is in no
+ *  count, All's or a kind's, so the kinds add up to All (seen on Windows, 15 Nov 2026: "All 3, To approve 1, Setup 4"). */
 function options(t: ReturnType<typeof useT>, waiting: readonly QueueRow[], filter: string, since?: ReadonlySet<string>): FilterOption[] {
   const kinds = GROUPS
     .map((group) => ({ id: group, label: t(`today.filter.${group}`), count: waiting.filter((row) => GROUP_OF[row.kind] === group).length }))

@@ -4,12 +4,13 @@
 // page makes itself (offline, not connected, session ended) are written for the owner where they are thrown.
 import { describe, expect, it, vi } from 'vitest';
 import { createEngineClient, type ChausarBridge } from '../../src/engine/client';
-import { DEVELOPER_WORDS, ownerError } from '../../src/engine/owner-errors';
+import { ownerError } from '../../src/engine/owner-errors';
 import { EngineError } from '../../src/engine/types';
 import { refusalWords } from '../../src/parts/custody';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
 import { NAMED_REFUSALS } from '../../../../platform/tests/fixtures/owner-named-refusals';
+import { DEVELOPER_WORDS } from '../../../../platform/runtime/owner-flag';
 import { DEVELOPER_TEXT_CODES, INTERNAL_LINE_CODES, TABLE_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
 
 const words = CATALOGUES.en;

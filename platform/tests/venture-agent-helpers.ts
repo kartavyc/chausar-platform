@@ -61,7 +61,7 @@ export function scriptChat(env: AgentEnv, script: ChatScript): void {
     }
     assert.equal(task.schemaName, 'venture-agent-answer');
     assert.ok(script.answer, 'this test scripts no answer');
-    return script.answer(task);
+    return asAnswer(script.answer(task));
   };
 }
 
@@ -77,10 +77,21 @@ export function testAadhaar(): string {
   throw new Error('no check digit');
 }
 
-/** A text part of a model answer, in the answer schema's closed shape. */
+/** Words of a model answer: one paragraph of its reply. */
 export const said = (text: string) => ({ kind: 'text', text, receiptId: '', key: '' });
-/** A figure part of a model answer, citing a receipt and its key. */
+/** A figure a model answer cites, by its receipt and key. */
 export const figure = (receiptId: string, key: string) => ({ kind: 'figure', text: '', receiptId, key });
+/**
+ * A scripted answer as the AI writes it: its words as one reply, a paragraph for each said(), and the figures it cites.
+ * A script written as { parts: [said(...), figure(...)] } is turned into that; any other value goes as it is, so a test
+ * can script a wrong shape.
+ */
+export function asAnswer(scripted: unknown): unknown {
+  const parts = (scripted as { parts?: unknown } | null)?.parts;
+  if (!Array.isArray(parts) || Object.keys(scripted as object).length !== 1) return scripted;
+  const rows = parts as { kind: string; text: string; receiptId: string; key: string }[];
+  return { reply: rows.filter(row => row.kind !== 'figure').map(row => row.text).join('\n'), figures: rows.filter(row => row.kind === 'figure').map(row => ({ receiptId: row.receiptId, key: row.key })) };
+}
 
 /** The names of the agent.message events, with their data, oldest first. */
 export function agentEvents(env: AgentEnv): { name: string; data: unknown }[] {
@@ -109,7 +120,7 @@ export async function pendingFactsRun(env: AgentEnv, question = 'How long should
 
 /** Rebind the explicit question fixture after a test adds its source files. */
 export async function bindPendingFactsFixture(env:AgentEnv,runId:string,question:string){
-  await ventureAction(env.deps,owner,'prepare','fixture.question-job',tx=>{const run=tx.find('venture-delivery-run',runId)!;tx.replace({...run,status:'waiting-for-you',verdict:null,harness:null});});
+  await ventureAction(env.deps,owner,'prepare','fixture.question-job',tx=>{const run=tx.find('venture-delivery-run',runId)!;tx.replace({...run,status:'working',verdict:null,harness:null});});
   const job=await createNativeJob(env.deps,owner,runId,{agentId:'producer',sections:[],check:()=>{}});
   try {await ventureAction(env.deps,owner,'prepare','fixture.pending-facts',tx=>{const run=tx.find('venture-delivery-run',runId)!;tx.replace({...run,status:'needs-answer',agentJob:{...run.agentJob!,pendingFacts:{digest:digest(question),missing:[],question,callId:'synthetic-facts',at:tx.now}}});});}
   finally {await job.close();}

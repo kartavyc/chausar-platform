@@ -3,6 +3,7 @@ import { ChartData, ChartFoot, chartRoot } from './ChartData';
 import { Stack } from './Stack';
 import type { SplitData, SplitPartId } from './types';
 import s from './Charts.module.css';
+import { deptKey } from '../../text/dept';
 
 /** The order the bar and the legend always take, whatever order the engine sends. It keeps the departments whose
  *  colours are closest (Production and Money, Marketing and Sales) apart. */
@@ -24,7 +25,7 @@ export function SplitBar({ data, onReceipt }: SplitBarProps) {
   const t = useT();
   const { proof } = data;
   // The part no single department can claim (W4 4A2) is named for the team; the rest by their departments.
-  const name = (dept: string) => (dept === 'shared' ? t('chart.shared') : t(`dept.${dept}`));
+  const name = (dept: string) => (dept === 'shared' ? t('chart.shared') : t(deptKey(dept)));
   const ordered = SPLIT_ORDER.flatMap((dept) => data.parts.filter((part) => part.dept === dept));
   const legend = [...ordered.filter((part) => part.permille > 0), ...ordered.filter((part) => part.permille <= 0)];
   return (

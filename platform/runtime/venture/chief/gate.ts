@@ -12,9 +12,13 @@ import { digest, listRecords } from '../records.ts';
 import { latestBlueprint } from '../money/shared.ts';
 import { chatAgent } from '../agents/roles.ts';
 import { clientNameFor, short } from '../views/shared.ts';
+import { findTarget } from '../customers/find-target.ts';
 
-/** The kinds the chief may propose itself. start-work (4B1's floor requests) and next-step (4E3) come from elsewhere. */
-export const CHIEF_KINDS: readonly ProposalKind[] = Object.freeze(['brief-agent', 'start-run', 'draft-invoice', 'draft-reminder', 'quote', 'outreach-draft']);
+/**
+ * The kinds the chief may propose itself. start-work (4B1's floor requests) and next-step (4E3) come from elsewhere.
+ * find-customers: a search for possible customers (customers/find-run.ts), which the owner may also start themselves.
+ */
+export const CHIEF_KINDS: readonly ProposalKind[] = Object.freeze(['brief-agent', 'start-run', 'draft-invoice', 'draft-reminder', 'quote', 'outreach-draft', 'find-customers']);
 export const NOT_ALLOWED_LINE = 'Chausar never changes your keys, money rules, approval setting or storage. You change those yourself.';
 export const UNKNOWN_KIND_LINE = 'Chausar cannot propose that.';
 /** Under a drafted proposal in the chief's answer. */
@@ -22,6 +26,23 @@ export const TODAY_LINE = 'This becomes a card on Today for your approval.';
 /** On every proposal card on Today. */
 export const NOTHING_CHANGES = 'Nothing changes until you approve.';
 const CHANGED = 'it changed since Chausar drafted it.';
+/** A claimed proposal's outcome until its method answers; it stays if the outcome cannot be written, and says so. */
+export const IN_FLIGHT = 'Approved. Chausar has not recorded how it went yet, so check Work and Money before asking again.';
+
+/**
+ * How a proposal stands for the plan's move (chief/plan-core.ts ProposalState): its status, and for an approved one
+ * how its work went. A search for customers reads its own search record (customers/find-states.ts): still open is
+ * working, done is approved, failed or in doubt is failed. Any other kind is working until its method's outcome is
+ * written. A method that refuses puts the card back (raised), which this reads as it is.
+ */
+export function proposalStanding(state: State, record: ProposalRecord): 'drafted' | 'raised' | 'working' | 'approved' | 'failed' | 'dismissed' | 'refused' {
+  if (record.status !== 'approved') return record.status;
+  if (record.proposalKind === 'find-customers') {
+    const search = listRecords(state, 'venture-lead-search', record.ventureId).filter(item => item.proposalId === record.id).at(-1);
+    if (search) return search.state === 'done' ? 'approved' : search.state === 'approved' || search.state === 'running' ? 'working' : 'failed';
+  }
+  return record.outcome === IN_FLIGHT ? 'working' : 'approved';
+}
 /** Words in a kind that would touch what only the owner changes: keys, money policy, posture, storage. */
 const OWNER_ONLY = /key|secret|token|password|passphrase|credential|polic|spend|budget|limit|posture|stage|auto|storage|backup|vault|recovery|encrypt|connect|setting/i;
 
@@ -130,6 +151,11 @@ export function targetOf(state: State, venture: VentureRecord, kind: ProposalKin
         return no('that agent is no longer on your team.');
       }
     }
+    case 'find-customers': {
+      // The whole card, and the gate that what is sold is ready, live with the search itself (customers/find-target.ts).
+      const gate = findTarget(state, venture, input);
+      return gate.ok ? { ok: true, target: gate.target } : no(gate.reason);
+    }
     case 'brief-agent':
       return no(UNKNOWN_KIND_LINE.toLowerCase());
   }
@@ -140,7 +166,11 @@ export function proposalGate(state: State, venture: VentureRecord, record: Propo
   let kind: ProposalKind;
   try { kind = proposalKindCheck(record.proposalKind); } catch (error) { return no((error as Error).message); }
   if (kind === 'brief-agent' || proposalDigest(record) !== record.digest) return no(CHANGED);
-  return targetOf(state, venture, kind, record.input);
+  const gate = targetOf(state, venture, kind, record.input);
+  // A search's card says exactly what will run and what it costs, so its words are read again from the records: a
+  // price, a connected tool or a lead source that changed since makes the card one the owner has not approved.
+  if (gate.ok && kind === 'find-customers' && (gate.target.line !== record.line || gate.target.title !== record.title)) return no(CHANGED);
+  return gate;
 }
 
 /** A card's version: the proposal's digest and the facts it depends on, so either changing makes a new card. */

@@ -5,7 +5,7 @@ import { ClockProvider } from '../src/shell/clock';
 import { NARROW } from '../src/shell/useNarrow';
 import { FakeEngine, createFakeClient } from '../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../src/engine/fixtures';
-import type { EngineClient, GoalView } from '../src/engine/types';
+import type { ChiefPlanView, EngineClient } from '../src/engine/types';
 import { assertOnePrimary, assertOnePrimaryPerView } from './helpers/ink-rules';
 import { PLACES, RECEIPTED, type PlaceAtRest } from './helpers/places';
 
@@ -57,10 +57,11 @@ const placeClient = (place: PlaceAtRest) => clientFor(new FakeEngine({ now: () =
 const filled = () => [...document.querySelectorAll<HTMLButtonElement>('main [data-variant="primary"]')]
   .filter((button) => !button.hasAttribute('data-locked') && !button.disabled && !button.closest('details:not([open])'));
 const cardOf = (id: string) => document.querySelector<HTMLElement>(`main [data-row-id="${id}"]`)!;
-const nextIs = (rowId: string, title: string) => ({
-  'venture.goals.get': async (asked: (method: string, params: unknown) => Promise<unknown>) => {
-    const view = await asked('venture.goals.get', {}) as GoalView;
-    return { ...view, next: { rowId, title, agent: null, line: '', figure: null, goalAfter: null, goalAfterPercent: null } };
+/** The chief's plan with its next best step set to a card on Today (the step presses that card's own primary). */
+const nextIs = (rowId: string, title: string, label: string) => ({
+  'venture.chief.plan.get': async (asked: (method: string, params: unknown) => Promise<unknown>) => {
+    const view = await asked('venture.chief.plan.get', {}) as ChiefPlanView;
+    return { ...view, next: { kind: 'row', title, line: null, action: { id: 'row', label, rowId }, agent: null, figure: null, goalAfterPercent: null, by: 'records', also: null } };
   },
 });
 
@@ -85,6 +86,8 @@ describe("Today's one filled button", () => {
     const engine = new FakeEngine({ now: () => NOW, queue: [...QUEUE, ...SETUP_ROWS] });
     await open('#/today', phone, clientFor(engine));
     assertOnePrimaryPerView();
+    // The sample has clients, so the card waiting on the owner (the sponsor's price) is the plan's step, ahead of its
+    // offer with no price and of every setup card: that step holds the button.
     expect(filled().map((button) => button.textContent)).toEqual(['Approve']);
     expect(filled()[0]!.closest('[data-row-id]')).toBeNull();
     const needs = screen.getByRole('region', { name: 'Needs you' });
@@ -94,12 +97,15 @@ describe("Today's one filled button", () => {
     for (const id of ['q-setup-ai', 'q-setup-prices', 'q-setup-keep']) expect(cardOf(id).querySelector('[data-key="primary"]'), id).not.toBeNull();
   });
 
-  it("no next step: the first card that can be pressed holds it, and a locked one is passed over", async () => {
+  it("a step with nothing to press: the first card that can be pressed holds it, and a locked one is passed over", async () => {
     const engine = new FakeEngine({ now: () => NOW, queue: QUEUE.filter((row) => row.id === 'run:d-ep14:review-1' || row.id === 'q-price-sponsor' || row.id === 'q-question-title') });
-    const client = clientFor(engine, { 'venture.goals.get': async (asked) => ({ ...(await asked('venture.goals.get', {}) as GoalView), next: null }) });
+    const client = clientFor(engine, { 'venture.chief.plan.get': async (asked) => ({
+      ...(await asked('venture.chief.plan.get', {}) as ChiefPlanView),
+      next: { kind: 'clear', title: 'Nothing needs you right now.', line: null, action: null, agent: null, figure: null, goalAfterPercent: null, by: 'records', also: null },
+    }) });
     await open('#/today', false, client);
     assertOnePrimaryPerView();
-    expect(screen.queryByText('Next best step')).toBeNull();
+    expect(within(await screen.findByRole('region', { name: 'Nothing needs you right now.' })).queryByRole('button')).toBeNull();
     expect(cardOf('q-price-sponsor').querySelector<HTMLElement>('[data-key="primary"]')!.dataset.variant).toBe('primary');
     expect(cardOf('q-question-title').querySelector<HTMLElement>('[data-key="primary"]')!.dataset.variant).toBe('secondary');
     expect(cardOf('run:d-ep14:review-1').querySelector<HTMLElement>('[data-key="primary"]')!.dataset.variant).toBe('secondary');
@@ -126,14 +132,14 @@ describe("Today's one filled button", () => {
 
 describe('the next best step says each thing once', () => {
   it('has no Open when its primary is Connect: the row has nothing to look at', async () => {
-    await open('#/today', false, clientFor(new FakeEngine({ now: () => NOW }), nextIs('q-setup-ai', 'Connect your AI')));
+    await open('#/today', false, clientFor(new FakeEngine({ now: () => NOW }), nextIs('q-setup-ai', 'Connect your AI', 'Connect')));
     const next = await screen.findByRole('region', { name: 'Connect your AI' });
     expect(within(next).queryByRole('button', { name: 'Open' })).toBeNull();
     expect(within(next).getByRole('button', { name: 'Connect' }).getAttribute('data-variant')).toBe('primary');
   });
 
   it('keeps Open when there is a thing to look at, and its locked primary is not filled', async () => {
-    await open('#/today', false, clientFor(new FakeEngine({ now: () => NOW }), nextIs('run:d-ep14:review-1', 'Episode 14 is cut')));
+    await open('#/today', false, clientFor(new FakeEngine({ now: () => NOW }), nextIs('run:d-ep14:review-1', 'Episode 14 is cut', 'Approve')));
     const next = await screen.findByRole('region', { name: 'Episode 14 is cut' });
     expect(within(next).getByRole('button', { name: 'Open' })).toBeTruthy();
     expect(within(next).getByRole('button', { name: /^Approve/ }).hasAttribute('data-locked')).toBe(true);

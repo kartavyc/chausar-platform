@@ -4,13 +4,14 @@ import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { NARROW } from '../../src/shell/useNarrow';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type EngineClient, type GoalSuggestion, type GoalView } from '../../src/engine/types';
+import { EngineError, type ChiefPlanStep, type ChiefPlanView, type EngineClient, type GoalSuggestion, type GoalView } from '../../src/engine/types';
 import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 
 /*
  * Today's goal card and next best step from the engine (W4 4I2, D-Today `.goal` and `.next`, D-Phone-Today). The goal
  * counts money invoiced this month before tax (founder, 23 Oct). Every amount is the engine's text with its receipt, or
  * "model estimate" for a suggestion the owner asked for; the percents and days left are the engine's own integers.
+ * The step is the chief's standing plan's (venture.chief.plan.get): a card waiting on Today, or a step the plan names.
  */
 
 /** 19:05 in Kolkata on Friday 23 October 2026: day 23 of 31, so 8 days are left. */
@@ -211,11 +212,26 @@ describe('Today: no goal for the month yet (spec 8)', () => {
   });
 });
 
-describe('Today: the next best step (W4 4I2)', () => {
+/**
+ * The plan the fake sends with what is sold ready, so its step is the waiting row the engine ranks first (the goals
+ * view's own `next`), changed by `change`. The sample itself still has an offer without a price; that step is below.
+ */
+const rowPlan = (change: (step: ChiefPlanStep) => ChiefPlanStep = (step) => step) => async (_params: unknown, asked: Asked): Promise<ChiefPlanView> => {
+  const view = await asked('venture.chief.plan.get', {}) as ChiefPlanView;
+  const ranked = (await asked('venture.goals.get', {}) as GoalView).next!;
+  const step: ChiefPlanStep = {
+    kind: 'row', title: ranked.title, line: ranked.line, action: { id: 'row', label: 'Approve', rowId: ranked.rowId }, agent: ranked.agent, figure: ranked.figure,
+    goalAfterPercent: ranked.goalAfterPercent, by: 'records', also: null,
+  };
+  return { ...view, next: change(step) };
+};
+const stepFor = (rowId: string, title: string, agent: string): ((step: ChiefPlanStep) => ChiefPlanStep) => (step) => ({ ...step, title, agent, figure: null, goalAfterPercent: null, action: { id: 'row', label: 'Approve', rowId } });
+
+describe('Today: the next best step (W4 4I2), from the chief\'s plan', () => {
   const tile = () => screen.findByRole('region', { name: 'Sponsor slot price' });
 
   it("names the engine's first row by money at stake, its figure with a receipt, and the card's own primary, in few words", async () => {
-    await start();
+    await start({ override: { 'venture.chief.plan.get': rowPlan() } });
     const next = await tile();
     expect(next.textContent).toContain('Next best step');
     expect(next.textContent).toContain('Producer');
@@ -231,7 +247,7 @@ describe('Today: the next best step (W4 4I2)', () => {
   });
 
   it("its primary presses the card's own: the second ask opens inside the card and nothing is decided", async () => {
-    const { calls } = await start();
+    const { calls } = await start({ override: { 'venture.chief.plan.get': rowPlan() } });
     const next = await tile();
     await act(async () => { fireEvent.click(within(next).getByRole('button', { name: /^Approve/ })); });
     await settle();
@@ -242,13 +258,7 @@ describe('Today: the next best step (W4 4I2)', () => {
   });
 
   it('a locked primary stays locked and says why, as on its card', async () => {
-    await start({
-      override: {
-        'venture.goals.get': changed((view) => ({
-          ...view, next: { rowId: 'run:d-ep14:review-1', title: 'Episode 14 is cut', agent: 'Editor', line: 'Open it, then choose Approve.', figure: null, goalAfter: null, goalAfterPercent: null },
-        })),
-      },
-    });
+    await start({ override: { 'venture.chief.plan.get': rowPlan(stepFor('run:d-ep14:review-1', 'Episode 14 is cut', 'Editor')) } });
     const next = await screen.findByRole('region', { name: 'Episode 14 is cut' });
     const approve = within(next).getByRole('button', { name: /^Approve/ });
     expect(approve.getAttribute('aria-disabled')).toBe('true');
@@ -256,7 +266,12 @@ describe('Today: the next best step (W4 4I2)', () => {
   });
 
   it("shows the goal after it from the engine's whole percent", async () => {
-    await start({ override: { 'venture.goals.get': changed((view) => ({ ...view, next: { ...view.next!, goalAfter: 'Goal after: 92%', goalAfterPercent: 92 } })) } });
+    await start({
+      override: {
+        'venture.goals.get': changed((view) => ({ ...view, next: { ...view.next!, goalAfter: 'Goal after: 92%', goalAfterPercent: 92 } })),
+        'venture.chief.plan.get': rowPlan((step) => ({ ...step, goalAfterPercent: 92 })),
+      },
+    });
     const next = await tile();
     expect(next.textContent).toContain('Goal after');
     expect(next.textContent).toContain('92%');
@@ -264,21 +279,32 @@ describe('Today: the next best step (W4 4I2)', () => {
     expect(within(goal).getByRole('img').getAttribute('aria-label')).toBe("74% of the goal invoiced. The next step takes it to 92%. Today's pace is 74%.");
   });
 
-  it('no tile when the engine sends no next step', async () => {
+  it('an offer with no price is the step once no customer waits on the owner, and its primary goes where that is done', async () => {
+    // The sample has clients and one offer with no price. A card that waits on the owner leads (the sponsor's price);
+    // with nothing waiting on Today, pricing the offer is the one next best step, by code.
+    await start();
+    expect((await screen.findByRole('region', { name: 'Sponsor slot price' })).textContent).toContain('Next best step');
+    document.body.innerHTML = '';
+    await start({ engine: new FakeEngine({ now: () => NOW, queue: [] }) });
+    const next = await screen.findByRole('region', { name: 'Set your price for Shorts from your long video.' });
+    expect(next.textContent).toContain('Next best step');
+    // In few words: the title says what to do, and the tile adds nothing to it.
+    expect(next.textContent).not.toContain('Chausar looks for customers');
+    assertOnePrimary(next);
+    await act(async () => { fireEvent.click(within(next).getByRole('button', { name: /^Set prices/ })); });
+    await settleHash();
+    expect(window.location.hash).toBe('#/business/prices');
+  });
+
+  it('there is always exactly one step: with nothing waiting it is still the plan\'s own', async () => {
     await start({ engine: new FakeEngine({ now: () => NOW, queue: [] }) });
     await goalCard('October goal');
-    expect(screen.queryByText('Next best step')).toBeNull();
+    expect(screen.getAllByText('Next best step')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-next-step]')).toHaveLength(1);
   });
 
   it('C4 task 9: on a phone a locked step has Open beside it; after reading, the primary unlocks', async () => {
-    await start({
-      narrow: true,
-      override: {
-        'venture.goals.get': changed((view) => ({
-          ...view, next: { rowId: 'post:linkedin-ep13:v1', title: 'Post to X', agent: 'Publisher', line: '', figure: null, goalAfter: null, goalAfterPercent: null },
-        })),
-      },
-    });
+    await start({ narrow: true, override: { 'venture.chief.plan.get': rowPlan(stepFor('post:linkedin-ep13:v1', 'Post to X', 'Publisher')) } });
     const goal = await goalCard('October goal');
     await waitFor(() => expect(goal.querySelector('[data-next-folded]')).not.toBeNull());
     const folded = goal.querySelector<HTMLElement>('[data-next-folded]')!;
@@ -292,7 +318,7 @@ describe('Today: the next best step (W4 4I2)', () => {
   });
 
   it('on a phone the step folds into the goal card as one line with one primary, and there is no separate tile', async () => {
-    const { calls } = await start({ narrow: true });
+    const { calls } = await start({ narrow: true, override: { 'venture.chief.plan.get': rowPlan() } });
     const goal = await goalCard('October goal');
     await waitFor(() => expect(goal.querySelector('[data-next-folded]')).not.toBeNull());
     expect(screen.queryByRole('region', { name: 'Sponsor slot price' })).toBeNull();

@@ -7,6 +7,7 @@ import { DEPT_IDS, type DeptId } from './icons';
 import { fitTabs, type Fit } from './tabs-fit';
 import s from './Tabs.module.css';
 import { useSlidingPill } from './useSlidingPill';
+import { deptKey } from '../text/dept';
 
 /**
  * Tabs (C1 task 1): the one row of tabs in the app. Three modes:
@@ -87,8 +88,8 @@ export function Tabs(props: TabsProps) {
   const [sizes, setSizes] = useState<Sizes | null>(null);
   const [room, setRoom] = useState(0);
   const [fonts, setFonts] = useState(0);
-  // One-shot C3 task 15: one pill under the row slides to the current item; it is placed again when the row's items change.
-  const pill = useSlidingPill(`${value}\u0003${sizes?.key ?? ''}\u0003${room}`);
+  // One-shot C3 task 15: one pill under the row slides to the current item; it is placed again after every draw of the row.
+  const pill = useSlidingPill();
 
   const key = `${fonts}\u0002${items.map((item) => `${item.id}\u0001${item.label}\u0001${drawn(item.count) ? String(item.count) : ''}`).join('\u0002')}`;
   const measuring = sizes?.key !== key;
@@ -264,6 +265,6 @@ export function Tabs(props: TabsProps) {
 export function departmentChoices(t: T): (TabItem & { id: 'all' | DeptId })[] {
   return [
     { id: 'all', label: t('dept.all') },
-    ...DEPT_IDS.map((dept) => ({ id: dept, label: t(`dept.${dept}`), dept })),
+    ...DEPT_IDS.map((dept) => ({ id: dept, label: t(deptKey(dept)), dept })),
   ];
 }

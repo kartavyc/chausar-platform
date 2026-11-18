@@ -57,7 +57,7 @@ test('keeping an onboarding plan persists adopted keys before the business commi
     const port = fail ? { ...saved.port, async set() { throw Object.assign(Error('synthetic failure'), { code: 'CREDENTIAL_UNAVAILABLE' }); } } : saved.port;
     const host = new VentureHost(store, { trust: new TrustService(store), ontology: { current: () => null, publish: async () => {} }, calculator: {} } as unknown as VentureEngineServices, {
       host: 'desktop', demo: false, storage: 'experimental-file', credentials: port,
-      draft: { ai: () => ({ connections, calls: [] }), compose: () => null, moveKeys: shelf => shelf.set(secretName, key), settle: () => { settled = true; } },
+      draft: { ai: () => ({ connections, calls: [] }), moveKeys: shelf => shelf.set(secretName, key), settle: () => { settled = true; } },
       modelTransport: { replay: false, async http() { throw Error('no network'); }, async process() { throw Error('no process'); } },
     });
     const result = host.request(owner, 'venture.create', { idea: 'Synthetic bookkeeping service', countryCode: 'IN' });

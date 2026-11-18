@@ -48,6 +48,38 @@ describe('the sliding pill', () => {
     expect(rule('Tabs.module.css', ".tabs[data-pill-ready] .pill")).toMatch(/transition:\s*transform var\(--t-press\)/);
   });
 
+  it("words that arrive after a tab's name widen it: the pill takes the tab's new width, though the choice did not move", () => {
+    // Chrome, Team > Editor > Instructions at 1280 in the dark theme (the walk of 15 Nov 2026): the version badge is
+    // read after the row is drawn. The pill was placed only when the choice moved, so it stayed as wide as the name
+    // alone and the badge sat past it: the selected tab's dark words on the dark sheet, contrast 1.04.
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(10);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function width(this: HTMLElement) { return this.textContent?.includes('v4') ? 90 : 60; });
+    const row = (badge: boolean) => (
+      <TextProvider language="en">
+        <Tabs mode="tabs" label="Views" value="a" onChange={() => {}} items={[{ id: 'a', label: 'Instructions', after: badge ? <span>v4</span> : undefined }, { id: 'b', label: 'Jobs' }]} />
+      </TextProvider>
+    );
+    const { rerender } = render(row(false));
+    const pill = document.querySelector<HTMLElement>('[data-pill]')!;
+    expect(pill.style.width).toBe('60px');
+    rerender(row(true));
+    expect(screen.getByRole('tab', { name: 'Instructions v4' })).toBeTruthy();
+    expect(pill.style.width).toBe('90px');
+  });
+
+  it('a chip whose count grows keeps the pill under all of it', () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(10);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function width(this: HTMLElement) { return this.textContent?.includes('120') ? 70 : 50; });
+    const chips = (count: number) => (
+      <TextProvider language="en"><FilterChips label="Show" options={[{ id: 'a', label: 'One', count }, { id: 'b', label: 'Two', count: 3 }]} value="a" onChange={() => {}} /></TextProvider>
+    );
+    const { rerender } = render(chips(9));
+    const pill = document.querySelector<HTMLElement>('[data-pill]')!;
+    expect(pill.style.width).toBe('50px');
+    rerender(chips(120));
+    expect(pill.style.width).toBe('70px');
+  });
+
   it('FilterChips carries the same pill, and the bottom tabs’ mark slides over the sheet time', () => {
     render(<TextProvider language="en"><FilterChips label="Show" options={OPTIONS} value="a" onChange={() => {}} /></TextProvider>);
     expect(document.querySelectorAll('[data-pill]')).toHaveLength(1);

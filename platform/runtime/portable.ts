@@ -9,7 +9,7 @@ export class ChausarError extends Error {
 }
 export function check(condition:unknown,code:string,message:string):asserts condition {if(!condition)throw new ChausarError(code,message);}
 /**
- * B1 fix round 2: a refusal in developer words (the vault, sync and storage internals). It is a ChausarError with
+ * B1 fix round 2: a refusal in developer words (the vault and storage internals). It is a ChausarError with
  * owner: false, so no transport sends its words as the owner's: the app says its own line for the code, or the
  * general sentence (owner-flag.ts refusalTravel).
  */

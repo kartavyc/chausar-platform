@@ -470,7 +470,7 @@ test('an explanation the CA records while the run is still working counts when t
   ]);
   calculatorAgent(env.deps,[turn('Work the GST, then compare the portal', [['tax.gst', GST_CALL], ['tax.portal', PORTAL_CALL]])],GST_PAPERS,undefined,async()=>{
     const diff=workReceipts(env).find(item=>item.ca?.engine==='portal-diff')!;
-    assert.equal(calculatorRun(env.deps,(diff.runRef as {runId:string}).runId).status,'waiting-for-you');
+    assert.equal(calculatorRun(env.deps,(diff.runRef as {runId:string}).runId).status,'working');
     await env.call('venture.ca.explainDiff',{receiptId:diff.id,key:'net-payable',note:'The portal rounds the payable; the CA accepts it.',membershipNo:CA.membershipNo});
   });
   const run=await deliver(env,order.id);

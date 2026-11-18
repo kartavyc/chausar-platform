@@ -1,5 +1,5 @@
 // Original source-bound dub groups. BaoCut workflow ideas only; no source-available implementation copied.
-import {check,digest} from '../../../portable.ts';
+import {check} from '../../../portable.ts';
 import {scoreBack} from '../kit/transcribe-back.ts';import {alignDub,type DubAlignment} from './dub-align.ts';
 export type DubSource={id:string;speaker:string;text:string;startMs:number;endMs:number};
 export type DubVoice={speaker:string;consentId:string;voice:string};
@@ -17,5 +17,3 @@ export function newDubGroup(id:string,jobId:string,sourceDigest:string,source:re
 export function claimDubSentence(group:DubGroup,id:string,voice:string):DubGroup{const next=structuredClone(group),row=next.sentences.find(s=>s.id===id);check(row,'DUB_NOT_FOUND','Choose a sentence in this dub group.');check(row.voice===voice,'VOICE_MISMATCH','Use the exact voice approved for this speaker.');check(['pending','retry','failed'].includes(row.state)&&row.attempts<2,'DUB_RETRY_REFUSED','Only a missing or failed sentence can be retried once.');row.state='sending';row.attempts++;row.failure=null;row.listened=false;return next;}
 /** Local measured duration and transcript, never model claims, determine placement and the required human review. */
 export function finishDubSentence(group:DubGroup,id:string,evidence:{audioFileId:string;durationMs:number;heard:string}):DubGroup{const next=structuredClone(group),index=next.sentences.findIndex(s=>s.id===id),row=next.sentences[index];check(row&&(row.state==='sending'||row.state==='made'),'DUB_RETRY_REFUSED','This sentence has no active synthesis attempt.');const score=scoreBack(row.text,evidence.heard),alignment=alignDub(row.startMs,row.endMs,next.sentences[index+1]?.startMs??row.endMs,evidence.durationMs);Object.assign(row,{audioFileId:evidence.audioFileId,alignment,score:score.score,heard:evidence.heard,state:score.verdict==='retry'?(row.attempts<2?'retry':'review'):score.verdict,listened:false});return next;}
-/** The exact group digest binds approvals, quote and downloads to these words, voices and verification results. */
-export const dubDigest=(group:DubGroup)=>digest(group);

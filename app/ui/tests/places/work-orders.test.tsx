@@ -28,21 +28,25 @@ describe('an order in one plain state', () => {
   });
 
   it('working, or waiting on you, from the engine run state when there is one', () => {
-    expect(orderView(order(), [run('brief-waiting')], [], [summary('d-brief-waiting', 'active')]).state).toBe('working');
-    expect(orderView(order(), [run('brief-waiting')], [], [summary('d-brief-waiting', 'waiting')]).state).toBe('waiting');
+    expect(orderView(order(), [run('working')], [], [summary('d-working', 'active')]).state).toBe('working');
+    // A working job waits on you only while one step of it asks for your approval: the engine's run state says so.
+    expect(orderView(order(), [run('working', { awaitingYou: true })], [], [summary('d-working', 'waiting')]).state).toBe('waiting');
     expect(orderView(order(), [run('needs-answer')], []).state).toBe('waiting');
-    expect(orderView(order(), [run('waiting-for-you', { awaitingYou: false })], []).state).toBe('working');
-    expect(orderView(order(), [run('brief-waiting')], []).state).toBe('working');
+    expect(orderView(order(), [run('working', { awaitingYou: false })], []).state).toBe('working');
+    expect(orderView(order(), [run('working')], []).state).toBe('working');
+    expect(orderView(order(), [run('working', { awaitingYou: true })], []).state).toBe('waiting');
     expect(orderView(order(), [run('needs-answer')], []).action).toBeUndefined();
   });
 
   it('draft ready, approved, sent back and stopped follow the newest run', () => {
     expect(orderView(order(), [run('ready-for-review')], []).state).toBe('draft-ready');
     // Review of A1 (row 9): a handed-over draft the AI is still finishing is working, never waiting on you.
-    const finishing = orderView(order(), [run('ready-for-review', { awaitingYou: false })], [], [summary('d-ready-for-review', 'active')]);
+    const finishing = orderView(order(), [run('finishing', { awaitingYou: false })], [], [summary('d-finishing', 'active')]);
     expect(finishing.state).toBe('working');
     expect(waitsOnYou(finishing)).toBe(false);
     expect(orderView(order(), [run('ready-for-review', { awaitingYou: true })], [], [summary('d-ready-for-review', 'waiting')]).state).toBe('draft-ready');
+    // A step of the finishing job asks for approval: the handed-over draft reads as ready, as before.
+    expect(orderView(order(), [run('finishing', { awaitingYou: true })], [], [summary('d-finishing', 'waiting')]).state).toBe('draft-ready');
     const approved = orderView(order(), [run('accepted')], []);
     expect(approved.state).toBe('approved');
     expect(approved.action).toBe('deliver');
@@ -406,7 +410,9 @@ describe('a transcript made on this computer', () => {
 describe('C4 task 12: a Finished row names its client and its day', () => {
   it('the client is a link to the client sheet and the row has the date of the run', async () => {
     window.location.hash = '#/work';
+    // The run is Ledgerline's, and Work lists the open business's runs, as the engine does.
     const fake = new FakeEngine();
+    await fake.request('workspace.open', { folder: 'ledgerline' });
     render(<App client={createFakeClient(fake)} language="en" />);
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const title = await within(finished).findByRole('button', { name: 'Matched September bank lines to invoices' });

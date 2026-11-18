@@ -1,7 +1,6 @@
 // Hosted tier: the venture runtime conformance checks, shared by two runs. `runtimeConformance(kinds)` registers the
 // same six tests for each runtime kind it is given. The open suite (hosted-runtime.test.ts) runs them on the local
-// actor runtime, on the Rivet adapter over an in-memory stand-in, and on the local runtime with business vaults in the
-// PostgreSQL stand-in. The qualification run (qualification/hosted-postgres-real.test.ts) runs them on the local runtime
+// actor runtime and on the local runtime with business vaults in the PostgreSQL stand-in. The qualification run (qualification/hosted-postgres-real.test.ts) runs them on the local runtime
 // with business vaults in a real PostgreSQL server. Every actor is a real Engine over a real encrypted vault; no network.
 // This file has no .test suffix, so the open benchmark never runs it on its own.
 import test from 'node:test';
@@ -17,10 +16,8 @@ import { prepareHostedTables } from '../runtime/hosted/directory.ts';
 import { hostedVaultSlot } from '../runtime/hosted/runtime/business.ts';
 import type { ActorEvent, ActorKey, VentureRuntime } from '../runtime/hosted/runtime/contract.ts';
 import { LocalVentureRuntime } from '../runtime/hosted/runtime/local.ts';
-import { RivetVentureRuntime, ventureActorConfig } from '../runtime/hosted/runtime/rivet.ts';
 import type { ModelTransport } from '../runtime/venture/contracts.ts';
 import { createPostgresStandIn } from './hosted-postgres-standin.ts';
-import { createRivetStandIn } from './hosted-rivet-standin.ts';
 
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.';
 const API_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
@@ -34,7 +31,7 @@ export const noNetwork: ModelTransport = {
 };
 
 /** 'local-real-postgres' dials the database named by CHAUSAR_TEST_POSTGRES_URL; only the qualification run uses it. */
-export type RuntimeKind = 'local' | 'rivet' | 'local-postgres' | 'local-real-postgres';
+export type RuntimeKind = 'local' | 'local-postgres' | 'local-real-postgres';
 
 export type Harness = {
   name: string; runtime: VentureRuntime; root: string;
@@ -76,16 +73,9 @@ export async function harness(t: any, kind: RuntimeKind): Promise<Harness> {
   if (postgres) await prepareHostedTables(postgres);
   const engineOptions = () => ({ demo: true, storage: postgres ? 'postgres' as const : 'experimental-file' as const, venture: { host: 'hosted-web' as const, modelTransport: noNetwork } });
   let now = Date.parse('2026-10-16T09:00:00.000Z');
-  let runtime: VentureRuntime, sleep: () => Promise<void>;
-  if (kind !== 'rivet') {
-    const local = new LocalVentureRuntime({ root, engineOptions, passphrase, idleMs: 60_000, maxAwake: 3, clock: () => now, postgres });
-    runtime = local;
-    sleep = async () => { now += 61_000; await local.sleepIdle(); };
-  } else {
-    const standIn = createRivetStandIn(ventureActorConfig(() => ({}), { root, engineOptions, passphrase, idleMs: 60_000 }));
-    runtime = new RivetVentureRuntime(standIn.client);
-    sleep = () => standIn.sleepAll();
-  }
+  const local = new LocalVentureRuntime({ root, engineOptions, passphrase, idleMs: 60_000, maxAwake: 3, clock: () => now, postgres });
+  const runtime: VentureRuntime = local;
+  const sleep = async () => { now += 61_000; await local.sleepIdle(); };
   t.after(async () => { await sleep().catch(() => {}); await runtime.dispose(); await rm(root, { recursive: true, force: true }); });
   const tenant = newTenantId();
   return {
@@ -120,8 +110,7 @@ export function runtimeConformance(kinds: readonly RuntimeKind[]) {
       const view = await actor.action('venture.create', { idea: IDEA, countryCode: 'IN', workingName: 'Ledger Cafe Books' }, web) as any;
       assert.equal((await actor.action('venture.get', {}, web) as any).venture.id, view.venture.id);
 
-      await assert.rejects(actor.action('workspace.backup', {}, web), code('ACTION_NOT_DECLARED'));
-      await assert.rejects(actor.action('sources.import', {}, web), code('ACTION_NOT_DECLARED'));
+      await assert.rejects(actor.action('workspace.export', {}, web), code('ACTION_NOT_DECLARED'));
       await assert.rejects(actor.action('venture.get', {}, { channel: 'desktop' } as any), code('FORBIDDEN'));
       assert.throws(() => actor.on('not-an-event', () => {}), code('EVENT_NOT_DECLARED'));
     });
@@ -178,14 +167,9 @@ export function runtimeConformance(kinds: readonly RuntimeKind[]) {
         assert.match(preset.availabilityReason, /desktop app/);
         await assert.rejects(actor.action('venture.models.connect', { presetId: id, consentDigest: preset.consentDigest }, web), code('PRESET_UNAVAILABLE'));
       }
-      const capabilities = await actor.action('venture.capabilities', {}, web) as any[];
-      assert.equal(capabilities.find(row => row.id === 'hosted-actors').state, 'unverified');
-      assert.equal(capabilities.find(row => row.id === 'tier-container').state, 'unavailable');
-      // Agent-written code and PDF reading stay off on a shared server (the delivery harness refuses them there too).
-      assert.equal(capabilities.find(row => row.id === 'tier-wasm-lite').state, 'unavailable');
-      assert.match(capabilities.find(row => row.id === 'agent-tools').reason, /can't read PDFs or run code they write/);
-      // File storage says planned; PostgreSQL on the hosted server says experimental until a real deploy is tested.
-      assert.equal(capabilities.find(row => row.id === 'durable-storage').state, kind.endsWith('postgres') ? 'unverified' : 'planned');
+      // On file storage and on PostgreSQL alike, the hosted server says it is a test version.
+      const books = await actor.action('venture.books.summary', {}, web) as any;
+      assert.ok(books.notes.includes("Test version: practice here, don't send real invoices yet."));
     });
 
     test(`${kind} runtime: tenants and businesses never see each other`, async t => {

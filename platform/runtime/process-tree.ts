@@ -6,21 +6,42 @@
 // parent was the tool and that started while the tool ran are found and ended (sweepAfterExit). Node itself already puts
 // every child it starts into one kill-on-close job held by the engine, so nothing outlives the engine unless it broke
 // away from that job; a job per tool would need a native call, and is not used (see the A2 notes).
-import { spawn, spawnSync, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { join } from 'node:path';
 
 const systemFolder = () => process.env.SystemRoot ?? process.env.WINDIR ?? 'C:\\Windows';
 
-/** Ends a process and every process it started. Never throws. */
-export function killTree(pid: number | undefined, platform: NodeJS.Platform = process.platform): void {
-  if (!pid || !Number.isSafeInteger(pid) || pid <= 0) return;
+/** How long taskkill may take before it is itself ended and what waits on it goes on. */
+const TASKKILL_LIMIT_MS = 10_000;
+
+/**
+ * Ends a process and every process it started. Never throws.
+ *
+ * On Windows the tree is ended by taskkill, started in the background. It used to be started with spawnSync and a ten
+ * second limit, which stopped the whole engine (every request, every event) for as long as taskkill took: when a
+ * status check of an AI tool timed out, the window's "Checking this computer" stood still with it (15 Nov 2026).
+ * `after` runs once the tree is ended, or taskkill could not start, or its limit passed: spawnTree kills the tool
+ * itself only then, since a tool that is gone first leaves its helpers in no tree for taskkill to find. Elsewhere the
+ * process group is ended at once and `after` runs right away. start: the program starter, for tests.
+ */
+export function killTree(pid: number | undefined, platform: NodeJS.Platform = process.platform, after?: () => void, start: typeof spawn = spawn): void {
+  let over = false;
+  const done = () => { if (over) return; over = true; try { after?.(); } catch { /* what follows must not throw here */ } };
+  if (!pid || !Number.isSafeInteger(pid) || pid <= 0) { done(); return; }
+  if (platform !== 'win32') {
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
+    done();
+    return;
+  }
   try {
-    if (platform === 'win32') {
-      spawnSync(join(systemFolder(), 'System32', 'taskkill.exe'), ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 10_000 });
-    } else {
-      process.kill(-pid, 'SIGKILL');
-    }
-  } catch { /* already gone */ }
+    const killer = start(join(systemFolder(), 'System32', 'taskkill.exe'), ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', shell: false });
+    const limit = setTimeout(() => { try { killer.kill(); } catch { /* gone */ } done(); }, TASKKILL_LIMIT_MS);
+    limit.unref?.();
+    const ended = () => { clearTimeout(limit); done(); };
+    killer.once('error', ended);
+    killer.once('exit', ended);
+    killer.unref?.();
+  } catch { done(); }
 }
 
 /**
@@ -78,8 +99,14 @@ export function spawnTree(command: string, args: readonly string[], options: Spa
   child.kill = (signal?: NodeJS.Signals | number) => {
     if (child.exitCode !== null || child.signalCode !== null) return false;
     killed = true;
-    killTree(child.pid);
-    try { return plain(signal ?? 'SIGKILL'); } catch { return true; }
+    // The tree first, the tool itself after: on Windows the tree is ended in the background (killTree), so the tool's
+    // own kill follows when that has run; elsewhere both happen at once, as before.
+    let sent = true;
+    killTree(child.pid, process.platform, () => {
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      try { sent = plain(signal ?? 'SIGKILL'); } catch { sent = true; }
+    });
+    return process.platform === 'win32' ? true : sent;
   };
   child.once('exit', () => {
     const endedAt = new Date();

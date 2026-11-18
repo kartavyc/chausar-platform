@@ -120,5 +120,11 @@
   "chats.talk.failed": "दबाकर बोलना काम नहीं आया। {message}",
   "chats.read.label": "पढ़कर सुनाएँ",
   "chats.read.quote": "{figure} में पढ़कर सुनाएँ",
-  "chats.read.failed": "इसे पढ़कर नहीं सुना पाया। {message}"
+  "chats.read.failed": "इसे पढ़कर नहीं सुना पाया। {message}",
+  "chats.list.oldFound": {"one": "{count} पुरानी चैट मिली", "other": "{count} पुरानी चैट मिलीं"},
+  "chats.snooze.pick": "समय चुनें",
+  "chats.snooze.day": "दिन",
+  "chats.snooze.time": "समय",
+  "chats.snooze.pickBoth": "दिन और समय दोनों चुनें।",
+  "chats.guide.read": "गाइड में पढ़ें"
 }

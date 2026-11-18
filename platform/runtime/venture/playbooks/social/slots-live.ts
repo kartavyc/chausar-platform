@@ -6,6 +6,7 @@ import type {FlagshipCheckInput} from '../draft-checks.ts';
 import {clientDraft} from '../../build/draft-text.ts';
 import {actualSocialPosts} from './post-label.ts';
 import {analyseSocialPostPlan,type SocialHookHistory,type SocialSlotContext} from './slot-plan-core.ts';
+import { handedOver } from '../../delivery/run-machine.ts';
 export type {SocialHookHistory,SocialSlotContext} from './slot-plan-core.ts';
 type Result=Omit<PlaybookCheckResult,'playbook'>;
 const WEEK=7*86400000;
@@ -24,7 +25,7 @@ export function socialSlotChecks(input:FlagshipCheckInput):Result[]{
 }
 /** Recheck exact accepted words against current history, then stamp the history atomically with approval. */
 export function keepSocialPostPlan(tx:VentureTx,run:DeliveryRunRecord):void{
- if(run.practice||!['accepted','edited'].includes(run.status))return;
+ if(run.practice||!handedOver(run))return;
  const playbook=findRecord(tx.state,'venture-playbook',run.playbookId);if(playbook?.flagship!=='social-agency')return;
  const order=tx.find('venture-order',run.orderId);check(order&&order.ventureId===tx.venture!.id,'ORDER_NOT_FOUND','That order was not found.');
  const stage=order.socialChain?.stages[(run.chainStage??1)-1];if(stage&&['voice','calendar','report'].includes(stage))return;

@@ -32,7 +32,7 @@ describe('Settings beside the page (a wide window)', () => {
     await start('#/business/goals');
     expect(await screen.findByRole('heading', { level: 1, name: 'Goals' })).toBeTruthy();
     expect(screen.getAllByRole('navigation', { name: 'Settings' })).toHaveLength(1);
-    expect(groups()).toEqual(['Business', 'Work', 'Money', 'Safety']);
+    expect(groups()).toEqual(['General', 'Work', 'Money', 'Safety']);
     expect(within(settings()).getByRole('link', { name: 'Goals' }).getAttribute('aria-current')).toBe('page');
     expect(document.querySelector('main [data-tabs]')).toBeNull();
   });
@@ -53,7 +53,7 @@ describe('Settings beside the page (a wide window)', () => {
     expect(within(settings()).getByRole('status').textContent).toBe('No setting matches that.');
     await act(async () => { fireEvent.keyDown(search(), { key: 'Escape' }); });
     expect((search() as HTMLInputElement).value).toBe('');
-    expect(groups()).toEqual(['Business', 'Work', 'Money', 'Safety']);
+    expect(groups()).toEqual(['General', 'Work', 'Money', 'Safety']);
   });
 
   it('Enter opens the first match', async () => {
@@ -88,7 +88,7 @@ describe('Settings on a phone', () => {
   it('#/business is the list alone, with no page of its own', async () => {
     await start('#/business', { narrow: true });
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy();
-    expect(groups()).toEqual(['Business', 'Work', 'Money', 'Safety']);
+    expect(groups()).toEqual(['General', 'Work', 'Money', 'Safety']);
     expect(screen.queryByRole('heading', { level: 1, name: 'How the work is done' })).toBeNull();
   });
 

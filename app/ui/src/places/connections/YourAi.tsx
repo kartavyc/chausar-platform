@@ -4,6 +4,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Inner } from '../../parts/Card';
 import { Chip, type ChipTone } from '../../parts/Chip';
+import { Confirm, useSecondAsk } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
@@ -11,6 +12,7 @@ import { Tile } from '../../parts/Tile';
 import type { ModelAvailability, ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
 import { useCliChecks } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
+import { planRiskWords } from './planRisk';
 import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
@@ -29,8 +31,39 @@ const AVAILABILITY_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready
 interface Choice { id: string; title: string; presets: { preset: ModelPresetLite; tiers?: ModelTier[] }[]; keyName: string }
 
 /**
+ * One connected AI with its Disconnect. Found on the real app, 16 November 2026: one press turned the AI off for the
+ * whole business. Disconnect now asks once, in the row, saying what stops: with `only` (no other AI is connected) every
+ * agent falls back to built-in templates; otherwise the jobs this one did. Cancel gives the button the focus back.
+ */
+function ConnectedRow({ id, title, line, only, onDisconnect }: { id: string; title: string; line: string; only: boolean; onDisconnect: () => Promise<void> }) {
+  const t = useT();
+  const second = useSecondAsk();
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    try { await onDisconnect(); } finally { setBusy(false); second.done(); }
+  }
+  return (
+    <Row
+      id={id}
+      mark={<span className={s.mini} aria-hidden="true"><Icon name="bot" size={16} /></span>}
+      title={title}
+      line={line}
+      secondAsk={second.asking}
+      actions={second.asking ? undefined : <Button ref={second.button} size="sm" onClick={second.ask}>{t('connections.ai.disconnect')}</Button>}
+    >
+      {second.asking && (
+        <Confirm size="sm" tone="danger" action={t('connections.ai.disconnect')} busy={busy} onCancel={second.cancel} onConfirm={() => void go()}>
+          <p>{t(only ? 'connections.ai.disconnect.askOnly' : 'connections.ai.disconnect.ask', { name: title })}</p>
+        </Confirm>
+      )}
+    </Row>
+  );
+}
+
+/**
  * Your AI, the first tile on Connections: which AI does each job, what this month cost (as the engine writes it), the
- * connections with Disconnect, and the AI that can be added. The owner pays for AI directly, with their own key or
+ * connections with Disconnect (which asks once first), and the AI that can be added. The owner pays for AI directly, with their own key or
  * their own AI app on this computer (founder, 23 Oct); "Every choice" groups the choices that way, each with whether
  * it can connect and the engine's one fix line. Inside a business this is venture.models.*; before any business exists
  * it is the draft desk, venture.ai.*. A key is typed into a password field, sent once with Connect, cleared at once,
@@ -89,9 +122,11 @@ export function YourAi({ focus }: { focus: boolean }) {
     const lead = choice.presets[0]!.preset;
     const canConnect = choice.presets.every(({ preset }) => CONNECTABLE.has(preset.availability));
     const note = lead.verificationNote && !lead.availabilityReason.includes(lead.verificationNote) ? lead.verificationNote : null;
+    // The platform's own risk of a sign-in that runs on the owner's own plan, where the AI is chosen (planRisk.ts).
+    const risk = choice.id === 'recommended' ? null : planRiskWords(t, lead.id);
     const line = choice.id === 'recommended'
       ? `${t('connections.ai.recommendedLine')} ${connectionWords(t, lead.availabilityReason)}`
-      : <><span className={s.fixLine} data-fix-line="">{connectionWords(t, lead.availabilityReason)}</span>{note && <span className={s.quiet}> {connectionWords(t, note)}</span>}</>;
+      : <><span className={s.fixLine} data-fix-line="">{connectionWords(t, lead.availabilityReason)}</span>{note && <span className={s.quiet}> {connectionWords(t, note)}</span>}{risk && <span className={s.quiet}> <span data-plan-risk="">{risk}</span></span>}</>;
     return (
       <Row
         key={choice.id}
@@ -159,13 +194,13 @@ export function YourAi({ focus }: { focus: boolean }) {
             {connected.length > 0 && (
               <ul className={s.rows} aria-label={t('connections.ai.connected')}>
                 {connected.map((connection) => (
-                  <Row
+                  <ConnectedRow
                     key={connection.id}
                     id={`ai-${connection.id}`}
-                    mark={<span className={s.mini} aria-hidden="true"><Icon name="bot" size={16} /></span>}
                     title={label(connection.presetId)}
-                    line={[connection.tiers.map((tier) => t(`connections.ai.job.${tier}`)).join(', '), connection.model, connection.usable ? connection.verificationNote : connection.reason].filter(Boolean).join(' · ')}
-                    actions={<Button size="sm" onClick={() => void disconnect(connection.id)}>{t('connections.ai.disconnect')}</Button>}
+                    line={[connection.tiers.map((tier) => t(`connections.ai.job.${tier}`)).join(', '), connection.model, connection.jobModel && connection.jobModel !== connection.model ? t('connections.ai.jobModel', { model: connection.jobModel }) : null, connection.usable ? (connection.verificationNote ? connectionWords(t, connection.verificationNote) : null) : connection.reason].filter(Boolean).join(' · ')}
+                    only={connected.length === 1}
+                    onDisconnect={() => disconnect(connection.id)}
                   />
                 ))}
               </ul>

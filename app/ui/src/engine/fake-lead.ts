@@ -1,10 +1,10 @@
 /**
  * The fake engine's spend leads (4Z3), as the engine's money/spend.ts works them out: which currency leads spend (the
- * owner's choice, or on Auto rupees for a business in India once a rupee rate is set), a lead figure with never more
+ * owner's choice, or on Auto rupees for a business in India, at its rate in use), a lead figure with never more
  * than two decimals of dollars, and the other currency beneath it at the owner's rate. The UI computes none of this.
  */
 
-import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
+import { formatCost, formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { EngineError, type CurrencyLead, type SpendLead } from './types';
 
 /** The owner's choices, as the engine's CURRENCY_LEADS; anything else is refused in the engine's words. */
@@ -23,6 +23,12 @@ export function dollarsLead(micros: number | string | bigint): string {
   return formatUsd(String(micros));
 }
 
+/** The rate as the owner reads it, as the engine's rupeeRateShown: rupees to two decimals, a half paisa up ('₹94.40' for 94.3996). */
+export function rateShown(perUsd: bigint): string {
+  const paise = (perUsd + 50n) / 100n;
+  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')}`;
+}
+
 /** Micro-dollars as rupees at a rate in ten-thousandths, to the nearest paisa, a half paisa up ('₹60.10'). */
 function rupeeFigure(micros: bigint, perUsd: bigint): string {
   const paise = (micros * perUsd + 50_000_000n) / 100_000_000n;
@@ -34,11 +40,19 @@ export function spendLead(micros: number | string | bigint, perUsd: bigint | nul
   const value = BigInt(micros);
   const dollars = dollarsLead(value);
   if (perUsd === null) return { currency: 'USD', figure: before + dollars + words };
-  const rate = `₹${(perUsd / 10_000n).toLocaleString('en-IN')}.${String(perUsd % 10_000n).padStart(4, '0').replace(/0+$/, '').padEnd(2, '0')} per $1`;
+  const rate = `${rateShown(perUsd)} per $1`;
   const inr = rupeeFigure(value, perUsd);
   return leads
     ? { currency: 'INR', figure: before + inr + words, beside: `${dollars} at ${rate}`, other: dollars }
     : { currency: 'USD', figure: before + dollars + words, beside: `${inr} at ${rate}`, other: inr };
+}
+
+/** A month of AI spend in one line, as the engine's monthSpendLine (Your AI's "This month"). */
+export function monthSpendLine(micros: number | string | bigint, perUsd: bigint | null, leads: boolean, estimate: boolean): string {
+  const value = BigInt(micros), usd = formatCost(String(value), { paidCalls: true });
+  if (perUsd === null) return formatCost(String(value), { paidCalls: true, estimate });
+  const tail = estimate ? ' (estimate)' : '', inr = rupeeFigure(value, perUsd), rate = `${rateShown(perUsd)} per $1`;
+  return leads ? `${inr}${tail} (${usd} at ${rate})` : `${usd}${tail} (${inr} at ${rate})`;
 }
 
 /** A typed rate ('83.50') in ten-thousandths of a rupee, or null. */

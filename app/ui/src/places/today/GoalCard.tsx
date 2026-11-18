@@ -13,7 +13,8 @@ import {
   GOAL_EVENTS, goalFromBooks, goalFromView, monthBefore, monthOf, useGoalSuggestion, type GoalAmount, type GoalCardData, type GoalFootItem,
   type SuggestionState,
 } from './goal';
-import { TodayNextStep, type NextStepHost } from './NextStep';
+import type { NextStepHost } from './NextStep';
+import { PLAN_EVENTS, PlanSay, PlanStep, PlanWeek, TodayPlan } from './ChiefPlan';
 import s from './GoalCard.module.css';
 
 export interface GoalCardProps {
@@ -172,10 +173,11 @@ function GoalFigure({ amount, size, className }: { amount: GoalAmount; size?: Fi
 }
 
 /**
- * Today's goal card and the next best step (W4 4I2), both from `venture.goals.get`: beside the card on a wide screen,
- * folded into it on a phone (D-Phone-Today). Until the view answers nothing is drawn; when it cannot be read (an engine
+ * Today's goal card (`venture.goals.get`, W4 4I2) and, beside it, the chief's standing plan (`venture.chief.plan.get`,
+ * ChiefPlan.tsx): the chief's line for today, the one next best step and this week's moves. On a phone the line leads,
+ * the step folds into the goal card (D-Phone-Today) and the week follows it. Until the goal answers nothing is drawn; when it cannot be read (an engine
  * without goals), the card falls back to this month's books, as in W3. `spans`: Today lists more than one business, so
- * the card names the open one. The rest of Today never waits on it.
+ * the card names the open one. The rest of Today never waits on either.
  */
 export function TodayGoal({ next, spans }: { next: NextStepHost; spans: boolean }) {
   const t = useT();
@@ -187,6 +189,7 @@ export function TodayGoal({ next, spans }: { next: NextStepHost; spans: boolean 
   const books = useResource('venture.books.summary', { period: 'this-month' }, { refreshOn: GOAL_EVENTS, skip: !fallback });
   const venture = useResource('venture.get', {}, { refreshOn: GOAL_EVENTS, skip: !spans });
   const suggestion = useGoalSuggestion(view?.state === 'unset' ? view.month : null);
+  const plan = useResource('venture.chief.plan.get', {}, { refreshOn: PLAN_EVENTS });
 
   if (!view) {
     return fallback && books.data ? <GoalCard data={goalFromBooks(books.data, monthOf(books.data.period.from))} /> : null;
@@ -197,22 +200,24 @@ export function TodayGoal({ next, spans }: { next: NextStepHost; spans: boolean 
     business: spans ? venture.data?.venture.workingName : undefined,
   }, t);
   const toGoals = () => goTo('business', 'goals');
-  // The step's card must be on Today, not decided here already: the step presses that card's own primary.
-  const step = view.next;
-  const row = step ? next.rows.find((r) => r.id === step.rowId && !next.isDecided(r.id)) : undefined;
   const ask = view.state === 'unset' ? { state: suggestion.suggestion, ask: suggestion.ask } : undefined;
+  const chief = plan.data;
   if (phone) {
     return (
-      <GoalCard
-        data={data} onEdit={toGoals} onSet={toGoals} suggestion={ask}
-        next={step && row ? <TodayNextStep step={step} row={row} host={next} folded /> : undefined}
-      />
+      <div className={s.row}>
+        {chief && <PlanSay line={chief.line} />}
+        <GoalCard
+          data={data} onEdit={toGoals} onSet={toGoals} suggestion={ask}
+          next={chief ? <PlanStep step={chief.next} host={next} folded onChanged={plan.reload} /> : undefined}
+        />
+        {chief && <PlanWeek view={chief} onChanged={plan.reload} />}
+      </div>
     );
   }
   return (
-    <div className={s.row} data-next={step && row ? '' : undefined}>
+    <div className={s.row} data-next={chief ? '' : undefined}>
       <GoalCard data={data} onEdit={toGoals} onSet={toGoals} suggestion={ask} />
-      {step && row && <TodayNextStep step={step} row={row} host={next} />}
+      {chief && <TodayPlan view={chief} host={next} onChanged={plan.reload} />}
     </div>
   );
 }

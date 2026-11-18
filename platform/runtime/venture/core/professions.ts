@@ -27,7 +27,6 @@ export type CautionSource = { url: string; publisher: string; title: string };
  * `turnover`: yearly turnover; `headcount`: people working in the business; `both`: the two together.
  */
 export const SIZE_MEASURES = Object.freeze(['none', 'turnover', 'headcount', 'both'] as const);
-export type SizeMeasure = (typeof SIZE_MEASURES)[number];
 /**
  * One figure of a size threshold, as the official source states it. confirmed: read there, with the value; unconfirmed:
  * no value (never a guess) and basis says why. basis: where the figure is set, or why it could not be confirmed.

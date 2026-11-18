@@ -27,18 +27,20 @@ const NotifyContext = createContext<NotifyList | null>(null);
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const t = useT();
   const list = useResource('venture.notify.list', {}, { refreshOn: NOTIFY_EVENTS });
-  const [said, setSaid] = useState('');
+  // Round 6 (re-check 036): the count it said, not its words, so a language picked later says it in that language (it
+  // kept "Notifications, 2 new" in English after Hindi was turned on).
+  const [said, setSaid] = useState<number | null>(null);
   const before = useRef<number | null>(null);
   const unread = list.data?.unread;
   useEffect(() => {
     if (unread === undefined) return;
-    if (before.current !== null && unread > before.current) setSaid(t('bell.new', { count: unread }));
+    if (before.current !== null && unread > before.current) setSaid(unread);
     before.current = unread;
-  }, [unread, t]);
+  }, [unread]);
   return (
     <NotifyContext.Provider value={list}>
       {children}
-      <span className="sr-only" aria-live="polite" data-bell-live="">{said}</span>
+      <span className="sr-only" aria-live="polite" data-bell-live="">{said === null ? '' : t('bell.new', { count: said })}</span>
     </NotifyContext.Provider>
   );
 }

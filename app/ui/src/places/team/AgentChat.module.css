@@ -446,3 +446,9 @@
     max-block-size: calc(100dvh - 26rem);
   }
 }
+
+/* Between two paragraphs of one reply. */
+.paraBreak {
+  display: block;
+  height: var(--sp-2);
+}

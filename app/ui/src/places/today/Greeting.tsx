@@ -7,11 +7,14 @@ import { PageTitle } from '../../parts/PageTitle';
 
 /**
  * The greeting for an hour of the owner's clock (the business's zone, B2): morning from 5 to 11, afternoon from 12 to
- * 16, evening from 17 until 4 at night. The owner's first name joins it once the engine keeps one (W4 4J21, venture.owner.get from 4J9).
+ * 16, evening from 17 until midnight, and a plain Hello from midnight until 5 (round 5, re-check 012: "Good evening" at
+ * 1:13 am; "Good night" is a goodbye, not a greeting). The owner's first name joins it once the engine keeps one (W4
+ * 4J21, venture.owner.get from 4J9).
  */
 export function greetingKey(hour: number): string {
-  if (hour >= 5 && hour < 12) return 'today.greeting.morning';
-  if (hour >= 12 && hour < 17) return 'today.greeting.afternoon';
+  if (hour < 5) return 'today.greeting.hello';
+  if (hour < 12) return 'today.greeting.morning';
+  if (hour < 17) return 'today.greeting.afternoon';
   return 'today.greeting.evening';
 }
 

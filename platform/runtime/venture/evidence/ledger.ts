@@ -6,7 +6,7 @@
 // personEvidence builds the engine's own rows about people in the owner's network (Ink v2 wave 4), under its own type.
 import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
-import type { ClientRecord, EvidenceItem, EvidenceRecord, Labelled, ToolCallRecord, VentureDeps } from '../contracts.ts';
+import type { ClientRecord, EvidenceItem, EvidenceRecord, ToolCallRecord, VentureDeps } from '../contracts.ts';
 import { backs, EVIDENCE_TYPE_IDS, EVIDENCE_TYPES, scoreEvidence, UNCHECKED, type EvidenceClaim, type EvidenceType } from './types.ts';
 import { redactSecrets } from '../core/secrets.ts';
 // W6 6G3 (D44): a client field the ledger writes back is a row in the client's field history.
@@ -193,28 +193,6 @@ export function fitsClientField(field: string, value: string): boolean {
 export function recordOwnerFields(tx: VentureTx, subject: string, fields: Readonly<Record<string, string | null>>) {
   for (const [field, value] of Object.entries(fields)) {
     if (value !== null) recordEvidence(tx, { subject, field, value, type: 'owner-entered', by: 'owner' });
-  }
-}
-
-type PlanLines = {
-  name: Labelled<string>;
-  oneLiner: Labelled<string>;
-  customer: Labelled<string>;
-  offers: readonly { id: string; name: Labelled<string>; description: Labelled<string> }[];
-};
-
-/**
- * A kept plan's business fields. Lines the AI wrote are model-inferred and weak, and applied because the owner kept the
- * plan; lines the owner typed are owner-entered. Template and engine words are not evidence of anything.
- */
-export function recordPlanEvidence(tx: VentureTx, plan: PlanLines) {
-  const lines: [string, Labelled<string>][] = [
-    ['name', plan.name], ['oneLiner', plan.oneLiner], ['customer', plan.customer],
-    ...plan.offers.flatMap(offer => [[`${offer.id}.name`, offer.name], [`${offer.id}.description`, offer.description]] as [string, Labelled<string>][]),
-  ];
-  for (const [field, line] of lines) {
-    if (line.by === 'owner') recordEvidence(tx, { subject: 'business', field, value: line.value, type: 'owner-entered', by: 'owner' });
-    else if (line.by === 'model') applyRecord(tx, recordEvidence(tx, { subject: 'business', field, value: line.value, type: 'model-inferred', by: 'agent', source: 'you kept it in your plan' }));
   }
 }
 

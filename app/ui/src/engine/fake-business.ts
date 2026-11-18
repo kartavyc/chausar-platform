@@ -1,7 +1,9 @@
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { UNIT_CHOICE_LINE, UNIT_WORDS, isOfferUnit, modelOfUnit, unitOfModel } from '../../../../platform/runtime/venture/core/offer-units';
 import { exportFileName } from '../../../../platform/runtime/workspace-custody-contracts';
 import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
 import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { QUEUE_FIXED_WORDS } from '../../../../platform/runtime/venture/views/queue-words';
 import { resetCountry } from './fake-country-plan';
 import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
 import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
@@ -26,6 +28,8 @@ import {
 const clone = <T>(value: T): T => structuredClone(value);
 
 export interface DeskHost {
+  /** Your AI's "This month" line in the business's currency (fake-extras.ts monthLine, as the engine's models.status). */
+  monthLine?: (biz: string, micros: bigint, estimate: boolean) => string;
   quote?(quote: import('./fake-pipeline').HeldPipelineQuote): void;
   country?(id: string): { code: string; currency: string };
   acceptCountry?(id: string, code: string): void;
@@ -51,6 +55,8 @@ export interface DeskHost {
   storeBytes?(): number;
   /** C5 task 20: what the owner last decided. */
   lastDecided?(): string | null;
+  /** Fix round 6: the main model an agent job runs on (fake-agent-settings.ts jobModel). */
+  jobModel?(provider: 'codex' | 'claude', codexCli: boolean): string;
   /** 4H2: whether this answers as the hosted web server. */
   hosted?(): boolean;
   /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
@@ -61,7 +67,7 @@ export interface DeskHost {
 
 const DESK_METHODS = new Set([
   'venture.models.presets', 'venture.models.status', 'venture.models.connect', 'venture.models.disconnect',
-  'venture.ai.options', 'venture.ai.status', 'venture.ai.connect', 'venture.ai.disconnect',
+  'venture.ai.options', 'venture.ai.status', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.reuse',
   'venture.blueprint.get', 'venture.blueprint.update', 'venture.price.quote',
   'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
@@ -105,6 +111,9 @@ interface PricePress {
   businessId: string; blueprintId: string; offer: string; offerName: string; before: BlueprintViewLite;
   shown: readonly (readonly [string, string | undefined])[]; quoted: boolean; orders: readonly string[]; invoices: readonly string[];
 }
+
+/** Each sample business's paid AI calls this month, in micro-dollars, behind its Your AI line (Ledgerline: $0.04, estimated). */
+const SPENT_MICROS: Record<string, bigint> = { ledgerline: 40_000n };
 
 export class FakeBusinessDesk {
   private readonly host: DeskHost;
@@ -292,13 +301,14 @@ export class FakeBusinessDesk {
     const biz = this.host.current();
     switch (method) {
       case 'venture.models.presets': return this.presets();
-      case 'venture.models.status': return clone(this.modelsOf(biz));
-      case 'venture.models.connect': return this.connect(this.modelsOf(biz), p, biz);
-      case 'venture.models.disconnect': return this.disconnect(this.modelsOf(biz), p, biz);
+      case 'venture.models.status': { const status = this.withJobModels(clone(this.modelsOf(biz))); return { ...status, spentThisMonthDisplay: this.host.monthLine?.(biz, SPENT_MICROS[biz] ?? 0n, status.estimate) ?? status.spentThisMonthDisplay }; }
+      case 'venture.models.connect': return this.withJobModels(this.connect(this.modelsOf(biz), p, biz));
+      case 'venture.models.disconnect': return this.withJobModels(this.disconnect(this.modelsOf(biz), p, biz));
       case 'venture.ai.options': return { presets: this.presets(), status: clone(this.draftAi), unchecked: true };
       case 'venture.ai.status': return clone(this.draftAi);
       case 'venture.ai.connect': return this.connect(this.draftAi, p, null);
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p, null);
+      case 'venture.ai.reuse': return this.reuseInDraft(p);
       // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
       case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn, p.ownerSave === true ? true : undefined), this.host.country?.(biz).code ?? 'IN');
@@ -364,35 +374,55 @@ export class FakeBusinessDesk {
   /** A4 fix round, as models/ai-setup.ts: the business that last connected Codex or Claude Code, the newest setup. */
   private lastCli: string | null = null;
 
+  /** The business whose setup venture.ai.reuse connected in this draft (draft/desk.ts #reused), or null. */
+  private draftReused: string | null = null;
+
   /**
-   * A4 fix round (core/venture.ts reuseAi): with no AI from the first run, the newest Codex or Claude Code connection of
-   * another business comes into this one (its preset, model and jobs; no key, call or consent). Answers where it came
-   * from, or null.
+   * venture.ai.reuse {} (draft/handlers.ts aiReuse), for a later business before its vault: the newest Codex or Claude
+   * Code connection of another business on this computer is connected in the draft (its preset, model and jobs, with
+   * the agreement and its time from there; no key, call or consent). reused names that business, or is null when
+   * nothing carried over. With an AI already connected in the draft it connects nothing more and answers the same.
    */
-  reuseAi(biz: string): string | null {
-    if (this.draftAi.connections.some((c) => c.status === 'connected') || !this.lastCli || this.lastCli === biz) return null;
+  private reuseInDraft(p: Record<string, unknown>): ModelStatusLite & { reused: { from: string } | null } {
+    if (Object.keys(p).length) throw invalid('Send the required fields and nothing else.');
+    const named = (biz: string | null) => (biz ? { from: this.host.businessName(biz) } : null);
+    if (this.draftAi.connections.some((c) => c.status === 'connected')) return { ...clone(this.draftAi), reused: named(this.draftReused) };
     const from = this.lastCli;
-    const carried = this.modelsOf(from).connections.filter((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli'));
+    const carried = from ? this.modelsOf(from).connections.filter((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli')) : [];
     // A4 review round 2 (H2): every AI passes connect's gates now, with the agreement and its time from there.
     const presets = this.presets();
-    if (!carried.length || carried.some((c) => { const preset = presets.find((x) => x.id === c.presetId); return !preset || preset.availability === 'unavailable' || preset.availability === 'needs-setup'; })) return null;
-    const state = this.modelsOf(biz);
-    for (const connection of carried) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}` });
-    this.retier(state);
-    return from;
+    if (!from || !carried.length || carried.some((c) => { const preset = presets.find((x) => x.id === c.presetId); return !preset || preset.availability === 'unavailable' || preset.availability === 'needs-setup'; })) return { ...clone(this.draftAi), reused: null };
+    for (const connection of carried) this.draftAi.connections.push({ ...clone(connection), id: `mc-draft-${++this.seq}` });
+    this.retier(this.draftAi);
+    this.draftReused = from;
+    return { ...clone(this.draftAi), reused: named(from) };
+  }
+
+  /** A vault closed or opened (engine.ts closeVault, workspace.open): the draft's AI and what it reused are wiped. */
+  clearDraft(): void {
+    this.draftAi = clone(DRAFT_AI_STATUS);
+    this.draftReused = null;
   }
 
   /** A4 review round 2 (M2): workspace.delete clears the setup the deleted business saved. */
   forgetAiSetup(biz: string): void { if (this.lastCli === biz) this.lastCli = null; }
 
-  adoptDraft(biz: string): void {
+  /**
+   * Answers the business the draft's AI was reused from, while one of those connections is still connected (the new
+   * business then notes where its AI came from, core/venture.ts), else null.
+   */
+  adoptDraft(biz: string): string | null {
     const connected = this.draftAi.connections.filter((c) => c.status === 'connected');
+    const reusedFrom = this.draftReused && connected.some((c) => c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli') ? this.draftReused : null;
     if (connected.length) {
       const state = this.modelsOf(biz);
       for (const connection of connected) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}` });
       this.retier(state);
+      // models/ai-setup.ts rememberAiSetup: the new business's setup is now the newest on this computer.
+      if (connected.some((c) => c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli')) this.lastCli = biz;
     }
-    this.draftAi = clone(DRAFT_AI_STATUS);
+    this.clearDraft();
+    return reusedFrom;
   }
 
   /**
@@ -451,6 +481,20 @@ export class FakeBusinessDesk {
     return clone(state);
   }
 
+  /**
+   * Fix round 6, as models/port.ts status: each connection says the model agent jobs run on. Only the newest connection
+   * serving plans and drafts runs them; OpenRouter runs them on its own model, the others on the main model in AI settings.
+   */
+  private withJobModels(status: ModelStatusLite): ModelStatusLite {
+    const runs = [...status.connections].reverse().find((c) => c.status === 'connected' && c.tiers.includes('main'));
+    for (const connection of status.connections) {
+      const serves = connection === runs && connection.presetId !== 'built-in-templates';
+      const provider = connection.presetId.startsWith('anthropic-') || connection.presetId === 'claude-code-cli' ? 'claude' : 'codex';
+      connection.jobModel = !serves ? null : connection.presetId === 'openrouter' ? connection.model : (this.host.jobModel?.(provider, connection.presetId === 'codex-cli') ?? null);
+    }
+    return status;
+  }
+
   /** Later connections win per tier; with none, built-in templates serve it. */
   private retier(state: ModelStatusLite): void {
     for (const tier of ['fast', 'main'] as const) {
@@ -486,6 +530,11 @@ export class FakeBusinessDesk {
       if (s.length < 2 || s.length > max) throw invalid(`${what} must be between 2 and ${max} characters.`);
       return s;
     };
+    // As core/owner-price.ts ownerPriceUnchanged: the owner's own Save of the price or unit an offer already has
+    // changes nothing on the accepted plan, so no version is written.
+    if (ownerSave === true && this.ownerSaveShape(patch, basedOn) && this.ownerSaveUnchanged(biz, view.blueprint, patch)) return clone(view);
+    // As core/owner-tax.ts ownerTaxNoUnchanged: the owner's No said again on the accepted plan that holds it writes nothing.
+    if (ownerSave === true && this.ownerTaxNoShape(patch, basedOn) && this.taxNoHeld(biz, view.blueprint) && view.blueprint.backOffice.taxRegistered.label === 'told-by-you') return clone(view);
     const next = clone(view.blueprint);
     next.version += 1;
     next.id = `bp-${biz}-${next.version}`;
@@ -524,6 +573,13 @@ export class FakeBusinessDesk {
       if (!offer) throw new EngineError('OFFER_NOT_FOUND', 'That offer is not in your plan.');
       if (change.name !== undefined) offer.name = told(text(change.name, 60, 'The offer name'));
       if (change.description !== undefined) offer.description = told(text(change.description, 200, 'What it includes'));
+      // The unit the offer is priced in (the engine's core/offer-units.ts): the way of charging follows from it.
+      if (change.unit !== undefined && change.pricingModel !== undefined) throw invalid('Send the unit or the way of charging, not both.');
+      if (change.unit !== undefined) {
+        if (!isOfferUnit(change.unit)) throw invalid(UNIT_CHOICE_LINE);
+        offer.pricing.model = modelOfUnit(change.unit);
+        offer.pricing.quantityUnit = change.unit;
+      }
       if (change.pricingModel !== undefined) {
         const model = change.pricingModel as PricingModel;
         if (!(model in UNITS)) throw invalid('Charge per month, per project or per hour.');
@@ -577,11 +633,15 @@ export class FakeBusinessDesk {
       }
       const model = add.pricingModel as PricingModel;
       if (!(model in UNITS)) throw invalid('Choose per month, per project or per hour.');
+      // As core/owner-offers.ts ownerOfferInput: a unit the owner names is one of that way of charging.
+      const unit = add.unit;
+      if (unit !== undefined && !isOfferUnit(unit)) throw invalid(UNIT_CHOICE_LINE);
+      if (unit !== undefined && modelOfUnit(unit) !== model) throw invalid(`A price ${UNIT_WORDS[unit]} is charged ${UNIT_WORDS[unitOfModel(modelOfUnit(unit))]}.`);
       if (next.offers.filter((o) => o.addedByOwner).length >= 5) throw invalid('Your plan holds five offers you added. Take one out first.');
       this.ownerOffers[biz] = (this.ownerOffers[biz] ?? 0) + 1;
       next.offers.push({
         id: `offer_own_${this.ownerOffers[biz]}`, addedByOwner: true, ...(service?{playbookOffer:service}:{}), name: told(text(add.name, 60, 'The offer name')), description: told(text(add.description, 200, 'The offer description')),
-        pricing: { model, quantityUnit: UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
+        pricing: { model, quantityUnit: unit ?? UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
       });
     }
     // One-shot A1 (row 3), as core/blueprint.ts: words the owner wrote make the plan theirs; a price changes no words.
@@ -595,38 +655,97 @@ export class FakeBusinessDesk {
       blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])),
       ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: {...clone(view.intake),...Object.fromEntries(next.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer&&view.playbook?.id==='youtube').map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))} } : {}),
     };
-    // C4 task 33, as core/owner-price.ts: the owner's own price on an accepted plan applies at once, with an Undo.
-    const decided = ownerSave === true ? this.ownerPrice(biz, patch, basedOn, view.blueprint, next) : null;
+    // C4 task 33, as core/owner-price.ts: the owner's own price or unit on an accepted plan applies at once, with an Undo.
+    // As core/owner-tax.ts: the owner's own "No, I do not charge tax", where the accepted plan already charges none,
+    // changes only who said so: accepted at once, with the engine's line and no Undo row.
+    const decided = ownerSave !== true ? null
+      : this.ownerPrice(biz, patch, basedOn, view.blueprint, next)
+        ?? (this.ownerTaxNoShape(patch, basedOn) && this.taxNoHeld(biz, view.blueprint) ? { line: `You said you do not charge ${next.backOffice.taxLabel}.`, undoRowId: null } : null);
     if (decided) {
       this.accept(biz, next.id);
       this.host.setRows(this.host.rows().filter((r) => !(r.businessId === biz && r.viewRef?.kind === 'plan')));
+      this.pricesRow(biz, next);
       this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
       return { ...clone(this.blueprints[biz]!), decided };
     }
     this.planRow(biz, next);
+    this.pricesRow(biz, next);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
     return clone(this.blueprints[biz]!);
   }
 
+  /** core/owner-tax.ts ownerTaxNoShape: that answer alone, and no suggestion it was based on. */
+  private ownerTaxNoShape(patch: Record<string, unknown>, basedOn: unknown): boolean {
+    return basedOn === undefined && Object.keys(patch).length === 1 && patch.taxRegistered === false;
+  }
+
+  /** core/owner-tax.ts: the newest plan is the accepted one and already charges no tax. */
+  private taxNoHeld(biz: string, latest: BlueprintLite): boolean {
+    const accepted = this.accepted[biz]?.blueprint;
+    return !!accepted && latest.status === 'accepted' && accepted.id === latest.id && latest.backOffice.taxRegistered.value === false;
+  }
+
+  /**
+   * views/queue.ts setupRows, for the prices row a new business got with its plan (fake.ts draftPlan): its words follow
+   * the newest plan (no price yet, tax Chausar assumed, or both), and it leaves Today once every offer has a price or
+   * a share and the owner has answered tax. The scripted sample rows (fixtures.ts SETUP_ROWS) are left as written.
+   */
+  private pricesRow(biz: string, latest: BlueprintLite): void {
+    const id = `q-setup-prices-${biz}`;
+    const row = this.host.rows().find((r) => r.id === id);
+    if (!row) return;
+    const unpriced = latest.offers.filter((offer) => offer.pricing.unitPriceMinor === null && !offer.pricing.share).map((offer) => offer.name.value);
+    const tax = latest.backOffice.taxRegistered.label !== 'told-by-you';
+    if (!unpriced.length && !tax) { this.host.settle(id); return; }
+    const names = unpriced.length === 1 ? unpriced[0] : `${unpriced.slice(0, -1).join(', ')} and ${unpriced[unpriced.length - 1]}`;
+    const noPrice = `${names} ${unpriced.length === 1 ? 'has' : 'have'} no price yet`;
+    const assumed = `Chausar assumed you ${latest.backOffice.taxRegistered.value ? 'charge' : 'do not charge'} ${latest.backOffice.taxLabel}`;
+    const words = !tax ? { title: 'Set your prices', line: `${noPrice}.`, label: 'Set prices' }
+      : !unpriced.length ? { title: QUEUE_FIXED_WORDS.confirmTax, line: `${assumed}. Say whether you do.`, label: 'Confirm tax' }
+        : { title: QUEUE_FIXED_WORDS.confirmPricesTax, line: `${noPrice}, and ${assumed}.`, label: 'Confirm' };
+    const { digest: _digest, ...seed } = { ...row, title: words.title, line: words.line, actions: [{ id: 'set-prices' as const, label: words.label, primary: true }] };
+    this.host.setRows(this.host.rows().map((r) => (r.id === id ? { ...seed, digest: this.host.digest(seed) } : r)));
+  }
+
   /** C4 task 33: the owner's applied prices by Undo row id, with what it puts back and what counts as a use. */
-  private ownPrices = new Map<string, { biz: string; appliedId: string; before: BlueprintViewLite; shown: Record<string, string | undefined>; names: string[]; orders: number; used: boolean; undone: boolean }>();
+  private ownPrices = new Map<string, { biz: string; appliedId: string; before: BlueprintViewLite; shown: Record<string, string | undefined>; names: string[]; orders: number; used: boolean; undone: boolean; unitsOnly?: true }>();
+
+  /** core/owner-price.ts ownerPriceShape: only offer prices and units, and no suggestion it was based on. */
+  private ownerSaveShape(patch: Record<string, unknown>, basedOn: unknown): boolean {
+    return basedOn === undefined && Object.keys(patch).length === 1 && Array.isArray(patch.offers)
+      && (patch.offers as unknown[]).every((change) => !!change && typeof change === 'object' && Object.keys(change).every((key) => key === 'id' || key === 'unitPrice' || key === 'unit') && (Object.hasOwn(change, 'unitPrice') || Object.hasOwn(change, 'unit')));
+  }
+
+  /** core/owner-price.ts ownerPriceUnchanged, read from the patch: every unit named is the offer's own and no price is. */
+  private ownerSaveUnchanged(biz: string, latest: BlueprintLite, patch: Record<string, unknown>): boolean {
+    const accepted = this.accepted[biz]?.blueprint;
+    if (!accepted || latest.status !== 'accepted' || accepted.id !== latest.id) return false;
+    return (patch.offers as Record<string, unknown>[]).every((change) => {
+      const offer = latest.offers.find((item) => item.id === change.id);
+      return !!offer && change.unitPrice === undefined && isOfferUnit(change.unit) && change.unit === offer.pricing.quantityUnit;
+    });
+  }
 
   private ownerPrice(biz: string, patch: Record<string, unknown>, basedOn: unknown, latest: BlueprintLite, next: BlueprintLite): { line: string; undoRowId: string } | null {
     const accepted = this.accepted[biz]?.blueprint;
-    const shape = basedOn === undefined && Object.keys(patch).length === 1 && Array.isArray(patch.offers)
-      && (patch.offers as unknown[]).every((change) => !!change && typeof change === 'object' && Object.keys(change).every((key) => key === 'id' || key === 'unitPrice') && Object.hasOwn(change, 'unitPrice'));
-    if (!shape || !accepted || latest.status !== 'accepted' || accepted.id !== latest.id) return null;
+    if (!this.ownerSaveShape(patch, basedOn) || !accepted || latest.status !== 'accepted' || accepted.id !== latest.id) return null;
     const changes = next.offers.filter((offer) => (latest.offers.find((item) => item.id === offer.id)?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor);
-    if (!changes.length) return null;
-    const unit: Record<string, string> = { month: 'a month', project: 'a project', hour: 'an hour' };
+    // As core/owner-price.ts: a unit changed beside its own new price is said with the price; alone, it is its own line.
+    const units = next.offers.filter((offer) => { const was = latest.offers.find((item) => item.id === offer.id); return !!was && was.pricing.quantityUnit !== offer.pricing.quantityUnit && !changes.includes(offer); });
+    if (!changes.length && !units.length) return null;
+    const unit: Record<string, string> = { month: 'a month', project: 'a project', hour: 'an hour', year: 'a year', visit: 'a visit', piece: 'a piece', set: 'a set', minute: 'a minute', word: 'a word', page: 'a page' };
     const words = (offer: OfferLite) => `${offer.pricing.unitPriceMinor === null ? 'no price' : formatMoney(offer.pricing.unitPriceMinor, next.backOffice.currency)} ${unit[offer.pricing.quantityUnit] ?? `per ${offer.pricing.quantityUnit}`}`;
-    const names = changes.map((offer) => offer.name.value);
+    const all = next.offers.filter((offer) => changes.includes(offer) || units.includes(offer));
+    const names = all.map((offer) => offer.name.value);
     const listed = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
     const undoRowId = `price-set:${biz}:${next.id}`;
-    const orders = (this.host.orders?.() ?? []).filter((order) => changes.some((offer) => offer.id === order.offerId)).length;
+    const orders = (this.host.orders?.() ?? []).filter((order) => all.some((offer) => offer.id === order.offerId)).length;
     const shown = Object.fromEntries(accepted.offers.map((offer) => [offer.id, this.prices[`accepted:${biz}:${offer.id}`]]));
-    this.ownPrices.set(undoRowId, { biz, appliedId: next.id, before: clone(this.accepted[biz]!), shown, names, orders, used: false, undone: false });
-    return { line: changes.length === 1 ? `You set the price of ${listed} to ${words(changes[0]!)}.` : `You set new prices for ${listed}.`, undoRowId };
+    this.ownPrices.set(undoRowId, { biz, appliedId: next.id, before: clone(this.accepted[biz]!), shown, names, orders, used: false, undone: false, ...(changes.length ? {} : { unitsOnly: true as const }) });
+    const line = changes.length && units.length ? `You set new prices and units for ${listed}.`
+      : changes.length ? (changes.length === 1 ? `You set the price of ${listed} to ${words(changes[0]!)}.` : `You set new prices for ${listed}.`)
+        : units.length === 1 ? `You set ${listed} to be priced ${UNIT_WORDS[units[0]!.pricing.quantityUnit]}.` : `You set new units for ${listed}.`;
+    return { line, undoRowId };
   }
 
   /** venture.queue.undo for an owner's price (fake.ts routes it here): puts back exactly the version before. */
@@ -653,7 +772,7 @@ export class FakeBusinessDesk {
     this.accept(own.biz, restored.blueprint.id);
     this.host.emit({ type: 'queue.changed', businessId: own.biz, at: this.host.now() });
     const listed = own.names.length === 1 ? own.names[0]! : `${own.names.slice(0, -1).join(', ')} and ${own.names.at(-1)}`;
-    return { restored: true, line: `You took back the new price${own.names.length === 1 ? '' : 's'} for ${listed}.` };
+    return { restored: true, line: `You took back the new ${own.unitsOnly ? 'unit' : 'price'}${own.names.length === 1 ? '' : 's'} for ${listed}.` };
   }
 
   private priceText(offer: OfferLite | undefined, key: string): string {
@@ -920,12 +1039,23 @@ export class FakeBusinessDesk {
     const link = id === 'lovable' || id === 'replit';
     // The real Replit link compresses the brief (lz-string); the sample only encodes it.
     const url = id === 'lovable' ? `https://lovable.dev/#prompt=${encodeURIComponent(brief.markdown)}` : id === 'replit' ? `https://replit.com/?stack=Build&prompt=${encodeURIComponent(brief.markdown)}&referrer=chausar` : BARE_SITES[id];
-    const handoffId = `ho-${biz}-${++this.seq}`;
+    const handoffId = this.newHandoffId(biz, build);
     build.handoffs.unshift({ id: handoffId, at: this.host.now(), builder: id, mode: link ? 'link' : 'copy', openedAt: null });
     return {
       handoffId, builder: id, mode: link ? 'link' : 'copy', url, clipboardText: link ? null : brief.markdown,
       notes: [...(id === 'lovable' ? HANDOFF_NOTES.lovable : id === 'replit' ? HANDOFF_NOTES.replit : HANDOFF_NOTES.copy)], label: 'handoff', status: 'available',
     };
+  }
+
+  /**
+   * A handover's id, its own as every record's id is in the engine. The sample starts with a handover already made
+   * (fixtures-business.ts, 'ho-lumen-1'), so the count skips any id a handover of this business already has: the first
+   * one made here once took that same id, and the list of handovers then held one key twice.
+   */
+  private newHandoffId(biz: string, build: BuildStatusView): string {
+    let id = '';
+    do { id = `ho-${biz}-${++this.seq}`; } while (build.handoffs.some((handoff) => handoff.id === id));
+    return id;
   }
 
   /** C5 task 35: the same gates and shapes as the engine (build/handoff.ts). */
@@ -935,7 +1065,7 @@ export class FakeBusinessDesk {
     const brief = build.brief;
     if (!brief) throw new EngineError('BRIEF_NOT_FOUND', 'Write the build brief first.');
     if (!brief.lint.ok) throw new EngineError('BRIEF_LINT_FAILED', brief.lint.findings[0]?.message ?? 'The brief did not pass its checks.');
-    const handoffId = `ho-${biz}-${++this.seq}`;
+    const handoffId = this.newHandoffId(biz, build);
     build.handoffs.unshift({ id: handoffId, at: this.host.now(), builder, mode: 'file', openedAt: null });
     const note = `chausar-brief-id: ${brief.briefId}\nMoney numbers come from Chausar. Do not compute totals or tax.\n`;
     return { handoffId, builder, files: [{ name: 'website-brief.md', text: brief.markdown }, { name: builder === 'lovable' ? 'AGENTS.md' : 'replit.md', text: note }] };

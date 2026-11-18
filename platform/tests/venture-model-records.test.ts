@@ -311,8 +311,8 @@ test('roles: the delivery agent with its steps\' tiers, the preset serving each 
   env.models.connected = true;
   view = await roles(env);
   assert.deepEqual(view.roles[0].tiers, [
-    { tier: 'fast', presetId: 'anthropic-haiku-5-5', model: 'anthropic-haiku-5-5', price: '$0.10 in, $0.50 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.', usable: true },
-    { tier: 'main', presetId: 'anthropic-sonnet-5-5', model: 'anthropic-sonnet-5-5', price: '$2.00 in, $10.00 out per million tokens. Anthropic list price, checked 15 Oct 2026.', usable: true },
+    { tier: 'fast', presetId: 'anthropic-haiku-5-5', model: 'anthropic-haiku-5-5', price: '$0.10 in, $0.50 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026. In rupees: ₹9.44 in, ₹47.20 out at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026).', usable: true },
+    { tier: 'main', presetId: 'anthropic-sonnet-5-5', model: 'anthropic-sonnet-5-5', price: '$2.00 in, $10.00 out per million tokens. Anthropic list price, checked 15 Oct 2026. In rupees: ₹188.80 in, ₹944 out at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026).', usable: true },
   ]);
   assert.equal(view.line, ONE_AGENT);
   assert.equal(aiWaitLine(env.deps.models.status(viewsOwner)), null);
@@ -350,6 +350,28 @@ test('roles: a flagship team lists each agent role with its own steps\' tiers; c
   assert.ok(expected.length >= 2, 'the YouTube playbook has more than one agent role');
   assert.deepEqual(view.roles.map(role => ({ agent: role.agent, name: role.name, tiers: role.tiers.map(tier => tier.tier) })), expected);
   assert.equal(view.roles.some(role => role.agent === 'keeper'), false);
+});
+
+test('roles: an agent the owner hired answers chats with the AI that serves the chat tier, before the plan is accepted too', async () => {
+  const { handlers: agentHandlers } = await import('../runtime/venture/agents/index.ts');
+  const { teamCardDigest } = await import('../runtime/venture/agents/team-proposal.ts');
+  const env = await viewsSetup();
+  const scout = { name: 'Asha', job: 'Finds cafes that buy tableware in bulk.', duties: ['Lists cafes in Pune from public listings'], reads: ['plan', 'trackers'] };
+  const { hired } = await (agentHandlers as any)['venture.agents.hire.team'](env.deps, viewsOwner, { agents: [{ ...scout, digest: teamCardDigest(scout as never) }] });
+  // No plan yet: the hired agent alone, on the tier every chat uses.
+  let view = await roles(env);
+  assert.deepEqual(view.roles, [{ agent: hired[0].id, name: 'Asha', tiers: [{ tier: 'main', presetId: 'built-in-templates', model: null, price: 'Free. Nothing is sent to any AI.', usable: false }] }]);
+  env.models.connected = true;
+  await seedBlueprint(env);
+  view = await roles(env);
+  assert.deepEqual(view.roles.map(role => [role.agent, role.tiers.map(tier => tier.tier)]), [['delivery', ['fast', 'main']], [hired[0].id, ['main']]]);
+  assert.deepEqual(view.roles[1]!.tiers[0], { tier: 'main', presetId: 'anthropic-sonnet-5-5', model: 'anthropic-sonnet-5-5', price: '$2.00 in, $10.00 out per million tokens. Anthropic list price, checked 15 Oct 2026. In rupees: ₹188.80 in, ₹944 out at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026).', usable: true });
+  // A retired hire is not on the team, so it has no AI line.
+  const second = { ...scout, name: 'Kabir' };
+  await (agentHandlers as any)['venture.agents.hire.team'](env.deps, viewsOwner, { agents: [{ ...second, digest: teamCardDigest(second as never) }] });
+  const check = await (agentHandlers as any)['venture.agents.retire.check'](env.deps, viewsOwner, { agent: hired[0].id });
+  await (agentHandlers as any)['venture.agents.retire'](env.deps, viewsOwner, { agent: hired[0].id, to: 'owner', digest: check.digest });
+  assert.deepEqual((await roles(env)).roles.map(role => role.name), ['Bookkeeping agent', 'Kabir']);
 });
 
 test('roles never write and need no AI connected; a payload is refused', async () => {

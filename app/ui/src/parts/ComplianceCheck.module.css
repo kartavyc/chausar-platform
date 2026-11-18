@@ -26,6 +26,14 @@
   color: var(--mute);
 }
 
+/* Fix round 4: what a contract that does not allow side work means, right under the answer. */
+.warn {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--wait);
+}
+
 .list {
   display: grid;
   gap: var(--sp-1);

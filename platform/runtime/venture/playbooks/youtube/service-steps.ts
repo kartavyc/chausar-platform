@@ -3,7 +3,6 @@ import type {YoutubeStep} from './playbook.ts';
 import {DRAFT_CHECKS} from '../../delivery/check-lists.ts';
 import {YOUTUBE_OFFERS2,type YoutubeServiceId} from './offers2.ts';
 import {YOUTUBE_SERVICE_SECTIONS} from './service-data.ts';
-export {YOUTUBE_SERVICE_SECTIONS} from './service-data.ts';
 export const YOUTUBE_SERVICE_GUIDANCE:Record<YoutubeServiceId,string[]>={
  'channel-audit':['Name exactly one fix this week, three things to keep, and one thing not to do yet. Base each on the client channel sources.'],
  'weekly-plan':['Plan exactly one anchor, one cheap piece and three Shorts. Put each piece on its own line as Name: 90 minutes with the actual estimated minutes.','Label model estimates, fit the owner allowance, and put the exact one piece name under Drop first.'],

@@ -13,7 +13,7 @@
  */
 
 import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
-import { EngineError, type AwayView, type BillView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
+import { EngineError, type AwayView, type BillView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail, type RunStopReason } from './types';
 import type { W4DeskHost } from './fake-w4';
 import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
 
@@ -21,12 +21,26 @@ export const FAKE_4F3_METHODS: readonly string[] = [
   'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get', 'venture.away.preview',
 ];
 
-/** The engine's words (delivery/harness/controls.ts, delivery/run-controls.ts, views/runs.ts, delivery/away.ts). */
-export const STOPPED_BY_YOU = 'Stopped by you. Finished steps are kept.';
-/** A2, as the engine's harness/controls.ts: the idle-run watchdog stopped a quiet AI job. */
-export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
-/** A2 second review, as harness/controls.ts: the watchdog stopped a native AI job that ran past its time limit. */
-export const TIME_LINE = 'The AI ran past its time limit, so Chausar stopped it. Its work so far is kept.';
+/**
+ * The line each stop reason shows, word for word the engine's (delivery/run-machine.ts STOP_LINES). Kept here, not
+ * imported: the machine's file reaches the engine's node-only contracts, which the app never loads.
+ */
+export const RUN_STOP_LINES: Readonly<Record<RunStopReason, string>> = Object.freeze({
+  owner: 'Stopped by you. Finished steps are kept.',
+  interrupted: 'Interrupted: Chausar stopped while this ran. Nothing was sent again.',
+  quiet: 'The AI went quiet, so Chausar stopped it. Its work so far is kept.',
+  overtime: 'The AI ran past its time limit, so Chausar stopped it. Its work so far is kept.',
+  answered: 'You answered its question. The work goes on in a new AI session.',
+  erased: 'Stopped: the client data this job used was erased.',
+  superseded: 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.',
+  'old-build': 'An older version of Chausar started this job, and this version cannot continue it. Run it again.',
+});
+/** The engine's words (delivery/run-machine.ts, delivery/run-controls.ts, views/runs.ts, delivery/away.ts). */
+export const STOPPED_BY_YOU = RUN_STOP_LINES.owner;
+/** A2: the idle-run watchdog stopped a quiet AI job. */
+export const QUIET_LINE = RUN_STOP_LINES.quiet;
+/** A2 second review: the watchdog stopped a native AI job that ran past its time limit. */
+export const TIME_LINE = RUN_STOP_LINES.overtime;
 const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 const STOPPING = 'Stopping: the step in progress finishes first.';
 const RECEIVED = 'Stop received. The step in progress finishes, then the job stops.';
@@ -36,7 +50,7 @@ const NOT_STOPPED = 'This job is not stopped, so there is nothing to resume.';
 const RESUMED = 'Resumed. Approve the next step when you are ready.';
 const RESUMED_ANSWER = 'Resumed. Answer the question to go on.';
 const STEER_SENT = 'Sent. Waiting for the agent to pick it up.';
-const SUPERSEDED = 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.';
+const SUPERSEDED = RUN_STOP_LINES.superseded;
 const PAUSED_VIEW = 'Paused by you. No new work starts until you unpause.';
 const NOT_AWAY = 'You are not away. Set the days you will be away and Chausar lists what falls due.';
 const MAX_NOTE_CHARS = 500;
@@ -247,7 +261,7 @@ export class FakeRunControls {
   }
 
   private stopNow(run: RunDetail, cut: boolean, watchdog: string | null = null): void {
-    if(run.agentProgress){this.host.nativeStop?.(run);delete run.agentProgress.pendingApproval;cut=false;}
+    if(run.agentProgress){this.host.nativeStop?.(run,watchdog===QUIET_LINE?'quiet':watchdog===TIME_LINE?'overtime':'owner',watchdog??STOPPED_BY_YOU);delete run.agentProgress.pendingApproval;cut=false;}
     const line = watchdog ?? (cut ? FORCE_STOPPED : STOPPED_BY_YOU);
     if (run.question) this.held.set(run.runId, { question: run.question });
     delete run.question;

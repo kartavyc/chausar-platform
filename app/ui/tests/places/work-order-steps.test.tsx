@@ -11,9 +11,15 @@ import { assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
  * Make a copy.
  */
 
-function start(hash: string, language: 'en' = 'en') {
+/** Run 27 is Ledgerline's: as on the engine, a run sheet reads a run of the open business only, so it opens there. */
+async function ledgerline(): Promise<FakeEngine> {
+  const engine = new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' });
+  await engine.request('workspace.open', { folder: 'ledgerline' });
+  return engine;
+}
+function start(hash: string, language: 'en' = 'en', engine = new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' })) {
   window.location.hash = hash;
-  const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
+  const client = createFakeClient(engine);
   const spy = vi.spyOn(client, 'request');
   render(<App client={client} language={language} />);
   return { client, spy };
@@ -54,7 +60,7 @@ describe('Work: order stage steps', () => {
 
 describe('the run sheet: the Delivered card (A17)', () => {
   it('lists what the run handed over with digests, and apart the files changed during it, read-only, with Make a copy', async () => {
-    const { spy } = start('#/work?sheet=run%3A27');
+    const { spy } = start('#/work?sheet=run%3A27', 'en', await ledgerline());
     const card = await waitFor(() => {
       const found = document.querySelector<HTMLElement>('[data-delivered]');
       expect(found).not.toBeNull();
@@ -82,11 +88,14 @@ describe('the run sheet: the Delivered card (A17)', () => {
 
   it('a practice run offers no Make a copy (the engine refuses a practice draft)', async () => {
     window.location.hash = '#/work?sheet=run%3Ad-practice-1';
+    // Lumen Studio's practice draft (its delivery list says practice), shown with run 27's Delivered card, read from
+    // Ledgerline, whose run it is.
     const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
+    const books = createFakeClient(await ledgerline());
     const request = client.request.bind(client);
     client.request = (async (method: string, params?: unknown) => {
       if (method === 'venture.runs.get') {
-        const run = await request('venture.runs.get', { runId: '27' });
+        const run = await books.request('venture.runs.get', { runId: '27' });
         return { ...run, runId: 'd-practice-1' };
       }
       return request(method as never, params as never);

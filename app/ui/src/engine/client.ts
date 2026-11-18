@@ -68,6 +68,35 @@ export interface ChausarBridge {
   openSocialProject?(savedId: string): Promise<{ opened: true }>;
   onEngineStatus?(callback: (status: { healthy: boolean; state: string }) => void): () => void;
   onEvent?(callback: (value: unknown) => void): () => void;
+  /**
+   * Desktop only: one of the calls above, by its name, with its outcome answered as plain data. Electron copies an
+   * error thrown across its bridge with its message alone, so only this way does a refusal's code reach the page.
+   */
+  settled?(name: string, ...args: unknown[]): Promise<{ ok: true; result?: unknown } | { ok: false; error?: { code?: unknown; message?: unknown; owner?: unknown } }>;
+}
+
+/** The bridge's calls that are not asked through `settled`: itself, and the ones that take or answer nothing to refuse. */
+const BRIDGE_DIRECT: ReadonlySet<string> = new Set(['settled', 'firstPaint', 'onEngineStatus', 'onEvent']);
+
+/**
+ * The bridge with every call asked through its `settled`, so a refusal comes back with its code and owner flag (found
+ * on the first real run of the Mac app, 14 Nov 2026: the chat consent card never showed, because
+ * CHAT_CONSENT_REQUIRED arrived as a bare Error). A bridge with no `settled` (the tests' own, an older shell) is used
+ * as it is.
+ */
+function withRefusals(bridge: ChausarBridge): ChausarBridge {
+  const settled = bridge.settled;
+  if (typeof settled !== 'function') return bridge;
+  const through = (name: string) => async (...args: unknown[]): Promise<unknown> => {
+    const reply = await settled(name, ...args);
+    if (reply?.ok === true) return reply.result;
+    const refused = reply?.error;
+    throw Object.assign(new Error(typeof refused?.message === 'string' ? refused.message : 'The desktop request failed.'),
+      { code: typeof refused?.code === 'string' ? refused.code : 'REQUEST_FAILED' }, refused?.owner === true ? { owner: true } : {});
+  };
+  const asked: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(bridge)) asked[name] = typeof value === 'function' && !BRIDGE_DIRECT.has(name) ? through(name) : value;
+  return asked as unknown as ChausarBridge;
 }
 
 export interface ClientEnv {
@@ -163,7 +192,7 @@ function asEngineError(error: unknown): EngineError {
 }
 
 export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient {
-  const bridge = env.bridge;
+  const bridge = env.bridge ? withRefusals(env.bridge) : undefined;
   const transport: Transport = bridge ? 'desktop' : env.hosted ? 'hosted' : 'web';
   const hashToken = bridge ? null : capturePairingToken(env);
   let localToken: string | null = transport === 'web' ? hashToken : null;

@@ -15,7 +15,7 @@
         "mode": "write",
         "status": "planned",
         "qualification": "unqualified",
-        "what": "Planned until owner SDK setup and a named lawyer permission review. Test the client build manually meanwhile."
+        "what": "Planned: it waits for you to set up the Android tools (the SDK) and for a named lawyer to review the client's permission. Until then, test the client's app by hand."
       }
     ],
     "chips": [
@@ -27,9 +27,9 @@
       "global"
     ],
     "regionNote": null,
-    "auth": "Owner-installed SDK and client APK",
+    "auth": "Android tools and client app",
     "vendorUrl": "https://developer.android.com/tools/adb",
-    "note": "Exact client APK operations on a clean emulator only. Owner setup and a named lawyer permission review are required; test manually meanwhile.",
+    "note": "Runs only the steps you approve on a client's Android app in a clean emulator. Needs your setup and a named lawyer's permission review; test by hand meanwhile.",
     "starter": false,
     "postingOptions": [],
     "guide": {

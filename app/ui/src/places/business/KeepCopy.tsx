@@ -4,6 +4,7 @@ import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import type { BackupCopyLite, RecoveryLite } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { Confirm, useSecondAsk } from '../../parts/Confirm';
 import { codeOf, momentOf, refusalWords } from '../../parts/custody';
 import { openExternal } from '../connections/external';
 import { TileSection } from './shared';
@@ -22,6 +23,8 @@ export function KeepCopy({ copy, recovery, locked, busy, onMakeCode, onChanged }
   const client = useEngine();
   const [working, setWorking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const stopAsk = useSecondAsk();
+  const codeAsk = useSecondAsk();
 
   async function folder(action: 'pick' | 'clear') {
     setWorking(true);
@@ -50,9 +53,20 @@ export function KeepCopy({ copy, recovery, locked, busy, onMakeCode, onChanged }
       {problem && <p className={s.problem} role="alert" data-engine-line="">{problem}</p>}
       <div className={s.buttons}>
         <Button disabled={working} onClick={() => void folder('pick')}>{t(copy ? 'business.copy.change' : 'business.copy.pick')}</Button>
-        {copy && <Button variant="quiet" disabled={working} onClick={() => void folder('clear')}>{t('business.copy.stop')}</Button>}
-        {recovery !== 'made' && !locked && <Button variant="quiet" disabled={busy} onClick={onMakeCode}>{t('business.makeCode')}</Button>}
+        {copy && !stopAsk.asking && <Button ref={stopAsk.button} variant="quiet" disabled={working} onClick={() => { codeAsk.done(); stopAsk.ask(); }}>{t('business.copy.stop')}</Button>}
+        {recovery !== 'made' && !locked && !codeAsk.asking && <Button ref={codeAsk.button} variant="quiet" disabled={busy} onClick={() => { stopAsk.done(); codeAsk.ask(); }}>{t('business.makeCode')}</Button>}
       </div>
+      {/* Found on the real app, 16 November 2026: each acted on one press. Both ask once first. */}
+      {copy && stopAsk.asking && (
+        <Confirm action={t('business.copy.stop')} tone="danger" busy={working} onCancel={stopAsk.cancel} onConfirm={() => { void folder('clear').finally(stopAsk.done); }}>
+          <p className={s.line}>{t('business.copy.stopAsk')}</p>
+        </Confirm>
+      )}
+      {codeAsk.asking && (
+        <Confirm action={t('business.makeCode')} busy={busy} onCancel={codeAsk.cancel} onConfirm={() => { codeAsk.done(); onMakeCode(); }}>
+          <p className={s.line}>{t('business.makeCodeAsk')}</p>
+        </Confirm>
+      )}
       <DriveRow />
     </TileSection>
   );
@@ -65,6 +79,7 @@ function DriveRow() {
   const drive = useResource('workspace.backups.drive.status', {});
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const leave = useSecondAsk();
   const state = drive.data?.state;
   // The sign-in finishes in the browser; this says so as soon as the engine knows.
   useEffect(() => {
@@ -98,8 +113,13 @@ function DriveRow() {
       {problem && <p className={s.problem} role="alert" data-engine-line="">{problem}</p>}
       <div className={s.buttons}>
         {state === 'not-connected' && <Button disabled={opening} onClick={() => void act('workspace.backups.drive.connect')}>{t('business.drive.connect')}</Button>}
-        {state === 'connected' && <Button variant="quiet" disabled={opening} onClick={() => void act('workspace.backups.drive.disconnect')}>{t('business.drive.disconnect')}</Button>}
+        {state === 'connected' && !leave.asking && <Button ref={leave.button} variant="quiet" disabled={opening} onClick={leave.ask}>{t('business.drive.disconnect')}</Button>}
       </div>
+      {state === 'connected' && leave.asking && (
+        <Confirm action={t('business.drive.disconnect')} tone="danger" busy={opening} onCancel={leave.cancel} onConfirm={() => { void act('workspace.backups.drive.disconnect').finally(leave.done); }}>
+          <p className={s.line}>{t('business.drive.disconnectAsk')}</p>
+        </Confirm>
+      )}
     </>
   );
 }

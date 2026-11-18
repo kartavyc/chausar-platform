@@ -3,8 +3,8 @@ import { check } from '../../../contracts.ts';
 import { outreachFooter, withFooter } from '../../customers/leads.ts';
 import { sequenceFor } from '../../network/followups.ts';
 import type { FollowupSequence } from '../../contracts.ts';
-import { dedupeProspects } from './dedupe.ts';
-import type { Prospect } from './osm.ts';
+import { collectProspects } from '../../customers/sources/collect.ts';
+import type { Prospect } from '../../customers/sources/prospect.ts';
 export type OptIn = { kind: 'they-wrote-first' | 'opted-in'; at: string; source: string };
 export type LeadNoteInput = { name: string; body: string; channel: 'email' | 'linkedin' | 'whatsapp' | 'sms' | 'phone'; warm: boolean; blocked: boolean; business: string; postalAddress: string; optIn: OptIn | null };
 /** Creates a draft only. Cold SMS/calls and WhatsApp without a recorded permission are refused. */
@@ -26,25 +26,14 @@ export async function buildDailyRun(input: DailyInput, ports: DailyPorts): Promi
   const count = input.count ?? 10;
   check(Number.isInteger(count) && count >= 1 && count <= 50, 'INVALID_VENTURE_REQUEST', 'Choose a daily count from one to fifty.');
   check(typeof input.city === 'string' && input.city.trim() && typeof input.vertical === 'string' && input.vertical.trim() && typeof input.ownOffer === 'string' && input.ownOffer.trim(), 'INVALID_VENTURE_REQUEST', 'Name the city, business kind and your own offer.');
-  const known = dedupeProspects(input.existing);
-  const source = await ports.source(count);
-  const all = dedupeProspects([...known, ...source]);
-  const prospects: Prospect[] = [], drafts: DailyReport['drafts'] = [];
-  let found = 0;
-  for (const row of all.slice(known.length)) {
-    if (prospects.length >= count) break;
-    if (!(await ports.allowed(row))) continue;
-    let enriched: { emails: string[]; pages: string[] } = { emails: [], pages: [] };
-    if (row.website) {
-      try { enriched = await ports.enrich(row.website); } catch { /* unavailable or forbidden pages are never guessed */ }
-    }
-    const prospect = { ...row, emails: enriched.emails };
-    prospects.push(prospect);
-    if (enriched.emails.length) found += 1;
-    for (const email of enriched.emails.slice(0, 1)) {
-      if (!(await ports.verify(email)) || !(await ports.allowed({ ...prospect, emails: [email] }))) continue;
-      const note = draftLeadNote({ name: row.name, body: `Hello ${row.name}, I found your business through its public listing. I offer ${input.ownOffer}. Would it be useful to hear more?`, channel: 'email', warm: false, blocked: false, business: 'Your business', postalAddress: input.postalAddress, optIn: null });
-      drafts.push({ sourceUrl: row.sourceUrl, email, ...note });
+  // The shared pass every business's lead finding runs (customers/sources/collect.ts): new, allowed, read politely.
+  const { prospects, withEmail: found } = await collectProspects({ count, existing: input.existing }, ports);
+  const drafts: DailyReport['drafts'] = [];
+  for (const prospect of prospects) {
+    for (const email of (prospect.emails ?? []).slice(0, 1)) {
+      if (!(await ports.verify(email))) continue;
+      const note = draftLeadNote({ name: prospect.name, body: `Hello ${prospect.name}, I found your business through its public listing. I offer ${input.ownOffer}. Would it be useful to hear more?`, channel: 'email', warm: false, blocked: false, business: 'Your business', postalAddress: input.postalAddress, optIn: null });
+      drafts.push({ sourceUrl: prospect.sourceUrl, email, ...note });
     }
   }
   return { prospects, drafts, foundRate: `emails found for ${found} of ${prospects.length}`, followups: structuredClone(input.followups), outsideWrites: [] };

@@ -100,7 +100,7 @@ test('a signed-out Codex starts its own device login, shows the code, and finish
   assert.deepEqual(login.args, ['login', '--device-auth']);
   assert.ok(launches.filter(launch => launch.args.includes('status')).every(launch => launch.args.join(' ') === 'login status'));
   assert.equal(login.command, '/usr/local/bin/codex');
-  for (const name of Object.keys(login.env)) assert.match(name, /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|CODEX_HOME|[A-Z_]*TELEMETRY[A-Z_]*|[A-Z_]*ANALYTICS[A-Z_]*|DO_NOT_TRACK|OTEL_[A-Z_]+|CODEX_[A-Z_]+|DISABLE_[A-Z_]+)$/, name);
+  for (const name of Object.keys(login.env)) assert.match(name, /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|USER|LOGNAME|CODEX_HOME|[A-Z_]*TELEMETRY[A-Z_]*|[A-Z_]*ANALYTICS[A-Z_]*|DO_NOT_TRACK|OTEL_[A-Z_]+|CODEX_[A-Z_]+|DISABLE_[A-Z_]+)$/, name);
   children[0]!.stdout.emit('data', Buffer.from(DEVICE_AUTH_OUTPUT));
   const waiting = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
   assert.equal(waiting.login.state, 'waiting');

@@ -21,7 +21,6 @@
   "place.connections": "Connections",
   "place.apps": "Apps",
   "place.business": "Settings",
-  "place.onboarding": "New business",
   "rail.needsYou": {
     "one": "{count} needs you",
     "other": "{count} need you"
@@ -69,6 +68,7 @@
   "sheet.wrong": "What went wrong",
   "approval.secondAsk": "{action}? Check it once more.",
   "approval.cancel": "Cancel",
+  "approval.stageLink": "Open the stage setting",
   "approval.more": "More",
   "approval.reason.ask": "Why reject it?",
   "approval.reason.fact": "Wrong facts",
@@ -155,11 +155,9 @@
   "run.stopped": "This job failed.",
   "run.notChecked": "Not checked: {detail}",
   "run.waiting": "Waiting on you",
-  "run.paused": "paused",
   "run.result": "Result",
   "run.notFound": "This job isn't on this computer.",
   "jobs.active": "Working now",
-  "jobs.previous": "Previous",
   "jobs.none": "Nothing is running.",
   "queue.title": "Needs you",
   "queue.empty": "Nothing needs you.",
@@ -178,7 +176,6 @@
   "connector.mode.owner-browser-session": "Through your own browser session",
   "connector.mode.handoff": "You finish it in the platform itself",
   "connector.risk.owner-browser-session": "The platform may restrict this account.",
-  "stub.line": "This place arrives in the next build.",
   "path.you": "you",
   "path.youName": "You",
   "path.then": ", then ",
@@ -240,12 +237,12 @@
   "centre.readFailed": "Couldn't mark them read: {message}",
   "approve.title": "Needs you",
   "approve.position": {
-    "one": "{index} of {count} waiting, oldest first",
-    "other": "{index} of {count} waiting, oldest first"
+    "one": "{index} of {count} approvals, oldest first",
+    "other": "{index} of {count} approvals, oldest first"
   },
   "approve.waiting": {
-    "one": "{count} waiting",
-    "other": "{count} waiting"
+    "one": "{count} approval",
+    "other": "{count} approvals"
   },
   "approve.next": "Next",
   "approve.last": "That was the last one. Nothing else needs you now.",
@@ -351,9 +348,9 @@
   "state.lead.won": "Won",
   "state.lead.lost": "Lost",
   "state.lead.blocked": "Blocked",
-  "state.delivery.waiting-for-you": "Waiting on you",
+  "state.delivery.working": "Working",
   "state.delivery.needs-answer": "Needs your answer",
-  "state.delivery.brief-waiting": "Brief waits for you",
+  "state.delivery.finishing": "Finishing",
   "state.delivery.ready-for-review": "Ready for you to read",
   "state.delivery.accepted": "Accepted",
   "state.delivery.edited": "Edited and accepted",
@@ -410,22 +407,7 @@
   "more.title": "More",
   "more.places": "More places",
   "more.start": "Start a new business",
-  "gallery.label": "Ways to earn",
-  "gallery.featured": "Good fit for you",
-  "gallery.youRunThis": "You run this",
-  "gallery.youDo": "What you do",
-  "gallery.teamDoes": "What your AI team does",
-  "gallery.team": {
-    "one": "{count} agent: {names}",
-    "other": "{count} agents: {names}"
-  },
-  "gallery.pay": "Usual pay",
-  "gallery.payPer": "Usual pay ({per})",
-  "gallery.saves": "Saves you",
-  "gallery.start": "Start",
-  "gallery.startNamed": "Start {name}",
   "gallery.startAnother": "Start another",
-  "gallery.startAnotherNamed": "Start another {name}",
   "button.chat": "Chat",
   "button.locked": "Not available yet",
   "button.lockedWord": "Locked.",
@@ -543,8 +525,6 @@
   "custody.refused.BUSINESS_PAUSED": "This business is paused, so no new work starts. Unpause it from the business menu.",
   "approval.dayLabel": "The day",
   "approval.pickDay": "Pick the day, then approve.",
-  "gallery.needs": "What it takes",
-  "gallery.estimateHours": "model estimate",
   "trial.label": "Temporary business",
   "trial.addEmail": "Add email",
   "trial.email": "Your email",
@@ -590,7 +570,6 @@
   "question.costs": "Costs:",
   "question.use": "Use {answer}",
   "question.free": "Or write your own answer, for example: {example}",
-  "gallery.yourTime": "Your time",
   "approval.meta.over": "over the limit",
   "state.check.pass": "Passed",
   "state.check.fail": "Failed",
@@ -720,5 +699,12 @@
   "help.none": "The guide doesn't cover that yet.",
   "help.guide": "Open the guide",
   "help.read": "Read it in the guide",
-  "help.whatsNew": "What's new"
+  "help.whatsNew": "What's new",
+  "state.move.planned": "Planned",
+  "state.move.waiting": "Waiting on you",
+  "state.move.proposed": "On Today for your approval",
+  "state.move.working": "Approved, working on it",
+  "state.move.failed": "Did not finish",
+  "state.move.done": "Done",
+  "state.move.dropped": "Dropped"
 }

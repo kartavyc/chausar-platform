@@ -17,8 +17,10 @@
  */
 
 import { formatUsd } from '../../../../platform/runtime/owner-format';
+import { fakeOwnPlanLead } from './fake-own-plan';
 import { EngineError, type AgentHealth, type AgentView, type DepartmentId, type DepartmentSpend, type DepartmentView, type KeeperJobView, type ModelStatusLite, type ReceiptLite, type RunSummary, type SeriesPoint, type TeamListView } from './types';
 import type { W4DeskHost } from './fake-w4';
+import { TEAM_WAITS_FOR_PLAN } from '../../../../platform/runtime/venture/agents/team-proposal';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { dollarsLead, rupeeAmount, rupeesAt, rupeesLead, spendLead, spendSettings, type SampleRate } from './fake-lead';
 
@@ -132,7 +134,7 @@ export class FakeTeamDesk {
   /** Quarantines the owner cleared, by business and agent. */
   private readonly cleared = new Set<string>();
   private readonly made = new Map<string, string>();
-  private readonly last = new Map<string, { agents: AgentView[]; runs: readonly RunSummary[] }>();
+  private readonly last = new Map<string, { agents: AgentView[]; runs: readonly RunSummary[]; accepted: boolean }>();
   private seq = 700;
 
   constructor(host: W4DeskHost) {
@@ -149,14 +151,21 @@ export class FakeTeamDesk {
     throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
-  /** venture.team.list: the fake's agents (fake.ts) as the engine lists them, with the departments and totals. */
-  list(agents: AgentView[], all: readonly RunSummary[]): TeamListView {
-    this.last.set(this.host.current(), { agents, runs: all });
+  /**
+   * venture.team.list: the fake's agents (fake.ts) as the engine lists them, with the departments and totals.
+   * accepted: the plan is accepted. Before that the team is the hired agents only (views/team.ts teamNow): no Keeper,
+   * no health of the team's own, and one line that says the plan's own agents join with it.
+   */
+  list(agents: AgentView[], all: readonly RunSummary[], accepted = true): TeamListView {
+    this.last.set(this.host.current(), { agents, runs: all, accepted });
     if (agents.length === 0) return { agents: [] };
     const sample = this.sample();
     const runs = all.filter((run) => run.businessId === this.host.current());
-    const team = [...agents.map((agent) => this.agentOf(agent, runs)), this.keeper()];
+    // A hired agent carries no health (views/team.ts hiredAgentViews); before the plan nobody else is listed.
+    const team = accepted ? [...agents.map((agent) => this.agentOf(agent, runs)), this.keeper()] : agents.map((agent) => { const { health: _none, ...view } = this.agentOf(agent, runs); return view; });
     const whole = sample.total.micros;
+    // The rule is shared with Money (fake-own-plan.ts, as the engine's models/own-plan.ts).
+    const ownPlan = fakeOwnPlanLead((method, params) => this.host.ask(method, params), whole, Boolean(sample.total.estimate));
     const departments = DEPARTMENTS.map(({ id, name }) => this.department(id, name, team, sample.departments[id], whole));
     // Each department's jobs this week against the busiest department's, as the engine scales them (team-series.ts).
     const busiest = Math.max(0, ...departments.map((d) => d.doneThisWeek.count));
@@ -180,11 +189,13 @@ export class FakeTeamDesk {
           display: totalDisplay,
           receiptId: sample.total.receiptId || this.make('AI and tool calls this month.', totalDisplay),
           ...this.spendWords(whole, Boolean(sample.total.estimate)),
+          // As views/team-series.ts: on the owner's own AI plan nothing is priced, so nothing spent says that.
+          ...(ownPlan ? { lead: ownPlan } : {}),
           ...(held && heldId ? { held: this.held(held), heldReceiptId: heldId } : {}),
         },
         held: held && heldId ? { display: usd(held), receiptId: heldId } : null,
       },
-      teamHealth: this.health(TEAM_ID, null),
+      ...(accepted ? { teamHealth: this.health(TEAM_ID, null) } : { waitsForPlan: TEAM_WAITS_FOR_PLAN }),
     };
   }
 
@@ -306,7 +317,7 @@ export class FakeTeamDesk {
   /** The team as last listed for this business, read again (fake.ts gives this desk its agents and runs on each list). */
   private again(): TeamListView {
     const last = this.last.get(this.host.current());
-    return last ? this.list(last.agents, last.runs) : { agents: [] };
+    return last ? this.list(last.agents, last.runs, last.accepted) : { agents: [] };
   }
 
   private sample(): Sample {

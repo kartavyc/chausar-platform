@@ -1,22 +1,21 @@
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
+import { deptKey } from '../../text/dept';
 import { useEngine } from '../../engine/context';
 import { Sheet } from '../../parts/Sheet';
 import { Field } from '../../parts/Field';
 import { Button } from '../../parts/Button';
 import { EngineError, type HireViewLite } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import s from './Team.module.css';
 
-const DEPT_KEY: Readonly<Record<string, string>> = { sales: 'dept.sales', marketing: 'dept.mkt', production: 'dept.prod', money: 'dept.money', operations: 'dept.ops' };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
  * Team > Hire one more agent (C7 task 16; REPORT row 56): the sentence, then one step at a time, each showing only its own
  * fields for the owner to change, then the card of what it does, what it reads and what it never does, with one primary:
- * Hire. A refusal (a hard stop, a duty that acts without the owner) shows the engine's words beside the field. The engine
+ * Hire. All three lists are open: a closed fold read as a heading with nothing under it (17 Nov 2026). A refusal (a hard stop, a duty that acts without the owner) shows the engine's words beside the field. The engine
  * checks every edit again; whatever a hired agent's duties say, anything outward still waits for the owner's approval.
  */
 export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
@@ -48,6 +47,9 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
   }
   const submitSentence = (event: FormEvent) => { event.preventDefault(); void run(() => client.request('venture.agents.hire.start', { sentence: sentence.trim() })); };
   const problemLine = problem && <p className={s.hireProblem} role="alert" data-hire-problem="">{problem}</p>;
+  // The owner's AI drafts the role, the reads and the voice, which takes some seconds: the button is busy and one line
+  // says so. The review and Hire are code only, so they are busy without the line.
+  const draftingLine = busy && (!hire || hire.phase === 'role' || hire.phase === 'reads') && <p className={s.hireLine} role="status" data-hire-drafting="">{t('team.hire.drafting')}</p>;
 
   let body;
   if (hiredName !== null) {
@@ -57,7 +59,8 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
       <form className={s.hireForm} onSubmit={submitSentence} data-hire-step="sentence">
         <Field multiline rows={3} label={t('team.hire.sentence')} hint={t('team.hire.sentenceHint')} value={sentence} maxLength={400} onChange={(event) => setSentence(event.currentTarget.value)} />
         {problemLine}
-        <div><Button type="submit" variant="primary" disabled={busy || sentence.trim().length < 3}>{t('team.hire.next')}</Button></div>
+        {draftingLine}
+        <div><Button type="submit" variant="primary" disabled={busy || sentence.trim().length < 3} aria-busy={busy || undefined}>{t('team.hire.next')}</Button></div>
       </form>
     );
   } else if (hire.phase === 'role') {
@@ -67,7 +70,8 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
         <Field label={t('team.hire.job')} value={edits.job ?? hire.role?.job ?? ''} maxLength={120} onChange={(event) => setEdits({ ...edits, job: event.currentTarget.value })} />
         <Field multiline rows={4} label={t('team.hire.duties')} hint={t('team.hire.dutiesHint')} value={edits.duties ?? (hire.role?.duties ?? []).join('\n')} onChange={(event) => setEdits({ ...edits, duties: event.currentTarget.value })} />
         {problemLine}
-        <div><Button variant="primary" disabled={busy} onClick={() => void answer(roleEdits())}>{t('team.hire.next')}</Button></div>
+        {draftingLine}
+        <div><Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void answer(roleEdits())}>{t('team.hire.next')}</Button></div>
       </div>
     );
   } else if (hire.phase === 'reads') {
@@ -83,11 +87,12 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
         </fieldset>
         <label className={s.hireSelect}>{t('team.hire.department')}
           <Select value={edits.department ?? hire.department} onChange={(event) => setEdits({ ...edits, department: event.currentTarget.value })}>
-            {hire.departments.map((id) => <option key={id} value={id}>{t(DEPT_KEY[id] ?? 'dept.ops')}</option>)}
+            {hire.departments.map((id) => <option key={id} value={id}>{t(deptKey(id))}</option>)}
           </Select>
         </label>
         {problemLine}
-        <div><Button variant="primary" disabled={busy} onClick={() => void answer({ reads: hire.reads, department: edits.department ?? hire.department })}>{t('team.hire.next')}</Button></div>
+        {draftingLine}
+        <div><Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void answer({ reads: hire.reads, department: edits.department ?? hire.department })}>{t('team.hire.next')}</Button></div>
       </div>
     );
   } else if (hire.phase === 'voice') {
@@ -95,7 +100,8 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
       <div className={s.hireForm} data-hire-step="voice">
         <Field label={t('team.hire.tone')} value={edits.tone ?? hire.voice?.tone ?? ''} maxLength={160} onChange={(event) => setEdits({ ...edits, tone: event.currentTarget.value })} />
         {problemLine}
-        <div><Button variant="primary" disabled={busy} onClick={() => void answer(edits.tone !== undefined ? { voice: { ...hire.voice, tone: edits.tone } } : {})}>{t('team.hire.next')}</Button></div>
+        {draftingLine}
+        <div><Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void answer(edits.tone !== undefined ? { voice: { ...hire.voice, tone: edits.tone } } : {})}>{t('team.hire.next')}</Button></div>
       </div>
     );
   } else {
@@ -107,12 +113,12 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
         <ul className={s.hireList}>{hire.card?.does.map((line) => <li key={line} data-content="">{line}</li>)}</ul>
         <h4 className={s.hireHead}>{t('team.hire.readsCard')}</h4>
         <ul className={s.hireList}>{hire.card?.reads.map((item) => <li key={item.read}>{t(`team.hire.read.${item.read}`)}</li>)}</ul>
-        <Fold summary={t('team.hire.never')} className={s.hireFold}>
-          <ul className={s.hireList}>{hire.card?.never.map((line) => <li key={line}>{line}</li>)}</ul>
-        </Fold>
+        <h4 className={s.hireHead}>{t('team.hire.never')}</h4>
+        <ul className={s.hireList}>{hire.card?.never.map((line) => <li key={line}>{line}</li>)}</ul>
         <p className={s.hireLine}>{hire.card?.asks}</p>
         {problemLine}
-        <div><Button variant="primary" disabled={busy} onClick={() => void confirm()}>{t('team.hire.hire')}</Button></div>
+        {draftingLine}
+        <div><Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void confirm()}>{t('team.hire.hire')}</Button></div>
       </div>
     );
   }

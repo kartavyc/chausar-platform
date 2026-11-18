@@ -40,10 +40,9 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.report.shareRotate': async (deps, ctx, payload) => (await import('./kit/report/share.ts')).reportShareRotate(deps, ctx, payload),
   'venture.report.shareDisable': async (deps, ctx, payload) => (await import('./kit/report/share.ts')).reportShareDisable(deps, ctx, payload),
   'venture.report.list': async (deps, ctx, payload) => (await import('./kit/report/methods.ts')).reportList(deps, ctx, payload),
-  // 5C1 the citations table and the stored sign-off; 5C2 differential cases and the ITR data pack
+  // 5C1 the citations table and the stored sign-off; 5C2 the ITR data pack
   'venture.ca.confirmCitations': async (deps, ctx, payload) => (await import('./ca-firm/citations.ts')).caConfirmCitations(deps, ctx, payload),
   'venture.ca.signoff.get': async (deps, ctx, payload) => (await import('./ca-firm/stored-signoff.ts')).caSignoffGet(deps, ctx, payload),
-  'venture.ca.differential.add': async (deps, ctx, payload) => (await import('./ca-firm/differential.ts')).caDifferentialAdd(deps, ctx, payload),
   'venture.ca.dataPack.export': async (deps,ctx,payload)=>(await import('./ca-firm/data-pack.ts')).caDataPackExport(deps,ctx,payload),
   // Every business's desk: 5A1 routes these through playbooks/desks.ts deskHandler
   'venture.desk.list': deskRoute('list'),

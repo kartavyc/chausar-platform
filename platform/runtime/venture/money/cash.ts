@@ -323,7 +323,7 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
     ...(onTime.some(flow => flow.direction === 'out') ? ['Bills are paid on their due dates; overdue ones in the first week.'] : []),
     ...(onTime.some(flow => flow.addend.estimate && flow.direction === 'out') ? ['Repeating bills come again at the same amount.'] : []),
     usualLine,
-    ...(usual.aiLeftOut ? [`AI spend is left out: ${country.currency === 'INR' ? 'no rupee rate set' : `no rate from US dollars to ${country.currency}`}.`] : []),
+    ...(usual.aiLeftOut ? [`AI spend is left out: no rate from US dollars to ${country.currency}.`] : []),
   ];
 
   const openingReceipt = await receipt(asOf);

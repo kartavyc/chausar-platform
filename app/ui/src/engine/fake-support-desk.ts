@@ -6,7 +6,6 @@ import { ownerZone } from '../../../../platform/runtime/owner-format';
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import { matchShopRows,confirmTicket,proposeTicket,moveTicket,requestMoney,checkSupportDraft,sendHandoff,snoozeTicket,wakeTicket,supportHours,dueAt,dueBadge,queueRank,humanHandoff,needsPerson,replyPair,addRating,ratingSummary,triageSupport,type SupportTicketBody,type TicketStatus,type ShopHours,type SupportRatingBody,type SupportMessageBody }  from './fake-support-core';
-export { SUPPORT_DESK_META } from './support-metadata';
 type Ticket=SupportTicketBody&{id:string;kind:'venture-support-ticket';ventureId:string;memberId:string;epoch:number;at:string};
 function ensure(v:unknown,code:string,words:string):asserts v {if(!v)throw new EngineError(code,words);}
 function exact(raw:unknown,allowed:readonly string[],required:readonly string[]=allowed):Record<string,unknown>{ensure(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_VENTURE_REQUEST','Send one request object.');const p=raw as Record<string,unknown>;ensure(Object.keys(p).every(k=>allowed.includes(k))&&required.every(k=>Object.hasOwn(p,k)),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');return p;}
@@ -22,8 +21,8 @@ export function fakeSupportDeskDesk(host:W4DeskHost):FakePlaybookDesk & {forgetP
  const filesFor=(ticket:SupportTicketBody,names:readonly string[])=>{shopOrder(ticket);const files=(host.ask('venture.files.list',{orderId:ticket.serviceOrderId}) as UploadLite[]).filter(f=>f.scope.kind==='order'&&f.scope.orderId===ticket.serviceOrderId);ensure(names.length>0,'SUPPORT_SOURCE_REQUIRED','Cite shop files attached to this service order.');return names.map(name=>{const matches=files.filter(f=>f.name===name);ensure(matches.length===1,'SUPPORT_SOURCE_REQUIRED','Cite shop files attached to this service order.');return {id:matches[0]!.id,digest:host.digest(matches[0])};});};
  const currentReply=(ticket:Ticket)=>{ensure(!blocked(ticket)&&!ticket.autoDraftsPaused,'SUPPORT_PERSON_REQUIRED','A person is handling this ticket. Automatic drafts are paused.');ensure(ticket.draft,'SUPPORT_REPLY_INVALID','Open a customer reply before approving it.');ensure(host.digest(filesFor(ticket,ticket.draft.sources))===host.digest(ticket.draft.sourceFiles??[]),'SUPPORT_SOURCE_CHANGED','The cited shop files changed. Review a fresh reply.');};
  const deliveries=(ticket:SupportTicketBody)=>(host.ask('venture.delivery.list',{}) as DeliveryLite[]).filter(r=>r.orderId===ticket.serviceOrderId);
- const active=(ticket:SupportTicketBody)=>deliveries(ticket).some(r=>['waiting-for-you','needs-answer','brief-waiting'].includes(r.status));
- const stop=(ticket:SupportTicketBody)=>{for(const delivery of deliveries(ticket)){if(!['waiting-for-you','needs-answer','brief-waiting'].includes(delivery.status))continue;try{host.ask('venture.runs.stop',{runId:delivery.id});}catch{/* A delivery may have no UI run yet. */}}};
+ const active=(ticket:SupportTicketBody)=>deliveries(ticket).some(r=>['working','finishing','needs-answer'].includes(r.status));
+ const stop=(ticket:SupportTicketBody)=>{for(const delivery of deliveries(ticket)){if(!['working','finishing','needs-answer'].includes(delivery.status))continue;try{host.ask('venture.runs.stop',{runId:delivery.id});}catch{/* A delivery may have no UI run yet. */}}};
  const wrap=(id:string,result:unknown,line='Ticket updated. Nothing was sent.')=>({playbook:'support-desk',kind:'ticket',id,result,line});
   const changed=()=>{
   const other=host.rows().filter(r=>!(r.businessId===host.current()&&r.id.startsWith('support:')));

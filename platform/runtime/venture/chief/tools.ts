@@ -17,10 +17,11 @@ import { screenUntrusted } from '../policy/untrusted.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
 import { queueListHandler, queueRowsWithSubjects } from '../views/queue.ts';
 import type { ChiefClientContext } from './client-context.ts';
+import { proposalSubject } from './gate.ts';
 import { runsListHandler } from '../views/runs.ts';
 import { teamListHandler } from '../views/team.ts';
 import { journalListHandler } from '../journal/list.ts';
-import { booksSummary } from '../money/books.ts';
+import { booksSummaryProved } from '../money/books.ts';
 import { moneyOverview } from '../money/overview.ts';
 import { listInvoices } from '../money/invoices.ts';
 import { listClients } from '../money/clients.ts';
@@ -65,6 +66,21 @@ export function outsideWords(state: State, venture: VentureRecord, text: string 
   return screened === null ? null : short(screened, max);
 }
 
+/**
+ * A card's own title when it can hold no client's name, so an AI may read it: a search for possible customers, whose
+ * title is a kind of place and a city (customers/find-brief.ts briefWords), screened like every outside word. Null for
+ * every other card. Found live, 15 Nov 2026: asked how to get a first customer, the chief never named the search the
+ * review had just put on Today, because the plan gave it as "A card Chausar put on Today."
+ */
+export function openCardWords(state: State, venture: VentureRecord, proposalId: string): string | null {
+  const record = findRecord(state, 'venture-proposal', proposalId);
+  return record && record.ventureId === venture.id && record.proposalKind === 'find-customers' ? outsideWords(state, venture, record.title) : null;
+}
+
+/** Whether a row's subject is a proposal card whose title an AI may read (openCardWords). */
+export const openCard = (state: State, venture: VentureRecord, subject: string): boolean =>
+  subject.startsWith(proposalSubject('')) && openCardWords(state, venture, subject.slice(proposalSubject('').length)) !== null;
+
 /** The key a stored receipt holds its figure under: a sum receipt's own key, a price receipt's total. Null when unknown. */
 function keyOf(state: State, receiptId: string | null | undefined): { key: string; display: string } | null {
   if (!receiptId) return null;
@@ -96,7 +112,7 @@ function label(state: State, venture: VentureRecord, outside: string | null | un
 const queue: Tool = async (deps, ctx, state, venture, scope) => {
   const list = await queueListHandler(deps, ctx, {});
   const allowed = scope ? new Set((await queueRowsWithSubjects(deps, ctx)).filter(({ row, subject }) =>
-    ['setup:ai', 'setup:prices', 'setup:keep', 'connector:github'].includes(subject)
+    ['setup:ai', 'setup:prices', 'setup:keep', 'connector:github'].includes(subject) || openCard(state, venture, subject)
     || scope.subject(subject) || (row.viewRef && scope.record(row.viewRef.id))).map(({ row }) => row.id)) : null;
   const rows = list.rows.filter(row => row.kind !== 'locked' && (!allowed || allowed.has(row.id))).slice(0, 20);
   const fresh = deps.store.read();
@@ -147,8 +163,9 @@ const money: Tool = async (deps, ctx, state, venture, scope) => {
   let fresh = deps.store.read();
   for (const line of overview.lines) figures.push(...stored(fresh, line.receiptId, line.label).map(item => ({ ...item, display: line.value })));
   for (const [period, words] of [['this-month', 'this month'], ['last-month', 'last month']] as const) {
-    const books = await booksSummary(deps, ctx, { period });
-    for (const item of books.figures) figures.push({ receiptId: item.receiptId, key: item.operation, label: `${item.label}, ${words}`, display: item.display });
+    // The chief cites every figure, an empty sum too, so each has its receipt here (kept once, then opened again).
+    const books = await booksSummaryProved(deps, ctx, { period });
+    for (const item of books.figures) if (item.receiptId) figures.push({ receiptId: item.receiptId, key: item.operation, label: `${item.label}, ${words}`, display: item.display });
   }
   const goal = await goalView(deps, ctx, null);
   fresh = deps.store.read();

@@ -1,4 +1,5 @@
 // Original Chausar privacy cleanup for copied social writing evidence and its pending authority.
+import {eraseRun} from '../../delivery/erase-runs.ts';
 import type {VentureTx} from '../../records.ts';
 import {removeRecords} from '../../network/people.ts';
 export function eraseSocialChainNaming(tx:VentureTx,handles:ReadonlySet<string>,mentions:(text:unknown)=>boolean):void{
@@ -12,6 +13,6 @@ export function eraseSocialChainNaming(tx:VentureTx,handles:ReadonlySet<string>,
  if(!affected.size)return;
  const runIds=new Set(runs.filter(run=>affected.has(run.orderId)).map(run=>run.id));
  for(const order of orders)if(affected.has(order.id)){tx.replace({...order,...(named(order.request)?{request:'This request was erased because it named someone you asked Chausar to forget.'}:{}),socialChain:{...order.socialChain!,voice:null},chainStage:1,chainState:'running',chainSince:tx.now,socialPostHistory:[],...(order.socialGhostwriting?{socialGhostwriting:{...order.socialGhostwriting,decisions:{}}}:{})});tx.emit('chain.changed',{});}
- for(const run of runs)if(runIds.has(run.id)){const {judge:_judge,...rest}=run;tx.replace({...rest,status:'stopped',callId:null,preview:null,deliverable:null,renderedText:null,editedText:null,checks:[],playbookChecks:[],...(run.socialGhostwriting?{socialGhostwriting:{...run.socialGhostwriting,decisions:{}}}:{}),harness:null,verdict:null});tx.emit('run.stopped',{runId:run.id});}
+ for(const run of runs)if(runIds.has(run.id)){tx.replace({...eraseRun(tx,run),...(run.socialGhostwriting?{socialGhostwriting:{...run.socialGhostwriting,decisions:{}}}:{})});}
  removeRecords(tx,record=>record.kind==='venture-upload'&&uploads.has(String(record.id))||record.kind==='venture-work-receipt'&&typeof record.runRef==='object'&&record.runRef!==null&&'runId'in record.runRef&&runIds.has(String(record.runRef.runId))||record.kind==='venture-share-link'&&runIds.has(String(record.deliveryId)));
 }

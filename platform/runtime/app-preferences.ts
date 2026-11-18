@@ -11,7 +11,6 @@ import { check } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory } from './vault.ts';
 
 export const APP_PREFERENCE_METHODS = Object.freeze(['app.preferences.get', 'app.preferences.set'] as const);
-export type AppPreferenceMethod = (typeof APP_PREFERENCE_METHODS)[number];
 
 export const APP_LANGUAGES = Object.freeze(['en', 'hi'] as const);
 export type AppLanguage = (typeof APP_LANGUAGES)[number];

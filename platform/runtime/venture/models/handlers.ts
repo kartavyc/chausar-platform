@@ -165,6 +165,12 @@ export function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): P
 
 export async function status(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ModelStatusView> {
   exactPayload(payload, []);
+  const view = deps.models.status(ctx);
+  // Fix round 7: the model a job runs on with Codex comes from Codex's own list. Until that list was read this run the
+  // row names none, so the first Connections visit reads it once here; a list that cannot be read names none (never a guess).
+  const codexRow = view.tiers.main.presetId === 'codex-cli' ? view.connections.find(row => row.presetId === 'codex-cli' && row.status === 'connected') : undefined;
+  if (!codexRow || codexRow.jobModel !== null || !deps.models.codexModels) return view;
+  await deps.models.codexModels({ once: true }).catch(() => null);
   return deps.models.status(ctx);
 }
 
@@ -211,11 +217,10 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
   const inspect = deps.models.inspectCli?.bind(deps.models);
   check(inspect, 'CLI_UNAVAILABLE', CLI_STATUS_WORDS.noPort);
   const fresh = input.fresh === true;
-  const findings: CliFinding[] = [];
-  for (const cli of DELEGATE_CLIS) {
-    if (cli === 'claude-code' && !claudeTermsOpen(deps.claudeCodeTerms)) continue;
-    findings.push(await inspect(cli, fresh ? { fresh: true } : undefined));
-  }
+  // The two tools do not depend on each other: both looks start at once, and are answered in the listed order.
+  const findings: CliFinding[] = await Promise.all(DELEGATE_CLIS
+    .filter(cli => cli !== 'claude-code' || claudeTermsOpen(deps.claudeCodeTerms))
+    .map(cli => inspect(cli, fresh ? { fresh: true } : undefined)));
   const state = deps.store.read();
   const venture = currentVenture(state);
   const clis = findings.map(finding => cliStatusView(finding, { claudeTerms: deps.claudeCodeTerms, lastTask: lastCliTask(state, venture?.id ?? null, finding.cli) }));

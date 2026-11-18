@@ -4,6 +4,7 @@ import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Confirm, useSecondAsk } from '../../parts/Confirm';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { EmptyState } from '../../parts/EmptyState';
 import { Icon } from '../../parts/Icon';
@@ -147,21 +148,34 @@ function RecoveryForm({ locked, made, busy, onMake }: { locked: boolean; made: b
   const t = useT();
   const [passphrase, setPassphrase] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  async function submit(event: FormEvent) {
+  // Found on the real app, 16 November 2026: one press made the code (and a new one stops the old one). It asks once first.
+  const second = useSecondAsk();
+  const label = t(made ? 'business.makeNewCode' : 'business.makeCode');
+  function submit(event: FormEvent) {
     event.preventDefault();
     if (locked && !passphrase) { setProblem(t('business.passphraseFirst')); return; }
+    setProblem(null);
+    second.ask();
+  }
+  async function make() {
     const typed = passphrase;
     setPassphrase('');
-    setProblem(null);
+    second.done();
     await onMake(locked ? typed : null);
   }
   return (
-    <form className={s.form} onSubmit={(event) => void submit(event)}>
+    <form className={s.form} onSubmit={submit}>
       {locked && <PassphraseField label={t('business.yourPassphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-      <div className={s.buttons}>
-        <Button variant={made ? 'secondary' : 'primary'} type="submit" disabled={busy}>{t(made ? 'business.makeNewCode' : 'business.makeCode')}</Button>
-      </div>
+      {second.asking ? (
+        <Confirm action={label} tone={made ? 'danger' : undefined} busy={busy} onCancel={second.cancel} onConfirm={() => void make()}>
+          <p className={s.line}>{t(made ? 'business.makeNewCodeAsk' : 'business.makeCodeAsk')}</p>
+        </Confirm>
+      ) : (
+        <div className={s.buttons}>
+          <Button ref={second.button} variant={made ? 'secondary' : 'primary'} type="submit" disabled={busy}>{label}</Button>
+        </div>
+      )}
     </form>
   );
 }

@@ -9,7 +9,7 @@ import type { VentureHostKind } from '../../../contracts.ts';
 import type { PrintPort, PrintResult } from '../records-report.ts';
 import { hasDevanagari } from './render-html.ts';
 
-export type { PrintPort, PrintRequest, PrintResult } from '../records-report.ts';
+export type { PrintPort, PrintRequest } from '../records-report.ts';
 
 /** Why a report has no PDF, in the owner's words. */
 export const PDF_WORDS = Object.freeze({

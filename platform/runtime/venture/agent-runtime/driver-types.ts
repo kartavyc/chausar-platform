@@ -8,6 +8,14 @@ export type AgentJobScope = {
   agentId: string; memberId: string; epoch: number; consentId: string; consentRevision: number; generation: number;
 };
 
+/**
+ * Work for the business itself, beside the order-bound job scope above: today only finding customers
+ * (customers/find-run.ts). It is not a job with a made-up order. It has no order, no client and no consent, because no
+ * client data exists in this scope: nothing that holds one (business-mcp.ts) can read a client, an order or a file,
+ * and a call whose inputs name a client is refused. workId is the search it works for.
+ */
+export type BusinessWorkScope = { workId: string; ventureId: string; purpose: 'find-customers'; memberId: string; epoch: number };
+
 export type AgentDriverSettings = {
   model: string; effort: 'low' | 'medium' | 'high' | 'max'; autoReview: boolean;
   webSearch: boolean; network: boolean; shell: boolean; fallbackModel?: string;

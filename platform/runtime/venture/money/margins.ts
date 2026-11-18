@@ -4,13 +4,13 @@
 // (UTC month, as the spend limit counts it) tagged by code from the records, never by guess: a call to its run (the run
 // it was charged to, or the run whose model call, judge or turn it paid for), the run to its order, the order to its
 // client. The margin is in one currency only: the spend in rupees at the owner's own rate, labelled with it, or "Not
-// counted: no rupee rate set". Calls no order can claim are left out and the total says how many. Money in BigInt.
+// counted: no rate from US dollars to" the business's currency. Calls no order can claim are left out and the total says how many. Money in BigInt.
 import { formatMoney } from '../../owner-format.ts';
 import type { Context, State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture } from '../records.ts';
 import type { MarginRowView, MarginsView, SpendRecord, SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
 import { beforeTax, creditBeforeTax, creditNotesOf, invoicesOf, monthText, monthWords } from './goal-plans.ts';
-import { needsRupeeRate, rupeeRateWords, rupeesOf, spendOfMonth } from './spend.ts';
+import { rupeeRateWords, rupeesOf, spendOfMonth } from './spend.ts';
 import { calendarMonth } from './dates.ts';
 import { callAddend, rateBasis } from './flow.ts';
 import { sumReceipt, type Addend, type SumPlan } from './sums.ts';
@@ -113,13 +113,13 @@ export async function moneyMargins(deps: VentureDeps, ctx: Context, payload: unk
   const rows: MarginRowView[] = [];
   for (const client of clients) {
     const invoiced = calculatedFigure(await sumReceipt(deps, ctx, venture.id, plan(client.id, 'invoiced')));
-    if (!counted) { rows.push({ clientId: client.id, client: client.name, invoiced, spend: null, margin: null, note: `Not counted: ${venture.country.currency === 'INR' ? 'no rupee rate set' : `no rate from US dollars to ${venture.country.currency}`}` }); continue; }
+    if (!counted) { rows.push({ clientId: client.id, client: client.name, invoiced, spend: null, margin: null, note: `Not counted: no rate from US dollars to ${venture.country.currency}` }); continue; }
     const spend = calculatedFigure(await sumReceipt(deps, ctx, venture.id, plan(client.id, 'spend')), { uses });
     const margin = calculatedFigure(await sumReceipt(deps, ctx, venture.id, plan(client.id, 'margin')), { uses });
     rows.push({ clientId: client.id, client: client.name, invoiced, spend, margin, note: null });
   }
   const shown = monthWords(month);
-  const why = venture.country.currency === 'INR' ? 'no rupee rate set' : `no rate from US dollars to ${venture.country.currency}`;
+  const why = `no rate from US dollars to ${venture.country.currency}`;
   const basis = basisOf(
     [`Invoices issued in ${shown}, before tax, less credit notes`, 'AI and tool spend by UTC month, tagged to a client through its run and order', ...rateBasis(counted ? rate : null)],
     notCountedOf([
@@ -129,5 +129,5 @@ export async function moneyMargins(deps: VentureDeps, ctx: Context, payload: unk
   );
   const line = counted ? `${shown}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`
     : `${shown}: invoiced before tax. The AI and tool spend is not counted: ${why}.`;
-  return { month, rows, line, basis, ...(needsRupeeRate(rupees, venture) ? { needsRate: true } : {}) };
+  return { month, rows, line, basis };
 }

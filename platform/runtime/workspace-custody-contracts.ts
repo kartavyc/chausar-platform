@@ -37,7 +37,7 @@ export const CUSTODY_TRANSITION_METHODS: readonly CustodyMethod[] = Object.freez
 export const BACKUP_AFTER_METHODS: readonly string[] = Object.freeze([
   'venture.create', 'venture.blueprint.accept', 'venture.blueprint.update', 'venture.invoice.issue', 'venture.payment.record',
   'venture.order.create', 'venture.order.deliver', 'venture.client.add', 'venture.models.connect', 'venture.build.link',
-  'trust.update', 'members.add', 'members.revoke', 'sources.import', 'ontology.publish',
+  'trust.update', 'members.add', 'members.revoke',
 ]);
 export const AUTO_BACKUP = Object.freeze({ everyMs: 21_600_000, minGapMs: 120_000, keepRecent: 10, keepDailyDays: 14, keepWeeklyWeeks: 8, keepSafety: 5 });
 export const TRANSFER = Object.freeze({ prefix: 'CHT-', length: 24, alphabet: '0123456789ABCDEFGHJKMNPQRSTVWXYZ', maxTextChars: 1_900_000 });
@@ -170,7 +170,7 @@ export type CustodyResults = {
 export const CUSTODY_ERRORS = Object.freeze([
   'DEVICE_KEYS_UNAVAILABLE', 'DEVICE_KEY_FAILED', 'PASSPHRASE_REQUIRED', 'PASSPHRASE_WRONG', 'CUSTODY_UNCHANGED',
   'TRANSFER_CODE_WRONG', 'TRANSFER_INVALID', 'TRANSFER_TOO_LARGE', 'TRANSFER_SAME_BUSINESS', 'TRANSFER_FAILED',
-  'BACKUP_NOT_FOUND', 'BACKUP_OTHER_BUSINESS', 'SYNC_NEEDS_PASSPHRASE',
+  'BACKUP_NOT_FOUND', 'BACKUP_OTHER_BUSINESS',
   /** Its words are CUSTODY_WORDS.lock.safetyBackupFailed. */
   'SAFETY_BACKUP_FAILED',
   /** 4J6: the never-contact list can't be checked (NEVER_CONTACT_LOST), or still checks so there is nothing to reset. */
@@ -218,7 +218,6 @@ export const CUSTODY_WORDS = Object.freeze({
     TRANSFER_FAILED: "Chausar couldn't finish moving your business here, so nothing was kept. Try again.",
     BACKUP_NOT_FOUND: 'That backup is not in the backups folder.',
     BACKUP_OTHER_BUSINESS: 'This backup belongs to another business.',
-    SYNC_NEEDS_PASSPHRASE: 'Device sync needs a business locked with a passphrase.',
     IMPORT_READABLE: "A readable copy can't come back in, since anyone could have changed it. Use the encrypted copy.",
     IMPORT_INVALID: "This isn't a Chausar copy, or part of it has changed.",
     IMPORT_ALREADY_HERE: 'This business is already on this computer. Restore it from this copy instead?',

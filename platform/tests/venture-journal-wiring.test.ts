@@ -16,7 +16,7 @@ import { handlers as money } from '../runtime/venture/money/index.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
 import { PRACTICE_FILES } from '../runtime/venture/delivery/harness/practice.ts';
 import { decideConnectorRow, decidePost, proposePost, sweepStaleClaims } from '../runtime/venture/build/posting.ts';
-import { AGENT_WINDOW_MS, CHECK_BEFORE_RETRYING, approveAction, proposeAction } from '../runtime/venture/journal/index.ts';
+import { AGENT_WINDOW_MS, CHECK_BEFORE_RETRYING, approveAction, proposeAction } from '../runtime/venture/journal/journal.ts';
 import { containsApprovalToken } from '../runtime/venture/journal/tokens.ts';
 import { CLIENT_NAME, call as viewCall, owner as viewOwner, seedBlueprint, seedOrder as seedViewOrder, setup as viewSetup } from './venture-views-env.ts';
 import { VentureTestStore } from './venture-test-store.ts';

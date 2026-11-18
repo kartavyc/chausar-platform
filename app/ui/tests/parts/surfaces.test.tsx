@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { Bento, Panel, SectionHead, Tile, TileHead } from '../../src/parts/Tile';
 import { Inner, Lift } from '../../src/parts/Card';
-import { Chip, CountChip, DeptChip, DeptDot, KindChip, PostureChip, StateChip } from '../../src/parts/Chip';
+import { Chip, CountChip, DeptChip, DeptDot, PostureChip, StateChip } from '../../src/parts/Chip';
 import { FilterChips } from '../../src/parts/FilterChips';
 import { Tabs, departmentChoices } from '../../src/parts/Tabs';
 import { StatTile } from '../../src/parts/StatTile';
@@ -264,31 +264,6 @@ describe('chips', () => {
     expect(chip.textContent).toBe('3 checks passed');
     expect(chip.dataset.tone).toBe('line');
     expect(chip.querySelector('[data-dot]')).toBeNull();
-  });
-
-
-
-  it('KindChip says the kind in words from states.ts with its icon; it can be amber or red; on a phone it is the icon alone', () => {
-    const { container } = render(<KindChip kind="price" />);
-    const chip = container.firstElementChild as HTMLElement;
-    expect(chip.textContent).toBe('Price change');
-    expect(chip.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
-    expect(chip.querySelector('svg')!.innerHTML).toBe(iconMarkup('tag'));
-    const { container: q } = render(<KindChip kind="question" tone="wait" />);
-    expect((q.firstElementChild as HTMLElement).dataset.tone).toBe('wait');
-    render(<KindChip kind="signoff" iconOnly />);
-    const icon = screen.getByRole('img', { name: 'CA sign-off' });
-    expect(icon.textContent).toBe('');
-    expect(icon.querySelector('svg')!.innerHTML).toBe(iconMarkup('stamp'));
-  });
-
-  it('every queue kind has a KindChip icon', () => {
-    for (const kind of ['draft', 'price', 'quote', 'plan', 'invoice', 'signoff', 'question', 'setup', 'locked', 'connector', 'bank'] as const) {
-      const { container, unmount } = render(<KindChip kind={kind} />);
-      expect(container.querySelector('svg'), kind).not.toBeNull();
-      expect(container.textContent, kind).toBe(en(`state.queue.${kind}`));
-      unmount();
-    }
   });
 
   it('PostureChip says the posture with its icon', () => {
@@ -599,7 +574,7 @@ describe('axe on the parts together', () => {
         </Bento>
         <SectionHead title="Needs you" count={12} countLabel="12 need you" />
         <FilterChips label="Show" value="all" onChange={() => {}} options={[{ id: 'all', label: 'All', count: 12 }, { id: 'se', label: 'Sitara Events', business: true, locked: true, separatorBefore: true }]} />
-        <Inner><StateChip kind="run" value="active" /><KindChip kind="price" /><KindChip kind="question" iconOnly /><CountChip value={3} label="3 people" /><Chip tone="line">3 checks passed</Chip></Inner>
+        <Inner><StateChip kind="run" value="active" /><CountChip value={3} label="3 people" /><Chip tone="line">3 checks passed</Chip></Inner>
       </main>,
     );
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } }, resultTypes: ['violations'] });

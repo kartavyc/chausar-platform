@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { PriceGuideList, PriceRange, PriceSources } from '../../src/parts/PriceSources';
-import { GalleryTile } from '../../src/parts/Gallery';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { wayData } from '../../src/places/onboarding/ways';
-import type { BlueprintViewLite, WaysView } from '../../src/engine/types';
+import type { BlueprintViewLite } from '../../src/engine/types';
 import { priceGuide, priceGuideForPlaybook } from '../../../../platform/runtime/venture/core/price-ranges';
 import { assertFiguresProved } from '../helpers/ink-rules';
 
@@ -69,35 +67,6 @@ describe('PriceSources', () => {
     render(<PriceSources guide={priceGuide('travel-agent')} />);
     fireEvent.click(screen.getByRole('button', { name: 'Why there is no range' }));
     expect(screen.getByText('No reliable data', { selector: 'span' })).toBeTruthy();
-  });
-});
-
-describe('Gallery: a sourced range replaces the model estimate only where it fits the way', () => {
-  it('bookkeeping shows its sourced monthly range with the (i); the CA way keeps its estimate with ICAI one fold away; YouTube says no data', async () => {
-    const view = (await new FakeEngine().request('venture.playbooks.list', {})) as WaysView;
-    const books = wayData(view.ways.find((way) => way.id === 'bookkeeping-cfo')!, 'en', view.categories);
-    const { container, unmount } = render(<GalleryTile way={books} onStart={() => {}} />);
-    const pay = container.querySelector('[data-sourced-range]')!;
-    expect(pay.textContent).toContain('₹499 to ₹15,000');
-    expect(pay.textContent).toContain('Usual pay (per month)');
-    expect(within(pay as HTMLElement).queryByText('model estimate')).toBeNull();
-    expect(within(pay as HTMLElement).getByRole('button', { name: 'Where this range comes from' })).toBeTruthy();
-    expect(() => assertFiguresProved(container)).not.toThrow();
-    unmount();
-    // ICAI's figures price single tasks, not the CA way's monthly service: the estimate stays, the sources wait in the fold.
-    const ca = wayData(view.ways.find((way) => way.id === 'ca-firm')!, 'en', view.categories);
-    const caTile = render(<GalleryTile way={ca} onStart={() => {}} />);
-    expect(caTile.container.querySelector('[data-figure-group] [data-estimate]')?.textContent).toBe('model estimate');
-    const fold = caTile.container.querySelector('details[data-way-needs]')!;
-    expect(fold.querySelectorAll('[data-sourced-range]')).toHaveLength(2);
-    expect(fold.textContent).toContain('₹4,000 to ₹8,000 or more');
-    expect(() => assertFiguresProved(caTile.container)).not.toThrow();
-    caTile.unmount();
-    const youtube = wayData(view.ways.find((way) => way.id === 'youtube')!, 'en', view.categories);
-    const tile = render(<GalleryTile way={youtube} onStart={() => {}} />);
-    expect(tile.container.querySelector('[data-sourced-range]')).toBeNull();
-    expect(within(tile.container).getByText('model estimate')).toBeTruthy();
-    expect(tile.container.textContent).toContain('No reliable data');
   });
 });
 

@@ -15,7 +15,6 @@ import { HARD_STOPS, isHardStop, refuseHardStop } from '../policy/hard-stops.ts'
 import { kitDefinitions } from './kit/installed.ts';
 import type { DatedRule } from './kit/define.ts';
 import { ATTESTATION_PLAYBOOKS, ATTEST_WORDS, LOCKED_ELSEWHERE_LINE, NOT_ATTESTABLE_WORDS, ruleDigest, ruleIsLocked } from './kit/attestation.ts';
-export { attestedRules } from './kit/attestation-records.ts';
 import { businessFlagship } from './rules-view.ts';
 import { findPlaybook } from './registry.ts';
 

@@ -150,19 +150,6 @@ export const BOARDS = [
     ],
     waits: [],
   },
-  {
-    board: 'D-Start', title: 'Start', address: '#/onboarding', cases: ['onboarding'],
-    matches: [
-      '"Pick a way to earn" with the count; How starting works in three numbered steps; All ways to earn with category chips, Sort, and tiles with the category, "You run this", your time, what clients usually pay (model estimate), What it takes and Start (W4 4J21).',
-      'Or describe it in one sentence with the country line, Make my plan, Start a new business or Add this to the open business, and examples; Not sure which fits? with Ask Chausar; Resume setup with its bar.',
-    ],
-    differs: [
-      'Three ways, not twelve: the gallery shows only built playbooks (plan choice 10; W5 adds the rest).',
-      'No "Good fit for you": the engine suggests a fit only with the owner\'s AI connected, and the sample has none.',
-      'How starting works uses icons and words, not the miniature cards of D.',
-    ],
-    waits: ['More ways to earn with W5\'s playbooks'],
-  },
 ];
 
 /** Fixed during the walks, each with the test that holds it. */

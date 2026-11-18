@@ -13,7 +13,7 @@ import { EmptyState } from '../../parts/EmptyState';
 import { Figure } from '../../parts/Figure';
 import { SectionHead, Tile } from '../../parts/Tile';
 import type { KindedFigure } from '../../engine/types';
-import { EngineWords, Failed, SET_RATE_HREF } from './parts';
+import { EngineWords, Failed } from './parts';
 import { onMoney, onRuns, useMonthWords } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
@@ -61,8 +61,6 @@ export function Margins({ month }: { month: string }) {
           {/* The engine's sentence: the month, before tax, and the rate the spend was counted at (or why it was not). */}
           <p>
             <EngineWords>{view.line}</EngineWords>
-            {/* C4 T23: the spend left out for want of a rate, with the way to set it. */}
-            {view.needsRate && <> <a className={s.more} href={SET_RATE_HREF}>{t('money.margins.setRate')}</a></>}
           </p>
           {view.basis.notCounted && <p>{view.basis.notCounted.line}</p>}
         </div>

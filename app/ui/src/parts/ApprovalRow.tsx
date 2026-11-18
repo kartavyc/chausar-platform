@@ -13,9 +13,12 @@ import { Receipt } from './Receipt';
 // W4 4J19: the row's meta line, facts, the price beside Approve and amounts at their places.
 import { BesideApprove, changeProof, MetaLine, provedText, RowFacts } from './ApprovalMeta';
 import { Row } from './Row';
+import { LeadToolLink } from './LeadToolLink';
+import { StageLink } from './StageLink';
 import { STARTS_WORK, usePausedWork } from './paused';
 import { stateText } from './states';
 import type { QueueAction, QueueDecision, QueueKind, QueueList, QueueRow } from '../engine/types';
+import { fixedWords } from '../places/today/plan-words';
 import s from './ApprovalRow.module.css';
 import { afterExit, motionOff } from './motion';
 
@@ -29,7 +32,7 @@ const VIEW_ACTIONS = new Set<QueueAction['id']>(['watch', 'read']);
  */
 export type ApprovalLayout = 'row' | 'card' | 'compact';
 
-/** The icon beside each kind's words on a card (the same as Chip.tsx's KIND_ICONS, 3B1b). Kinds are labels, not
+/** The icon beside each kind's words on a card (3B1b). Kinds are labels, not
  *  states, so none of them is coloured; only the card of a run that really stopped is (in the fail tone). */
 const KIND_ICON: Record<QueueKind, IconName> = {
   draft: 'file-pen',
@@ -44,7 +47,7 @@ const KIND_ICON: Record<QueueKind, IconName> = {
   connector: 'send',
   bank: 'wallet',
   proposal: 'sparkles',
-  // W4 4E4: the same icons as Chip.tsx's KIND_ICONS.
+  // W4 4E4: a follow-up due, a reply waiting, a notice (notes after a call).
   followup: 'clock',
   reply: 'message-square',
   notice: 'bell',
@@ -185,7 +188,10 @@ export function readBack(list: QueueList, row: QueueRow, t: T): QueueDecision {
  */
 export function decidedWords(row: QueueRow, line: string, t: T): { title: string | null; line: string } {
   const own = line !== t('approval.elsewhere') && line !== t('approval.afterWait');
-  return { title: row.viewRef?.kind === 'plan' && own ? null : row.title, line };
+  // Round 5 (re-check 082): an outcome the queue writes the same every time ("Plan accepted.") is said from the pack.
+  // Round 6: a title code filled (a search's "Find possible customers: ...", a draft's) is said from the pack too.
+  const words = fixedWords(t);
+  return { title: row.viewRef?.kind === 'plan' && own ? null : words(row.title), line: words(line) };
 }
 
 /**
@@ -272,7 +278,15 @@ export function ApprovalRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.digest]);
 
-  // B4: the session forgot this row's line (its decision was taken back): the card is open to decide again.
+  // Round 7: the same version in other words (the Hindi pack arrived after the card did) is not a new version: the card
+  // takes the words and nothing else changes.
+  const rowWords = [row.title, row.line ?? '', ...row.actions.map((action) => action.label)].join('\u0000');
+  useEffect(() => {
+    if (phase !== 'decided' && row.digest === current.digest && row !== current) setCurrent(row);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowWords]);
+
+  // B4:the session forgot this row's line (its decision was taken back): the card is open to decide again.
   useEffect(() => {
     if (heldDone.current && !done) {
       inFlight.current = false;
@@ -435,7 +449,7 @@ export function ApprovalRow({
     const status = (
       <span role="status">
         {words.title !== null && <><span className={s.decidedTitle}>{words.title}</span>{' · '}</>}
-        {text}
+        {words.line}
         {receiptId && <>{' '}<Receipt id={receiptId} onOpen={onReceipt} /></>}
         {/* W4 4J19: a send back or an edit can be taken back until its revision starts. */}
         {undo && (
@@ -502,6 +516,8 @@ export function ApprovalRow({
   const facts = (
     <>
       <RowFacts row={current} onReceipt={onReceipt} />
+      <LeadToolLink line={current.line} />
+      <StageLink line={current.line} />
       <BesideApprove row={current} onReceipt={onReceipt} />
     </>
   );

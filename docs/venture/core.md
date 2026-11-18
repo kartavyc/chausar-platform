@@ -1,6 +1,6 @@
 # Venture launcher: core (P1)
 
-Core turns one sentence into a plan. Since onboarding v2 (18 October) that plan is usually composed by the owner's AI from a checked library of blocks (below); the built-in templates stay for an owner with no AI. Core owns the composer, the block library and the view registry, the instant plan preview, the venture record, the country table, the interview, the blueprint and its business terms, the launch checklist and the event feed.
+Core turns one sentence into a plan. Code builds the plan's structure, and the owner's AI, or the built-in templates for an owner with no AI, writes only its words. Core owns the instant plan preview, the venture record, the country table, the interview, the blueprint and its business terms, the launch checklist and the event feed. It also still reads a plan composed from the block library, for a vault that already holds one (below).
 
 ## What it does
 
@@ -9,7 +9,7 @@ Core turns one sentence into a plan. Since onboarding v2 (18 October) that plan 
 | `venture.countries` | none, before a vault | The fifteen-row country table, a fresh copy each time |
 | `venture.preview` | none, before a vault | A plan from the idea alone, in template words. Nothing is saved, no model is asked |
 | `venture.create` | admin, in the app | Sets record keeping to ten years, publishes the services dictionary in the country's currency when needed, then makes the venture and its empty interview |
-| `venture.get` | read | The venture, its checklist ("7 of 12") and its terms, or `null` |
+| `venture.get` | read | The venture, how far what it sells is from ready ("1 of 2": the plan accepted, every offer priced) and its terms, or `null` |
 | `venture.events` | read | The venture's events after a sequence number, oldest first |
 | `venture.interview.next` | prepare | Writes the questions once: two optional opening questions (model or template), then the fixed price and tax questions |
 | `venture.interview.answer` | prepare | Checks one answer against its question. Prices and rates are parsed by code |
@@ -18,18 +18,18 @@ Core turns one sentence into a plan. Since onboarding v2 (18 October) that plan 
 | `venture.blueprint.update` | prepare | Owner edits make a new draft version |
 | `venture.blueprint.accept` | approve, in the app | Accepts the newest draft whose digest matches, makes the business terms and marks "offer" active |
 
-Files live in `platform/runtime/venture/core/`: `countries.ts`, `service-types.ts`, `preview.ts`, `venture.ts`, `interview.ts`, `blueprint.ts`, `tax-fields.ts`, `checklist.ts`, `events.ts`, `lookups.ts`, `words.ts` and `index.ts`.
+Files live in `platform/runtime/venture/core/`: `countries.ts`, `service-types.ts`, `preview.ts`, `venture.ts`, `interview.ts`, `blueprint.ts`, `tax-fields.ts`, `events.ts`, `lookups.ts`, `words.ts` and `index.ts`.
 
-## Composed plans (onboarding v2)
+## Composed plans a vault already holds
 
-`core/compose.ts` runs the two composer calls (decide, then compose), checks every answer, repairs once and assembles the plan. `core/blocks.ts` holds the block library as plain frozen data, and `core/views.ts` the view registry. The plan is held in the engine's draft desk until the owner keeps it; [onboarding.md](onboarding.md) covers the flow, the block and view tables, the composer contract and the number guard.
+Onboarding v2 (18 October) had a plan composer: two model calls that built a plan from a checked library of blocks before the vault existed, which `venture.create` then adopted. The first run never used it, and it was removed on 14 November 2026: `venture.create` now takes the idea, the country and an optional working name, and always starts from an empty interview. Nothing writes a composed plan any more, and core keeps reading the ones a vault already holds. `core/blocks.ts` holds what code decides from a block id (who does a step, the approval words, which pricing an offer may use); [onboarding.md](onboarding.md#a-composed-plan-a-vault-already-holds) lists the ids.
 
-When `venture.create` adopts a composed plan, it writes the records that already existed, so prices, the brief, the playbook, rehearsal and invoices read them as before:
+What such a vault holds:
 
-| Record | What a composed plan writes |
+| Record | What a composed plan left |
 | --- | --- |
-| `venture-composition` (new) | The sentence, its kind (`planKind`: idea, skill or problem), the family, the reading, the views, the checked model output, the owner's pricing and answers before the vault, the decide and compose call ids, who wrote it and the kept plan digest. Event `plan-composed`. |
-| `venture-interview` | Written already answered (`source: 'model'`): the composed questions with the owner's answers or skipped, the first offer's pricing (its choices limited to what the offer's block allows, so a later answer can't pick another), its price, and the tax answers. `interview.next` makes no model call. |
+| `venture-composition` | The sentence, its kind (`planKind`: idea, skill or problem), the family, the reading, the views, the checked model output, the owner's pricing and answers before the vault, the ids of the calls that made it, who wrote it and the kept plan digest. Its event was `plan-composed`. |
+| `venture-interview` | Answered when it was written (`source: 'model'`): the composed questions with the owner's answers or skipped, the first offer's pricing (its choices limited to what the offer's block allows, so a later answer can't pick another), its price, and the tax answers. |
 | `venture-blueprint` version 1 | `source: 'model'`, offers and steps with their `block`, the approval blocks' fixed words, and the plan's `pages`, `tools`, `notes` and `composition`. The starter connectors are Lovable, GitHub, the country's payment rail, the plan's tools and Chausar books. |
 
 A record is **composed** when any offer or step carries a `block`. Template records carry none, and every rule falls back to what it did before, so their structure hashes and digests are unchanged.
@@ -40,8 +40,7 @@ Later versions keep the blocks:
 - "Rewrite with AI" (`venture.blueprint.draft`) may change words, never the block structure. The model's answer must use the structure's own ids, in order, within the word caps; approvals stay the blocks' fixed words.
 - `venture.blueprint.update` keeps every field, the pages, tools, notes, composition and block ids included. An offer's pricing must stay within its block ("This offer can only be priced per month.").
 - A composed plan never falls back to template words. `blueprint.draft {}` with no AI connected refuses `NO_MODEL_CONNECTED` ("This plan was made with your AI. Connect an AI to rewrite it."), and `{ useTemplate: true }` refuses `INVALID_VENTURE_REQUEST` ("This plan was made with your AI. Built-in words don't fit it.").
-- There is no new composition after keeping (founder flag F16): a new structure means a new plan.
-- The checklist starts with "Connect your AI" (done once any model connection exists), then "Say what you want to do".
+- There is no launch checklist any more (14 November). The chief's standing plan says what to do next: `venture.chief.plan.get`, decided in `platform/runtime/venture/chief/plan-core.ts` (see [ink.md](ink.md)).
 
 ## How the rules hold
 

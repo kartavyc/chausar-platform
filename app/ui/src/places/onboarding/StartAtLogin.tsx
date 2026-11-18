@@ -15,15 +15,16 @@ import { useOwnerZoneReady } from '../../shell/clock';
 export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.supported && !state.asked;
 
 /**
- * Start at login, asked once (one-shot A5, founder answer 5: asked in onboarding, ticked by default).
+ * Start at login, asked once (one-shot A5, founder answer 5: asked in onboarding). Round 5 (re-check 011): it is standing
+ * configuration on the owner's computer, so the tick always starts unticked and only the owner's own tick turns it on.
  *   first-run: on the services step, above the services, so it is seen before any Set up. Nothing is registered
  *     here: onChoice hands the tick to the first run, which saves it when the owner leaves the step.
  *   today (A5 fix round 1): when the first run ended without an answer (the app closed on the services step, or Go to
  *     Today before the computer answered), Today asks with the same words and the same tick, and only Save answers.
  *     Not now (fix round 3) is no answer: it sends nothing to the computer, and the desktop keeps only the day, so the
  *     question is put aside for the rest of this computer's day and asked again on a later day, by the same rules.
- * The tick starts as the desktop's suggestion, except that a login item the computer's own startup settings switched
- * off starts unticked (fix round 2): one Save never undoes the owner's own no there.
+ * The tick starts unticked, whatever the computer has: a login item registered silently before A5 was never the owner's
+ * answer, and one the computer's startup settings switched off stays off (fix round 2). Leaving it unticked is a no.
  * Shown only while asksStartAtLogin holds; a preview, the web and the hosted app have no start at login, and a
  * computer that answered keeps its answer (it is changed in Business > Notifications).
  */
@@ -48,9 +49,8 @@ export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'
     const aside = place === 'today' && client.getAskLater ? client.getAskLater().catch(() => null) : Promise.resolve(null);
     Promise.all([client.getBackground?.(), aside]).then(([state, later]) => {
       if (!live || !state || !asksStartAtLogin(state) || later === today) return;
-      const start = state.systemOff ? false : state.startAtLogin;
-      setTicked(start);
-      onChoice?.(start);
+      setTicked(false);
+      onChoice?.(false);
     }, () => { /* Not readable: nothing is asked, and nothing is registered. */ });
     return () => { live = false; };
   }, [client, onChoice, ready, today]);

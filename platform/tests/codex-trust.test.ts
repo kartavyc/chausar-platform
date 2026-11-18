@@ -168,7 +168,7 @@ function sealStore(): CodexSeal & { saved: Map<string, string> } {
   return { saved, async get(workspaceId, name) { return saved.get(`${workspaceId}/${name}`) ?? null; }, async set(workspaceId, name, value) { saved.set(`${workspaceId}/${name}`, value); } };
 }
 
-test('only reviewed Codex versions can be chosen; another version is told plainly, and the bundled Codex is offered when there is one', async t => {
+test('a Codex older than the reviewed one cannot be chosen; it is told plainly, and the bundled Codex is offered when there is one', async t => {
   assert.deepEqual([...REVIEWED_CODEX_VERSIONS], ['0.166.0']);
   const root = await folder(t), path = await program(root);
   const older = probeOf({ '--version': { exitCode: 0, stdout: 'codex-cli 0.154.0\n' } });
@@ -177,14 +177,14 @@ test('only reviewed Codex versions can be chosen; another version is told plainl
   assert.deepEqual([view.state, view.version, view.line], ['refused', '0.154.0', SETUP_WORDS.otherVersion('0.154.0', false)]);
   assert.match(view.line, /Chausar works with Codex 0\.166\.0/);
   assert.doesNotMatch(view.line, /comes with Chausar/, 'no bundled Codex here, so none is offered');
-  assert.equal(older.seen.length, 1, 'nothing more is asked of an unreviewed version');
-  // With a bundled Codex in this install, it is offered in place of the unreviewed one.
+  assert.equal(older.seen.length, 1, 'nothing more is asked of a version Chausar does not run');
+  // With a bundled Codex in this install, it is offered in place of the older one.
   const bundle = join(root, 'codex');
   const bundled = await program(bundle, 'bundled codex bytes');
   const probe: CodexProbe = async (command, args) => (command === bundled ? probeOf().probe(command, args, '') : older.probe(command, args, ''));
   const offered = await new CodexTrust({ environment: { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust'), CHAUSAR_CODEX_BUNDLE_DIR: bundle }, probe }).review(path);
   assert.deepEqual([offered.state, offered.sha256], ['review', sha256('bundled codex bytes')]);
-  assert.equal(SETUP_WORDS.otherVersion('0.154.0', true), 'This is Codex 0.154.0. Chausar works with Codex 0.166.0. Update it, or use the Codex that comes with Chausar.');
+  assert.equal(SETUP_WORDS.otherVersion('0.154.0', true), 'This is Codex 0.154.0. Chausar works with Codex 0.166.0 or a newer 0.x version. Update it, or use the Codex that comes with Chausar.');
 });
 
 test('a program swapped between the review and the yes is refused as changed, and is reviewed again', async t => {

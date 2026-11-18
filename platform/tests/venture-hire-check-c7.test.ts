@@ -163,3 +163,47 @@ test('the duty floor is an allow-list: an act it does not know refuses, internal
     assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
   }
 });
+
+// Found live on 14 Nov 2026 with the team an owner's AI proposed at setup: "Tracks leads and order follow ups for me"
+// and "Tracks replies and orders" were refused, because a noun after "and" was read as a new act. A list of things under
+// one inside verb is one act; a second verb after "and" is still judged on its own.
+test('a list of things under one inside verb is one act; a second verb after the join is still judged', () => {
+  const lists = [
+    'Tracks replies and orders', 'Tracks leads and order follow ups for me', 'Tracks buyer replies and order status',
+    'Keeps notes and client feedback', 'Tracks leads, replies and orders', 'Lists invoices and refunds for each month',
+    'Tracks calls, emails and messages from leads', 'Keeps quotes & orders in one list', 'Drafts quotes and email drafts for me',
+  ];
+  for (const duty of lists) assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
+  assert.equal(checkHire({ ...clean, job: 'Tracks leads and order follow ups for me.' }, others).job, 'Tracks leads and order follow ups for me.');
+  const acts = [
+    'Tracks stock and orders supplies', 'Tracks leads and emails them', 'Tracks leads and email them weekly', 'Lists leads and messages them',
+    'Drafts and posts', 'Keeps the books and pays', 'Tracks leads and email clients', 'Tracks stock, orders supplies',
+    'Tracks leads and renews subscriptions', 'Keeps the list and then orders',
+    'Track leads and orders', 'Tracks clients and replies to them',
+  ];
+  for (const duty of acts) assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), duty);
+});
+
+// Found in the real app on 16 Nov 2026: the AI's own duty "Drafts short captions for you to review and post." was
+// refused, because "post" after "and" was read as the agent's act. An act the owner does is not the agent acting: what
+// follows "for you to", "so you can" or "you" is the owner's, and a bare verb after "and" goes on with it. The agent's
+// own act beside it ("posts for you", "reviews and posts") is still judged.
+test('an act the owner does is not the agent acting; the agent\'s own act beside it is still judged', () => {
+  const owner = [
+    'Drafts short captions for you to review and post.', 'Drafts short captions for me to review and post', 'Drafts replies for you to review, approve and send',
+    'Drafts captions so you can post them', 'Lists the invoices so that you can send them', 'Drafts captions, you approve and post',
+    'Drafts captions and you post them', 'Drafts replies for you to check, then send', 'Prepares the invoice so I can send it',
+    'Draft captions for me to review and post', 'Drafts replies for you to review and send to clients', 'Keeps caption ideas for you to pick and post',
+  ];
+  for (const duty of owner) assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
+  assert.equal(checkHire({ ...clean, job: 'Drafts short captions for you to review and post.' }, others).job, 'Drafts short captions for you to review and post.');
+  const agent = [
+    'Posts for you', 'Sends it for you', 'Reviews and posts', 'Posts captions for you', 'Drafts captions for you to review and posts them',
+    'Drafts captions for you to review. Posts them on Fridays.', 'Drafts captions for you to review and then it posts them', 'Posts so you can rest',
+    'Sends invoices so you can relax', 'Drafts captions so you can rest and posts them', 'You approve and it sends the invoices',
+    'Draft captions for me to review and post them', 'Drafts captions for you to review; post them daily', 'Drafts replies you approve and emails clients',
+    'Drafts captions for you to review and pays the designer', 'You get replies sent to clients', 'You can relax as it posts for you',
+    'Lists invoices so you can rest when it sends them',
+  ];
+  for (const duty of agent) assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), duty);
+});

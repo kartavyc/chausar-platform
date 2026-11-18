@@ -36,6 +36,7 @@ import { listPeople } from '../network/store.ts';
 import { monthWords } from '../money/goal-plans.ts';
 import { short } from '../views/shared.ts';
 import { judgeClaim, type ResearchStatus } from '../delivery/research-rules.ts';
+import { handedOver } from '../delivery/run-machine.ts';
 import {
   contentTokens, forgetCached, heldReasons, listWords, liveSources, mergedNote, scoreSources, SCREEN_SOURCE, sentencesOf, sourceHeld, stemsOf,
 } from './knowledge-recall.ts';
@@ -220,7 +221,7 @@ async function readSource(deps: VentureDeps, state: State, venture: VentureRecor
     }
     case 'past-work': {
       const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === input.runId);
-      check(run && !run.practice && (run.status === 'accepted' || run.status === 'edited'), 'INVALID_VENTURE_REQUEST', 'Only work you accepted for a client can be a source.');
+      check(run && !run.practice && handedOver(run), 'INVALID_VENTURE_REQUEST', 'Only work you accepted for a client can be a source.');
       const raw = (run.editedText ?? run.renderedText ?? '').trim();
       check(raw, 'INVALID_VENTURE_REQUEST', 'That work has no words to keep.');
       const order = listRecords(state, 'venture-order', venture.id).find(item => item.id === run.orderId);

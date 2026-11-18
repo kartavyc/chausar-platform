@@ -14,7 +14,7 @@ export async function nativeContext(deps: VentureDeps, owner: Context, orderId: 
   const playbook = await ensurePlaybook(deps, owner);
   const run = await ventureAction(deps, owner, 'prepare', 'test.context', tx => tx.put({
     ...tx.base('venture-delivery-run'), orderId, playbookId: playbook.id, playbookHash: playbook.hash,
-    status: 'waiting-for-you', servedBy: 'model', practice: false, callId: null, preview: null,
+    status: 'working', servedBy: 'model', practice: false, callId: null, preview: null,
     deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null,
   }));
   const job = await createNativeJob(deps, owner, run.id, { agentId: 'delivery', sections: ['Reply'], check: () => undefined });

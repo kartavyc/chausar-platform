@@ -13,7 +13,8 @@ export const OVERVIEW: Record<string, MoneyOverviewLine[]> = {
     { id: 'spent', label: 'AI and tools this month', value: '$0.72 (includes estimates)', receiptId: 'R-0431', estimate: true, rupees: '₹60.10 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
   ],
   ledgerline: [
-    { id: 'received', label: 'Came in this month', value: '₹0', receiptId: 'R-0402' },
+    // Its own receipt: nothing came in yet (R-0402 is Lumen Studio's ₹86,200).
+    { id: 'received', label: 'Came in this month', value: '₹0', receiptId: 'R-0405' },
     { id: 'spent', label: 'AI and tools this month', value: '$0.40', receiptId: 'R-0412', rupees: '₹33.50 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
   ],
 };
@@ -122,12 +123,12 @@ export const CA_REQUEST_TITLES: Record<string, { deliveryId: string; title: stri
 export const LEADS: Record<string, LeadView[]> = {
   lumen: [
     {
-      id: 'lead-kite', name: 'Kabir Shah', company: 'Studio Kite', email: 'kabir@studiokite.co', emailDomain: 'studiokite.co', sourceUrl: 'https://studiokite.co/team',
+      id: 'lead-kite', name: 'Kabir Shah', company: 'Studio Kite', email: 'kabir@studiokite.co', emailDomain: 'studiokite.co', sourceUrl: 'https://studiokite.co/team', sourceNote: null,
       emailCheck: { status: 'unverified', at: null, line: 'Not checked yet: no mail server answered for studiokite.co.' },
       status: 'new', drafts: [], sends: [], moves: [], addedBy: 'owner', addedAt: '2026-10-20T15:00:00.000Z',
     },
     {
-      id: 'lead-pocket', name: 'Asha Rao', company: 'Pocket Audio', email: 'asha@pocketaudio.in', emailDomain: 'pocketaudio.in', sourceUrl: 'https://pocketaudio.in/about',
+      id: 'lead-pocket', name: 'Asha Rao', company: 'Pocket Audio', email: 'asha@pocketaudio.in', emailDomain: 'pocketaudio.in', sourceUrl: 'https://pocketaudio.in/about', sourceNote: null,
       emailCheck: { status: 'verified', at: '2026-10-19T10:00:00.000Z', line: 'A mail server answers for pocketaudio.in.' },
       status: 'new', drafts: [], sends: [], moves: [], addedBy: 'owner', addedAt: '2026-10-19T10:00:00.000Z',
     },

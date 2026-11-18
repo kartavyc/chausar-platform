@@ -259,23 +259,6 @@ describe('onboarding: what the engine forces before a vault', () => {
   });
 });
 
-describe('onboarding: New business from the business menu', () => {
-  it('reuses the same view inside the app, closes the open business first, and lands on Today with the new one open', async () => {
-    const { flow } = start({}, { hash: '#/onboarding' });
-    expect(await box()).toBeTruthy();
-    expect(screen.getByRole('navigation', { name: 'Places' })).toBeTruthy();
-    await type(IDEA);
-    // Inside the app the box's button says what it does (w3 3G2, D-Start); the first run keeps "Start".
-    await press('Make my plan');
-    await waitFor(() => expect(window.location.hash).toBe('#/today'));
-    expect(flow().map(([m]) => m).slice(0, 4)).toEqual(['venture.preview', 'workspace.status', 'workspace.lock', 'workspace.create']);
-    // Ledgerline's plan waits too; the queue spans every business, oldest first.
-    await waitFor(() => expect(cardTitle('Your plan is ready. Read it.')).toHaveLength(2));
-    // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
-    await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio.*Switch business/ })).toBeTruthy());
-  });
-});
-
 /*
  * One-shot C4 task 1: the plan card on About you. The name is a field with the suggested name in it, each offer a row
  * with a tick (kept by default) and a rename in place, and "Add an offer" at the end. At least one offer stays kept. A

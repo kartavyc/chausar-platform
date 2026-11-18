@@ -1,18 +1,17 @@
 // A2: first thing, before any other module loads: the process report never looks up the network (process-report.ts).
 import './process-report.ts';
 import { Engine } from './engine.ts';
-import { engineJobOptions } from './engine-jobs.ts';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { CodexTrust } from './codex-trust.ts';
 import { ventureHostEnv } from './venture/host-env.ts';
+import { addToolFolders } from './venture/models/cli-look.ts';
 import { processPrintPort } from './venture/playbooks/kit/report/pdf.ts';
 import { processFormsPort } from './venture/build/form-fill-port.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 import { processCredentialPort } from './venture/models/credential-port.ts';
 import { processRenderPort } from './venture/web/render-port.ts';
-import { processFlowPort } from './venture/flows/port.ts';
 import { createPhoneAccess } from './phone-access.ts';
 import { inkFolderFor, listInkFiles } from './ui-ink.ts';
 import { ownerError } from './owner-error.ts';
@@ -36,28 +35,21 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
   // One-shot A4 (row 107): the build desktop main names (inside app.asar in the packaged app), else the one beside us.
   const inkFolder = inkFolderFor(environment);
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: inkFolder, files: await listInkFiles(inkFolder) }) });
-  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: workerDataDirectory(environment), demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, ...withUpdates(environment), durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true,
+  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: workerDataDirectory(environment), demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, ...withUpdates(environment), workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true,
     // Ink v2 wave 5 (5A5): a report's PDF is printed by the desktop main process, asked over this worker's own channel.
     ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process), credentials: processCredentialPort(process),
       // Wave 6 (6F3): pages that need JavaScript are read in the desktop's hidden window (web-render.cjs).
-      webRender: processRenderPort(process),
-      // Wave 6 (6H2): recorded flows run in the desktop's flow window (flow-browser.cjs).
-      flowBrowser: processFlowPort(process) } : {}),
+      webRender: processRenderPort(process) } : {}),
     phoneAccess } });
 }
 
 /** Trusted host entry point. Tests can inject an Engine fixture, never a renderer or RPC. */
 export function runEngineWorker(engine: Engine) {
-  const scheduler = setInterval(() => { void engine.tick().catch(error => reply({ kind: 'scheduler-error', code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' })); }, 30000); scheduler.unref();
+  const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
   function reply(value: unknown) { if (process.connected) process.send?.(value as any, () => {}); }
   // Run events for the Ink frontend: the desktop main process checks each one and forwards it to the window.
   engine.onVentureEvent(event => reply({ kind: 'venture-event', event }));
   process.on('message', async (message: any) => {
-    if (message?.kind === 'host-lifecycle') {
-      try { engine.updateJobLifecycle(message.state); reply({ id: message.id, kind: 'host-lifecycle', applied: true, result: { applied: true } }); }
-      catch (error) { reply({ id: message.id, kind: 'host-lifecycle', applied: false, error: { code: (error as any).code ?? 'INVALID_JOB_LIFECYCLE', message: (error as Error).message } }); }
-      return;
-    }
     // Whether the owner is looking at the window (shown, not minimised, focused): a plain notice, no reply (4G1).
     if (message?.kind === 'host-watching') { engine.updateOwnerWatching(message.watching === true); return; }
     // A2 second review: the owner's choice of Codex, only from main (its dialog), never a window request.
@@ -84,4 +76,8 @@ export function runEngineWorker(engine: Engine) {
   reply({ ready: true });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runEngineWorker(await createWorkerEngine());
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // The desktop app's own search path is short: add the usual install folders before anything looks for a tool.
+  addToolFolders();
+  runEngineWorker(await createWorkerEngine());
+}

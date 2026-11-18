@@ -14,7 +14,7 @@ import { reworkTiesDaily } from '../network/strength.ts';
 import { readCalendarFeedDaily } from '../network/calendar-feed.ts';
 import { settleInbound } from '../network/inbound-rows.ts';
 import { runMoneySchedules } from '../money/recurring.ts';
-import { recoverNativeJobs } from '../agent-runtime/recovery.ts';
+import { recoverRuns } from '../agent-runtime/recovery.ts';
 
 /** The longest any journalled effect may take before its claim counts as interrupted: a turn on the owner's AI with its tools. */
 export const JOURNAL_CLAIM_LIMIT_MS = 30 * 60_000;
@@ -22,7 +22,7 @@ export const JOURNAL_CLAIM_LIMIT_MS = 30 * 60_000;
 /** Sweeps every kind of journalled effect of the open business. Returns what moved. */
 export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLimitMs: number = JOURNAL_CLAIM_LIMIT_MS): Promise<Journalled[]> {
   // The host uses a one-millisecond claim limit on vault open. Ordinary ticks must not interrupt startup work.
-  if (claimLimitMs === 1) await recoverNativeJobs(deps, ctx);
+  if (claimLimitMs === 1) await recoverRuns(deps, ctx);
   const posts = await sweepStaleClaims(deps, ctx);
   const rest = await sweepJournal(deps, ctx, {
     claimLimitMs,
@@ -30,6 +30,8 @@ export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLi
       ? `Chausar stopped while posting. Check ${postingName(record.connectorId)} before posting again: the post may have gone out. Chausar will not send it again.`
       : withCheck(`${JOURNAL_ACTIONS[actionOf(record)].label} was under way when Chausar stopped.`),
   });
+  // A search for customers a restart left approved or running is ended, after the journal says what its call did (never throws).
+  await import('../customers/find-search.ts').then(module => module.recoverLeadSearches(deps, ctx, claimLimitMs)).catch(() => undefined);
   // A site entry's subject is '<edit id>.<applied or rolled-back>'.
   const edits = rest.flatMap(record => record.kind === 'venture-journal-entry' && record.action === 'site.apply' && record.state === 'outcome_unknown'
     ? [record.subject.slice(0, Math.max(0, record.subject.lastIndexOf('.')))] : []);

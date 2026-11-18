@@ -11,7 +11,7 @@ import { AgentList } from './AgentCard';
 import { AgentSheet } from './AgentSheet';
 import { HireSheet } from './HireSheet';
 import { RetiredShelf } from './AgentRetire';
-import { CountsLine, DepartmentPanel } from './DepartmentPanel';
+import { ADD_AGENT_HREF, CountsLine, DepartmentPanel } from './DepartmentPanel';
 import { chosenDept, departmentsOf, versionOf, type DepartmentData, type Member } from './departments';
 import { HealthLine } from './HealthLine';
 import { JobsTile } from './JobsTile';
@@ -29,7 +29,7 @@ import { LoadingPlace } from '../../parts/Skeleton';
  */
 export const TEAM_ACCEPT_PLAN_HREF = '#/today?focus=plan&read=1';
 /** B4 task 14's "Add an agent here" keeps one address: C7 task 16's hire sheet. */
-export const TEAM_ADD_AGENT_HREF = '#/team?sheet=hire:new';
+export const TEAM_ADD_AGENT_HREF = ADD_AGENT_HREF;
 
 /**
  * Team (D-Team): who is working, who waits on you and the AI spend this month, then the agents as cards. Once the
@@ -86,6 +86,8 @@ function PlaceBody() {
       {some && team.data?.introduce && team.data.introduce.length > 0 && <TeamIntro lines={team.data.introduce} onDone={team.reload} />}
       {some && (
         <div className={s.page}>
+          {/* Hired agents stand here before the plan is accepted; the engine's one line says the plan brings the rest. */}
+          {team.data?.waitsForPlan && <p className={s.waits} data-waits-for-plan="">{team.data.waitsForPlan} <a className={s.link} href={TEAM_ACCEPT_PLAN_HREF}>{t('team.waits.link')}</a></p>}
           {split && (
             <div className={s.toolbar}>
               {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}

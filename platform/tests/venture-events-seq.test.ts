@@ -40,7 +40,7 @@ test('the venture host: every frame carries its seq, notify.new alone a count, a
     ...PACKAGE_LOADERS,
     views: async () => ({ handlers: { 'venture.runs.list': async (deps: VentureDeps) => {
       await ventureAction(deps, owner, 'prepare', 'test.events', tx => { tx.emit('client-added', {}); tx.emit('run.done', { runId: 'delivery_1', count: 4 }); });
-      return { runs: [] };
+      return { runs: [], searches: [] };
     } } }),
   };
   const host = new VentureHost(env.store, env.deps.services, {
@@ -220,8 +220,8 @@ test('only the owner\'s stream counts as the owner watching: a member\'s stream 
   await rpc('workspace.create', { name: 'Ledgerline', passphrase: 'long-enough-passphrase', pack: 'services' });
   await rpc('venture.create', { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN' });
   await rpc('venture.notify.settings', { quietHours: null });
-  const invited = await rpc('auth.invite', { name: 'Delhi reader', role: 'viewer', branches: ['Delhi'] });
-  const member = await rpc('auth.accept', { token: invited.token });
+  const added = await rpc('members.add', { name: 'Delhi reader', role: 'viewer', branches: ['Delhi'] });
+  const member = await rpc('auth.session', { memberId: added.id });
   const notifications = () => listRecords((engine as any).vault.read(), 'venture-notification');
   const newest = () => notifications().at(-1)!;
   const later = async () => {

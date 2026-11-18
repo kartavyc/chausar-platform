@@ -1,4 +1,5 @@
 // Original YouTube research privacy boundary. Source references and opaque client links govern deletion, not names alone.
+import {eraseRun,eraseCall} from '../../delivery/erase-runs.ts';
 import type {VentureTx} from '../../records.ts';
 import {removeRecords} from '../../network/people.ts';
 import {YOUTUBE_OFFERS} from './playbook.ts';
@@ -10,8 +11,8 @@ export function eraseYoutubeResearch(tx:VentureTx,clientIds:ReadonlySet<string>,
  const orders=tx.list('venture-order').filter(order=>(order.youtubeResearch||order.youtubePublic||ownOffers.has(order.offerId))&&(clientIds.has(order.clientId)||named(order.youtubeResearch??order.youtubePublic))),ids=new Set(orders.map(order=>order.id));
  const runs=tx.list('venture-delivery-run').filter(run=>ids.has(run.orderId)),runIds=new Set([...ids,...runs.map(run=>run.id)]),callIds=callLinks(runs),reportIds=new Set(tx.list('venture-report').filter(report=>runIds.has(report.runId)).map(report=>report.id));
  const receipts=tx.list('venture-work-receipt').filter(row=>row.operation==='youtube.compute'&&('runId'in row.runRef&&runIds.has(row.runRef.runId)||named(row))),receiptIds=new Set(receipts.map(row=>row.id)),sourceIds=new Set([...orders.flatMap(order=>[...(order.youtubeResearch?[order.youtubeResearch.source.id]:[]),...(order.youtubePublic?.uploadId?[order.youtubePublic.uploadId]:[])]),...receipts.flatMap(row=>row.inputs.tables.map(source=>source.id))]);
- for(const call of tx.list('venture-model-call'))if(callIds.has(call.id))tx.replace({...call,payloadText:'',payloadTruncated:false,error:null,erasedAt:tx.now,...(call.status==='preview'?{status:'expired' as const}:{})});
- for(const run of runs){const {judge:_judge,...rest}=run;tx.replace({...rest,status:'stopped',callId:null,preview:null,deliverable:null,renderedText:null,editedText:null,harness:null,checks:[],playbookChecks:[],verdict:null});tx.emit('run.stopped',{runId:run.id});}
+ for(const call of tx.list('venture-model-call'))if(callIds.has(call.id))eraseCall(tx,call);
+ for(const run of runs)eraseRun(tx,run);
  for(const order of orders){const {youtubeResearch:_source,youtubePublic:_public,intake:_intake,...kept}=order;tx.replace(kept);}
  removeRecords(tx,row=>typeof row.id==='string'&&(row.kind==='venture-idea'&&Array.isArray(row.evidence)&&row.evidence.some(e=>e.kind==='youtube-comment-order'&&ids.has(e.id))||row.kind==='venture-work-receipt'&&receiptIds.has(row.id)||row.kind==='venture-upload'&&(sourceIds.has(row.id)||row.scope!==null&&typeof row.scope==='object'&&'orderId'in row.scope&&ids.has(String(row.scope.orderId)))||row.kind==='venture-share-link'&&runIds.has(String(row.deliveryId))||row.kind==='venture-report'&&reportIds.has(row.id)||row.kind==='venture-report-share'&&reportIds.has(String(row.reportId))||(row.kind==='venture-work-receipt'||row.kind==='venture-work-table')&&row.runRef!==null&&typeof row.runRef==='object'&&'runId'in row.runRef&&runIds.has(String(row.runRef.runId))));
  if(orders.length||receipts.length){tx.emit('desk.changed',{playbook:'youtube',kind:'research'});tx.emit('queue.changed',{});}

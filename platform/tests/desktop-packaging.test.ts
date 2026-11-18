@@ -150,7 +150,7 @@ test('a Windows build checks the pinned rcedit.exe before anything runs: missing
 
 test('a Linux or macOS build never asks for rcedit.exe (A7 fix round 1, any host)', async t => {
   const root = await fixture(t);
-  for (const [platform, mode] of [['linux', 'beta'], ['linux', 'preview'], ['darwin', 'preview']]) {
+  for (const [platform, mode] of [['linux', 'beta'], ['linux', 'preview'], ['darwin', 'preview'], ['darwin', 'beta']]) {
     const result = await desktopPackagePrerequisites({ root, ...asHost(platform, mode), environment: {} });
     assert.ok(![...result.checks, ...result.failures.map((failure: any) => failure.check)].includes(RCEDIT_CHECK), `${platform} ${mode}`);
   }
@@ -343,8 +343,27 @@ test('the beta plan uses its own configuration and output folder, never publishe
   assert.match(plan.qualification, /unsigned beta/);
   assert.deepEqual(createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'linux', hostArchitecture: 'x64' }).builderArguments, ['--config', 'app/desktop/builder.beta.json', '--linux', '--x64', '--publish', 'never']);
   assert.deepEqual(parseDesktopPackageArguments(['--mode', 'beta']), { mode: 'beta' });
-  assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'darwin', architecture: 'arm64', hostPlatform: 'darwin', hostArchitecture: 'arm64' }), /Windows and Linux/);
   assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' }), /matching native host/);
+});
+
+// The Mac build (the founder's decision, 14 Nov 2026): the beta is built for macOS on arm64 and x64 too, natively.
+test('Mac: the beta plan builds for arm64 and x64 on a matching Mac, never publishes, and says what unsigned means there', () => {
+  for (const architecture of ['arm64', 'x64']) {
+    const plan = createDesktopPackagePlan({ mode: 'beta', platform: 'darwin', architecture, hostPlatform: 'darwin', hostArchitecture: architecture });
+    assert.equal(plan.config, 'app/desktop/builder.beta.json');
+    assert.equal(plan.output, 'release/beta');
+    assert.equal(plan.target, `darwin-${architecture}`);
+    assert.deepEqual(plan.builderArguments, ['--config', 'app/desktop/builder.beta.json', '--mac', `--${architecture}`, '--publish', 'never']);
+    assert.match(plan.qualification, /unsigned beta/);
+    assert.match(plan.qualification, /macOS blocks/);
+    assert.match(plan.qualification, /no publishing or update channel/);
+  }
+  // Windows and Linux keep their own words.
+  assert.match(createDesktopPackagePlan({ mode: 'beta', platform: 'win32', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' }).qualification, /Windows warns about an unknown publisher/);
+  assert.doesNotMatch(createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'linux', hostArchitecture: 'x64' }).qualification, /macOS/);
+  // Still native only: a Mac build on Windows or Linux, or for the other Mac chip, is refused.
+  assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'darwin', architecture: 'arm64', hostPlatform: 'linux', hostArchitecture: 'arm64' }), /matching native host/);
+  assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'darwin', architecture: 'x64', hostPlatform: 'darwin', hostArchitecture: 'arm64' }), /matching native host/);
 });
 
 test('beta packaging strips signing and service credentials from the build like the preview does (6J1)', () => {
@@ -364,7 +383,15 @@ test('the beta configuration: product Chausar, real data, unsigned NSIS per user
   assert.deepEqual(beta.linux.target, ['deb', 'AppImage', 'tar.gz']);
   assert.deepEqual(beta.deb, { maintainer: 'Kartavy Chauhan <info@chausar.co.in>' });
   assert.equal(beta.linux.executableName, 'chausar');
-  assert.equal(beta.mac, undefined, 'Mac is out of scope for the beta');
+  // The Mac build (14 Nov 2026): a dmg and a zip, the logo, the hardened runtime with the app's own entitlements, the
+  // bundled Codex left exactly as staged, and no identity or notarisation switch in the file: both come only from the
+  // environment values electron-builder reads.
+  assert.deepEqual(beta.mac, {
+    target: ['dmg', 'zip'], icon: 'app/desktop/icons/icon.icns', electronLanguages: ['en', 'en_GB', 'hi'], hardenedRuntime: true,
+    entitlements: 'app/desktop/entitlements.mac.plist', entitlementsInherit: 'app/desktop/entitlements.mac.plist',
+    signIgnore: ['/Contents/Resources/codex/'],
+    extendInfo: { NSMicrophoneUsageDescription: 'Chausar uses the microphone only when you start push to talk or live captions.' },
+  });
   assert.deepEqual(beta.extraResources, [{ from: 'vendor/codex-bundle/${os}-${arch}', to: 'codex', filter: ['**/*'] }, { from: 'app/desktop/notices', to: 'notices', filter: ['**/*'] }, { from: 'LICENSE', to: 'LICENSE' }, { from: 'NOTICE', to: 'NOTICE' }, { from: 'vendor/feedback/feedback.json', to: 'feedback.json' }]);
   assert.equal(beta.publish, null);
   assert.equal(beta.npmRebuild, false);
@@ -372,7 +399,7 @@ test('the beta configuration: product Chausar, real data, unsigned NSIS per user
   assert.equal(beta.directories.output, 'release/beta');
   // electron-builder 26 lists every unpacked file of a mixed file set in one pattern, and @electron/asar refuses a
   // pattern over 64 KB (the first live build stopped there). Each folder that is unpacked whole is its own file set.
-  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
+  for (const folder of ['platform/runtime', 'platform/helpers']) {
     assert.ok(beta.files.some((entry: any) => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] })), folder);
     assert.ok(!beta.files.includes(`${folder}/**/*`), folder);
   }
@@ -410,6 +437,173 @@ test('beta checks refuse signing, publishing, the preview identity, other resour
   }
 });
 
+test('Mac: beta checks refuse a missing Mac target, an identity or a notarisation switch in the file, another shape, or a re-signed Codex', async t => {
+  const { validateBetaConfig } = desktopPackage;
+  validateBetaConfig(beta);
+  const { mac: _dropped, ...withoutMac } = beta;
+  const variants: [unknown, RegExp][] = [
+    [withoutMac, /Mac/],
+    [{ ...beta, mac: { ...beta.mac, target: ['dmg'] } }, /dmg and a zip/],
+    [{ ...beta, mac: { ...beta.mac, target: ['zip', 'dmg', 'pkg'] } }, /dmg and a zip/],
+    // A name in the file would be a made-up identity; null would switch signing off for good.
+    [{ ...beta, mac: { ...beta.mac, identity: 'Developer ID Application: Someone (TEAM123456)' } }, /identity/],
+    [{ ...beta, mac: { ...beta.mac, identity: null } }, /identity/],
+    [{ ...beta, mac: { ...beta.mac, notarize: false } }, /notaris/],
+    [{ ...beta, mac: { ...beta.mac, notarize: { teamId: 'TEAM123456' } } }, /notaris/],
+    [{ ...beta, mac: { ...beta.mac, hardenedRuntime: false } }, /hardened runtime/],
+    [{ ...beta, mac: { ...beta.mac, entitlements: 'other.plist' } }, /entitlements/],
+    [{ ...beta, mac: { ...beta.mac, entitlementsInherit: undefined } }, /entitlements/],
+    [{ ...beta, mac: { ...beta.mac, signIgnore: [] } }, /Codex/],
+    [{ ...beta, mac: { ...beta.mac, signIgnore: undefined } }, /Codex/],
+    [{ ...beta, mac: { ...beta.mac, extendInfo: {} } }, /microphone/],
+    [{ ...beta, mac: { ...beta.mac, sign: './own-sign.js' } }, /only/],
+    [{ ...beta, mac: { ...beta.mac, binaries: ['Contents/Resources/codex/bin/codex'] } }, /only/],
+    [{ ...beta, mac: { ...beta.mac, provisioningProfile: 'embedded.provisionprofile' } }, /only/],
+    [{ ...beta, mac: { ...beta.mac, icon: 'app/desktop/icon.png' } }, /icon/],
+    [{ ...beta, dmg: { sign: true } }, /dmg/],
+    [{ ...beta, afterSign: './notarise.js' }, /hook/],
+  ];
+  for (const [config, words] of variants) {
+    assert.throws(() => validateBetaConfig(config), words, JSON.stringify((config as any).mac ?? null).slice(0, 120));
+    // The same refusal on a Mac host, before anything is built.
+    const result = await desktopPackagePrerequisites({ root: await fixture(t, preview, config), ...asHost('darwin', 'beta'), environment: {} });
+    assert.ok(result.failures.some((failure: any) => failure.check === 'packaging configuration'), JSON.stringify((config as any).mac ?? null).slice(0, 120));
+  }
+});
+
+test('Mac: the entitlements file is the one the configuration names, and grants only what the app uses', async () => {
+  const plist = await readFile(new URL('../../app/desktop/entitlements.mac.plist', import.meta.url), 'utf8');
+  const keys = [...plist.matchAll(/<key>([^<]+)<\/key>\s*<(true|false)\/>/g)].map(match => `${match[1]}=${match[2]}`);
+  assert.deepEqual(keys, ['com.apple.security.cs.allow-jit=true', 'com.apple.security.cs.allow-unsigned-executable-memory=true', 'com.apple.security.device.audio-input=true']);
+  assert.match(plist, /^<\?xml version="1\.0" encoding="UTF-8"\?>\r?\n<!DOCTYPE plist PUBLIC/);
+  // No library validation switch, no camera, no access to other apps, no sandbox exceptions.
+  assert.doesNotMatch(plist, /disable-library-validation|device\.camera|automation\.apple-events|files\.|get-task-allow/);
+  assert.equal(plist.includes('\u2014'), false, 'no em dashes');
+});
+
+const MAC_VARIABLES = ['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'];
+/** Signing values that are plainly not real: built here, never a real certificate, password or Apple account. */
+async function fakeMacSigning(t: any) {
+  const folder = await mkdtemp(join(tmpdir(), 'chausar-mac-signing-test-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const certificate = join(folder, 'not-a-real-certificate.p12');
+  await writeFile(certificate, 'not a certificate; a unit test stand-in');
+  return { CSC_LINK: certificate, CSC_KEY_PASSWORD: ['unit', 'test', 'only'].join('-'), APPLE_ID: 'owner@example.invalid', APPLE_APP_SPECIFIC_PASSWORD: ['unit', 'test', 'words'].join('-'), APPLE_TEAM_ID: 'UNITTEST00' };
+}
+
+test('Mac: with no Apple signing values the build is unsigned, and the words say what the person installing it must do', async t => {
+  const { macSigningState, MAC_SIGNING_VARIABLES, MAC_UNSIGNED_WORDS } = desktopPackage;
+  assert.deepEqual([...MAC_SIGNING_VARIABLES], MAC_VARIABLES);
+  const root = await fixture(t);
+  const none = await macSigningState({ root, environment: { PATH: 'local-tools' } });
+  assert.deepEqual(none, { state: 'unsigned', words: MAC_UNSIGNED_WORDS });
+  assert.deepEqual(await macSigningState({ root, environment: { CSC_LINK: '', APPLE_ID: '  ' } }), none, 'empty values count as not set');
+  assert.match(MAC_UNSIGNED_WORDS, /not signed with an Apple Developer ID/);
+  assert.match(MAC_UNSIGNED_WORDS, /not notarised/);
+  assert.match(MAC_UNSIGNED_WORDS, /macOS blocks it the first time/);
+  assert.match(MAC_UNSIGNED_WORDS, /Privacy & Security.*Open Anyway/);
+  assert.match(MAC_UNSIGNED_WORDS, /right-click the app and choose Open/);
+  for (const name of MAC_VARIABLES) assert.ok(MAC_UNSIGNED_WORDS.includes(name), name);
+  assert.equal(MAC_UNSIGNED_WORDS.includes('\u2014'), false, 'no em dashes');
+});
+
+test('Mac: a half-set list of signing values stops the build by name, never repeating a value; a full list means a Developer ID build', async t => {
+  const { macSigningState, MAC_SIGNED_WORDS } = desktopPackage;
+  const root = await fixture(t), full = await fakeMacSigning(t);
+  assert.deepEqual(await macSigningState({ root, environment: { PATH: 'local-tools', ...full } }), { state: 'developer-id', words: MAC_SIGNED_WORDS });
+  assert.match(MAC_SIGNED_WORDS, /Developer ID/);
+  assert.match(MAC_SIGNED_WORDS, /notaris/);
+  assert.equal(MAC_SIGNED_WORDS.includes('\u2014'), false, 'no em dashes');
+  for (const missing of MAC_VARIABLES) {
+    const environment: Record<string, string> = { ...full }; delete environment[missing];
+    let message = '';
+    try { await macSigningState({ root, environment }); } catch (error: any) { message = error.message; }
+    assert.match(message, new RegExp(`Not set: ${missing}\\.`), missing);
+    assert.match(message, /Set all five or none/);
+    for (const value of Object.values(environment)) assert.ok(!message.includes(value), 'the error names the variable, never a value');
+  }
+  // The certificate is a file on this computer, outside the checkout; a relative path, a missing file, a link, a web
+  // address or pasted certificate text is refused.
+  const inside = join(root, 'certificate.p12');
+  await writeFile(inside, 'not a certificate');
+  const link = join(full.CSC_LINK, '..', 'link.p12');
+  let linked = true;
+  try { await symlink(full.CSC_LINK, link); } catch { linked = false; }
+  for (const [value, words] of [['certificate.p12', /absolute/], [inside, /outside the code folder/], [join(full.CSC_LINK, '..', 'gone.p12'), /missing/], ['https://example.invalid/certificate.p12', /absolute/], ...(linked ? [[link, /regular/]] : [])] as [string, RegExp][]) {
+    let message = '';
+    try { await macSigningState({ root, environment: { ...full, CSC_LINK: value } }); } catch (error: any) { message = error.message; }
+    assert.match(message, /CSC_LINK/);
+    assert.match(message, words, value);
+    assert.ok(!message.includes(full.CSC_KEY_PASSWORD) && !message.includes(full.APPLE_APP_SPECIFIC_PASSWORD));
+  }
+});
+
+test('Mac: only electron-builder, only for a Mac beta with all five values, ever receives them; every other child gets none', async t => {
+  const full = await fakeMacSigning(t);
+  const source = { PATH: 'local-tools', ...full, WIN_CSC_LINK: 'private', CSC_NAME: 'private', CSC_INSTALLER_LINK: 'private', APPLE_API_KEY: 'private', APPLE_KEYCHAIN_PROFILE: 'private', GH_TOKEN: 'private', CHAUSAR_POSTGRES_URL: 'private', CSC_IDENTITY_AUTO_DISCOVERY: 'false' };
+  // The default is what it always was: nothing.
+  assert.deepEqual(desktopPackagingEnvironment('beta', source), { PATH: 'local-tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
+  assert.deepEqual(desktopPackagingEnvironment('beta', source, { macSigning: false }), { PATH: 'local-tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
+  // Signing: exactly the five, and identity discovery left on so the certificate in CSC_LINK is found (it is searched
+  // for only in the keychain electron-builder makes from that file).
+  assert.deepEqual(desktopPackagingEnvironment('beta', source, { macSigning: true }), { PATH: 'local-tools', ...full });
+  // The demo preview is never signed, whatever is asked.
+  assert.deepEqual(desktopPackagingEnvironment('preview', source, { macSigning: true }), { PATH: 'local-tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
+  assert.equal(source.CSC_LINK, full.CSC_LINK, 'the parent environment is not changed');
+  // packageDesktop gives them to the electron-builder child alone.
+  const text = await readFile(new URL('../../scripts/desktop-package.mjs', import.meta.url), 'utf8');
+  const body = text.slice(text.indexOf('export async function packageDesktop'));
+  assert.match(body, /macSigning: command\.name === 'electron-builder' && signing\?\.state === 'developer-id'/);
+});
+
+test('Mac: the beta checks on a Mac name the signing state as a check and say the unsigned words as a notice; a half-set list blocks', async t => {
+  const { MAC_UNSIGNED_WORDS, MAC_SIGNED_WORDS } = desktopPackage;
+  const CHECK = 'macOS signing and notarisation';
+  const root = await fixture(t), full = await fakeMacSigning(t);
+  const unsigned = await desktopPackagePrerequisites({ root, ...asHost('darwin', 'beta'), environment: {} });
+  assert.ok(unsigned.checks.includes(CHECK));
+  assert.ok(unsigned.checks.includes('packaging configuration'));
+  assert.deepEqual(unsigned.notices, [MAC_UNSIGNED_WORDS]);
+  assert.equal(unsigned.macSigning, 'unsigned');
+  assert.match(unsigned.qualification, /unsigned beta/);
+  const signed = await desktopPackagePrerequisites({ root, ...asHost('darwin', 'beta'), environment: full });
+  assert.ok(signed.checks.includes(CHECK));
+  assert.deepEqual(signed.notices, [MAC_SIGNED_WORDS]);
+  assert.equal(signed.macSigning, 'developer-id');
+  assert.doesNotMatch(signed.qualification, /unsigned/);
+  assert.match(signed.qualification, /Developer ID/);
+  const half = await desktopPackagePrerequisites({ root, ...asHost('darwin', 'beta'), environment: { APPLE_ID: full.APPLE_ID } });
+  const failure = half.failures.find((item: any) => item.check === CHECK);
+  assert.match(failure?.reason ?? '', /Not set: CSC_LINK, CSC_KEY_PASSWORD, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID\./);
+  assert.ok(!JSON.stringify(half).includes(full.APPLE_ID), 'no value is repeated');
+  assert.equal(half.ok, false);
+  // Windows and Linux betas, and the Mac preview, are not asked and say nothing new.
+  for (const [platform, mode] of [['win32', 'beta'], ['linux', 'beta'], ['darwin', 'preview']]) {
+    const other = await desktopPackagePrerequisites({ root, ...asHost(platform, mode), environment: full });
+    assert.ok(![...other.checks, ...other.failures.map((item: any) => item.check)].includes(CHECK), `${platform} ${mode}`);
+    assert.equal(other.notices, undefined, `${platform} ${mode}`);
+    assert.equal(other.macSigning, undefined, `${platform} ${mode}`);
+  }
+});
+
+test('Mac: a build that was to be signed is checked with macOS codesign before it gets a receipt', async () => {
+  const { macSignatureProblem } = desktopPackage;
+  // The lines macOS codesign prints for a Developer ID signature (codesign -dv --verbose=2), with made-up names.
+  const signedLines = ['Executable=/x/Chausar.app/Contents/MacOS/Chausar', 'Identifier=in.chausar.desktop', 'CodeDirectory v=20500 size=1 flags=0x10000(runtime) hashes=1+7 location=embedded', 'Authority=Developer ID Application: Unit Test (UNITTEST00)', 'Authority=Developer ID Certification Authority', 'Authority=Apple Root CA', 'TeamIdentifier=UNITTEST00'].join('\n');
+  const adHocLines = ['Executable=/x/Chausar.app/Contents/MacOS/Chausar', 'Identifier=in.chausar.desktop', 'CodeDirectory v=20400 size=1 flags=0x2(adhoc) hashes=1+7 location=embedded', 'Signature=adhoc', 'TeamIdentifier=not set'].join('\n');
+  const calls: string[][] = [];
+  const run = (answers: { verify?: number; text?: string }) => async (command: string, args: string[]) => {
+    calls.push([command, ...args]);
+    return args.includes('--verify') ? { exitCode: answers.verify ?? 0, output: '' } : { exitCode: 0, output: answers.text ?? signedLines };
+  };
+  assert.equal(await macSignatureProblem('/x/Chausar.app', { teamId: 'UNITTEST00', run: run({}) }), null);
+  assert.deepEqual(calls, [['/usr/bin/codesign', '--verify', '--deep', '--strict', '/x/Chausar.app'], ['/usr/bin/codesign', '--display', '--verbose=2', '/x/Chausar.app']]);
+  assert.match(await macSignatureProblem('/x/Chausar.app', { teamId: 'UNITTEST00', run: run({ verify: 1 }) }) ?? '', /does not pass macOS's own signature check/);
+  assert.match(await macSignatureProblem('/x/Chausar.app', { teamId: 'UNITTEST00', run: run({ text: adHocLines }) }) ?? '', /no Developer ID signature/);
+  assert.match(await macSignatureProblem('/x/Chausar.app', { teamId: 'OTHERTEAM0', run: run({}) }) ?? '', /another team/);
+  assert.match(await macSignatureProblem('/x/Chausar.app', { teamId: 'UNITTEST00', run: run({ text: signedLines.replace('(runtime)', '(none)') }) }) ?? '', /hardened runtime/);
+});
+
 test('beta prerequisites ask for the staged Codex bundle with its LICENSE and NOTICE before anything is built (6J1)', async t => {
   const root = await fixture(t);
   const result = await desktopPackagePrerequisites({ root, plan: createDesktopPackagePlan({ mode: 'beta' }), environment: {} });
@@ -425,6 +619,72 @@ test('beta artifact names: one Windows installer, or a deb, an AppImage and a ta
   const { expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: pkg.version });
   if (process.platform === 'win32') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-win-${process.arch}.exe`]);
   else if (process.platform === 'linux') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'amd64' : process.arch}.deb`, `Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'x86_64' : process.arch}.AppImage`, `Chausar-Beta-${pkg.version}-linux-${process.arch}.tar.gz`]);
+  // The Mac build: a dmg to install from and a zip (the file the update check downloads and shows).
+  else if (process.platform === 'darwin') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-mac-${process.arch}.dmg`, `Chausar-Beta-${pkg.version}-mac-${process.arch}.zip`]);
+});
+
+test('Mac artifact names: a dmg and a zip, named mac with the chip (arm64 or x64), for the beta and the preview', () => {
+  const { expectedArtifactNames } = desktopPackage;
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'darwin', architecture: 'arm64', version: '1.2.3' }), ['Chausar-Beta-1.2.3-mac-arm64.dmg', 'Chausar-Beta-1.2.3-mac-arm64.zip']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'darwin', architecture: 'x64', version: '1.2.3' }), ['Chausar-Beta-1.2.3-mac-x64.dmg', 'Chausar-Beta-1.2.3-mac-x64.zip']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'preview', platform: 'darwin', architecture: 'arm64', version: '1.2.3' }), ['Chausar-Preview-1.2.3-mac-arm64.dmg', 'Chausar-Preview-1.2.3-mac-arm64.zip']);
+  // The names come from the pattern in the file, which a Mac build expands with its own os word.
+  assert.equal(beta.artifactName, 'Chausar-Beta-${version}-${os}-${arch}.${ext}');
+});
+
+test('Mac: where a build leaves its unpacked app, and where its resources are', () => {
+  const { unpackedBuild } = desktopPackage;
+  // electron-builder: the app itself, in mac (x64) or mac-arm64, with resources inside it.
+  assert.deepEqual(unpackedBuild({ platform: 'darwin', architecture: 'arm64', productName: 'Chausar' }), { folder: 'mac-arm64/Chausar.app', resources: 'mac-arm64/Chausar.app/Contents/Resources' });
+  assert.deepEqual(unpackedBuild({ platform: 'darwin', architecture: 'x64', productName: 'Chausar Unsigned Preview' }), { folder: 'mac/Chausar Unsigned Preview.app', resources: 'mac/Chausar Unsigned Preview.app/Contents/Resources' });
+  // Windows and Linux stay as they were.
+  assert.deepEqual(unpackedBuild({ platform: 'win32', architecture: 'x64', productName: 'Chausar' }), { folder: 'win-unpacked', resources: 'win-unpacked/resources' });
+  assert.deepEqual(unpackedBuild({ platform: 'linux', architecture: 'x64', productName: 'Chausar' }), { folder: 'linux-unpacked', resources: 'linux-unpacked/resources' });
+  assert.throws(() => unpackedBuild({ platform: 'darwin', architecture: 'arm64', productName: '../Chausar' }), /product name/);
+});
+
+// Found on the first real Mac build (14 Nov 2026): electron-builder names the unpacked folder of an arm64 build with the
+// chip (win-arm64-unpacked, linux-arm64-unpacked), as it names mac-arm64; only x64 goes without. The package checks
+// read that folder after a build, so an arm64 Windows or Linux build was read from a folder that is not there.
+test('where a Windows or Linux build leaves its unpacked folder: named with the chip on arm64, as electron-builder names it', () => {
+  const { unpackedBuild } = desktopPackage;
+  assert.deepEqual(unpackedBuild({ platform: 'win32', architecture: 'arm64', productName: 'Chausar' }), { folder: 'win-arm64-unpacked', resources: 'win-arm64-unpacked/resources' });
+  assert.deepEqual(unpackedBuild({ platform: 'linux', architecture: 'arm64', productName: 'Chausar' }), { folder: 'linux-arm64-unpacked', resources: 'linux-arm64-unpacked/resources' });
+  assert.deepEqual(unpackedBuild({ platform: 'win32', architecture: 'x64' }), { folder: 'win-unpacked', resources: 'win-unpacked/resources' });
+  assert.deepEqual(unpackedBuild({ platform: 'linux', architecture: 'x64' }), { folder: 'linux-unpacked', resources: 'linux-unpacked/resources' });
+  for (const [platform, architecture] of [['freebsd', 'x64'], ['linux', 'ia32'], ['win32', undefined]]) assert.throws(() => unpackedBuild({ platform, architecture, productName: 'Chausar' }), /win32, darwin or linux|x64 or arm64/);
+});
+
+// Found by reading on 14 Nov 2026 and held here: the checks rebuilt the plan without the flag, compared the two, and
+// so refused every build that passed --allow-unrecorded-codex as a changed plan, on every platform.
+test('--allow-unrecorded-codex reaches the checks: a beta whose staged Codex has no recorded setup is refused without it and passes that check with it', async t => {
+  const { bundleFolderName, codexTarget, CODEX_BUNDLE, LEFT_OUT } = await import('../../scripts/codex-bundle.mjs' as string);
+  const { createHash } = await import('node:crypto');
+  const root = await fixture(t);
+  const entrypoint = process.platform === 'win32' ? 'bin/codex.exe' : 'bin/codex';
+  const staged = join(root, ...bundleFolderName(process.platform, process.arch).split('/'));
+  await mkdir(join(staged, 'bin'), { recursive: true });
+  const files: Record<string, { size: number; sha256: string }> = {};
+  for (const [name, bytes] of [['LICENSE', await readFile(new URL('../../app/desktop/notices/codex/LICENSE', import.meta.url))], ['NOTICE', await readFile(new URL('../../app/desktop/notices/codex/NOTICE', import.meta.url))], [entrypoint, Buffer.from('a stand-in; never run')]] as const) {
+    await writeFile(join(staged, ...name.split('/')), bytes);
+    files[name] = { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+  }
+  await writeFile(join(staged, 'BUNDLE.json'), JSON.stringify({ schemaVersion: 1, version: CODEX_BUNDLE.version, licence: CODEX_BUNDLE.licence, target: codexTarget(process.platform, process.arch), entrypoint, leftOut: [...LEFT_OUT], evidence: null, files }));
+  const CHECK = 'bundled Codex with its LICENSE and NOTICE';
+  const without = await desktopPackagePrerequisites({ root, plan: createDesktopPackagePlan({ mode: 'beta' }), environment: {} });
+  assert.match(without.failures.find((failure: any) => failure.check === CHECK)?.reason ?? '', /no recorded setup.*--allow-unrecorded-codex/);
+  const allowed = createDesktopPackagePlan({ mode: 'beta', allowUnrecordedCodex: true });
+  const withFlag = await desktopPackagePrerequisites({ root, plan: allowed, environment: {} });
+  assert.ok(withFlag.checks.includes(CHECK), JSON.stringify(withFlag.failures));
+  assert.equal(withFlag.failures.some((failure: any) => failure.check === CHECK), false);
+  // The output check takes the same plan, and the command line builds it.
+  assert.deepEqual((await validateDesktopPackagingOutput({ root, plan: allowed, version: pkg.version })).expectedArtifacts, (await validateDesktopPackagingOutput({ root, plan: createDesktopPackagePlan({ mode: 'beta' }), version: pkg.version })).expectedArtifacts);
+  assert.deepEqual(createDesktopPackagePlan(parseDesktopPackageArguments(['--mode', 'beta', '--allow-unrecorded-codex'])), allowed);
+  // Only the flag itself, true: anything else on a plan is still refused as a changed plan.
+  for (const plan of [{ ...allowed, allowUnrecordedCodex: 'yes' }, { ...allowed, allowUnrecordedCodex: false }, { ...allowed, builderArguments: [...allowed.builderArguments, '--publish', 'always'] }, { ...allowed, extra: true }]) {
+    await assert.rejects(desktopPackagePrerequisites({ root, plan, environment: {} }), /unchanged native plan/);
+    await assert.rejects(validateDesktopPackagingOutput({ root, plan, version: pkg.version }), /unchanged native plan/);
+  }
 });
 
 test('Linux artifact names follow electron-builder: a deb says amd64, an AppImage x86_64, a tar.gz x64 (found on the VPS build)', async () => {

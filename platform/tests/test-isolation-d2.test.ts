@@ -14,7 +14,6 @@ const REVIEWED: readonly { file: string; name: string; reason: string }[] = [
   { file: 'codex-bundle-w6.test.ts', name: 'chausar-no-such-codex-bundle', reason: 'a folder that must not exist; the check refuses it before reading' },
   { file: 'codex-trust.test.ts', name: 'no-review-held', reason: 'a path recorded as a string in a trust record; never opened' },
   { file: 'data-home-d3.test.ts', name: 'chausar-runs', reason: 'the expected default run root, compared with runRoot(); runRoot never creates it' },
-  { file: 'decision-journal-worker.test.ts', name: 'chausar-journal-worker-', reason: 'a prefix compared with the mkdtemp result' },
   { file: 'ui-ink-hosting.test.ts', name: 'resources', reason: 'a packaged-app path shape handed to the path resolver; never created' },
   { file: 'venture-android-apk-identity.test.ts', name: 'chausar-client.apk', reason: 'an APK path handed to the stand-in SDK runner; never read or written' },
   { file: 'venture-android-execution.test.ts', name: 'chausar-client.apk', reason: 'an APK path handed to the stand-in adb runner; never read or written' },

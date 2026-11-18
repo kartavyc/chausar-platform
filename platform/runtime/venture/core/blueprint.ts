@@ -3,6 +3,7 @@
 // from the interview; a model or the templates only write words into named slots. The structure is hashed before
 // the model writes and again inside the write, so nothing moves while it writes (APPROVAL_STALE otherwise).
 import { shownLine } from './shown-line.ts';
+import { UNIT_CHOICE_LINE, isOfferUnit, modelOfUnit, type OfferUnit } from './offer-units.ts';
 import { authorize, check, ChausarError, type Context, internalCheck } from '../../contracts.ts';
 import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
@@ -14,7 +15,7 @@ import type {
   Labelled, ModelTask, Offer, PlanFlagshipStep, PricingModel, ServiceType, TermRecord, VentureDeps, VentureRecord, VentureStatus,
 } from '../contracts.ts';
 import type {
-  ApprovalBlockId, ComposedPlan, CompositionRecord, NoteBlockId, OfferBlockId, PageBlockId, StepBlockId, ToolBlockId,
+  ApprovalBlockId, CompositionRecord, NoteBlockId, OfferBlockId, PageBlockId, StepBlockId, ToolBlockId,
 } from '../onboarding-contracts.ts';
 import { WORD_CAPS } from '../onboarding-contracts.ts';
 import { APPROVAL_BLOCKS, OFFER_BLOCKS, STEP_BLOCKS, allowedPricingWords } from './blocks.ts';
@@ -32,8 +33,12 @@ import { applyShareChange } from '../money/share-price.ts';
 import { countryProfile } from './countries.ts';
 import { blueprintCountry } from './country-history.ts';
 import { ABOUT_INSTRUCTIONS } from './about.ts';
-import { acceptOwnerPrice, applyOwnerPrice, ownerPriceShape } from './owner-price.ts';
+import { acceptOwnerPrice, applyOwnerPrice, ownerPriceShape, ownerPriceUnchanged } from './owner-price.ts';
+import { applyOwnerTaxNo, ownerTaxNoShape, ownerTaxNoUnchanged } from './owner-tax.ts';
 import type { ModelCallRecord } from '../contracts.ts';
+import { ownerProfileOf } from './owner.ts';
+import { hiredRecords } from '../agents/hire-store.ts';
+import { isRetired } from '../agents/retired.ts';
 
 // ---------------------------------------------------------------------------
 // Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
@@ -114,8 +119,9 @@ export const COMPOSED_NEEDS_AI = 'This plan was made with your AI. Connect an AI
 
 const has = (record: Record<string, unknown>, key: string) => Object.hasOwn(record, key);
 
-export function offerPricing(model: PricingModel, unitPriceMinor: string | null): Offer['pricing'] {
-  return { model, quantityUnit: UNIT_OF[model], unitPriceMinor, unitPriceLabel: unitPriceMinor === null ? 'not-set' : 'told-by-you', defaultQuantity: '1' };
+/** unit: the unit the offer is priced in (core/offer-units.ts), when it is one of that model's; else the model's own. */
+export function offerPricing(model: PricingModel, unitPriceMinor: string | null, unit?: OfferUnit): Offer['pricing'] {
+  return { model, quantityUnit: unit && modelOfUnit(unit) === model ? unit : UNIT_OF[model], unitPriceMinor, unitPriceLabel: unitPriceMinor === null ? 'not-set' : 'told-by-you', defaultQuantity: '1' };
 }
 
 export function starterConnectorIds(country: CountryProfile): string[] {
@@ -170,7 +176,7 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
  */
 function withOwnerOffers(structure: BlueprintStructure, owned: readonly OwnerOfferRecord[]): BlueprintStructure {
   if (!owned.length) return structure;
-  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null), owner: true as const, ...(record.youtubeService?{playbookOffer:record.youtubeService}:{}) }))] };
+  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null, record.unit), owner: true as const, ...(record.youtubeService?{playbookOffer:record.youtubeService}:{}) }))] };
 }
 
 function planStructure(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null): BlueprintStructure {
@@ -311,6 +317,8 @@ export function carryOver(structure: BlueprintStructure, previous: BlueprintReco
   }
   // 5A2: the first offer's share stays while the open interview holds no fixed price for it (money/share-price.ts).
   const first = next.offers[0], firstWas = first ? previous.offers.find(o => o.id === first.id) : undefined;
+  // The unit the owner prices the first offer in stays while the open interview still charges it the same way.
+  if (!interviewClosed && first && firstWas && firstWas.pricing.model === first.pricing.model) first.pricing = { ...first.pricing, quantityUnit: firstWas.pricing.quantityUnit };
   if (!interviewClosed && first && firstWas?.pricing.share && first.pricing.unitPriceMinor === null) first.pricing = { ...first.pricing, share: structuredClone(firstWas.pricing.share) };
   if (interviewClosed) {
     backOffice.taxRegistered = structuredClone(before.taxRegistered);
@@ -613,50 +621,6 @@ function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords
   return seal(record);
 }
 
-/**
- * Blueprint version 1 of a composed plan, written by venture.create: words from the plan the owner kept (labelled as
- * the AI's assumptions, the customer line told by you when the owner typed it), the structure from structureOf, and
- * the pages, tools, notes and approval blocks copied from the composition.
- */
-export function assembleComposedBlueprint(tx: VentureTx, structure: BlueprintStructure, interview: InterviewRecord, composition: CompositionRecord, plan: ComposedPlan): BlueprintRecord {
-  check(structure.blocks, 'INVALID_VENTURE_REQUEST', 'This plan was not composed.');
-  const blocks = structure.blocks;
-  const typed = ownerCustomer(interview);
-  // A flagship playbook's plan keeps the playbook's approvals in its own words (playbooks/plan.ts).
-  const flagship = structureFlagship(structure, { idea: composition.text });
-  const record: BlueprintRecord = {
-    ...tx.base('venture-blueprint'),
-    ...(tx.venture ? { country: structuredClone(tx.venture.country) } : {}),
-    version: 1,
-    status: 'draft',
-    source: 'model',
-    structureHash: '',
-    digest: '',
-    modelCallIds: [...composition.decideCallIds, ...composition.composeCallIds],
-    serviceType: structure.serviceType,
-    name: structuredClone(plan.name),
-    oneLiner: structuredClone(plan.oneLiner),
-    customer: typed ? toldByYou(typed) : structuredClone(plan.customer),
-    offers: structure.offers.map((o, index) => ({
-      id: o.id, block: blocks.offers[index], ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}),
-      name: structuredClone(plan.offers[index].name), description: structuredClone(plan.offers[index].description), pricing: structuredClone(o.pricing),
-    })),
-    deliverySteps: structure.steps.map((s, index) => ({
-      id: s.id, block: blocks.steps[index], title: structuredClone(plan.steps[index].title), doneBy: s.doneBy, capability: s.capability, note: s.note,
-    })),
-    approvals: flagship ? flagshipApprovalLines(flagship) : blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine')),
-    backOffice: structuredClone(structure.backOffice),
-    starterConnectorIds: [...structure.starterConnectorIds],
-    composition: { id: composition.id, composeId: composition.composeId, kind: composition.planKind, views: structuredClone(composition.views) },
-    approvalBlocks: [...blocks.approvals],
-    pages: structuredClone(plan.pages),
-    tools: plan.tools.map(tool => ({ block: tool.block, reason: structuredClone(tool.reason) })),
-    notes: structuredClone(plan.notes),
-    ...(flagship ? { flagshipSteps: flagshipStepLines(flagship) } : {}),
-  };
-  return seal(record);
-}
-
 // ---------------------------------------------------------------------------
 // Terms
 // ---------------------------------------------------------------------------
@@ -704,7 +668,7 @@ function basedOnOf(value: unknown): { blueprintId: string; digest: string } {
   internalCheck(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan the change was made from.');
   return { blueprintId: body.blueprintId, digest: body.digest };
 }
-const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingModel', 'share'] as const;
+const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingModel', 'unit', 'share'] as const;
 
 /** What an edit changed that the open interview also holds, so the two stay the same. */
 type InterviewMirror = { pricingModel?: PricingModel; price?: { text: string; minor: string } | null; tax?: boolean };
@@ -723,18 +687,24 @@ function applyOfferPatches(blueprint: BlueprintRecord, value: unknown, country: 
     check(offer, 'OFFER_NOT_FOUND', 'That offer is not in your plan.');
     if (has(change, 'name')) offer.name = toldByYou(singleLine(change.name, 'The offer name', { min: 2, max: 60 }));
     if (has(change, 'description')) offer.description = toldByYou(singleLine(change.description, 'The offer description', { min: 2, max: 200 }));
-    if (has(change, 'pricingModel')) {
-      const model = change.pricingModel;
+    // The unit the offer is priced in (core/offer-units.ts): the way of charging follows from it.
+    check(!(has(change, 'unit') && has(change, 'pricingModel')), 'INVALID_VENTURE_REQUEST', 'Send the unit or the way of charging, not both.');
+    if (has(change, 'unit')) check(isOfferUnit(change.unit), 'INVALID_VENTURE_REQUEST', UNIT_CHOICE_LINE);
+    const unit = has(change, 'unit') ? change.unit as OfferUnit : null;
+    if (unit && modelOfUnit(unit) === offer.pricing.model) offer.pricing.quantityUnit = unit;
+    else if (unit || has(change, 'pricingModel')) {
+      const model = unit ? modelOfUnit(unit) : change.pricingModel;
       check(isPricingModel(model), 'INVALID_VENTURE_REQUEST', 'Choose per month, per project or per hour.');
-      // A composed offer can only be priced the ways its block allows, before and after the vault.
+      // A composed offer can only be priced the ways its block allows.
       if (offer.block) {
         const allowed = OFFER_BLOCKS[offer.block].allowed;
         check(allowed.includes(model), 'INVALID_VENTURE_REQUEST', `This offer can only be priced ${allowedPricingWords(allowed)}.`);
       }
       offer.pricing.model = model;
-      offer.pricing.quantityUnit = UNIT_OF[model];
-      // Template words follow the new pricing; the owner's own words and the AI's words stay as they are.
-      const index = OFFER_IDS.indexOf(id as typeof OFFER_IDS[number]);
+      offer.pricing.quantityUnit = unit ?? UNIT_OF[model];
+      // Template words follow a new way of charging; the owner's own words and the AI's words stay as they are. A unit
+      // the owner chose changes no words: it is how this offer is counted, whatever it is called.
+      const index = unit ? -1 : OFFER_IDS.indexOf(id as typeof OFFER_IDS[number]);
       if (index >= 0) {
         const words = offerWords(blueprint.serviceType, index, model);
         if (!has(change, 'name') && offer.name.by === 'template') offer.name = labelled(words.name, 'assumption', 'template');
@@ -844,28 +814,32 @@ function mirrorIntoInterview(tx: VentureTx, venture: VentureRecord, blueprint: B
 /** venture.blueprint.draft { useTemplate? } (prepare). "Rewrite with AI" is this call without useTemplate. */
 /** A card offer: words only, never an amount, a currency or a link (core/about.ts keeps the same rule for the AI's). */
 const NOT_IN_SHOWN = /[\p{N}\p{Sc}]|:\/\/|[\u0000-\u001F\u007F]/u;
-type Shown = { name: string; by: 'model' | 'template'; callId: string | null; offers: { name: string; line: string }[] };
+type Shown = { name: string; by: 'model' | 'template' | 'owner'; callId: string | null; offers: { name: string; line: string; unit: OfferUnit }[] };
 /** The ids a kept card's offers take, in order (Offer.id: 'offer_1' .. 'offer_3'); About you shows at most three. */
 const SHOWN_OFFER_IDS = ['offer_1', 'offer_2', 'offer_3'] as const;
 
 /**
  * Review of A1 (row 3): the plan About you showed, kept on the first keep. by: who wrote its words, the AI's reading
- * ('model') or the keywords or a tile ('template'); never the owner, whose own edits go through venture.blueprint.update.
+ * ('model') or the keywords or a tile ('template'), or the owner ('owner'): with no AI and work outside the listed
+ * fields the owner typed every offer on the card themselves (core/own-offer.ts), and they are kept as told by the owner.
+ * Later edits go through venture.blueprint.update.
  */
 function shownOf(value: unknown): Shown {
   const body = exactPayload(value, ['name', 'by', 'offers', 'callId'], ['name', 'by', 'offers']);
-  check(body.by === 'model' || body.by === 'template', 'INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+  check(body.by === 'model' || body.by === 'template' || body.by === 'owner', 'INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model, template or owner.');
   // A1 final check: the About you read's own call, which the AI label is checked against.
   check(body.callId === undefined || (typeof body.callId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(body.callId)), 'INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
   const name = singleLine(body.name, 'The business name', { min: 2, max: 60 });
   check(Array.isArray(body.offers) && body.offers.length >= 1 && body.offers.length <= SHOWN_OFFER_IDS.length, 'INVALID_VENTURE_REQUEST', `Keep one to ${SHOWN_OFFER_IDS.length} offers.`);
   const offers = (body.offers as unknown[]).map(item => {
-    const offer = exactPayload(item, ['name', 'line'], ['name', 'line']);
+    const offer = exactPayload(item, ['name', 'line', 'unit'], ['name', 'line']);
+    // The unit the card showed for it; a card with none (a window from before units) is per project, as it was.
+    check(offer.unit === undefined || isOfferUnit(offer.unit), 'INVALID_VENTURE_REQUEST', UNIT_CHOICE_LINE);
     const offerName = singleLine(offer.name, 'The offer name', { min: 2, max: 60 });
     check(typeof offer.line === 'string' && offer.line.length <= 200, 'INVALID_VENTURE_REQUEST', 'An offer line is at most 200 characters.');
     const line = (offer.line as string).replace(/\s+/g, ' ').trim();
     check(!NOT_IN_SHOWN.test(offerName) && !NOT_IN_SHOWN.test(line), 'INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
-    return { name: offerName, line };
+    return { name: offerName, line, unit: (offer.unit as OfferUnit | undefined) ?? 'project' };
   });
   return { name, by: body.by, callId: (body.callId as string | undefined) ?? null, offers };
 }
@@ -892,9 +866,12 @@ function aboutReadCalled(calls: readonly ModelCallRecord[], shown: Shown): boole
   return !!answered && foldedOffers(answered) === foldedOffers(shown.offers);
 }
 
-/** The kept card on the drafted record: its name and exactly its offers, with no price and the neutral per-project unit. */
+/** The kept card on the drafted record: its name and exactly its offers, each in the unit the card showed, with no price. */
 function applyShown(record: BlueprintRecord, shown: Shown): void {
-  const words = (value: string) => labelled(value, 'assumption', shown.by);
+  // The owner's own offers are told by the owner; the name and the one line beside them stay the built-in plan's.
+  const by = shown.by === 'owner' ? 'template' : shown.by;
+  const words = (value: string) => labelled(value, 'assumption', by);
+  const offerWords = (value: string) => (shown.by === 'owner' ? toldByYou(value) : words(value));
   const template = record.offers.filter(offer => !offer.addedByOwner);
   const owned = record.offers.filter(offer => offer.addedByOwner);
   record.name = words(shown.name);
@@ -905,10 +882,10 @@ function applyShown(record: BlueprintRecord, shown: Shown): void {
     const was = template[index];
     return {
       id: SHOWN_OFFER_IDS[index]!, ...(was?.playbookOffer ? { playbookOffer: was.playbookOffer } : {}),
-      name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name), pricing: offerPricing('project', null),
+      name: offerWords(kept.name), description: offerWords(kept.line.length >= 2 ? kept.line : kept.name), pricing: offerPricing(modelOfUnit(kept.unit), null, kept.unit),
     };
   }), ...owned];
-  record.source = shown.by;
+  record.source = by;
   seal(record);
 }
 
@@ -989,7 +966,13 @@ export async function blueprintGet(deps: VentureDeps, ctx: Context, payload: unk
   const state = deps.store.read();
   const venture = requireVenture(state);
   const latest = latestBlueprint(state, venture.id);
-  return latest ? blueprintView(state, latest, deps.host) : null;
+  if (!latest) return null;
+  // The kept plan beside the record, so the plan page says who pays and who is on the team as the plan sheet does
+  // (views/queue-view.ts planView). Only once something was kept: an older business reads exactly as before.
+  const way = ownerProfileOf(state, venture.id).way ?? null;
+  const team = hiredRecords(state, venture.id).filter(record => record.role && !isRetired(state, venture.id, record.id))
+    .map(record => ({ name: record.role!.name, job: record.role!.job, duties: [...record.role!.duties] }));
+  return { ...blueprintView(state, latest, deps.host), ...(way || team.length ? { kept: { way, team } } : {}) };
 }
 
 /**
@@ -1006,9 +989,12 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
   const basedOn = Object.hasOwn(body, 'basedOn') ? basedOnOf(body.basedOn) : null;
   const adding = has(patch, 'addOffer') ? ownerOfferInput(patch.addOffer) : null;
   // C4 task 33: the owner's own price in the app is the one press on that exact price (owner-price.ts), so it runs at the
-  // approve level; every other change is prepared and waits on Today.
+  // approve level; every other change is prepared and waits on Today. The owner's own unit is the same kind of Save.
   const ownerPrice = ownerPriceShape(ctx, body, patch);
-  return ventureAction(deps, ctx, ownerPrice ? 'approve' : 'prepare', 'blueprint.update', tx => {
+  // The owner's own "No, I do not charge tax" on Prices is the same kind of press (owner-tax.ts): where the accepted plan
+  // already charges none, it changes only who said so, so it is accepted at once and the tax card leaves Today.
+  const ownerTaxNo = ownerTaxNoShape(ctx, body, patch);
+  return ventureAction(deps, ctx, ownerPrice || ownerTaxNo ? 'approve' : 'prepare', 'blueprint.update', tx => {
     const venture = tx.venture as VentureRecord;
     const latest = latestBlueprint(tx.state, venture.id);
     check(latest, 'BLUEPRINT_NOT_FOUND', 'Write your plan first.');
@@ -1035,7 +1021,11 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
     applyTaxPatch(next.backOffice, patch, country, mirror);
     withTaxInvoiceFields(next.backOffice, country);
     seal(next);
-    const decided = ownerPrice ? applyOwnerPrice(tx, venture, latest, next) : null;
+    // The owner's own Save of the price or unit an offer already has: nothing changed, so no version is written.
+    if (ownerPrice && ownerPriceUnchanged(venture, latest, next)) return blueprintView(tx.state, latest, deps.host);
+    // The owner's No, said again on a plan that already holds it: nothing changed, so no version is written either.
+    if (ownerTaxNo && ownerTaxNoUnchanged(venture, latest)) return blueprintView(tx.state, latest, deps.host);
+    const decided = ownerPrice ? applyOwnerPrice(tx, venture, latest, next) : ownerTaxNo ? applyOwnerTaxNo(tx, venture, latest, next) : null;
     tx.put(next);
     if (venture.acceptedBlueprintId === null) mirrorIntoInterview(tx, venture, next, mirror);
     tx.touch({ blueprintId: next.id, status: statusAtLeast(venture.status, 'blueprint') });

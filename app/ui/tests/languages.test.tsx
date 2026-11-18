@@ -6,11 +6,22 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { App } from '../src/shell/App';
 import { FakeEngine, createFakeClient } from '../src/engine/fake';
-import { CATALOGUES, hindiCatalogue, pickLanguage, placeholders, pluralForm, prepareLanguage, say, TextProvider, useLanguage, useT, type Catalogue, type Message } from '../src/text';
+import { CATALOGUES, pickLanguage, pluralForm, prepareLanguage, say, TextProvider, useLanguage, useT, type Catalogue, type Message } from '../src/text';
+import { MOVE_STATE_LABEL, PLAN_FIXED_WORDS } from '../../../platform/runtime/venture/chief/plan-core';
+import { REVIEW_FIXED_WORDS, REVIEW_OFFER_TITLE, REVIEW_WORDS, STEP_FIXED_WORDS, STEP_WORDS, type ChiefPlanStep } from '../../../platform/runtime/venture/chief/plan-view';
+import { QUEUE_FIXED_WORDS } from '../../../platform/runtime/venture/views/queue-words';
+import { SEARCH_LINES } from '../../../platform/runtime/venture/customers/find-states';
+import { formatClock } from '../../../platform/runtime/owner-format';
+import { PLAN_WORD_KEYS } from '../src/places/today/plan-words';
+import { decidedWords } from '../src/parts/ApprovalRow';
+import { wordedRow } from '../src/places/today/OutreachRows';
+import type { ChiefPlanView, EngineClient, QueueRow } from '../src/engine/types';
 
 const TEXT = join(import.meta.dirname, '../src/text');
 const read = (path: string) => readFileSync(join(import.meta.dirname, path), 'utf8');
 const texts = (message: Message | undefined): string[] => (message === undefined ? [] : typeof message === 'string' ? [message] : Object.values(message).filter((m): m is string => typeof m === 'string'));
+/** The named values a message uses, across all its forms, sorted. */
+const placeholders = (message: Message | undefined): string[] => [...new Set(texts(message).flatMap((text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!)))].sort();
 const pack = (): Catalogue => {
   const out: Record<string, Message> = {};
   for (const file of readdirSync(join(TEXT, 'hi'))) Object.assign(out, JSON.parse(readFileSync(join(TEXT, 'hi', file), 'utf8')));
@@ -91,7 +102,9 @@ describe('the pack is lazy', () => {
   it('prepareLanguage loads the pack, and English needs nothing', async () => {
     await prepareLanguage('en');
     await prepareLanguage('hi');
-    expect(hindiCatalogue()!['common.language.title']).toBe('भाषा');
+    function Words() { const t = useT(); return <p>{t('common.language.title')}</p>; }
+    render(<TextProvider language="hi"><Words /></TextProvider>);
+    expect(screen.getByText('भाषा')).toBeTruthy();
   });
 });
 
@@ -172,7 +185,132 @@ describe('the Hindi catalogue', () => {
     expect(read('../src/tokens/base.css')).toMatch(/:lang\(hi\) \[data-count\]/);
     expect(read('../src/tokens/tokens.css')).toMatch(/--font: 'Instrument Sans', 'Noto Sans Devanagari'/);
   });
+
+  // Fix round 4 (real-app problem 18): every screen word of the app has its Hindi line. A missing key shows English by
+  // design, so the check is here: nothing in the English pack is left without one.
+  it('no English key is left without its Hindi line', () => {
+    expect(Object.keys(en).filter((key) => !(key in hi))).toEqual([]);
+  });
+
+  // The rail and the page it opens are one place: English calls both Settings, and Hindi once called the rail "बिज़नेस".
+  it('the rail names Settings the way the Settings page names itself, in both languages', () => {
+    expect(en['place.business']).toBe(en['business.settings.nav']);
+    expect(hi['place.business']).toBe(hi['business.settings.nav']);
+  });
 });
+
+/*
+ * Fix round 4 (real-app problem 18c): with Hindi on, Today's week kept the state of each move in English ("Waiting on
+ * you"). A state is one of five the engine names by code beside its own English label, so it is the app's word: said
+ * from the pack by that code. The words of a move itself are what Chausar wrote, and those stay as written (the
+ * Language note says so).
+ */
+describe('Today in Hindi: the app\'s own words come from the pack', () => {
+  it('the state of each move this week is Hindi; the move the engine wrote stays as written', async () => {
+    const engine = new FakeEngine();
+    await engine.request('app.preferences.set', { language: 'hi' });
+    window.location.hash = '#/today';
+    render(<App client={createFakeClient(engine)} language="en" />);
+    await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
+    const week = await waitFor(() => { const found = document.querySelector<HTMLElement>('[data-chief-plan]'); expect(found?.querySelector('[data-move]')).toBeTruthy(); return found!; });
+    const states = [...week.querySelectorAll('[data-move]')].map((move) => [move.getAttribute('data-state'), move.querySelector('span:nth-of-type(3)')?.textContent]);
+    expect(states.length).toBeGreaterThan(1);
+    const pack = CATALOGUES.en;
+    for (const [state, said] of states) {
+      expect(said, String(state)).toBe(say(pack, hi_(), 'hi', `state.move.${state}`));
+      expect(said, String(state)).not.toBe(pack[`state.move.${state}`]);
+    }
+    expect(week.textContent).not.toMatch(/Waiting on you|Planned|Dropped|On Today for your approval/);
+  });
+
+  // Real-app problem 18c: the setup moves, the line code writes for today, the first step while the plan waits and the
+  // daily review's offer are code's own fixed words, so the pack says them too.
+  it('the plan\'s fixed words are said from the pack in Hindi: no setup move, line, step or offer title stays English', async () => {
+    // Ledgerline, as the tour saw it: its plan waits, so its setup moves, the line and the review offer all show.
+    const engine = new FakeEngine();
+    await engine.request('workspace.open', { folder: 'ledgerline' });
+    await engine.request('app.preferences.set', { language: 'hi' });
+    window.location.hash = '#/today';
+    render(<App client={createFakeClient(engine)} language="en" />);
+    await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
+    const week = await waitFor(() => { const found = document.querySelector<HTMLElement>('[data-chief-plan]'); expect(found?.querySelector('[data-move]')).toBeTruthy(); return found!; });
+    const english = [...Object.values(PLAN_FIXED_WORDS), REVIEW_OFFER_TITLE];
+    const shown = document.body.textContent ?? '';
+    expect(english.filter((words) => shown.includes(words))).toEqual([]);
+    // What was there to say: the first setup move, in the Hindi pack's words.
+    expect(week.textContent).toContain(say(CATALOGUES.en, hi_(), 'hi', 'today.plan.fixed.acceptPlan'));
+  });
+
+  it('in English the pack says each fixed plan line exactly as code writes it', () => {
+    for (const [words, key] of PLAN_WORD_KEYS) expect(CATALOGUES.en[key], key).toBe(words);
+    // Every fixed line code writes for Today has its key: none is left to show in English under Hindi.
+    const fixed = [...Object.values(PLAN_FIXED_WORDS), REVIEW_OFFER_TITLE, ...Object.values(STEP_FIXED_WORDS), ...Object.values(REVIEW_FIXED_WORDS), ...Object.values(QUEUE_FIXED_WORDS), SEARCH_LINES.approved, SEARCH_LINES.running];
+    expect(fixed.filter((words) => !PLAN_WORD_KEYS.has(words))).toEqual([]);
+    // The two lines with a part in them read in English exactly as the engine builds them.
+    const en = (key: string, values: Record<string, string>) => say(CATALOGUES.en, null, 'en', key, values);
+    expect(en('today.plan.also', { titles: 'Connect your AI, Keep this business' })).toBe(STEP_WORDS.also(['Connect your AI', 'Keep this business']));
+    expect(en('today.plan.reviewAt', { time: formatClock('08:00') })).toBe(REVIEW_WORDS.line(true, '08:00'));
+  });
+
+  it('in English each state reads exactly as the engine words it', () => {
+    for (const [state, label] of Object.entries(MOVE_STATE_LABEL)) expect(CATALOGUES.en[`state.move.${state}`], state).toBe(label);
+  });
+});
+
+/*
+ * Round 5 (re-check 082): with Hindi on, Today still said "Also waiting: Keep this business.", the step's "Done",
+ * "Daily review at 8:00 am.", "Plan accepted." and the "Keep this business" card in English. Each is a line code writes
+ * the same every time (or with only a time or the cards' own titles in it), so the pack says it.
+ */
+describe('Today in Hindi, round 5: the step, the review line, the setup card and the plan\'s decided line', () => {
+  const hiSay = (key: string, values?: Record<string, string>) => say(CATALOGUES.en, hi_(), 'hi', key, values);
+
+  it('the step\'s Done, the also-waiting line and the review line are Hindi; no fixed English line is left', async () => {
+    const engine = new FakeEngine();
+    await engine.request('app.preferences.set', { language: 'hi' });
+    const fake = createFakeClient(engine);
+    const request = fake.request.bind(fake);
+    const step: ChiefPlanStep = { kind: 'move', title: 'Prepare sample descriptions.', line: null, action: { id: 'done', label: STEP_FIXED_WORDS.done, moveId: 'mv_sample_2' }, agent: null, figure: null, goalAfterPercent: null, by: 'chief',
+      also: { line: STEP_WORDS.also([QUEUE_FIXED_WORDS.keep]), rowIds: ['q-setup-keep'], titles: [QUEUE_FIXED_WORDS.keep] } };
+    const client: EngineClient = {
+      ...fake,
+      request: (async (method: string, params?: unknown) => {
+        const reply = await request(method as never, params as never);
+        if (method !== 'venture.chief.plan.get') return reply;
+        const view = reply as unknown as ChiefPlanView;
+        return { ...view, next: step, review: { ...view.review, on: true, offer: null, time: '08:00', note: null, consent: null, line: REVIEW_WORDS.line(true, '08:00') } };
+      }) as EngineClient['request'],
+    };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
+    const tile = await waitFor(() => { const found = document.querySelector<HTMLElement>('[data-also-waiting]'); expect(found).toBeTruthy(); return found!.closest('section')!; });
+    expect(tile.querySelector('[data-also-waiting]')!.textContent).toBe(hiSay('today.plan.also', { titles: hiSay('today.fixed.keep') }));
+    expect(within(tile).getByRole('button', { name: hiSay('today.plan.step.done') })).toBeTruthy();
+    const week = document.querySelector<HTMLElement>('[data-chief-plan]')!;
+    expect(week.textContent).toContain(hiSay('today.plan.reviewAt', { time: formatClock('08:00') }));
+    const shown = document.body.textContent ?? '';
+    expect(['Also waiting', 'Daily review at', QUEUE_FIXED_WORDS.keep, QUEUE_FIXED_WORDS.keepLine, QUEUE_FIXED_WORDS.planAccepted].filter((words) => shown.includes(words))).toEqual([]);
+  });
+
+  it('the Keep this business card and the plan\'s decided line are said from the pack; a line with a name stays as written', () => {
+    const t = (key: string, values?: Record<string, string | number>) => say(CATALOGUES.en, hi_(), 'hi', key, values as Record<string, string>);
+    const keep: QueueRow = { id: 'q-setup-keep', businessId: 'b', businessName: 'B', kind: 'setup', createdAt: '2026-11-16T19:43:00.000Z', digest: 'd',
+      title: QUEUE_FIXED_WORDS.keep, line: QUEUE_FIXED_WORDS.keepLine, actions: [{ id: 'keep', label: 'Keep it', primary: true }] };
+    const worded = wordedRow(keep, t);
+    expect([worded.title, worded.line, worded.actions[0]!.label]).toEqual([hiSay('today.fixed.keep'), hiSay('today.fixed.keepLine'), hiSay('today.action.keep')]);
+    const prices = { ...keep, id: 'q-setup-prices', title: 'Set your prices', line: 'Cake box has no price yet.' };
+    expect(wordedRow(prices, t).line).toBe('Cake box has no price yet.');
+    const plan: QueueRow = { ...keep, id: 'q-plan', kind: 'plan', title: 'Your plan is ready. Read it.', viewRef: { kind: 'plan', id: 'bp_1' } };
+    expect(decidedWords(plan, QUEUE_FIXED_WORDS.planAccepted, t)).toEqual({ title: null, line: hiSay('today.fixed.planAccepted') });
+    expect(decidedWords(plan, 'New price for Monthly books accepted.', t).line).toBe('New price for Monthly books accepted.');
+    // English reads exactly the engine's words.
+    const enT = (key: string, values?: Record<string, string | number>) => say(CATALOGUES.en, null, 'en', key, values as Record<string, string>);
+    expect(wordedRow(keep, enT)).toBe(keep);
+    expect(decidedWords(plan, QUEUE_FIXED_WORDS.planAccepted, enT).line).toBe('Plan accepted.');
+  });
+});
+const hi_ = pack;
 
 /**
  * Latin words a Hindi string may hold: names of products, platforms, file kinds and Indian tax and bank terms, which stay

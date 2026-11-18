@@ -12,8 +12,8 @@ import { Engine } from '../runtime/engine.ts';
 import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
 import { SNAPSHOT_EVERY_MS, WorkspaceSnapshots, snapshotDue } from '../runtime/workspace-snapshots.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
-import type { BusinessSnapshot, ModelPreset, ModelReplayFixture } from '../runtime/venture/contracts.ts';
-import type { AiOptionsView, ComposeDecision, ComposedPlan } from '../runtime/venture/onboarding-contracts.ts';
+import type { BusinessSnapshot, ModelPreset } from '../runtime/venture/contracts.ts';
+import type { AiOptionsView } from '../runtime/venture/onboarding-contracts.ts';
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.stack ?? error?.message); return true; };
 
@@ -279,19 +279,17 @@ function engineAt(t: any, directory: string, keys: DeviceKeyStore, clock: Clock,
 
 /** Connects the replay AI and creates a business that opens with this computer, with its venture, through onboarding. */
 async function dogBusiness(t: any, directory: string, keys: DeviceKeyStore, clock: Clock) {
-  const dog = JSON.parse(await readFile(new URL('./fixtures/venture/onboarding/dog-walking-gb.json', import.meta.url), 'utf8')) as ModelReplayFixture & { text: string };
-  const made = engineAt(t, directory, keys, clock, { host: 'test', modelTransport: createReplayTransport(dog), sandbox: { process: async () => { throw new Error('docker not found'); } } });
+  const dog = { text: 'Dog walking for busy nurses in Leeds.', name: 'Night Shift Walkers' };
+  const made = engineAt(t, directory, keys, clock, { host: 'test', modelTransport: createReplayTransport({ label: 'synthetic recording', note: 'No model answer is needed here.', responses: [] }), sandbox: { process: async () => { throw new Error('docker not found'); } } });
   const { ask } = made;
   const options = await ask('venture.ai.options') as AiOptionsView;
   const preset = (id: ModelPreset['id']) => options.presets.find(item => item.id === id)!;
   const key = ['sk', 'ant', 'test', 'snapshots', 'not', 'a', 'real', 'key', '0001'].join('-');
   await ask('venture.ai.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: preset('anthropic-haiku-5-5').consentDigest, apiKey: key });
   await ask('venture.ai.connect', { presetId: 'anthropic-sonnet-5-5', consentDigest: preset('anthropic-sonnet-5-5').consentDigest, apiKey: key });
-  const decision = await ask('venture.compose.decide', { text: dog.text, countryCode: 'GB' }) as ComposeDecision;
-  const plan = await ask('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
-  const created = await ask('workspace.create', { name: plan.name.value, pack: 'services', folder: null });
-  await ask('venture.create', { idea: dog.text, countryCode: 'GB', workingName: plan.name.value, composeId: plan.composeId, composedDigest: plan.digest });
-  return { ...made, folder: created.folder as string, name: plan.name.value as string, key };
+  const created = await ask('workspace.create', { name: dog.name, pack: 'services', folder: null });
+  await ask('venture.create', { idea: dog.text, countryCode: 'GB', workingName: dog.name });
+  return { ...made, folder: created.folder as string, name: dog.name, key };
 }
 
 test('engine: a business that opens with this computer writes its snapshot at most once a minute while it changes and again on lock; no client name is in it', async t => {
@@ -430,8 +428,7 @@ test('engine: a list that can no longer be checked stops drafting until the owne
   assert.equal(reset.line, "Chausar started a new never-contact list on this computer. Each business adds its own blocklist again the next time you open it. People forgotten in other businesses can't be put back on it.");
   const list = JSON.parse(await readFile(join(directory, 'custody', 'never-contact.json'), 'utf8'));
   assert.equal(list.hashes.length, 1, 'the open business added its own blocklist again');
-  const activity = await fresh.request('activity.list', {});
-  assert.ok(activity.items.some((item: any) => item.event === 'custody.never-contact-reset'), 'journalled in the audit');
+  assert.ok(fresh.vault!.read().activity.some(item => item.event === 'custody.never-contact-reset'), 'journalled in the audit');
   await assert.rejects(fresh.request('venture.leads.draft', { leadId: lead.id, subject: 'Books', body: 'A short note.', postalAddress: '12 High Street, London' }), code('LEADS_EMAIL_UNVERIFIED'), 'drafting is back to its own rules');
 });
 

@@ -36,9 +36,6 @@ export const TAX_YEARS: readonly TaxYearRules[] = Object.freeze([
     turnover: ICAI },
 ]);
 
-export function taxYearOf(day: string): TaxYearRules | null {
-  return TAX_YEARS.find(year => day >= year.from && day <= year.to) ?? null;
-}
 export function taxYearById(id: unknown): TaxYearRules | null {
   return TAX_YEARS.find(year => year.id === id) ?? null;
 }

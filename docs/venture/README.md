@@ -172,7 +172,7 @@ The engine package (commits `bec1bd8`, `9622d60`, `d926ccb`, and the review fixe
 How it was checked, on Windows with Node 24.13.1:
 
 - `node --test platform/tests/venture-onboarding-e2e.test.ts`: 10 of 10. The new journey on recordings, from Connect to an issued invoice, with GitHub followed from the existing recording and the number guard run on the invoice's money lines; the reason each refused answer was refused; and a judged rehearsal of a composed plan (see [onboarding.md](onboarding.md#how-it-is-tested)).
-- `venture-e2e.test.ts` (2 of 2, now also checking that "Connect your AI" is the first checklist item) and `venture-docs.test.ts`, plus the engine package's `venture-compose.test.ts` and `venture-draft.test.ts`.
+- `venture-e2e.test.ts` (2 of 2) and `venture-docs.test.ts`, plus the engine package's `venture-compose.test.ts` and `venture-draft.test.ts`.
 - `node scripts/check.mjs` and a scoped typecheck with `typescript@5.9.3` over the three test files this package owns.
 - The replay demo in local web mode on port 4391 with its own vault folder, driven through `/api/rpc` in the order the new screens call it: the four Connect rows (API key unverified, Claude Code and Codex needing setup, ChatGPT not open), the recommended pair before any vault, the three Examples (an idea with `offers-first`, a skill with `steps-first`, a problem with `audience-first`), the landlord sentence refused as not a service, an unrecorded sentence refused with `FIXTURE_MISSING`, the demo idea's plan, INR 2,499.00 typed and GST at 18, no key in any draft call, Keep it safe, the plan and AI adopted ("Connect your AI" done), the receipt INR 2,948.82, GSTIN and SAC, a rewrite that kept the blocks and pages, Accept, a brief that passed its checks with the client-area lines kept (the demo plan has a client uploads page), the playbook's work step "Match every entry", three judged rehearsals passed, shadow, a practice draft with every check passed, `INV-0001` as a TAX INVOICE for 294882 paise, and the payment of 2948.82 (balance 0).
 
@@ -274,14 +274,14 @@ Known limits:
 | Page | What it covers |
 |---|---|
 | [foundation.md](foundation.md) | Contracts, record helpers, method registration (P0) |
-| [core.md](core.md) | Countries, the instant plan, interview, blueprint, terms, checklist, events (P1) |
+| [core.md](core.md) | Countries, the instant plan, interview, blueprint, terms, events (P1) |
 | [models.md](models.md) | Presets, connections, the model port, routes, replay, cost (P2) |
 | [money.md](money.md) | Price receipts, tax, clients, orders, invoices, payments, books (P3) |
 | [build.md](build.md) | Brief, lint, handoff links, GitHub reader, connector catalogue (P4) |
-| [delivery.md](delivery.md) | Playbook, draft replies, rehearsal, launch ladder, capabilities (P5) |
+| [delivery.md](delivery.md) | Playbook, draft replies, rehearsal, launch ladder (P5) |
 | [harness.md](harness.md) | The delivery harness: tools, client files, work receipts, the sandbox tiers and the improvement loop |
 | [shell.md](shell.md) | The venture host, desktop types, shell and end-to-end tests (P6) |
-| [onboarding.md](onboarding.md) | Onboarding v2: connect an AI first, the open box, the block library, the view registry, the composer and its number guard, the draft desk |
+| [onboarding.md](onboarding.md) | Onboarding v2: connect an AI first, the draft desk and the handover into the vault, and a composed plan a vault already holds |
 | [launch.md](launch.md) | The launch and onboarding v2 screens as built in the old renderer (P7); a record since Ink replaced it on 22 October |
 | [hosted.md](hosted.md) | The experimental hosted web tier: sign-in, custody, tenancy, one actor per business, limits, and what a deploy needs |
 | [ink.md](ink.md) | Ink, the app, and the engine methods behind it: running it, the switch-over, known limits, what is planned |

@@ -9,7 +9,6 @@ import type { CountryProfile, IsoDate } from './contracts.ts';
  * One IANA zone per country in the country table. A country with several zones uses its most populous one, so a
  * business on the US west coast still reads New York's day; 'XX' (another country) uses UTC.
  */
-export {COUNTRY_TIME_ZONES} from './local-day-data.ts';
 import {COUNTRY_TIME_ZONES} from './local-day-data.ts';
 import { formatTime } from '../owner-format.ts';
 

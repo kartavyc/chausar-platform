@@ -39,7 +39,9 @@ const raw: PlaybookDefinition = {
   roles: [
     { id: 'planner', name: 'Planner', kind: 'agent', department: 'production', job: 'Plans lessons from the syllabus and the batch.' },
     { id: 'writer', name: 'Writer', kind: 'agent', department: 'production', job: 'Drafts worksheets, quizzes and progress notes.' },
-    { id: 'keeper', name: 'Keeper', kind: 'code', department: 'operations', job: 'Code counts attendance and scores quizzes from the answer key.' },
+    // Named Chausar, as every playbook's own code is: Keeper is Chausar's one agent on every team (views/keeper.ts), and a
+    // role with its id and name showed on Team as a second Keeper (found in the real app, 16 Nov 2026).
+    { id: 'chausar', name: 'Chausar', kind: 'code', department: 'operations', job: 'Code counts attendance and scores quizzes from the answer key.' },
     { id: 'billing', name: 'Billing', kind: 'code', department: 'money', job: 'Code bills fees through your orders and invoices.' },
     { id: 'owner', name: 'You', kind: 'person', department: 'sales', job: 'Teaches, approves every parent message and sends it.' },
   ],
@@ -90,5 +92,4 @@ const raw: PlaybookDefinition = {
   words: () => [],
 };
 
-export const LESSON_DESK_RAW = raw;
 export const LESSON_DESK_DEFINITION = definePlaybook(raw);

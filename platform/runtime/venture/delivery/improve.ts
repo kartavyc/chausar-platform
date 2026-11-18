@@ -567,16 +567,6 @@ async function propose(deps: VentureDeps, ctx: Context, input: { useTemplate: bo
   return { patch: only.patch, body: only.body, refused: only.refused, costs };
 }
 
-/** venture.improve.get { runId } */
-export async function improveGetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ImprovementRunRecord> {
-  const body = exactPayload(payload, ['runId'], ['runId']);
-  const runId = identifier(body.runId, 'Improvement run');
-  const { state, venture } = readAs(deps, ctx, 'read');
-  const run = findRecord(state, 'venture-improvement-run', runId);
-  check(run && run.ventureId === venture.id, 'IMPROVEMENT_NOT_FOUND', 'That improvement run was not found.');
-  return run;
-}
-
 /** Why a kept candidate can no longer be adopted, or null when it still fits. One-shot A4: Work's line reads it too. */
 export function staleReason(state: State, venture: VentureRecord, run: ImprovementRunRecord): string | null {
   const candidate = run.candidatePlaybookId ? findRecord(state, 'venture-playbook', run.candidatePlaybookId) : undefined;

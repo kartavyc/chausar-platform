@@ -8,7 +8,7 @@
 import { useMemo } from 'react';
 import { useLanguage, type Language } from '../text';
 import { useClock, useOwnerZone } from '../shell/clock';
-import { dayKeyIn, formatDay, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, setDateLocale, timeKeyIn, type When } from '../../../../platform/runtime/owner-format';
+import { computerZone, dayKeyIn, formatDay, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, setDateLocale, timeKeyIn, zonePlace, type When } from '../../../../platform/runtime/owner-format';
 
 /** The one language-to-locale map. Hindi keeps Latin digits by default; English writes owner-format's own forms. */
 export const LOCALE: Record<Language, string> = { en: 'en-IN', hi: 'hi-IN-u-nu-latn' };
@@ -105,4 +105,14 @@ export function formatBytes(bytes: number): string {
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} ${bytes === 1 ? 'byte' : 'bytes'}`;
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : formatBytes(bytes);
+}
+
+/**
+ * The tail of a schedule's words that says where its time is, only when that is not where this computer is: '' in the
+ * same place, else ", Kolkata time" or ", UTC" (owner-format's zonePlace, the rule the engine's own schedule words and
+ * the daily review's line follow). The app runs on the owner's own computer, so its zone is where the owner is.
+ */
+export function placeTail(t: (key: string, params?: Record<string, string>) => string, timeZone: string): string {
+  const place = zonePlace(timeZone, computerZone());
+  return place === null ? '' : place === 'UTC' ? t('business.routines.placeUtc') : t('business.routines.place', { place });
 }

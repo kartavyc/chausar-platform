@@ -153,9 +153,11 @@ describe('Money: spend', () => {
     expect(spend.textContent).not.toContain('$0.25');
   });
 
-  it('says so when there are no paid calls', async () => {
+  // Round 7 (re-check 6, item 6): after a plan, a review, a chat and a job on Codex this list was empty with no word why.
+  // Calls on the owner's own plan are recorded but bill nothing, so this list of paid calls holds none: it says so.
+  it('says so when there are no paid calls, and why calls on the owner\'s own plan are not here', async () => {
     start('#/money/spend', { 'venture.spend.list': () => ({ rows: [], total: '₹0 this month' }) });
-    expect(await screen.findByText('No paid calls yet.')).toBeTruthy();
+    expect(await screen.findByText('No paid calls yet. Calls on your own AI plan bill nothing, so they are not listed here.')).toBeTruthy();
     expect(screen.queryByText(/Calls without prices are refused, never free/)).toBeNull();
   });
 });
@@ -172,17 +174,19 @@ describe('Money: spend settings', () => {
     expect(within(region).queryByRole('textbox')).toBeNull();
   });
 
-  it('takes rupees per US dollar; then the limits show rupees beside the dollars, with the rate and the day it was set', async () => {
-    // The sample has the owner's rupee rate (4Z3); cleared first, the owner types it here.
+  it('takes rupees per US dollar in place of the reference rate; then the limits show rupees at it, with the rate and the day it was set', async () => {
+    // The sample has the owner's rupee rate (4Z3); cleared first, the dated reference rate stands in (fix round 4, real-app
+    // problem 12), named with its source and day, and the owner types their own here.
     const engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' });
     await engine.request('venture.spend.policy.set', { inrPerUsd: null });
     const { calls } = start('#/money/spend', {}, engine);
-    await within(await waitFor(settings)).findByText('$20.00 a month');
-    expect(within(settings()).queryByText(/per \$1/)).toBeNull();
+    await within(await waitFor(settings)).findByText('₹1,887.99 a month');
+    expect(within(settings()).getByText('₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)')).toBeTruthy();
+    assertInkRules();
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     const rate = within(settings()).getByLabelText('Rupees per US dollar') as HTMLInputElement;
-    expect([rate.value, rate.inputMode]).toEqual(['', 'decimal']);
-    expect(within(settings()).getByText('Your own rate, like 83.50. Spend then shows in rupees too. Leave it empty for dollars only.')).toBeTruthy();
+    expect([rate.value, rate.inputMode]).toEqual(['94.3996', 'decimal']);
+    expect(within(settings()).getByText('Your own rate, like 83.50. Left empty: the reference rate in India, dollars only elsewhere.')).toBeTruthy();
     await type(rate, '83.50');
     await click(within(settings()).getByRole('button', { name: 'Save' }));
     await click(within(settings()).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
@@ -288,7 +292,7 @@ describe('Money: journal', () => {
 
   it('says so when nothing was sent or changed, and where the approvals inside Chausar are (B1, row 72)', async () => {
     start('#/money/journal', { 'venture.journal.list': () => ({ entries: [] }) });
-    expect(await screen.findByText('Nothing has gone out of Chausar yet. Plans, prices and drafts you approved are under Business, Decisions.')).toBeTruthy();
+    expect(await screen.findByText('Nothing has gone out of Chausar yet. Plans, prices and drafts you approved are under Settings, Decisions.')).toBeTruthy();
   });
 
   it('says plainly when the engine cannot give the journal', async () => {

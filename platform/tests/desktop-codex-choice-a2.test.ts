@@ -34,9 +34,18 @@ test('Use this Codex: main shows its own dialog from the held review, then confi
   assert.equal(shown.length, 1);
   assert.equal(shown[0]!.window, appWindow, 'modal to the app window');
   const options = shown[0]!.options;
-  assert.equal(options.title, 'Use this Codex?');
-  assert.equal(options.message, 'Use this Codex?');
-  assert.equal(options.detail, `Chausar will run Codex 0.166.0 from ${HELD.path} for your AI work.`);
+  // Written for an ordinary owner (found by running the real app, 15 Nov 2026: "Use this Codex?" with a version and a
+  // file path said nothing a potter could weigh): what Codex is, that it is already here, what Chausar will do with it
+  // and that it never sees a password. The version and the program are still shown, last, from the held review.
+  assert.equal(options.title, 'Use Codex with Chausar?');
+  assert.equal(options.message, 'Use Codex with Chausar?');
+  assert.equal(options.detail, [
+    "Codex is OpenAI's tool that your ChatGPT plan runs through. It is already on this computer.",
+    'Chausar will use it for your AI work. Chausar never sees your password.',
+    `Version 0.166.0, at ${HELD.path}`,
+  ].join('\n\n'));
+  assert.ok(options.detail.indexOf('ChatGPT plan') < options.detail.indexOf('0.166.0') && options.detail.indexOf('password') < options.detail.indexOf(HELD.path), 'the plain words come first, the version and path last');
+  assert.doesNotMatch(options.detail.split('\n\n').slice(0, 2).join(' '), /\d|[\\/]|\.exe|sha|hash/i, 'nothing technical in the plain words');
   assert.ok(!JSON.stringify(options).includes('evil') && !JSON.stringify(options).includes('9.9.9'), 'nothing from the window is shown');
   assert.deepEqual(options.buttons, ['Use this Codex', 'Cancel']);
   assert.equal(options.defaultId, 1, 'Cancel is the default');

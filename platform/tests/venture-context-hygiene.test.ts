@@ -22,7 +22,7 @@ import { defaultPolicyContext } from '../runtime/venture/policy/ladder.ts';
 import { HELD_WORDS } from '../runtime/venture/policy/untrusted.ts';
 import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
 import { proposePost } from '../runtime/venture/build/posting.ts';
-import { proposeAction } from '../runtime/venture/journal/index.ts';
+import { proposeAction } from '../runtime/venture/journal/journal.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';
 import { agentBusiness, episodeOrder } from './venture-agent-helpers.ts';
 import { owner } from './venture-judge-helpers.ts';

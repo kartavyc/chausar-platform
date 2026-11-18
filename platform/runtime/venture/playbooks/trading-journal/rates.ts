@@ -39,8 +39,6 @@ export const EXCHANGE_PERIODS: readonly ExchangePeriod[] = Object.freeze([
     ipft: { NSE: { intraday: 0, delivery: 0, futures: 0, options: 0 }, BSE: { intraday: 0, delivery: 0, futures: 0, options: 0 } },
     source: { title: 'NSE circular NSE/FA/73061 (investor protection charge folded in), as quoted by Upstox and Zerodha', url: 'https://zerodha.com/charges', read: 'secondary', checkedOn: RATES_READ_ON } },
 ]);
-/** BSE cash rates are for groups A and B; other groups differ and are not read from a tradebook. */
-export const BSE_GROUP_NOTE = 'BSE cash trades use the group A and B rate; other groups are charged differently.';
 
 export const SEBI_FEE: { readonly ppb: Ppb; readonly source: RateSource } = Object.freeze({ ppb: 1_000 as Ppb,
   source: { title: 'SEBI turnover fee, Rs 10 a crore (notification SEBI/LAD-NRO/GN/2019/03), as quoted by brokers', url: 'https://zerodha.com/charges', read: 'secondary' as RateRead, checkedOn: RATES_READ_ON } });
@@ -84,7 +82,3 @@ export function periodOn<T extends { from: string; to: string | null }>(periods:
   return periods.find(period => day >= period.from && (period.to === null || day <= period.to)) ?? null;
 }
 
-/** Every source this journal's charges rest on, for the receipt and the desk's source list. */
-export function rateSources(broker: BrokerId): RateSource[] {
-  return [...STT_PERIODS.map(p => p.source), ...EXCHANGE_PERIODS.map(p => p.source), SEBI_FEE.source, STAMP_DUTY.source, GST.source, BROKER_RATES[broker].source];
-}

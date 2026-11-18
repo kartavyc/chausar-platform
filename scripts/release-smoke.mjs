@@ -8,21 +8,34 @@
 //            with CI=true or --allow-install, and a reg answer it cannot read counts as an install (it refuses).
 //   Linux:   the AppImage with --appimage-extract-and-run (under xvfb-run when there is no display), or the .deb with
 //            dpkg -i and dpkg -r where sudo works without a password (skipped otherwise).
-// Usage: node scripts/release-smoke.mjs --installer <file> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N]
+//   macOS:   no installer step (a dmg is not mounted here): pass --app with the program inside the built app,
+//            release/beta/mac-arm64/Chausar.app/Contents/MacOS/Chausar. Run on a real arm64 build on 14 Nov 2026
+//            (macOS 27.2): it passed once main.cjs set the smoke folder before its diagnostics (docs/desktop-releases.md).
+// Usage: node scripts/release-smoke.mjs --installer <file> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N] [--quit-by launch|signal]
 //        node scripts/release-smoke.mjs --app <program> [...]   (an already installed program, or a test's stand-in;
 //                                                               a .mjs or .js program runs with this Node)
+// Quit (15 Nov 2026, the first walk of the built Windows app): "taskkill /PID" without /F only closes a window, and the
+// beta keeps running in the tray, so on Windows the smoke always ended the app by force. It now asks the way a person
+// or an installer can: a second launch with --quit and the same user data folder (app/desktop/quit-ask.cjs), which
+// stops the engine gracefully. That is the way on Windows; elsewhere SIGTERM, which Electron turns into the same quit.
+// --quit-by picks either on any system. The forced end stays as the fallback and the quit line says when it was used.
 // --keep leaves the temp user data folder for a look. The phase names follow C5's start phases; FIRST_PAINT is the one
 // waited for (rebase: take it from C5's exported constant).
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const FIRST_PAINT = 'first-paint';
+/** The window opens before the engine has started (15 Nov 2026), so the engine's own phase is waited for too. */
+export const ENGINE_READY = 'engine-ready';
 const PRODUCT = 'Chausar';
-const usage = 'Usage: node scripts/release-smoke.mjs --installer <file> | --app <program> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N]';
+const QUIT_ARGUMENT = '--quit';
+const usage = 'Usage: node scripts/release-smoke.mjs --installer <file> | --app <program> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N] [--quit-by launch|signal]';
+/** How the smoke asks the app to quit: a second launch with --quit on Windows, SIGTERM elsewhere. */
+export const quitWay = (platform = process.platform) => (platform === 'win32' ? 'launch' : 'signal');
 
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 const ok = (step, detail = '') => process.stdout.write(`ok   ${step}${detail ? `: ${detail}` : ''}\n`);
@@ -30,15 +43,16 @@ class StepFailure extends Error { constructor(step, reason) { super(reason); thi
 const fail = (step, reason) => { throw new StepFailure(step, reason); };
 
 function parse(argv) {
-  const options = { keep: false, allowInstall: false, timeoutMs: 90_000, quitMs: 10_000 };
+  const options = { keep: false, allowInstall: false, timeoutMs: 90_000, quitMs: 20_000, quitBy: quitWay() };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === '--keep') options.keep = true;
     else if (arg === '--allow-install') options.allowInstall = true;
-    else if (['--installer', '--app', '--timeout-ms', '--quit-ms'].includes(arg) && argv[index + 1] && !argv[index + 1].startsWith('--')) {
+    else if (['--installer', '--app', '--timeout-ms', '--quit-ms', '--quit-by'].includes(arg) && argv[index + 1] && !argv[index + 1].startsWith('--')) {
       const value = argv[++index];
       if (arg === '--installer') options.installer = resolve(value);
       else if (arg === '--app') options.app = resolve(value);
+      else if (arg === '--quit-by') { if (value !== 'launch' && value !== 'signal') return null; options.quitBy = value; }
       else if (/^\d+$/.test(value)) options[arg === '--timeout-ms' ? 'timeoutMs' : 'quitMs'] = Number(value);
       else return null;
     } else return null;
@@ -70,24 +84,29 @@ const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) 
 
 async function waitForPaint(phasesFile, child, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  let missing = FIRST_PAINT;
   while (Date.now() < deadline) {
     if (child.exitCode !== null || child.signalCode !== null) fail('first paint', `the app exited (${child.exitCode ?? child.signalCode}) before first paint`);
     if (existsSync(phasesFile)) {
       const phases = readFileSync(phasesFile, 'utf8').split('\n').filter(Boolean).map(line => { try { return JSON.parse(line).phase; } catch { return null; } });
-      if (phases.includes(FIRST_PAINT)) return phases;
+      missing = [FIRST_PAINT, ENGINE_READY].find(phase => !phases.includes(phase)) ?? null;
+      if (!missing) return phases;
     }
     await sleep(250);
   }
-  fail('first paint', `no ${FIRST_PAINT} phase in ${phasesFile} within ${Math.round(timeoutMs / 1000)} s`);
+  fail('first paint', `no ${missing} phase in ${phasesFile} within ${Math.round(timeoutMs / 1000)} s`);
 }
 
 /** Starts the program with a fresh user data folder, waits for first paint, quits it, checks nothing is left. */
 async function smoke(program, options, wrap = null) {
-  const userData = await mkdtemp(join(tmpdir(), 'chausar-smoke-'));
+  // Under the temp folder's real path: on a Mac it is reached through a link (/var to /private/var), and the vault
+  // refuses linked paths, so the app could not list its businesses there and never showed its real first screen.
+  const userData = await mkdtemp(join(realpathSync(tmpdir()), 'chausar-smoke-'));
   process.stdout.write(`user data: ${userData}\n`);
   const node = /\.(?:mjs|js)$/.test(program);
   const appArgs = [`--smoke-user-data=${userData}`];
-  const [command, args] = wrap ? wrap(program, appArgs) : node ? [process.execPath, [program, ...appArgs]] : [program, appArgs];
+  const launch = extra => (wrap ? wrap(program, [...extra, ...appArgs]) : node ? [process.execPath, [program, ...extra, ...appArgs]] : [program, [...extra, ...appArgs]]);
+  const [command, args] = launch([]);
   const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
   const exited = new Promise(done => child.once('exit', done));
   let failure = null;
@@ -101,11 +120,22 @@ async function smoke(program, options, wrap = null) {
   // Quit whether or not it painted: politely first, then by force; then nothing it started may be left.
   const started = treeOf(child.pid, listProcesses());
   if (child.exitCode === null && child.signalCode === null) {
-    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid)], { windowsHide: true, stdio: 'ignore' });
-    else child.kill('SIGTERM');
+    // The ask: a second launch with --quit and the same user data folder, or SIGTERM (see the top of this file).
+    let asking = null;
+    if (options.quitBy === 'launch') {
+      const [askCommand, askArgs] = launch([QUIT_ARGUMENT]);
+      asking = spawn(askCommand, askArgs, { stdio: 'ignore', windowsHide: true });
+      asking.once('error', () => { /* it could not start: the wait below ends in the forced fallback */ });
+    } else child.kill('SIGTERM');
+    const how = asking ? 'a --quit launch' : 'SIGTERM';
     const quitted = await Promise.race([exited.then(() => true), sleep(options.quitMs).then(() => false)]);
     if (!quitted) { child.kill('SIGKILL'); await exited; }
-    ok('quit', quitted ? 'it closed when asked' : `forced after ${Math.round(options.quitMs / 1000)} s`);
+    // The asking launch leaves by itself once the app has gone; one still waiting (the app never closed) is ended.
+    if (asking && asking.exitCode === null && asking.signalCode === null) {
+      const askGone = new Promise(done => asking.once('exit', done));
+      if (!(await Promise.race([askGone.then(() => true), sleep(quitted ? 5_000 : 0).then(() => false)]))) { asking.kill('SIGKILL'); await askGone; }
+    }
+    ok('quit', quitted ? `it closed when asked (${how})` : `forced after ${Math.round(options.quitMs / 1000)} s: it did not close when asked (${how})`);
   } else ok('quit', 'it had already exited');
   let left = started.filter(item => item.pid !== child.pid);
   for (let wait = 0; wait < 20 && left.some(item => alive(item.pid)); wait++) await sleep(250);
@@ -189,6 +219,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const options = parse(process.argv.slice(2));
   if (!options) { process.stderr.write(`${usage}\n`); process.exit(2); }
   const kind = options.app ? 'app' : /\.exe$/i.test(options.installer) ? 'nsis' : /\.AppImage$/i.test(options.installer) ? 'appimage' : /\.deb$/i.test(options.installer) ? 'deb' : null;
+  // The Mac build (14 Nov 2026): nothing here mounts a dmg or unpacks a Mac zip. A Mac build is smoked with --app.
+  if (!kind && /(?:\.dmg|-mac-[^\\/]*\.zip)$/i.test(options.installer)) { process.stderr.write(`A Mac build is smoked from the app itself: pass --app <the built app's program, release/beta/mac-arm64/Chausar.app/Contents/MacOS/Chausar say>, not the dmg or zip.\n${usage}\n`); process.exit(2); }
   if (!kind) { process.stderr.write(`The installer must be a .exe (Windows NSIS), .AppImage or .deb file.\n${usage}\n`); process.exit(2); }
   try {
     if (kind === 'app') await smoke(options.app, options);

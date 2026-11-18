@@ -81,7 +81,7 @@ export function aiSpendOut(state: State, venture: VentureRecord, month: string):
 
 /** Why AI spend was left out, for a business with no rate to its currency. */
 function noRateWhy(venture: VentureRecord): string {
-  return venture.country.currency === 'INR' ? 'no rupee rate set' : `no rate from US dollars to ${venture.country.currency}`;
+  return `no rate from US dollars to ${venture.country.currency}`;
 }
 
 const PART_WORDS = Object.freeze({

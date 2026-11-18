@@ -1,6 +1,6 @@
-// Chausar venture launcher, the draft desk: AI and plan state before any vault exists (onboarding spec 2.2, 2.3).
-// One per engine process, memory only. Keys sit on a memory-only shelf, the connection and call records in an
-// in-memory store, and one compose session at a time. The same model port code as the vault serves it, so every
+// Chausar venture launcher, the draft desk: AI state before any vault exists (onboarding spec 2.2, 2.3).
+// One per engine process, memory only. Keys sit on a memory-only shelf, and the connection and call records in an
+// in-memory store. The same model port code as the vault serves it, so every
 // rule holds before the vault too: calls recorded before they are sent, the monthly cap, the consent digest, the
 // client-data guard and one dispatch per call. Idle for sixty minutes (while running) wipes it all.
 import { readFile } from 'node:fs/promises';
@@ -13,12 +13,14 @@ import { isAppChannel } from '../records.ts';
 import { createSecretShelf } from '../host.ts';
 import { countryProfile } from '../core/countries.ts';
 import { createModelPort, createReplayTransport, defaultModelTransport } from '../models/index.ts';
-import { DRAFT_HANDLERS, type ComposeSession, type DeskHandle } from './handlers.ts';
+import { DRAFT_HANDLERS, type DeskHandle } from './handlers.ts';
 import { createHandover } from './handover.ts';
 import { DraftStore } from './store.ts';
 import { LoginDesk } from '../models/login.ts';
+import type { CliStaticChecks } from '../models/cli-status.ts';
 import { hostTestCall } from '../models/cli-test.ts';
 import { ProviderStatusReader, providerTrouble } from '../models/provider-status.ts';
+import type { AiSetupNote } from '../models/ai-setup.ts';
 
 export type DraftDeskOptions = VentureHostOptions & {
   demo: boolean;
@@ -54,13 +56,20 @@ export class DraftDesk {
   #clock: () => Date;
   #parts: Parts | null = null;
   #pending: Promise<Parts> | null = null;
-  #session: ComposeSession | null = null;
   #lastTouch: number | null = null;
   #held = false;
   #timer: ReturnType<typeof setTimeout> | null = null;
   #generation = 0;
   #login: LoginDesk | null = null;
   #statusReader: ProviderStatusReader | null = null;
+  /** The setup venture.ai.reuse connected in this draft (a later business); it goes with the draft. */
+  #reused: AiSetupNote | null = null;
+  /**
+   * What the AI tools' own version and help said (models/cli-status.ts CliStaticChecks). It outlives a cleared draft:
+   * the draft of a later business in the same engine run does not start each tool again to ask what cannot have
+   * changed. Nothing of a business is in it, and the sign-in is never kept.
+   */
+  #cliStaticChecks: CliStaticChecks = new Map();
   readonly handover: DraftHandoverPort;
 
   constructor(options: DraftDeskOptions) {
@@ -68,7 +77,7 @@ export class DraftDesk {
     this.#clock = options.clock ?? (() => new Date());
     this.handover = createHandover({
       parts: () => (this.#parts ? { store: this.#parts.store, shelf: this.#parts.shelf } : null),
-      session: () => this.#session,
+      reused: () => this.#reused,
       clear: () => this.clear(),
     });
   }
@@ -83,14 +92,14 @@ export class DraftDesk {
     check(!this.#options.ventureExists(), 'VENTURE_EXISTS', VENTURE_EXISTS_WORDS);
     this.#expireIfIdle();
     this.#touch();
-    const generation = this.#generation;
     const parts = await this.#ready();
     const handle: DeskHandle = {
       deps: parts.deps,
       now: () => this.#clock(),
       idleUntil: () => this.#idleUntil(),
-      session: () => (this.#generation === generation ? this.#session : null),
-      keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
+      aiSetup: this.#options.aiSetup ?? null,
+      reused: () => this.#reused,
+      noteReused: note => { this.#reused = note; },
       // A2: the setup the owner is shown, and the tiny test call that earns "Signed in" (models/cli-test.ts).
       login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ ...(this.#options.work ? { work: this.#options.work } : {}), claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli),
         testCall: (cli, program) => hostTestCall(cli, program, this.#options.codexCli, parts.deps.models),
@@ -108,15 +117,15 @@ export class DraftDesk {
     this.#stopTimer();
   }
 
-  /** Wipes the shelf, the store and the session, and ends any pause. The next request starts fresh. */
+  /** Wipes the shelf and the store, and ends any pause. The next request starts fresh. */
   clear(): void {
     this.#generation += 1;
     this.#login?.clear();
     this.#login = null;
+    this.#reused = null;
     this.#parts?.shelf.clear();
     this.#parts = null;
     this.#pending = null;
-    this.#session = null;
     this.#lastTouch = null;
     this.#held = false;
     this.#stopTimer();
@@ -187,6 +196,7 @@ export class DraftDesk {
     const port: ModelPort = createModelPort({
       store, clock: this.#clock, transport, secrets: shelf, host, demo: options.demo, claudeCodeTerms,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
+      cliStaticChecks: this.#cliStaticChecks,
     });
     const deps: VentureDeps = Object.freeze({
       ...(this.#options.work ? { work: this.#options.work } : {}),

@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useT } from '../../text';
+import { fixedWords } from '../today/plan-words';
 import { openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
@@ -53,7 +54,7 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
         {run.progress && <ProgressRing progress={run.progress} tone={waiting ? 'waiting' : 'working'} />}
       </div>
       <h3 id={titleId} className={s.runTitle}>
-        <button type="button" className={s.titleButton} data-open="" onClick={(event) => open(event.currentTarget)}>{run.purpose}</button>
+        <button type="button" className={s.titleButton} data-open="" onClick={(event) => open(event.currentTarget)}>{fixedWords(t)(run.purpose)}</button>
       </h3>
       {waiting ? (
         <>
@@ -71,7 +72,7 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
           )}
         </>
       ) : at >= 0 ? (
-        <p className={s.runStep}><StillArc />{steps[at]!.purpose}</p>
+        <p className={s.runStep}><StillArc />{fixedWords(t)(steps[at]!.purpose)}</p>
       ) : null}
       <div className={s.runFoot}>
         {/* C4 task 12: a run waiting on the owner says how long it has waited; the time it worked leaves that out. */}
@@ -102,8 +103,9 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
  * the purpose (which opens the run sheet), the step in hand from the engine, and "Run 31 · 4m". A run that waits says
  * which step waits, shows its question, and Answer opens the run sheet, where it is answered; with no question from
  * the engine, a plain Open does. The All view's head counts what runs and what failed ("3 running · 1 failed").
- * W4 4F3: each tile has Stop ("Stop run 31"), which opens its small dialog (StopDialog.tsx); a run the round gate holds
- * shows the gate's line and its Continue box (RoundGate.tsx), decided through Today's row for it.
+ * W4 4F3: each tile has Stop (named by what the run is doing, "Stop: Cutting shorts from episode 13"), which opens its
+ * small dialog (StopDialog.tsx); a run the round gate holds shows the gate's line and its Continue box (RoundGate.tsx),
+ * decided through Today's row for it.
  */
 export function RunTiles({ runs, names, meta, queue, onChanged }: {
   runs: RunSummary[]; names: ReadonlyMap<string, string>; meta?: string | undefined; queue?: readonly QueueRow[] | undefined; onChanged?: (() => void) | undefined;

@@ -103,15 +103,15 @@ describe('Business in the Ink v2 look', () => {
     assertInkRules(document.body);
   });
 
-  it('Plan shows how far setup has come as a bar, from the engine\'s own count', async () => {
+  it('Plan shows this week from the chief\'s standing plan, with a way to Today', async () => {
     start('#/business/plan');
     // The heading's words first (a cheap query), then the region it names.
-    const heading = await screen.findByText('Setup', { selector: 'h2' });
-    const setup = heading.closest('section')!;
-    expect(setup.getAttribute('aria-labelledby')).toBe(heading.id);
-    expect(await within(setup).findByRole('img', { name: '6 of 12 steps done' })).toBeTruthy();
-    expect(setup.textContent).toContain('6 of 12');
-    expect(within(setup).getByRole('link', { name: "What's left" }).getAttribute('href')).toBe('#/today?show=setup');
+    const heading = await screen.findByText('This week', { selector: 'h2' });
+    const week = heading.closest('section')!;
+    expect(week.getAttribute('aria-labelledby')).toBe(heading.id);
+    expect((await within(week).findAllByRole('listitem')).length).toBeGreaterThan(0);
+    expect(week.textContent).toContain('Set your prices');
+    expect(within(week).getByRole('link', { name: /Open Today/ }).getAttribute('href')).toBe('#/today');
   });
 
   it('a business not registered for GST never sees a GST field, at rest or with every fold open', async () => {

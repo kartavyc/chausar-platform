@@ -9,6 +9,7 @@
 // points are scaled in code to the largest week by integer division; a week with no data has no value and no scale
 // (null, never 0), and no receipt. One ledger serves the whole request.
 import { formatUsd } from '../../owner-format.ts';
+import { ownPlanLead } from '../models/own-plan.ts';
 import type { Context, State } from '../../contracts.ts';
 import type { AgentView, DepartmentId, DepartmentSpend, DepartmentView, IsoDate, MoneyFigureView, SeriesPoint, SpendLead, VentureDeps, VentureRecord } from '../contracts.ts';
 import { formatVentureDate } from '../records.ts';
@@ -150,7 +151,12 @@ export async function departmentViews(deps: VentureDeps, ctx: Context, state: St
   const jobsAll = jobsCountPlan(state, venture, { type: 'count', what: 'jobs', scope: 'all', from: thisWeek, to: addDays(thisWeek, 6) }, ledger);
   const allDone = await sumReceipt(deps, ctx, venture.id, jobsAll);
   const heldAll = heldPlan(state, venture, { type: 'held', scope: 'all', month }, ledger);
-  const spendAll = await spendFigure(deps, ctx, venture, spentAll, heldAll, rupees);
+  const spendFigured = await spendFigure(deps, ctx, venture, spentAll, heldAll, rupees);
+  // On the owner's own AI plan a call is counted, never priced: nothing spent says that, in no currency, where a zero
+  // would read as a price. The sum and its receipt stay as they are.
+  // The rule is shared with Money (models/own-plan.ts).
+  const ownPlan = ownPlanLead(deps, ctx, whole, planEstimate(spentAll));
+  const spendAll = ownPlan ? { ...spendFigured, lead: ownPlan } : spendFigured;
   const heldReceipt = planTotal(heldAll) > 0n ? await sumReceipt(deps, ctx, venture.id, heldAll) : null;
   return {
     departments, shared,

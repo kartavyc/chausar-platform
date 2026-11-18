@@ -1,4 +1,5 @@
 import { useLanguage, useT } from '../../text';
+import { fixedWords } from '../today/plan-words';
 import type { MoneyOverviewLine, TeamListView } from '../../engine/types';
 import { Avatar } from '../../parts/Avatar';
 import { cx } from '../../parts/cx';
@@ -44,12 +45,14 @@ function SpendTile({ line, held, span }: { line: MoneyOverviewLine; held?: { wor
   if (!proof) return null;
   // 4Z3: the figure as the engine says it leads (rupees or dollars first), the other currency beneath it.
   const shown = spendShown(line.lead, line.value, line.rupees);
+  // Round 7: "On your own AI plan" is Chausar's words, said in the owner's language; a figure stays as the engine sent it.
+  const value = fixedWords(t)(shown.value);
   return (
     <Tile span={span} pad="compact" card className={s.spendTile}>
       {/* B2: the rupee icon only beside a figure that leads in rupees, never beside dollars. */}
       <p className={s.statLabel}>{line.lead?.currency === 'INR' && <Icon name="indian-rupee" size={14} />}{t('team.stats.spend')}</p>
-      <div className={cx(s.statValue, WORDS.test(shown.value) && s.worded)}>
-        <ProvedFigure value={shown.value} proof={proof} rupees={shown.rupees} />
+      <div className={cx(s.statValue, WORDS.test(value) && s.worded)}>
+        <ProvedFigure value={value} proof={proof} rupees={shown.rupees} />
       </div>
       {held && <HeldLine held={held} className={s.statHeld} />}
     </Tile>
@@ -110,10 +113,11 @@ export function TeamStats({ members, spent, totals, bars, needsYou }: {
         label={t('team.stats.waiting')}
         count={waits}
         side={waiting.length > 0 ? <Stack members={waiting} ring /> : undefined}
-        sub={one?.run
-          ? t('team.stats.waitingOne', { agent: one.agent.name, purpose: one.run.purpose })
-          : waiting.length > 0 ? joined(waiting.map((m) => m.agent.name), language)
-            : waits > 0 ? t('today.needs.count', { count: waits }) : t('team.stats.waitingNone')}
+        // The agents are named only when they are all that waits: a tile of 7 that named one agent read as a wrong count
+        // (the others are a plan, a price or a setup step, which no agent holds). Then Today's count says it.
+        sub={waits > waiting.length ? t('today.needs.count', { count: waits })
+          : one?.run ? t('team.stats.waitingOne', { agent: one.agent.name, purpose: one.run.purpose })
+            : waiting.length > 0 ? joined(waiting.map((m) => m.agent.name), language) : t('team.stats.waitingNone')}
       />
       {totals && (
         <StatTile

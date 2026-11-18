@@ -1,7 +1,7 @@
 // Chausar venture launcher, core (Ink v2 wave 4, package 4J8; catalogue U3, the business picker): "Add this to
 // {business}" on Start. With a business open, venture.blueprint.suggest asks that business's own AI how the plan should
 // change to take in the owner's sentence, with a dropped file as background only (core/attachment.ts, the same screen
-// as the composer's drop). The owner's words pass the shared screen (screenReadback) first.
+// as About you's drop). The owner's words pass the shared screen (screenReadback) first.
 //
 // It answers a draft patch in exactly the shape venture.blueprint.update takes, bound to the plan version it read
 // (basedOn, so a plan changed since is refused as stale), each change in plain words from code, and writes nothing to

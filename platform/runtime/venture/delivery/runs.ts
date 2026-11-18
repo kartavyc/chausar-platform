@@ -73,10 +73,11 @@ import { ensurePlaybook,flagshipDraft,verifyChecks } from './playbook.ts';
 import { loadQuarantineCheck,refuseQuarantined } from './quarantine-gate.ts';
 import { landRevision } from './revise.ts';
 import { freezeScope,refuseMissingCapability,refuseNewWork } from './run-guards.ts';
+import { accept,allows,awaitingApproval,edit,failJob,finishJob,forgetReject,inReview,interrupt,jobAlive,reject,startJob,startReady,STOP_LINES,supersede,toolSteps,type RunSeed } from './run-machine.ts';
 import { acceptedBlueprint,newestFirst,optionalFlag,readAs,todayIso,ventureReceipts } from './shared.ts';
 import { REPORT_SECTIONS } from './harness/loop.ts';
 import { checksWithEdit, editInForce, jobLevelFailure, ownAmounts, OWN_WORDS_AMOUNT, type EditContext } from './owner-edit.ts';
-import { agentMayDraft, isLiveStage, isPracticeStage } from '../core/launch-stage.ts';
+import { agentMayDraft, isLiveStage, isPracticeStage, PRACTICE_REASON } from '../core/launch-stage.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
 import { playbookForOrder,playbookForRun,type RunPlaybook } from './workflow.ts';
 
@@ -86,7 +87,7 @@ const REVIEW_DECISION_WORDS: Readonly<Record<'accepted' | 'edited' | 'rejected',
 });
 
 export const STAGE_BLOCKED_REASON = 'Move the business to Practice or Live first.';
-export const PRACTICE_REASON = 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.';
+export { PRACTICE_REASON };
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
 /** The judge's line on a run the owner edited: the edit is the owner's own words, which the judge never reads. */
@@ -115,9 +116,14 @@ const MAX_ANSWER_CHARS = 2000;
  * offerKey: the flagship playbook offer the order is (Offer.playbookOffer), or null.
  */
 /** ownerWords: the owner's own words that may hold the business's links (the idea, the client's record, the offers), for the receipts check. */
+/**
+ * clientName: the name on the client's record, which the AI reads (read_client). It backs a name in the draft, so a
+ * greeting by first name ("Hi Asha" for Asha Rao) is grounded; it backs nothing else. Found live, 17 Nov 2026: every
+ * job that greeted the client by first name failed claims-grounded and drafted again, one whole model request more.
+ */
 type OrderContext = {
   venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[]; known: string[]; offerKey: string | null;
-  ownerWords: string[];
+  ownerWords: string[]; clientName: string | null;
   roomBrief: ReturnType<typeof vaRoomEvidence>;
 };
 
@@ -138,7 +144,7 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
   // A CA firm offer an older plan kept no playbook id for is read from its own words, so its checks still apply.
   const offerKey = blueprint.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? caOfferFor(state, venture, order.id)?.id ?? null;
   const ownerWords = [venture.idea, ...(client?.ventureId === venture.id ? [client.name, client.email ?? ''] : []), ...blueprint.offers.map(offer => offer.description.value)];
-  return { venture, blueprint, order, receipt, receipts: ventureReceipts(state, venture.id), known, offerKey, ownerWords,roomBrief:vaRoomEvidence(state,venture.id,order.id) };
+  return { venture, blueprint, order, receipt, receipts: ventureReceipts(state, venture.id), known, offerKey, ownerWords, clientName: client?.ventureId === venture.id ? client.name : null, roomBrief:vaRoomEvidence(state,venture.id,order.id) };
 }
 
 /**
@@ -248,7 +254,7 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
       codeSources: (extras.toolCalls ?? []).filter(call => call.envelope.ok).map(call => ({ id: call.id, text: JSON.stringify(call.envelope.ok ? call.envelope.result : '') })),
       clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [], outputFiles: extras.outputFiles??[],
       known: context.known, dateOrder: context.venture.country.dateOrder, ownerWords: context.ownerWords,
-      ownerSources: ownerSourcesOf([context.venture.workingName, context.blueprint.name.value], playbook),
+      ownerSources: [...ownerSourcesOf([context.venture.workingName, context.blueprint.name.value], playbook), ...(context.clientName ? [{ id: 'client.name', text: context.clientName, backs: ['name' as const] }] : [])],
     },
   };
 }
@@ -257,14 +263,14 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
  * A new run's common fields. Ink v2 wave 4 (4F1): checked again in the commit that stores it, no new run while paused
  * (or on its own while the owner is away), and its scope frozen from the tools it is granted and its spend cap.
  */
-function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, grant: readonly ToolName[], capMicros: MicroString): Omit<DeliveryRunRecord, 'status' | 'servedBy' | 'practice' | 'callId' | 'preview' | 'deliverable' | 'renderedText' | 'checks'> {
+function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, grant: readonly ToolName[], capMicros: MicroString): Omit<RunSeed, 'servedBy' | 'practice' | 'callId' | 'preview' | 'deliverable' | 'renderedText' | 'checks'> {
   refuseNewWork(tx.state, tx.venture!, tx.ctx, tx.now);
   // Ink v2 wave 4 (4A1): and none while the team or one of its agents is quarantined (quarantine-gate.ts).
   refuseQuarantined(tx.state, tx.venture!, tx.now);
   // 4J12 (H24): and none on an order whose contract the owner has not signed (money/order-contracts.ts).
   refuseUnsignedContract(tx.state, tx.venture!, order);
   return {
-    ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, verdict: null, editedText: null,
+    ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, editedText: null,
     ...((playbook as RunPlaybook).runWorkflow ? { workflow: (playbook as RunPlaybook).runWorkflow } : {}),
     ...(playbook.flagship==='job-search-desk'?{careerPackBinding:careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding}:{}),
     ...(playbook.flagship==='dev-agency'?{devReportBinding:devStateSource(tx.state,tx.venture!.id,order.id,tx.now,true).report.digest}:{}),
@@ -280,7 +286,18 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, gr
   };
 }
 
-/** venture.delivery.run: a template outline at any stage, or an agent draft waiting for the owner to approve the send. */
+/**
+ * Stores a new run of an order. A stopped run of the same order can no longer be resumed once a newer one exists, and
+ * that is written on it now (run-machine.ts supersede), never worked out later from the list of runs.
+ */
+export function putNewRun(tx: VentureTx, run: DeliveryRunRecord): DeliveryRunRecord {
+  for (const older of tx.list('venture-delivery-run')) {
+    if (older.orderId === run.orderId && older.id !== run.id && older.status === 'stopped' && older.stopped?.reason !== 'superseded') tx.replace(supersede(older, tx.now));
+  }
+  return tx.put(run);
+}
+
+/** venture.delivery.run: a template outline at any stage, or an AI job that drafts for the order. */
 export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payload: unknown, continuation: { resumeFrom?: string } = {}): Promise<DeliveryRunView> {
   const body = exactPayload(payload, ['orderId', 'useTemplate'], ['orderId']);
   const orderId = identifier(body.orderId, 'Order');
@@ -368,11 +385,11 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
       if(career)check(careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding===career.sourceBinding,'CAREER_SOURCE_CHANGED','The career pack changed during preparation.');
       if(dev)check(devStateSource(tx.state,tx.venture!.id,order.id,tx.now,true).report.digest===dev.report.digest,'DERIVED_STALE','The source report changed. Start again.');
       if(va)vaRunSource(tx.state,tx.venture!.id,order.id,va.digest);
-      const run: DeliveryRunRecord = {
-        ...baseRun(tx, context.order, playbook, [], '0'), status: 'ready-for-review', servedBy: 'template', practice: false, callId: null, preview: null,
+      const run = startReady({
+        ...baseRun(tx, context.order, playbook, [], '0'), servedBy: 'template', practice: false, callId: null, preview: null,
         deliverable, renderedText, checks, ...(playbookChecks ? { playbookChecks } : {}),
-      };
-      tx.put(run);
+      });
+      putNewRun(tx, run);
       tx.emit('run.started', { runId: run.id });
       recordCheckSignal(tx, run.id, checks);
       tx.emit('delivery-ready', { runId: run.id, orderId: run.orderId, servedBy: 'template' });
@@ -383,7 +400,6 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
 
 /** A2: what the run says when the watchdog stopped a quiet job (one place: harness/controls.ts). */
 export { QUIET_LINE, TIME_LINE } from './harness/controls.ts';
-import { watchdogLine } from './harness/controls.ts';
 
 /** The installed AI owns its turns. Chausar keeps the job's sources, checks and exact outside-action proposal. */
 async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: OrderContext, playbook: PlaybookRecord, uploads: FileLike[], continuation: { resumeFrom?: string; existingRunId?: string }): Promise<DeliveryRunView> {
@@ -401,12 +417,12 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
     requireClientAiConsent(tx.state, tx.venture!.id, context.order.clientId);
     const current = orderContext(tx.state, tx.venture!, context.order.id);
     check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-    const run: DeliveryRunRecord = { ...baseRun(tx, current.order, playbook, [], '0'), status: 'waiting-for-you', servedBy: 'model',
+    const run = startJob({ ...baseRun(tx, current.order, playbook, [], '0'), servedBy: 'model',
       practice: !isLiveStage(tx.venture!.launchStage), callId: null, preview: null, deliverable: null, renderedText: null,
-      checks: [], uploadIds: uploads.map(file => file.id) };
-    tx.put(run); tx.emit('run.started', { runId: run.id }); return run;
+      checks: [], uploadIds: uploads.map(file => file.id) });
+    putNewRun(tx, run); tx.emit('run.started', { runId: run.id }); return run;
   });
-  check(run.status === 'waiting-for-you' && !run.verdict
+  check(run.status === 'working'
     && (expectedRevision === null || revisionIdentity(run) === expectedRevision), 'JOB_CLOSED', 'This AI job is no longer waiting to start.');
   launchAgentWork(deps.store, run.id, async () => {
     try {
@@ -445,21 +461,25 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
         const named = result.status === 'failed' && result.failure
           ? failureWords({ code: AI_FAILURE_CODES[result.failure], message: result.error ?? '' }, { at: tx.now, dateOrder: context.venture.country.dateOrder }) : null;
         // A2: a job that went quiet was stopped by the watchdog; its notes so far stay, and the line says so.
-        const quietLine = watchdogLine(result);
-        if (latest && ['waiting-for-you', 'ready-for-review'].includes(latest.status) && result.status !== 'completed') {
-          tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed',
-            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}), ...(result.quiet ? { quiet: true } : {}), ...(result.quiet && result.overtime ? { overtime: true } : {}) } } : {}) });
+        const quietLine = result.quiet ? STOP_LINES[result.overtime ? 'overtime' : 'quiet'] : null;
+        const withFailure = (job: DeliveryRunRecord): DeliveryRunRecord => (named && job.agentJob ? { ...job, agentJob: { ...job.agentJob, failure: named } } : job);
+        if (latest && jobAlive(latest) && result.status !== 'completed') {
+          // A session that was cut is an interruption, with the watchdog's reason when it was the one that cut it; anything else failed.
+          tx.replace(result.status === 'interrupted'
+            ? interrupt(withFailure(latest), tx.now, result.quiet ? (result.overtime ? 'overtime' : 'quiet') : 'interrupted', toolSteps(latest))
+            : failJob(withFailure(latest)));
           tx.emit('run.failed', { runId: run.id, line: quietLine ?? named?.line ?? 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
           tx.emit('queue.changed', {});
           return;
         }
-        if (latest?.status === 'ready-for-review' && latest.revision && latest.renderedText) {
+        if (latest?.status === 'finishing' && latest.revision && latest.renderedText) {
           tx.replace({ ...latest, ...landRevision(latest, { renderedText: latest.renderedText, checks: latest.checks, playbookChecks: latest.playbookChecks }, tx.now) });
           tx.emit('run.step', { runId: run.id });
           return;
         }
-        if (!latest || latest.status !== 'waiting-for-you') return;
-        tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed', ...(named && latest.agentJob ? { agentJob: { ...latest.agentJob, failure: named } } : {}) });
+        // The job completed without ever handing a draft over: that is a failed job.
+        if (!latest || latest.status !== 'working') return;
+        tx.replace(failJob(withFailure(latest)));
         tx.emit('run.failed', { runId: run.id, line: named?.line ?? 'The AI stopped without a checked draft. Read its work notes before starting again.' });
       });
       if (result.status === 'completed') {
@@ -467,9 +487,9 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
         await judge.autoJudge(deps, ctx, { id: run.id }).catch(() => undefined);
         await ventureAction(deps, ctx, 'prepare', 'agent.job.reviewReady', tx => {
           const current = tx.find('venture-delivery-run', run.id);
-          if (!current?.agentJob || current.status !== 'ready-for-review' || current.verdict) return;
+          if (!current?.agentJob || !allows('finishJob', current)) return;
           assertAgentDraftCurrent(tx.state, current);
-          tx.replace({ ...current, agentJob: { ...current.agentJob, reviewReady: true } });
+          tx.replace(finishJob(current));
           tx.emit('run.step', { runId: run.id }); tx.emit('queue.changed', {});
         });
         await import('../playbooks/ca-firm/delivery-signoff.ts').then(module => module.requestSignoffForRun(deps, ctx, run)).catch(() => null);
@@ -477,14 +497,14 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
     } catch (error) {
       await ventureAction(deps, ctx, 'prepare', 'agent.job.failed', tx => {
         const latest = tx.find('venture-delivery-run', run.id);
-        if (!latest || !['waiting-for-you', 'ready-for-review'].includes(latest.status)) return;
+        if (!latest || !jobAlive(latest)) return;
         const code = error instanceof ChausarError ? error.code : 'MODEL_FAILED';
         const details = error instanceof ChausarError && 'details' in error ? error.details : null;
         const cause = details && typeof details === 'object' && 'cause' in details && details.cause === 'not-connected' ? 'not-connected' : undefined;
         const failureContext = { at: tx.now, dateOrder: context.venture.country.dateOrder };
         const failure = failureWords({ code, message: error instanceof Error ? error.message : '', ...(cause ? { cause } : {}) }, failureContext)
           ?? failureWords({ code: 'MODEL_FAILED', message: '' }, failureContext)!;
-        tx.replace({ ...latest, status: 'failed', ...(latest.agentJob ? { agentJob: { ...latest.agentJob, failure } } : {}) });
+        tx.replace(failJob(latest.agentJob ? { ...latest, agentJob: { ...latest.agentJob, failure } } : latest));
         tx.emit('run.failed', { runId: run.id, line: failure.line });
       }).catch(() => undefined);
     }
@@ -545,8 +565,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
   const reviewed = await ventureAction(deps, ctx, 'approve', 'delivery.review', async tx => {
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
-    check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
-    if (verdict !== 'rejected') check(!run.agentJob || run.agentJob.reviewReady === true, 'DELIVERY_NOT_READY', 'AI work must finish before you can approve this draft.');
+    check(inReview(run), 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
+    if (verdict !== 'rejected') check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'AI work must finish before you can approve this draft.');
     if (verdict !== 'rejected') assertAgentDraftCurrent(tx.state, run);
     // One-shot A3 review (M1): an owner's edit from Today, then accepted, is the owner's own words as an edited verdict is,
     // so each desk's no-edit rule holds for it too.
@@ -581,15 +601,12 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     // 4J1 (J2): Accept or an edit binds the files the draft hands over, by the sha256 of their bytes, to whoever decided.
     const manifest = verdict !== 'rejected' ? acceptManifest(tx.state, run, tx.now, ctx.memberId) : null;
     const orderBefore = verdict === 'rejected' ? JSON.stringify(tx.find('venture-order', run.orderId) ?? null) : '';
-    const next: DeliveryRunRecord = {
-      // C4 task 15: what a reject changes, for its Undo.
-      ...(verdict === 'rejected' ? { rejectedFrom: { verdict: run.verdict ?? null, editedText: run.editedText ?? null, practice: run.practice } } : {}),
-      // 4J1: Accept of a draft the owner edited and that came back for review keeps the owner's words (draft-text.ts).
-      ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText: verdict === 'accepted' ? run.editedText ?? null : editedText,
-      // The owner's edit is the owner's own words: the judge never reads it, and its line says so (judge-run.ts).
-      ...(verdict === 'edited' && run.judge ? { judge: { ...run.judge, line: JUDGE_EDIT_LINE } } : {}),
-      ...(manifest ? { manifest } : {}),
-    };
+    // The status and the verdict are set together by the machine (run-machine.ts). C4 task 15: a reject keeps what it
+    // changed, for its Undo. 4J1: Accept of a draft the owner edited and that came back for review keeps the owner's
+    // words (draft-text.ts). The owner's edit is the owner's own words: the judge never reads it, and its line says so.
+    const next: DeliveryRunRecord = verdict === 'rejected' ? { ...reject(run, reason, tx.now), practice, editedText: null }
+      : verdict === 'accepted' ? accept({ ...run, practice, editedText: run.editedText ?? null, ...(manifest ? { manifest } : {}) }, tx.now)
+        : edit({ ...run, practice, editedText, ...(run.judge ? { judge: { ...run.judge, line: JUDGE_EDIT_LINE } } : {}), ...(manifest ? { manifest } : {}) }, reason, tx.now);
     tx.replace(next);
     keepSocialPostPlan(tx,next);
     // 4J1 (O17): who decided and when, wherever the owner reviewed it (Today, Work or the run sheet).
@@ -606,7 +623,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     // Ink v2 wave 5 (5A1): a kit chain order moves on only after Accept, or goes back or stops after a rejection.
     chainNext = chainOnReview(tx, next, verdict);
     // C4 task 15: a reject that moved the order too (a chain's stage goes back or stops) can't be taken back on its own.
-    if (verdict === 'rejected' && JSON.stringify(tx.find('venture-order', run.orderId) ?? null) !== orderBefore) tx.replace<DeliveryRunRecord>({ ...next, rejectedFrom: null });
+    if (verdict === 'rejected' && JSON.stringify(tx.find('venture-order', run.orderId) ?? null) !== orderBefore) tx.replace<DeliveryRunRecord>(forgetReject(next));
     return runView(next, tx.venture!, Date.parse(tx.now), tx.state);
   });
   // The next stage's run starts through the order path, so its gates, posture and floor hold; if it can't start now
@@ -678,8 +695,9 @@ function editContext(state: State, run: DeliveryRunRecord): EditContext {
  */
 export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: number, state?: State): DeliveryRunView {
   const stage = venture.launchStage;
-  const ready = run.status === 'ready-for-review';
-  const waiting = run.status === 'waiting-for-you';
+  // A draft in front of the owner: handed over while its job finishes, or waiting for the verdict.
+  const ready = inReview(run);
+  const waiting = run.status === 'working';
   const practiceNow = ready ? run.practice || (run.servedBy === 'model' && stage !== 'approve-each')
     : waiting ? run.practice || stage !== 'approve-each'
       : run.practice;
@@ -687,7 +705,7 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   const cancelled = !!state && findRecord(state, 'venture-order', run.orderId)?.status === 'cancelled';
   const canApprove = false;
   // Practice, or AI work that has not handed over: neither Accept nor an edit.
-  const before = ready ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : null) : null;
+  const before = ready ? (practiceNow ? PRACTICE_REASON : run.status === 'finishing' ? 'AI work must finish before you can approve this draft.' : null) : null;
   // One-shot A3 (S2): the owner's own edit in force is not held to the agent's failed checks.
   const failed = ready && !before ? failedCheckReason(checksInForce(state, run), run.playbookChecks) : null;
   // The quality check still reading it, a CA's sign-off, or its files' consent and asset records (5A4).
@@ -704,11 +722,11 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
     || (!!state && playbookForRun(state, run)?.flagship === 'job-search-desk');
   // A3 review 2 (M-b): nor a draft whose failed check is about the run itself, which no edit can fix.
   const canEdit = ready && !cancelled && before === null && held === null && !deskBound && !jobLevelFailure(run.checks);
-  // One-shot A1 (row 9, after review): a draft the AI handed over while its job still runs (reviewReady not set, nothing
-  // pending the owner's approval) is the AI's work in progress: nothing says it waits on the owner, and Today holds no
-  // row for it until the job hands over.
-  const finishing = ready && !!run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval;
-  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && !finishing && (!practiceNow || isPracticeStage(stage)));
+  // One-shot A1 (row 9, after review): a draft the AI handed over while its job still finishes, with no step pending
+  // the owner's approval, is the AI's work in progress: nothing says it waits on the owner, and Today holds no row for
+  // it until the job is done.
+  const finishing = run.status === 'finishing' && !awaitingApproval(run);
+  const awaitingYou = !cancelled && (awaitingApproval(run) || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && !finishing && (!practiceNow || isPracticeStage(stage)));
   // 4H1 (U17): which engine wrote the draft, read from its own call record; only with the vault's state.
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, canEdit, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
 }

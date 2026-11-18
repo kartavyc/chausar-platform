@@ -17,6 +17,11 @@
 //   or a note. Not now skips it; nobody answering within 24 hours counts as no, recorded as a timeout.
 // - A run found running from a sweep this process did not start was cut by a crash: it is interrupted, never run again.
 // - A routine whose sweep fails gets one failed run with why; the other routines still run.
+// - The chief's daily review (chief/review.ts) is the one routine whose runs wait for nobody: the owner approved it once
+//   when they switched it on, and a run only reads the records, updates the plan and may put proposal cards on Today. It
+//   still approves nothing: every card it raises waits for the owner. It runs whenever Chausar is next open on the
+//   owner's same calendar day, not only within 60 minutes, and it does its own part from the records when the AI may
+//   not be used (no AI, the day's allowance used, the plan used up).
 // History says delivered, never done.
 import { check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, digest, listRecords, ventureAction, type VentureTx } from '../records.ts';
@@ -38,7 +43,7 @@ import { keyedPreset, routineCapError } from '../money/spend-meter.ts';
 import { routineStartRefusal } from '../money/agent-meters.ts';
 import { withRoutineScope } from './routine-scope.ts';
 // C7: routines wait for the AI plan to reset (models/plan-book.ts); the owner may set an earlier pause point.
-import { planBookOf, planCliOf, USED_UP_HOLD_MS } from '../models/plan-book.ts';
+import { planBookFor, planCliOf, USED_UP_HOLD_MS } from '../models/plan-book.ts';
 import { CLI_LABELS } from '../models/presets.ts';
 import { agentSettingsOf } from '../agent-runtime/settings.ts';
 import { formatTime, ownerZone } from '../../owner-format.ts';
@@ -48,6 +53,7 @@ import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { EVENT_WORDS, fillBlanks, type EventFacts } from '../build/event-triggers.ts';
 import { RUN_ELSEWHERE, BACKUP_WORDS, clientAllowsBackup, routineRoutes, usableBackup } from './routine-backup.ts';
 import type { ChatRoute } from './consent.ts';
+import { localDayAt } from '../local-day.ts';
 
 /** How late a run may start: an occurrence older than this is missed. */
 export const CATCH_UP_MS = 60 * 60_000;
@@ -119,16 +125,37 @@ function settleOld(tx: VentureTx, nowMs: number): void {
   }
 }
 
+/** The instant a routine's next sweep looks after: its newest run's due time, or when it was last saved. */
+function lastLookedAt(state: State, ventureId: string, routine: RoutineRecord): number {
+  return runsOf(state, ventureId, routine.id).reduce((latest, run) => Math.max(latest, Date.parse(run.dueAt)), Date.parse(routine.at));
+}
+
+/**
+ * Fix round 7 (re-check 6, item 3): whether a routine has a time that came since it was last looked at, so the engine's
+ * tick sweeps now rather than at its next five-minute sweep. Found on Windows: a review moved to 5:01 pm had not run at
+ * 5:04 pm and Routines already said tomorrow. Reads only; never throws.
+ */
+export function routineDue(state: State, nowMs: number): boolean {
+  try {
+    const venture = currentVenture(state);
+    if (!venture) return false;
+    return runnable(state, venture.id).some(routine => occurrencesBetween(routine.schedule, lastLookedAt(state, venture.id, routine), nowMs).count > 0);
+  } catch { return false; }
+}
+
 /**
  * One routine at a sweep: its missed occurrences become one missed run, and the newest inside the catch-up window is
  * skipped (paused, overlap, agent gone) or claimed. Answers the run it claimed, or null.
  */
 function planRoutine(tx: VentureTx, routine: RoutineRecord, nowMs: number, keyed = false): RoutineRunRecord | null {
   const runs = runsOf(tx.state, tx.venture!.id, routine.id);
-  const last = runs.reduce((latest, run) => Math.max(latest, Date.parse(run.dueAt)), Date.parse(routine.at));
+  const last = lastLookedAt(tx.state, tx.venture!.id, routine);
   const due = occurrencesBetween(routine.schedule, last, nowMs);
   if (!due.count || !due.latest) return null;
-  const late = nowMs - Date.parse(due.latest) > CATCH_UP_MS;
+  // The daily review catches up all through the owner's day: opened at noon, Chausar still plans the morning's day.
+  const late = routine.review
+    ? localDayAt(due.latest, tx.venture!.country) !== localDayAt(tx.now, tx.venture!.country)
+    : nowMs - Date.parse(due.latest) > CATCH_UP_MS;
   const missed = late ? due.count : due.count - 1;
   if (missed > 0) putRun(tx, routine, late ? due.latest : due.previous!, 'missed', ROUTINE_WORDS.missed(missed), missed);
   if (late) return null;
@@ -140,7 +167,8 @@ function planRoutine(tx: VentureTx, routine: RoutineRecord, nowMs: number, keyed
     return null;
   }
   // W6 6G5: on a key, a routine whose own limit, agent's limit or the month's limit is used is skipped with the reason.
-  const over = keyed && !routine.recordReport ? routineStartRefusal(tx.state, tx.venture!, routine, tx.now) : null;
+  // The daily review holds its own AI use back and still plans from the records (chief/own-use.ts), so it is never skipped here.
+  const over = keyed && !routine.recordReport && !routine.review ? routineStartRefusal(tx.state, tx.venture!, routine, tx.now) : null;
   if (over) { putRun(tx, routine, due.latest, 'skipped', ROUTINE_WORDS.overLimit(over)); return null; }
   const claimed = putRun(tx, routine, due.latest, 'running', ROUTINE_WORDS.running);
   MAKING.add(claimed.id);
@@ -179,9 +207,11 @@ export async function runRoutines(deps: VentureDeps, ctx: Context): Promise<numb
   try { keyed = keyedPreset(chatRoute(deps.models.status(ctx))?.presetId); } catch { keyed = false; }
   for (const routineId of ids) {
     let claimed: RoutineRunRecord | null = null;
+    let review = false;
     try {
       claimed = await ventureAction(deps, ctx, 'prepare', 'routines.sweep', tx => {
         const routine = tx.find('venture-routine', routineId);
+        review = routine?.review === 'daily';
         return routine && routine.on && routine.setBy === 'owner' && routine.removedAt === null ? planRoutine(tx, routine, Date.parse(tx.now), keyed) : null;
       });
     } catch (error) {
@@ -190,6 +220,11 @@ export async function runRoutines(deps: VentureDeps, ctx: Context): Promise<numb
     }
     if (!claimed) continue;
     const id = claimed.id;
+    // The daily review never parks: the owner approved it once, and a run only reads and proposes.
+    if (review) {
+      await runReviewRun(deps, ctx, routineId, id);
+      continue;
+    }
     try {
       await ventureAction(deps, ctx, 'prepare', 'routines.park', tx => {
         const run = tx.find('venture-routine-run', id);
@@ -203,6 +238,27 @@ export async function runRoutines(deps: VentureDeps, ctx: Context): Promise<numb
     }
   }
   return parked;
+}
+
+/**
+ * One run of the daily review: it never parks. The review reads the records, updates the plan and may raise proposal
+ * cards (chief/review.ts); the run ends completed with the review's own line, or failed with why. Its AI call, when it
+ * makes one, carries the routine and the run (routine-scope.ts), so it shows in the routine's history with its receipt.
+ */
+async function runReviewRun(deps: VentureDeps, ctx: Context, routineId: string, runId: string): Promise<void> {
+  const end = (state: RoutineRunState, line: string) => ventureAction(deps, ctx, 'prepare', 'routines.reviewed', tx => {
+    const run = tx.find('venture-routine-run', runId);
+    if (run?.state === 'running') tx.replace<RoutineRunRecord>({ ...run, state, line });
+  }).catch(() => undefined);
+  try {
+    const { runReview } = await import('../chief/review.ts');
+    const outcome = await withRoutineScope({ routineId, runId }, () => runReview(deps, ctx));
+    await end('completed', outcome.line);
+  } catch (error) {
+    await end('failed', ROUTINE_WORDS.failed(whyOf(error)));
+  } finally {
+    MAKING.delete(runId);
+  }
 }
 
 /**
@@ -358,7 +414,7 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
             const code = (error as { code?: unknown } | null)?.code;
             // C7: the main AI refused before anything reached it: the next usable backup takes the run.
             if (typeof code === 'string' && RUN_ELSEWHERE.has(code) && index + 1 < tries.length) {
-              if (backup === null) { why = code; if (code === 'AI_USAGE_LIMIT' && planCli) planBookOf(deps.store).failed(planCli, 'usage-limit', deps.clock().toISOString()); }
+              if (backup === null) { why = code; if (code === 'AI_USAGE_LIMIT' && planCli) planBookFor(deps).failed(planCli, 'usage-limit', deps.clock().toISOString()); }
               continue;
             }
             throw error;
@@ -369,8 +425,8 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
       const code = (error as { code?: unknown } | null)?.code;
       // C7: a used-up plan the tool named waits for the reset instead of failing the run.
       if (code === 'AI_USAGE_LIMIT' && planCli && venture) {
-        planBookOf(deps.store).failed(planCli, 'usage-limit', deps.clock().toISOString());
-        const reading = planBookOf(deps.store).read(planCli, deps.clock().toISOString());
+        planBookFor(deps).failed(planCli, 'usage-limit', deps.clock().toISOString());
+        const reading = planBookFor(deps).read(planCli, deps.clock().toISOString());
         return await parkForPlan(deps, ctx, runId, 'running', planCli, latestReset(reading.windows.filter(window => window.state === 'used-up')));
       }
       const why = error instanceof Error ? error.message : 'Chausar could not send it.';
@@ -394,8 +450,8 @@ const latestReset = (windows: readonly { resetsAt: IsoTime | null }[]): IsoTime 
   windows.reduce<IsoTime | null>((latest, window) => window.resetsAt !== null && (latest === null || window.resetsAt > latest) ? window.resetsAt : latest, null);
 
 /** Whether the plan meter holds a run now: used up, or a window at or over the owner's pause point. Unknown never holds. */
-function planHold(deps: VentureDeps, venture: VentureRecord, cli: DelegateCli): { resetsAt: IsoTime | null } | null {
-  const reading = planBookOf(deps.store).read(cli, deps.clock().toISOString());
+export function planHold(deps: VentureDeps, venture: VentureRecord, cli: DelegateCli): { resetsAt: IsoTime | null } | null {
+  const reading = planBookFor(deps).read(cli, deps.clock().toISOString());
   let pause: number | null = null;
   try { pause = agentSettingsOf(deps.store.read(), venture.id).planPause ?? null; } catch { pause = null; }
   const over = reading.windows.filter(window => window.state === 'used-up' || pause !== null && window.usedPercent !== null && window.usedPercent >= pause);
@@ -487,7 +543,7 @@ export async function runEventTrigger(deps: VentureDeps, ctx: Context, routine: 
     const code = (error as { code?: unknown } | null)?.code;
     const planCli = planCliOf(chatRoute(deps.models.status(ctx))?.presetId);
     if (code === 'AI_USAGE_LIMIT' && planCli) {
-      planBookOf(deps.store).failed(planCli, 'usage-limit', deps.clock().toISOString());
+      planBookFor(deps).failed(planCli, 'usage-limit', deps.clock().toISOString());
       await parkForPlan(deps, ctx, claimed.id, 'running', planCli, null).catch(() => undefined);
     } else if (STAYS_WAITING.has(typeof code === 'string' ? code : '')) await end('needs-input', ROUTINE_WORDS.waiting).catch(() => undefined);
     else await end('failed', ROUTINE_WORDS.failed(error instanceof Error ? error.message : 'Chausar could not send it.')).catch(() => undefined);

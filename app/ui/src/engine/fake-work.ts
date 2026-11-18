@@ -43,7 +43,9 @@ import { isLiveStage } from '../../../../platform/runtime/venture/core/launch-st
 import { ruleCleared } from '../../../../platform/runtime/venture/playbooks/kit/attestation';
 import { FORMS_ACCESS_RULE } from '../../../../platform/runtime/venture/playbooks/data-entry-desk/rules';
 import { fakeAttested } from './fake-rules-attest';
-import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
+import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type RunStopReason, type UploadLite, type VentureRunEvent } from './types';
+import { RUN_STOP_LINES } from './fake-run-controls';
+import { CARD_TEMPLATE_WORDS as CARD_T, fillWords } from '../../../../platform/runtime/venture/views/card-words';
 
 const clone = <T>(value: T): T => structuredClone(value);
 /** The engine's limits (platform/runtime/venture/delivery/harness/files.ts). */
@@ -167,14 +169,19 @@ export class FakeWorkDesk {
     const source=this.nativeSources.get(run.businessId+':'+run.runId);
     try{const order=this.order(run.businessId,delivery.orderId);return order.status!=='cancelled'&&!!source&&source.digest===this.nativeSource(run.businessId,order,source.fileIds);}catch{return false;}
   }
-  nativeStop(run:RunDetail):void {
+  /** The engine's stop: the status and the stop's reason, time and line move together (run-machine.ts). */
+  nativeStop(run:RunDetail,reason:RunStopReason='owner',line:string=RUN_STOP_LINES.owner):void {
     const delivery=(this.deliveries[run.businessId]??[]).find(item=>item.id===run.runId);
-    if(delivery){delivery.status='stopped';delivery.awaitingYou=false;}
+    if(delivery){delivery.status='stopped';delivery.verdict=null;delivery.stopped={reason,at:this.host.now(),line};delivery.awaitingYou=false;}
+  }
+  /** As the engine's putNewRun: a stopped run of the order is replaced once a newer run of it starts, and says so. */
+  private supersedeOlder(biz:string,orderId:string,at:string):void {
+    for(const older of this.deliveries[biz]??[])if(older.orderId===orderId&&older.status==='stopped'&&older.stopped?.reason!=='superseded')older.stopped={reason:'superseded',at,line:RUN_STOP_LINES.superseded};
   }
   async nativeRestart(run:RunDetail,resume:boolean):Promise<RunDetail> {
     const biz=this.host.current(),delivery=(this.deliveries[biz]??[]).find(item=>item.id===run.runId);
     if(!delivery)throw new EngineError('RUN_RESTART_REQUIRED','There is no current saved work to continue. Choose Run again to start a fresh AI job.');
-    if(resume && (this.deliveries[biz]??[]).find(item=>item.orderId===delivery.orderId)?.id!==run.runId)throw new EngineError('RUN_SUPERSEDED','A newer run of this order replaced this one, so it cannot be resumed. Open the newer run instead.');
+    if(resume && (this.deliveries[biz]??[]).find(item=>item.orderId===delivery.orderId)?.id!==run.runId)throw new EngineError('RUN_SUPERSEDED',RUN_STOP_LINES.superseded);
     if(this.order(biz,delivery.orderId).status==='cancelled')throw new EngineError('ORDER_NOT_ACTIVE','This order was cancelled, so its run cannot go on.');
     if(resume&&!this.nativeCanResume(run))throw new EngineError('RUN_RESTART_REQUIRED','There is no current saved work to continue. Choose Run again to start a fresh AI job.');
     const next=await this.start(biz,{orderId:delivery.orderId},resume?run:undefined);
@@ -479,12 +486,12 @@ export class FakeWorkDesk {
       if(resume && (!this.nativeCanResume(resume)||this.nativeSources.get(biz+':'+resume.runId)?.digest!==this.nativeSource(biz,order)))throw new EngineError('RUN_RESTART_REQUIRED','The saved work no longer matches this order. Start a new job.');
       const at=this.host.now();
       this.nativeSources.set(biz+':'+runId,{digest:this.nativeSource(biz,order),fileIds:this.orderFiles(biz,order.id).map(file=>file.id)});
-      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
+      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:fillWords(CARD_T.replyDraft,{client:client.name}),state:'active',startedAt:at,elapsed:'',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
       // No installed AI runs in this fake. It starts honestly with no fabricated tool results or answer.
       const stage=(this.host.ask?.('venture.get',{}) as {venture?:{launchStage?:string}}|null|undefined)?.venture?.launchStage;
       // W6 6C4: in Practice an AI draft for a real order is a practice draft, as the engine marks it.
-      const run:DeliveryLite&{preview:null}={id:runId,at,orderId:order.id,status:'waiting-for-you',practice:!isLiveStage(stage),servedBy:'model',preview:null,deliverable:null,verdict:null,awaitingYou:false};
-      (this.deliveries[biz]??=[]).unshift(run);this.host.emit({type:'run.started',businessId:biz,runId,at});return clone(run);
+      const run:DeliveryLite&{preview:null}={id:runId,at,orderId:order.id,status:'working',practice:!isLiveStage(stage),servedBy:'model',preview:null,deliverable:null,verdict:null,awaitingYou:false};
+      this.supersedeOlder(biz,order.id,at);(this.deliveries[biz]??=[]).unshift(run);this.host.emit({type:'run.started',businessId:biz,runId,at});return clone(run);
     }
     if(this.host.plan()?.playbook?.id==='social-agency')throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
     const social=this.r5Delivery.start(order,runId,p)??this.phoneDelivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p);
@@ -493,7 +500,7 @@ export class FakeWorkDesk {
     const client = clientRecord?.name ?? 'the client';
     const at = this.host.now();
     runs.unshift({
-      runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '',
+      runId, businessId: biz, agent: this.host.agentName(), purpose: fillWords(CARD_T.replyDraft, { client }), state: 'waiting', startedAt: at, elapsed: '',
       // C4 task 12: as the engine's summary: since when it waits on the owner, and who it works for.
       waitingSince: at, ...(clientRecord ? { client: { id: clientRecord.id, name: clientRecord.name } } : {}),
       progress: { done: 1, total: 2 },
@@ -509,7 +516,7 @@ export class FakeWorkDesk {
     if(deliverable.questionsForClient.length)blocks.push(['Questions for you:',...deliverable.questionsForClient.map(question=>'- '+question)].join('\n'));
     const renderedText=TEMPLATE_OUTLINE_LINE+'\n\n'+blocks.join('\n\n');
     const run: DeliveryLite&{preview:null} = { id: runId, at, orderId: order.id, status: 'ready-for-review', servedBy:'template', practice: false, deliverable, renderedText, preview:null, verdict: null, awaitingYou: true };
-    (this.deliveries[biz] ??= []).unshift(run);
+    this.supersedeOlder(biz,order.id,at);(this.deliveries[biz] ??= []).unshift(run);
     this.templateRuns.add(biz+':'+runId);
     this.host.emit({ type: 'run.started', businessId: biz, runId, at });
     return clone(run);

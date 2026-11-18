@@ -19,7 +19,7 @@ import type { BrandKitField, BrandKitFields, BrandKitInput, BrandKitView, Client
 
 /** Every field, in the order the screens show them. */
 import { BRAND_KIT_FIELDS,currentKit,resolveKit } from './brand-kit-read.ts';
-export { BRAND_KIT_FIELDS,currentKit,resolveKit } from './brand-kit-read.ts';
+export { resolveKit } from './brand-kit-read.ts';
 /** How many of each list a kit keeps, and how long one item may be. */
 const LIMITS = Object.freeze({
   colours: { items: 12, chars: 7 }, fonts: { items: 6, chars: 60 }, voice: { items: 12, chars: 200 }, samples: { items: 3, chars: 2000 },

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError } from '../../src/engine/types';
-import { answerSideWork } from './first-run-steps';
+import { answerSideWork, skipAi } from './first-run-steps';
 
 function timeZone(zone: string) {
   const original = Intl.DateTimeFormat.prototype.resolvedOptions;
@@ -32,8 +32,7 @@ async function connected() {
 // W6 6C2: the country now shows on About you (the first run's step 2); the plan is kept from there.
 const BOX = 'Tell Chausar about your work';
 async function aboutYou() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Skip for now: use templates' }, { timeout: 4000 }));
-  return screen.findByRole('textbox', { name: BOX });
+  return skipAi();
 }
 async function sendAndKeep(text: string, beforeKeep?: () => Promise<void>) {
   fireEvent.change(screen.getByRole('textbox', { name: BOX }), { target: { value: text } });
@@ -56,8 +55,8 @@ describe('wave 6 country defaults', () => {
       expect(screen.getByText('INR')).toBeTruthy();
       await sendAndKeep('Bookkeeping for small cafes and shops.');
       await waitFor(() => expect(request).toHaveBeenCalledWith('venture.create', expect.objectContaining({ countryCode: 'IN' })));
-      // A4 fix round: the first run never asks to reuse another business's AI; only the Start gallery does.
-      expect(request.mock.calls.find(([method]) => method === 'venture.create')![1]).not.toHaveProperty('reuseAi');
+      // The first business on a computer asks nothing about another one's AI: venture.ai.reuse is for a later business.
+      expect(request.mock.calls.map(([method]) => method)).not.toContain('venture.ai.reuse');
     });
   }
 

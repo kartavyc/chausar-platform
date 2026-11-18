@@ -1,6 +1,8 @@
-import {formatClock} from '../../../../platform/runtime/owner-format';
+import {computerZone, formatClock, placeWords} from '../../../../platform/runtime/owner-format';
 import {occurrencesBetween,nextOccurrence} from '../../../../platform/runtime/venture/agents/routine-time';
 import {VA_REPORT_PROMPTS} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/routines-core';
+// The daily review's own name, words and line, the engine's (chief/plan-view.ts).
+import { DAILY_REVIEW_NAME, DAILY_REVIEW_PROMPT, REVIEW_LINE, REVIEW_WORDS } from '../../../../platform/runtime/venture/chief/plan-view';
 import {RETIRED_LINE} from '../../../../platform/runtime/venture/agents/retired-words';
 import {vaFakeReport} from './fake-va-report';
 /**
@@ -12,20 +14,20 @@ import {vaFakeReport} from './fake-va-report';
  *   venture.order.contract(.propose|.sign)  an order's contract (money/order-contracts.ts, 4J12): revisions append,
  *                                         the owner signs the one they saw by its digest
  *   venture.routines.*                   routines on a schedule with a time zone, never cron (agents/routines.ts, 4J13)
- *   venture.drills.*, venture.auto.readiness, venture.shadow.summary  drills, what auto would need (locked whatever
- *                                         it says) and what shadow drafts would have done (4J15)
+ *   venture.drills.*                     drills (4J15)
  *   venture.playbook.guidance            each guidance line and the check that can see it (4J16)
  * The sample data is the fake's own; nothing here is a real check, signature or schedule.
  */
 
-import { EngineError, type AgentView, type AutoReadinessView, type DeliveryLite, type QueueRow, type RunDetail, type DrillRunView, type GuidanceLineView, type JournalChainView, type JournalEntry, type OrderContract, type OrderContractView, type ReceiptLite, type ReceiptSignatureLite, type ReceiptVerifyView, type RoutineInput, type RoutineRunState, type RoutineSchedule, type RoutineSuggestion, type RoutineView, type BlueprintViewLite, type ShadowSummaryView, type TeamListView } from './types';
+import { EngineError, type AgentView, type QueueRow, type RunDetail, type DrillRunView, type GuidanceLineView, type JournalChainView, type JournalEntry, type OrderContract, type OrderContractView, type ReceiptLite, type ReceiptSignatureLite, type ReceiptVerifyView, type RoutineInput, type RoutineRunState, type RoutineSchedule, type RoutineSuggestion, type RoutineView, type BlueprintViewLite, type TeamListView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import type { BackupViewLite, ModelStatusLite } from './types';
+import { RUN_STOP_LINES } from './fake-run-controls';
 
 /** C7: the engine's words (agents/routine-backup.ts BACKUP_WORDS, consent.ts chatConsentText for a tool on this computer). */
 const BACKUP_NOT_CONNECTED = 'Choose only AIs already connected to this business, other than the one your routines use.';
 const BACKUP_LABELS: Readonly<Record<string, string>> = { 'codex-cli': 'Codex on this computer', 'claude-code-cli': 'Claude Code on this computer' };
-const backupConsentText = (label: string) => `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${label}. Keys, passphrases and bank or card numbers are never sent.`;
+const backupConsentText = (label: string) => `Chats send your message and what Chausar reads to answer it (the earlier messages of the same chat, run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${label}. Keys, passphrases and bank or card numbers are never sent.`;
 import { fakeRoutineReceipt } from './fake-model-receipt';
 
 export const FAKE_4J22A_METHODS: readonly string[] = [
@@ -33,7 +35,7 @@ export const FAKE_4J22A_METHODS: readonly string[] = [
   'venture.order.contract', 'venture.order.contract.propose', 'venture.order.contract.sign',
   'venture.routines.list', 'venture.routines.runs', 'venture.routines.set', 'venture.routines.remove',
   'venture.routines.suggestions',
-  'venture.drills.run', 'venture.drills.list', 'venture.auto.readiness', 'venture.shadow.summary', 'venture.playbook.guidance',
+  'venture.drills.run', 'venture.drills.list', 'venture.playbook.guidance',
   // C7: the backup AI for routines
   'venture.routines.backup.get', 'venture.routines.backup.set',
 ];
@@ -108,17 +110,21 @@ const RHYTHMS: readonly { words: RegExp; schedule: (timeZone: string) => Routine
   { words: /\b(?:daily|every day|each day)\b/i, schedule: (timeZone) => ({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '09:00', timeZone }) },
 ];
 
-function whenWords(schedule: RoutineSchedule): string {
+/**
+ * As the engine's routines.ts whenWords: the schedule in the owner's words, and the place only when it is not where
+ * this computer is (owner-format's placeWords). here: the computer's own zone, or null for the hosted app.
+ */
+function whenWords(schedule: RoutineSchedule, here: string | null): string {
   // C7: as the engine's routines.ts eventWhen.
   if (schedule.kind === 'event') return schedule.event === 'payment' ? 'When a payment comes in' : schedule.event === 'booking' ? 'When a booking is made' : 'When a booking is cancelled';
-  if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, ZONE)}, ${ZONE}`;
+  if (schedule.kind === 'once') return `Once, ${momentIn(schedule.at, ZONE)}${placeWords(ZONE, here)}`;
   if (schedule.kind === 'interval') {
     const every = schedule.everyMinutes % 1440 === 0 ? `${schedule.everyMinutes / 1440} days` : schedule.everyMinutes % 60 === 0 ? `${schedule.everyMinutes / 60} hours` : `${schedule.everyMinutes} minutes`;
-    return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, ZONE)}, ${ZONE}`;
+    return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, ZONE)}${placeWords(ZONE, here)}`;
   }
-  if (schedule.kind === 'monthly') return `On the ${ordinal(schedule.day)} of each month, ${formatClock(schedule.time)}, ${schedule.timeZone}`;
+  if (schedule.kind === 'monthly') return `On the ${ordinal(schedule.day)} of each month at ${formatClock(schedule.time)}${placeWords(schedule.timeZone, here)}`;
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map((day) => DAY_NAMES[day - 1]!));
-  return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
+  return `Every ${days} at ${formatClock(schedule.time)}${placeWords(schedule.timeZone, here)}`;
 }
 
 function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
@@ -162,11 +168,11 @@ function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
   throw invalid(cron);
 }
 
-interface Routine { recordReport?:'va-morning'|'va-weekly'; at?:string; id: string; name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; removed: boolean }
+interface Routine { recordReport?:'va-morning'|'va-weekly'; /** The chief's daily review (fake-plan.ts). */ review?: 'daily'; at?:string; id: string; name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; removed: boolean }
 interface RoutineRun { at?:string; routineDigest?:string; id: string; routineId: string; dueAt: string; state: RoutineRunState; line: string }
 
 // -------------------------------------------------------------------------------------------------------------------
-// Drills, readiness and the shadow summary (4J15)
+// Drills (4J15)
 // -------------------------------------------------------------------------------------------------------------------
 
 const DRILLS: { label: string; stopped: string; twin: string }[] = [
@@ -178,11 +184,10 @@ const DRILLS: { label: string; stopped: string; twin: string }[] = [
   { label: 'An instruction planted in a ledger note', stopped: 'Reading it latched the run, the screen found the planted note, and the payment it asked for waited for you.', twin: 'A clean ledger screened clean and the calculator summed it.' },
   { label: 'A clean and a planted ledger with the same facts', stopped: 'Both ledgers came to the same total.', twin: 'The calculator summed the clean ledger.' },
 ];
-const BOUND = 'or stop with a reason after 5 tries';
-const SHADOW_REHEARSE = `Before the first real order, rehearse on three sample orders: a routine one, a risky one and one that pushes on price. Run each until it passes, ${BOUND}.`;
-const SHADOW_WATCH = `Watch one real order end to end before arming: approve each turn until its draft is ready for your review, ${BOUND}.`;
 
 export class FakeQualityDesk {
+  /** The computer's own zone, or null for the hosted app, whose server is not where the owner is (routines.ts routineZoneHere). */
+  private zoneHere(): string | null { return this.host.hosted() ? null : computerZone(); }
   private readonly host: W4DeskHost;
   private readonly fresh: boolean;
   /** Per business: the first entry that does not add up (a test sets it), and the breaks accepted. */
@@ -259,7 +264,7 @@ export class FakeQualityDesk {
       };
     }
     if (run.runId === '29' && !run.stop) {
-      return { ...run, interrupted: { at: run.startedAt, line: 'Interrupted: Chausar stopped while this ran. Nothing was sent again.', steps: [] } };
+      return { ...run, interrupted: { at: run.startedAt, line: RUN_STOP_LINES.interrupted, steps: [] } };
     }
     return run;
   }
@@ -296,8 +301,6 @@ export class FakeQualityDesk {
       case 'venture.routines.backup.set': return this.backupSet(p);
       case 'venture.drills.run': exact(p, []); return this.drillsRun();
       case 'venture.drills.list': exact(p, []); return { runs: clone(this.drills.get(this.host.current()) ?? []) };
-      case 'venture.auto.readiness': return this.readiness(p);
-      case 'venture.shadow.summary': return this.shadow(p);
       case 'venture.playbook.guidance': exact(p, []); return this.guidance();
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
@@ -457,7 +460,7 @@ export class FakeQualityDesk {
       const name = title.trim().slice(0, 80);
       if (!rhythm || taken.has(name.toLowerCase())) continue;
       const schedule = rhythm.schedule(ZONE);
-      found.push({ name, agent, schedule, when: whenWords(schedule), step: title, prompt: `${name.replace(/[.\s]+$/, '')} for this business, from its own records and plan. Keep it as a draft for my approval.` });
+      found.push({ name, agent, schedule, when: whenWords(schedule, this.zoneHere()), step: title, prompt: `${name.replace(/[.\s]+$/, '')} for this business, from its own records and plan. Keep it as a draft for my approval.` });
       taken.add(name.toLowerCase());
     }
     return found;
@@ -497,8 +500,31 @@ export class FakeQualityDesk {
     const zone = routine.schedule.kind === 'calendar' || routine.schedule.kind === 'monthly' ? routine.schedule.timeZone : ZONE;
     const who = routine.agent === null ? 'Chausar' : this.agents().find((a) => a.id === routine.agent)?.name ?? routine.agent;
     const line = !routine.on ? 'Off. Nothing runs.'
+      : next && routine.review ? `Next ${momentIn(next, zone)}. ${REVIEW_LINE}`
       : next ? routine.recordReport?`Next ${momentIn(next,zone)}. A private report from saved records waits for your approval on Today. No model call.`:`Next ${momentIn(next, zone)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.` : 'No more times to run.';
-    return { id: routine.id, name: routine.name, agent: routine.agent, prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}), schedule: clone(routine.schedule), when: whenWords(routine.schedule), on: routine.on, next, line };
+    return { id: routine.id, name: routine.name, agent: routine.agent, prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}), schedule: clone(routine.schedule), when: whenWords(routine.schedule, this.zoneHere()), on: routine.on, next, line, ...(routine.review ? { review: routine.review } : {}) };
+  }
+
+  // ---------------------------------------------------------------------------------------------- the daily review
+
+  /** A business's daily review (the engine's dailyReviewOf), removed ones left out; fake-plan.ts reads and sets it. */
+  reviewRoutine(business: string): { id: string; on: boolean; time: string; timeZone: string } | null {
+    const found = (this.routines.get(business) ?? []).find((r) => r.review === 'daily' && !r.removed);
+    return found && found.schedule.kind === 'calendar' ? { id: found.id, on: found.on, time: found.schedule.time, timeZone: found.schedule.timeZone } : null;
+  }
+
+  /** Whether a business ever had a daily review, removed or not. */
+  reviewRoutineEver(business: string): boolean {
+    return (this.routines.get(business) ?? []).some((r) => r.review === 'daily');
+  }
+
+  /** As chief/review.ts setReview: makes the daily review, or changes the one there, on or off at a time. */
+  setReviewRoutine(business: string, on: boolean, time: string): void {
+    const list = this.routines.get(business) ?? [];
+    const existing = list.find((r) => r.review === 'daily' && !r.removed);
+    const schedule: RoutineSchedule = { kind: 'calendar', weekdays: [1, 2, 3, 4, 5, 6, 7], time, timeZone: existing?.schedule.kind === 'calendar' ? existing.schedule.timeZone : ZONE };
+    const saved: Routine = { id: existing?.id ?? `routine-${++this.seq}`, name: DAILY_REVIEW_NAME, agent: null, prompt: DAILY_REVIEW_PROMPT, schedule, on, removed: false, at: this.host.now(), review: 'daily' };
+    this.routines.set(business, existing ? list.map((r) => (r.id === saved.id ? saved : r)) : [...list, saved]);
   }
 
   // ---------------------------------------------------------------------------------------------- C7: the backup AI
@@ -547,7 +573,7 @@ export class FakeQualityDesk {
     exact(p, ['routine'], ['routine']);
     const raw = p.routine as Partial<RoutineInput> | null;
     if (!raw || typeof raw !== 'object') throw invalid('Send the routine.');
-    exact(raw as Record<string, unknown>, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport'], ['name', 'prompt', 'schedule', 'on']);
+    exact(raw as Record<string, unknown>, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport', 'review'], ['name', 'prompt', 'schedule', 'on']);
     const name = typeof raw.name === 'string' ? raw.name.trim().replace(/\s+/g, ' ') : '';
     if (name.length < 1 || name.length > 80) throw invalid('Name must be between 1 and 80 characters.');
     const agent = raw.agent ?? null;
@@ -565,7 +591,16 @@ export class FakeQualityDesk {
     const existing = raw.id ? list.find((r) => r.id === raw.id && !r.removed) : undefined;
     if (raw.id && !existing) throw invalid('That routine was not found.');
     const schedule = existing && JSON.stringify(existing.schedule) === JSON.stringify(raw.schedule) ? existing.schedule : checkSchedule(raw.schedule, Date.parse(this.host.now()));
-    const saved: Routine = { id: existing?.id ?? `routine-${++this.seq}`, name, agent, prompt, schedule, on: raw.on, removed: false,at:this.host.now(),...(report?{recordReport:report}:{}) };
+    // As the engine's checkInput: the daily review stays one whatever the form sends back, and is only ever its own
+    // name, words and every day; there is one per business.
+    if ((raw as { review?: unknown }).review !== undefined && (raw as { review?: unknown }).review !== 'daily') throw invalid(REVIEW_WORDS.shape);
+    const review = existing?.review === 'daily' || (raw as { review?: unknown }).review === 'daily';
+    if (review) {
+      if (agent !== null || name !== DAILY_REVIEW_NAME || prompt !== DAILY_REVIEW_PROMPT || report !== undefined || schedule.kind !== 'calendar' || schedule.weekdays.length !== 7) throw invalid(REVIEW_WORDS.shape);
+      const other = list.find((r) => r.review === 'daily' && !r.removed);
+      if (other && other.id !== existing?.id) throw invalid(REVIEW_WORDS.onlyOne);
+    }
+    const saved: Routine = { id: existing?.id ?? `routine-${++this.seq}`, name, agent, prompt, schedule, on: raw.on, removed: false,at:this.host.now(),...(report?{recordReport:report}:{}), ...(review ? { review: 'daily' as const } : {}) };
     this.routines.set(this.host.current(), existing ? list.map((r) => (r.id === saved.id ? saved : r)) : [...list, saved]);
     this.host.emit({type:'desk.changed',businessId:this.host.current(),at:this.host.now()});
     this.syncVaRows();return { routine: this.routineView(saved) };
@@ -582,7 +617,7 @@ export class FakeQualityDesk {
     return { removed: true, line: `${routine.name} is removed. Its history stays.` };
   }
 
-  // ---------------------------------------------------------------------------------------------- drills and readiness
+  // ------------------------------------------------------------------------------------------------------------ drills
 
   private drillsRun(): { run: DrillRunView } {
     if (this.host.hosted()) throw new EngineError('APP_APPROVAL_REQUIRED', 'Run the drills inside the Chausar app.');
@@ -600,45 +635,6 @@ export class FakeQualityDesk {
     try {
       return (this.host.ask('venture.improve.status', {}) as { inUse?: { version: number } | null }).inUse?.version ?? null;
     } catch { return null; }
-  }
-
-  private readiness(p: Record<string, unknown>): AutoReadinessView {
-    exact(p, ['agent'], ['agent']);
-    const agent = this.agents().find((a) => a.id === p.agent);
-    if (!agent) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
-    const steps = agent.steps.flatMap((step) => [
-      { id: `verifier:${step.id}`, label: `${step.purpose}: a check verifies it`, met: !step.floor, line: !step.floor ? '1 code check verifies this step.' : 'No code check verifies this step yet.' },
-      { id: `kind:${step.id}`, label: `${step.purpose}: its kind allows auto`, met: !step.floor, line: step.floor ? 'This step always asks you.' : 'An agent step below the always-ask floor.' },
-      { id: `owner:${step.id}`, label: `${step.purpose}: you switched it on`, met: step.gate === 'auto', line: step.gate === 'auto' ? 'You set this step to Auto on Team.' : 'This step is on Hold. Only you can set it to Auto, on Team.' },
-    ]);
-    const runs = this.drills.get(this.host.current()) ?? [];
-    const clean = runs.length >= 2 && runs.slice(0, 2).every((run) => run.passed);
-    const drillLine = !runs.length ? 'Run the drills twice and have every drill pass both times.'
-      : clean ? 'The last two drill runs on the current work instructions passed, within the last 30 days.'
-        : `${runs.length} clean drill run on the current work plan. It needs two in a row.`;
-    const items = [...steps,
-      { id: 'real-run', label: 'A real order passed in the last 14 days', met: false, line: 'No real order passed in the last 14 days with every check passing and your Accept.' },
-      { id: 'spend-log', label: 'The spend log is complete', met: true, line: 'Every paid call is settled in the spend log.' },
-      { id: 'drills', label: 'Two clean drill runs within 30 days and since the work instructions last changed', met: clean, line: drillLine },
-      { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real job in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
-    ];
-    return { agent: agent.id, items, locked: true, line: `0 of ${agent.steps.length} steps have every item met. ${AUTO_LOCKED_WORDS}` };
-  }
-
-  private shadow(p: Record<string, unknown>): ShadowSummaryView {
-    exact(p, ['agent'], ['agent']);
-    const agent = this.agents().find((a) => a.id === p.agent);
-    if (!agent) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
-    const drafts = this.host.ask('venture.delivery.list', {}) as DeliveryLite[];
-    const shadow = drafts.filter((d) => d.practice);
-    const known = shadow.length > 0;
-    const reviewed = shadow.filter((d) => d.verdict !== null);
-    const gone = known ? shadow.filter((d) => ['ready-for-review', 'accepted', 'edited', 'rejected'].includes(d.status)).length : null;
-    const held = known ? shadow.filter((d) => d.status === 'waiting-for-you').length : null;
-    const changed = known && reviewed.length ? reviewed.filter((d) => d.verdict?.choice === 'rejected' || d.verdict?.choice === 'edited').length : null;
-    const figure = (n: number | null) => (n === null ? '-' : String(n));
-    const offers = [...(known ? [] : [SHADOW_REHEARSE]), ...(drafts.some((d) => d.verdict !== null) ? [] : [SHADOW_WATCH])];
-    return { agent: agent.id, wouldHaveGone: gone, held, changed, offers, line: `Would have gone out ${figure(gone)}, held ${figure(held)}, you would have changed ${figure(changed)}` };
   }
 
   private guidance(): { lines: GuidanceLineView[] } {

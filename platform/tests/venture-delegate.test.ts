@@ -12,12 +12,11 @@ import { join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { PURPOSE_TIER, STEP_PLAN } from '../runtime/venture/contracts.ts';
 import type {
-  BlueprintRecord, CapabilityStatus, CountryProfile, DelegatePorts, DelegateRunRecord, DeliveryRunView, HarnessState, ModelOutcome, ModelPort, ModelPreset,
+  BlueprintRecord, CountryProfile, DelegatePorts, DelegateRunRecord, DeliveryRunView, HarnessState, ModelOutcome, ModelPort, ModelPreset,
   ModelPreview, ModelPurpose, ModelStatusView, ModelTask, OrderRecord, PriceReceiptRecord, VentureDeps, VentureRecord, WorkReceiptRecord,
 } from '../runtime/venture/contracts.ts';
 import { digest, listRecords, ventureAction, type VentureTx } from '../runtime/venture/records.ts';
 import { handlers } from '../runtime/venture/delivery/index.ts';
-import { capabilityList } from '../runtime/venture/delivery/capabilities.ts';
 import { claimBacked } from '../runtime/venture/delivery/harness/claims.ts';
 import {
   DELEGATE_CLAUDE_TERMS, delegateArgs, delegateAvailability, delegateBrief, delegateBusy, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, prepareDelegation, REAL_ORDER_ONLY,
@@ -223,7 +222,7 @@ function fakeFigures(): unknown[] {
 }
 
 // ---------------------------------------------------------------------------
-// 1. The version check and the capability rows
+// 1. The version check
 // ---------------------------------------------------------------------------
 
 test('availability: offered only when the tool is found and answers its version check; unverified until a real run', async () => {
@@ -247,9 +246,6 @@ test('availability: offered only when the tool is found and answers its version 
     assert.equal(missing.state, 'needs-setup');
     assert.match(missing.reason, /Install Claude Code and sign in/);
   } finally { rmSync(empty, { recursive: true, force: true }); }
-
-  assert.equal(capabilityList('win32').some(row=>row.id.startsWith('tier-owner-')),false);
-
 });
 
 test('the Claude Code terms gate: while it is pending heavy work never looks for, offers or starts Claude Code; Codex is not affected', async () => {
@@ -264,8 +260,6 @@ test('the Claude Code terms gate: while it is pending heavy work never looks for
     assert.deepEqual(looked, [], 'Claude Code is not even looked for while the gate is pending');
     const env = await setup(ports, 'desktop', 'pending');
     assert.deepEqual(await delegateOffer(env.deps), [], 'not offered; the fake is no Codex, so nothing is');
-    const rows = await call<CapabilityStatus[]>(env, 'venture.capabilities');
-    assert.equal(rows.some(row=>row.id.startsWith('tier-owner-')),false);
     assert.deepEqual([...new Set(looked)], ['codex'], 'only Codex was looked for');
     const codex = installFake({ kind: 'codex' });
     try {
@@ -370,8 +364,6 @@ test('hosted server: heavy work is not offered, refused before its input is read
     const refused = await callTool(toolEnv(env.deps, { kind: 'delivery', runId: 'delivery_1' }, offer), ['agent.delegate'], 1, 0, { tool: 'agent.delegate', input: '{not json' });
     assert.equal(!refused.record.envelope.ok && refused.record.envelope.error.code, 'TIER_UNAVAILABLE');
     assert.equal(!refused.record.envelope.ok && refused.record.envelope.error.message, HOSTED_NO_OWNER_CLI);
-    const rows = await call<CapabilityStatus[]>(env, 'venture.capabilities');
-    assert.equal(rows.some(row=>row.id.startsWith('tier-owner-')),false);
     assert.equal(delegatePorts(env.deps), null, 'no port on the hosted server, even an injected one');
     assert.deepEqual(await delegateOffer(env.deps), []);
     assert.equal(fake.located, 0, 'the hosted server never looks for the tool');

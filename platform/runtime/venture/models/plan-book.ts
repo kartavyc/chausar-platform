@@ -1,4 +1,4 @@
-// C7 task 2: the plan meter kept for one engine (one computer), fed by the drivers during real work and by a used-up
+// C7 task 2: the plan meter kept for one engine (one computer: planBookFor), fed by the drivers during real work and by a used-up
 // failure the tools named. A used-up failure gives no reset time, so it holds for USED_UP_HOLD_MS and is then looked at
 // again; any later reading from the tool that is not used up clears it. Nothing here guesses a figure.
 import type { DelegateCli, IsoTime, ModelPresetId } from '../contracts.ts';
@@ -14,7 +14,8 @@ export class PlanBook {
 
   note(reading: PlanReading): void {
     this.meter.note(reading);
-    if (reading.windows.length && reading.state !== 'used-up') this.#usedUp.delete(reading.cli);
+    // Only a reading with a window that could be read says the plan has room again; an unreadable one says nothing.
+    if (reading.windows.some(window => window.resetsAt !== null) && reading.state !== 'used-up') this.#usedUp.delete(reading.cli);
   }
 
   /** A failure the tool named: a used-up plan marks that tool used up, its reset unknown. */
@@ -29,12 +30,23 @@ export class PlanBook {
   }
 }
 
-/** One book per engine object (the store, or the model port), so every handler and job on this computer shares it. */
+/** One book per key object, so every handler and job that names the same key shares it. */
 const BOOKS = new WeakMap<object, PlanBook>();
 export function planBookOf(key: object): PlanBook {
   let book = BOOKS.get(key);
   if (!book) { book = new PlanBook(); BOOKS.set(key, book); }
   return book;
+}
+
+/**
+ * The book for a request: kept against the engine (deps.planKey), one for this computer, because a tool's plan is the
+ * owner's account on this computer and not a business's. The open business's store is made anew each time a business
+ * is closed and opened, or another is opened, and a reading kept against it went with it (the real app then read "Codex
+ * hasn't reported its plan use yet." minutes after showing the week's figure). With no engine named (a test's bare
+ * deps) the store is the key.
+ */
+export function planBookFor(deps: { store: object; planKey?: object }): PlanBook {
+  return planBookOf(deps.planKey ?? deps.store);
 }
 
 /** The tool whose plan a preset runs on: Codex and Claude Code only. */

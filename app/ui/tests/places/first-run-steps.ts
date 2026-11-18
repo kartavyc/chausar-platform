@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect } from 'vitest';
 
 /**
@@ -7,13 +7,24 @@ import { expect } from 'vitest';
  * steps the engine forces (a passphrase, the recovery code) sit between that answer and the services step.
  */
 export const ABOUT_BOX = 'Tell Chausar about your work';
+/** Step 1's two sign-in buttons and its way on with no AI (under More options). */
+export const SIGN_IN_CHATGPT = 'Sign in with ChatGPT';
+export const SIGN_IN_CLAUDE = 'Sign in with Claude';
+export const NO_AI = 'Continue without AI for now';
 
 /**
  * A5: "Which of these are you?" follows Keep this plan; tests written before it keep the field ("None of these"), so
  * the rules step reads as it did. Pass a profession's own name to pick it instead.
  */
 export async function confirmProfession(name = 'None of these') {
-  const choice = await screen.findByRole('radio', { name }, { timeout: 4000 });
+  // The question is not asked when the AI read work that fits none of its field's professions (the engine's ownKind):
+  // then the rules step is already on screen, reading the field as "None of these" does.
+  const choice = await waitFor(() => {
+    const radio = screen.queryByRole('radio', { name });
+    if (!radio && !screen.queryByRole('region', { name: 'Day job and rules' })) throw new Error('Neither the profession question nor the rules step is on screen.');
+    return radio;
+  }, { timeout: 4000 });
+  if (!choice) return;
   await act(async () => { fireEvent.click(choice); });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue' })); });
 }
@@ -26,9 +37,25 @@ export async function answerSideWork() {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue' })); });
 }
 
+/** Step 1's other ways on sit behind a closed "More options": this opens it, as an owner does, and returns the fold. */
+export async function openMoreOptions() {
+  const summary = await screen.findByText('More options', { selector: 'summary' }, { timeout: 4000 });
+  const fold = summary.closest('details')!;
+  if (!fold.open) await act(async () => { fireEvent.click(summary); });
+  return fold;
+}
+
+/** Step 1's sign-in: the button waits for the first look at this computer, so this presses it once it can be pressed. */
+export async function signInWith(name: string = SIGN_IN_CHATGPT) {
+  const button = await screen.findByRole('button', { name }, { timeout: 4000 });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false), { timeout: 4000 });
+  await act(async () => { fireEvent.click(button); });
+}
+
+/** Step 1 with no AI: More options, then "Continue without AI for now". Returns the About you box that follows. */
 export async function skipAi() {
-  const skip = await screen.findByRole('button', { name: 'Skip for now: use templates' }, { timeout: 4000 });
-  await act(async () => { fireEvent.click(skip); });
+  const fold = await openMoreOptions();
+  await act(async () => { fireEvent.click(within(fold).getByRole('button', { name: NO_AI })); });
   return screen.findByRole('textbox', { name: ABOUT_BOX });
 }
 

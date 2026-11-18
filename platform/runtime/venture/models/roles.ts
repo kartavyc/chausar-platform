@@ -7,7 +7,10 @@
 // by an AI that cannot run now, is not usable: agents that need the AI wait until the owner connects one.
 import { formatRate } from '../../owner-format.ts';
 import { authorize, type Context, type State } from '../../contracts.ts';
+import { PURPOSE_TIER } from '../contracts.ts';
 import type { ModelPresetId, ModelStatusView, ModelTier, PlaybookStep, RoleModelView, RoleModelsView, VentureDeps, VentureRecord } from '../contracts.ts';
+import { hiredRecords } from '../agents/hire-store.ts';
+import { isRetired } from '../agents/retired.ts';
 import { currentVenture, exactPayload, formatVentureDate } from '../records.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
@@ -95,13 +98,17 @@ export async function rolesHandler(deps: VentureDeps, ctx: Context, payload: unk
   const venture = currentVenture(state);
   if (!venture) return { roles: [], line: ROLE_WORDS.oneAgent };
   const status = deps.models.status(ctx);
-  const roles: RoleModelView[] = teamRoles(state, venture).map(role => ({
-    agent: role.agent, name: role.name,
-    tiers: tiersOf(role.steps).map(tier => {
-      const serving = status.tiers[tier];
-      return { tier, presetId: serving.presetId, model: serving.model, price: priceLine(state, venture, serving.presetId), usable: usableTier(serving) };
-    }),
-  })).filter(role => role.tiers.length > 0);
+  const tierView = (tier: ModelTier) => {
+    const serving = status.tiers[tier];
+    return { tier, presetId: serving.presetId, model: serving.model, price: priceLine(state, venture, serving.presetId), usable: usableTier(serving) };
+  };
+  const roles: RoleModelView[] = teamRoles(state, venture).map(role => ({ agent: role.agent, name: role.name, tiers: tiersOf(role.steps).map(tierView) }))
+    .filter(role => role.tiers.length > 0);
+  // An agent the owner hired owns no step, yet it answers its chat (and its routines) with the owner's AI: the tier
+  // every chat uses. So its sheet says which AI that is, never "uses no AI". On the team before the plan is accepted too.
+  for (const hired of hiredRecords(state, venture.id)) {
+    if (hired.role && !isRetired(state, venture.id, hired.id)) roles.push({ agent: hired.id, name: hired.role.name, tiers: [tierView(PURPOSE_TIER['agent-chat'])] });
+  }
   const waiting = roles.length > 0 && roles.every(role => role.tiers.every(tier => !tier.usable));
   return { roles, line: waiting ? `${ROLE_WORDS.oneAgent} ${ROLE_WORDS.connect}` : ROLE_WORDS.oneAgent };
 }

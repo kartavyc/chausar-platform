@@ -7,7 +7,7 @@
 import type { AgentView, BooksSummaryLite, BusinessOnComputer, ClientLite, ConnectorCardLite, DeliveryLite, EvidenceItem, JournalEntry, OrderLite, QueueRow, ReceiptLite, RunDetail, ServiceType, SpendRow, UploadLite } from './types';
 
 import type { CountryLite } from './types';
-import { SERVICE_KEYWORDS as ENGINE_SERVICE_KEYWORDS } from '../../../../platform/runtime/venture/core/service-keywords';
+import { QUEUE_FIXED_WORDS } from '../../../../platform/runtime/venture/views/queue-words';
 
 export interface FakeBusiness { id: string; name: string; serviceType: ServiceType; opens: BusinessOnComputer['opens'] }
 
@@ -36,19 +36,17 @@ export const SERVICE_LABELS: Readonly<Record<ServiceType, string>> = {
   research: 'Research desk', content: 'Content shop', support: 'Support team for hire',
   teaching: 'Teaching and coaching', 'local-services': 'Local service business', licensed: 'Licensed practice', other: 'Service business',
 };
-/** W6 6E1: the engine's own keywords (a pure file), so the fake guesses a service type exactly as the engine does. */
-export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = ENGINE_SERVICE_KEYWORDS;
 /** The words the engine's queue view uses for a new business (platform/runtime/venture/views/queue.ts). */
 export const NEW_BUSINESS_ROWS = {
   plan: { title: 'Your plan is ready. Read it.', read: 'Read', accept: 'Accept' },
-  ai: { title: 'Connect your AI', line: 'Templates work without one. Your agents draft with your AI once it is connected.', action: 'Connect' },
+  ai: { title: QUEUE_FIXED_WORDS.connectAi, line: QUEUE_FIXED_WORDS.connectAiLine, action: 'Connect' },
   // The prices row has three wordings: no price yet, tax assumed by Chausar, or both (views/queue.ts setupRows).
   prices: {
     set: { title: 'Set your prices', action: 'Set prices' },
-    tax: { title: 'Confirm your tax', action: 'Confirm tax' },
-    both: { title: 'Confirm your prices and tax', action: 'Confirm' },
+    tax: { title: QUEUE_FIXED_WORDS.confirmTax, action: 'Confirm tax' },
+    both: { title: QUEUE_FIXED_WORDS.confirmPricesTax, action: 'Confirm' },
   },
-  keep: { title: 'Keep this business', line: 'Make a recovery code so you can open it if this computer is lost.', action: 'Keep it' },
+  keep: { title: QUEUE_FIXED_WORDS.keep, line: QUEUE_FIXED_WORDS.keepLine, action: 'Keep it' },
 } as const;
 /** The recovery code the fake hands out once, with a passphrase or on hosted. Sample only. */
 export const SAMPLE_RECOVERY_CODE = 'K7QM4X2D9PLR8T3WNB6Y5HJC';
@@ -92,7 +90,8 @@ export const QUEUE: RowSeed[] = [
   {
     id: 'q-price-sponsor', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'price', createdAt: '2026-10-21T08:52:00.000Z',
     title: 'Sponsor slot price', line: 'The sponsor asked for two mentions in one episode.',
-    change: { label: 'Sponsor slot', before: '₹25,000', after: '₹30,000', receiptId: 'R-0415' },
+    // Before is the slot's price on the plan (fixtures-business.ts offer_sponsor, ₹15,000), so the card and Settings agree.
+    change: { label: 'Sponsor slot', before: '₹15,000', after: '₹18,000', receiptId: 'R-0415' },
     actions: [{ id: 'deny', label: 'Deny', primary: false }, { id: 'approve', label: 'Approve', primary: true, secondAsk: true }],
   },
   {
@@ -166,7 +165,7 @@ export const SETUP_ROWS: RowSeed[] = [
   },
   {
     id: 'q-setup-keep', businessId: 'lumen', businessName: 'Lumen Studio', kind: 'setup', createdAt: '2026-10-21T08:02:00.000Z',
-    title: 'Keep this business', line: 'Make a recovery code so you can open it if this computer is lost.',
+    title: QUEUE_FIXED_WORDS.keep, line: QUEUE_FIXED_WORDS.keepLine,
     actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'keep', label: 'Keep it', primary: true }],
   },
 ];
@@ -204,7 +203,7 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
 ];
 
 const editorSteps =(): RunDetail['steps'] => [
-  { id: 's1', purpose: 'Read the transcript', state: 'done', elapsed: '12 s', audited: true, tools: [{ name: 'files.read', line: 'episode-13.transcript.txt, 9,412 words' }], evidence: [{ kind: 'file', id: 'f-transcript-13', label: 'transcript' }] },
+  { id: 's1', purpose: 'Read the transcript', state: 'done', elapsed: '12 s', audited: true, tools: [{ name: 'files.read', line: 'episode-13.transcript.srt, 9,412 words' }], evidence: [{ kind: 'file', id: 'u-transcript-13', label: 'episode-13.transcript.srt' }] },
   { id: 's2', purpose: 'Picked 6 moments, each with a timestamp', state: 'done', elapsed: '48 s', audited: true, tools: [{ name: 'model.main', line: 'Asked for moments under 60 s with a clear hook' }, { name: 'check.timestamps', line: '6 of 6 timestamps found in the transcript' }], evidence: [{ kind: 'check', id: 'c-moments-13', label: '6 moments' }] },
   { id: 's3', purpose: 'Checked: no black, silent or frozen frames', state: 'done', elapsed: '20 s', audited: true, tools: [{ name: 'ffmpeg.blackdetect', line: 'No black frames' }, { name: 'ffmpeg.silencedetect', line: 'No silence over 2 s' }], evidence: [{ kind: 'check', id: 'c-frames-13', label: 'frame check' }] },
   { id: 's4', purpose: 'Rendering 3 of 6', state: 'current', elapsed: 'now', tools: [{ name: 'ffmpeg.render', line: 'short-3.mp4, 1080 x 1920' }] },
@@ -220,7 +219,7 @@ export const RUNS: RunDetail[] = [
     runId: '30', businessId: 'lumen', agent: 'Researcher', purpose: 'Checking titles against the last 30 videos', state: 'active', startedAt: '2026-10-21T10:23:00.000Z', elapsed: '1 min', poster: null,
     progress: 'indeterminate',
     steps: [
-      { id: 's1', purpose: 'Read the last 30 titles and their views', state: 'done', elapsed: '18 s', tools: [{ name: 'youtube.read', line: '30 videos, from the channel export you uploaded' }], evidence: [{ kind: 'file', id: 'f-export-oct', label: 'channel export' }] },
+      { id: 's1', purpose: 'Read the last 30 titles and their views', state: 'done', elapsed: '18 s', tools: [{ name: 'youtube.read', line: '30 videos, from the channel export you uploaded' }], evidence: [{ kind: 'file', id: 'u-export-oct', label: 'channel-export-october.csv' }] },
       { id: 's2', purpose: 'Comparing the two new titles', state: 'current', elapsed: 'now' },
     ],
   },
@@ -229,8 +228,8 @@ export const RUNS: RunDetail[] = [
     progress: { done: 2, total: 3 },
     question: { id: 'q-29', text: 'The sponsor wants to see the video before it goes up. Share a private preview link with them?', choices: ['Yes, share a private link', 'No, they see it when it is public'] },
     steps: [
-      { id: 's1', purpose: 'Read the sponsor brief', state: 'done', elapsed: '9 s', evidence: [{ kind: 'file', id: 'f-brief-sponsor', label: 'sponsor brief' }] },
-      { id: 's2', purpose: 'Priced two mentions with the calculator', state: 'done', elapsed: '3 s', evidence: [{ kind: 'receipt', id: 'R-0415', label: 'R-0415' }] },
+      { id: 's1', purpose: 'Read the sponsor brief', state: 'done', elapsed: '9 s', evidence: [{ kind: 'file', id: 'u-brief-boat-14', label: 'boat-audio-brief-ep14.pdf' }] },
+      { id: 's2', purpose: 'Priced two mentions with the calculator', state: 'done', elapsed: '3 s', evidence: [{ kind: 'price-receipt', id: 'R-0415', label: 'Price receipt' }] },
       { id: 's3', purpose: 'Asking you about a preview for the sponsor', state: 'waiting' },
     ],
   },
@@ -255,12 +254,11 @@ export const RUNS: RunDetail[] = [
     // 4H2 (U17): Ledgerline's main tier is its own Sonnet key (fixtures-business.ts), and the call named it.
     writtenBy: 'Written by Claude Sonnet 5.5',
     steps: [
-      { id: 's1', purpose: 'Read the bank statement you uploaded', state: 'done', elapsed: '31 s', audited: true, evidence: [{ kind: 'file', id: 'f-bank-sep', label: 'bank statement' }] },
+      { id: 's1', purpose: 'Read the bank statement you uploaded', state: 'done', elapsed: '31 s', audited: true, evidence: [{ kind: 'file', id: 'u-bank-mehta-sep', label: 'mehta-bank-september.csv' }] },
       { id: 's2', purpose: 'Matched lines to invoices', state: 'done', elapsed: '3 min', audited: true, tools: [{ name: 'books.match', line: '212 matched, 2 left' }] },
       {
         id: 's3', purpose: 'Wrote the reconciliation', state: 'done', elapsed: '20 s', audited: true,
         evidence: [
-          { kind: 'receipt', id: 'R-0412', label: 'R-0412' },
           // The engine's words for a rules judge that settled nothing (views/runs.ts, delivery/checks.ts rulesJudge).
           { kind: 'check', id: 'rules-judge', label: 'Failed: Not settled: cites-source. A vote without checked evidence never counts as a pass.' },
         ],
@@ -359,6 +357,10 @@ export const RECEIPTS: ReceiptLite[] = [
   { id: 'R-0401', at: '2026-10-01T00:00:00.000Z', explanation: 'Invoices issued in October.', stale: false, figures: [{ key: 'total', label: 'Billed', display: '₹1,12,400' }] },
   { id: 'R-0402', at: '2026-10-01T00:00:00.000Z', explanation: 'Payments recorded in October.', basis: 'Counted: payments dated 1 to 31 Oct 2026', stale: false, figures: [{ key: 'total', label: 'Received', display: '₹86,200' }] },
   { id: 'R-0403', at: '2026-10-01T00:00:00.000Z', explanation: 'Billed less tax for October.', stale: false, figures: [{ key: 'total', label: 'Earned', display: '₹95,254.24' }] },
+  // Ledgerline's own month (its books are its own vault on the engine): INV-0041 issued in October, nothing paid yet.
+  { id: 'R-0404', at: '2026-10-01T00:00:00.000Z', explanation: 'Invoices issued in October: INV-0041 ₹18,880.', stale: false, figures: [{ key: 'total', label: 'Billed', display: '₹18,880' }] },
+  { id: 'R-0405', at: '2026-10-01T00:00:00.000Z', explanation: 'Payments recorded in October: none yet.', basis: 'Counted: payments dated 1 to 31 Oct 2026', stale: false, figures: [{ key: 'total', label: 'Received', display: '₹0' }] },
+  { id: 'R-0406', at: '2026-10-01T00:00:00.000Z', explanation: 'Billed less tax for October.', stale: false, figures: [{ key: 'total', label: 'Earned', display: '₹16,000' }] },
 ];
 
 export const BOOKS: Record<string, BooksSummaryLite> = {
@@ -375,9 +377,10 @@ export const BOOKS: Record<string, BooksSummaryLite> = {
   ledgerline: {
     currency: 'INR', period: { from: '2026-10-01', to: '2026-10-31' },
     figures: [
-      { operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400', stale: false },
-      { operation: 'received', label: 'Received', receiptId: 'R-0402', display: '₹86,200', stale: false },
-      { operation: 'earned', label: 'Earned', receiptId: 'R-0403', display: '₹95,254.24', stale: false },
+      // Its own figures, never Lumen Studio's: a figure that counts nothing is zero with no receipt, as the engine sends it.
+      { operation: 'billed', label: 'Billed', receiptId: 'R-0404', display: '₹18,880', stale: false },
+      { operation: 'received', label: 'Received', receiptId: null, display: '₹0', stale: false },
+      { operation: 'earned', label: 'Earned', receiptId: 'R-0406', display: '₹16,000', stale: false },
     ],
     openInvoices: [{ invoiceId: 'inv-0041', number: 'INV-0041', clientName: 'Mehta Traders', balanceDisplay: '₹18,880', dueDate: '2026-11-05' }],
     notes: ['Sample data. Tax figures come from the calculator and need your CA before filing.'],
@@ -462,6 +465,9 @@ export const UPLOADS: Record<string, UploadLite[]> = {
   lumen: [
     { id: 'u-brief-boat-14', at: '2026-10-20T09:05:00.000Z', name: 'boat-audio-brief-ep14.pdf', format: 'pdf', bytes: 182340, scope: { kind: 'order', orderId: 'o-boat-14' }, clientData: true },
     { id: 'u-practice-1', at: '2026-10-15T09:00:00.000Z', name: 'practice-sponsor-brief.pdf', format: 'pdf', bytes: 40210, scope: { kind: 'practice', scenarioId: 'sc-sponsor-1' }, clientData: false },
+    // What the sample's runs read (RUNS evidence): a run names a file by its upload's id and name, as views/runs.ts does.
+    { id: 'u-transcript-13', at: '2026-10-19T16:20:00.000Z', name: 'episode-13.transcript.srt', format: 'transcript', bytes: 61240, scope: { kind: 'order', orderId: 'o-boat-12' }, clientData: true, origin: 'local-transcription' },
+    { id: 'u-export-oct', at: '2026-10-21T10:15:00.000Z', name: 'channel-export-october.csv', format: 'csv', bytes: 23870, scope: { kind: 'order', orderId: 'o-boat-12' }, clientData: true },
   ],
   ledgerline: [
     { id: 'u-bank-mehta-sep', at: '2026-10-02T10:00:00.000Z', name: 'mehta-bank-september.csv', format: 'csv', bytes: 48211, scope: { kind: 'order', orderId: 'o-mehta-sep' }, clientData: true },

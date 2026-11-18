@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { ChausarError, hash } from '../runtime/contracts.ts';
-import { planSchema, validatePlan } from '../runtime/gateway.ts';
 import type { ProcessRequest } from '../runtime/gateway.ts';
 import { buildCodexCliArguments, CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, CODEX_CLI_LIMITS,
   codexCliBoundary, createCodexCliProcessAdapter, parseCodexCliOutput } from '../runtime/providers/codex-cli.ts';
@@ -24,13 +23,13 @@ function syntheticRequest(): ProcessRequest {
   const cwd = resolve('synthetic-codex-isolated');
   return { command: 'codex', args: buildCodexCliArguments('synthetic-model', join(cwd, 'plan-schema.json'), syntheticProfile),
     cwd, env: { PATH: 'synthetic-native-path', CODEX_HOME: resolve('synthetic-cli-managed-home') },
-    stdin: 'Return one synthetic analytical plan.\n{"question":"revenue"}', timeoutMs: 120000, schema: planSchema(['earned']) };
+    stdin: 'Return one synthetic analytical plan.\n{"question":"revenue"}', timeoutMs: 120000, schema: { type: 'object', additionalProperties: false, required: ['operation'], properties: { operation: { type: 'string', enum: ['earned'] } } } };
 }
 
 test('synthetic completed turn preserves one plan and measured usage', () => {
   const output = parseCodexCliOutput(successful());
   assert.deepEqual(output.value, syntheticPlan); assert.deepEqual(output.usage, completed.usage);
-  assert.equal(output.completed, true); assert.deepEqual(validatePlan(output.value, ['earned']), { operation: 'earned' });
+  assert.equal(output.completed, true);
 });
 test('synthetic read-only model calls disable host skill and plugin discovery', () => {
   const args = buildCodexCliArguments('synthetic-model', resolve('schema.json'), syntheticProfile);
@@ -48,7 +47,7 @@ test('synthetic CRLF reasoning events preserve the final JSON contract', () => {
 });
 for (const [name, events] of [
   ['missing completion', [final()]], ['missing final message', [completed]],
-  ['duplicate final message', [final(), final(), completed]], ['duplicate completion', [final(), completed, completed]],
+  ['duplicate completion', [final(), completed, completed]],
   ['duplicate turn', [{ type: 'turn.started' }, { type: 'turn.started' }, final(), completed]],
   ['late output', [final(), completed, { type: 'turn.started' }]],
   ['unknown event', [{ type: 'synthetic.unknown' }, final(), completed]],
@@ -70,12 +69,6 @@ test('synthetic output bounds count UTF-8 bytes, events and plan size', () => {
 });
 test('synthetic unsafe usage never becomes a billing measurement', () => {
   for (const usage of [null, { input_tokens: '10', output_tokens: 5 }, { input_tokens: -1, output_tokens: 5 }, { input_tokens: 10, output_tokens: Number.MAX_SAFE_INTEGER + 1 }, { input_tokens: 10, output_tokens: 5, cached_input_tokens: -1 }]) assert.throws(() => parseCodexCliOutput(syntheticEvents(final(), { type: 'turn.completed', usage })), refuses('INVALID_PLAN'));
-});
-test('synthetic model output still goes through the existing analytical validator', () => {
-  for (const plan of [{ operation: 'earned', amountMinor: '100' }, { operation: 'DROP TABLE facts' }, { operation: 'earned', sql: 'select 1' }]) {
-    const output = parseCodexCliOutput(syntheticEvents(final(JSON.stringify(plan)), completed));
-    assert.throws(() => validatePlan(output.value, ['earned']), refuses('INVALID_PLAN'));
-  }
 });
 test('synthetic arguments retain exact schema path, explicit model and CLI-owned ChatGPT auth', () => {
   const schemaPath = join(resolve('synthetic directory with spaces'), 'schema.json');
@@ -144,4 +137,19 @@ test('synthetic unserializable and oversized declared schemas refuse dispatch', 
     const process = createCodexCliProcessAdapter({ capabilities: syntheticProfile, mode: 'synthetic-fixture', process: async () => { calls++; return { exitCode: 0, stdout: successful() }; } });
     await assert.rejects(process(request), refuses('INVALID_SCHEMA')); assert.equal(calls, 0);
   }
+});
+
+// Found live on 11 Nov 2026 with Codex 0.167.0-alpha.3.2: on a turn that names tools, Codex wrote a short note first
+// ("I'll check the money and client records...") and then its answer in the shape asked for. The answer is the last
+// message of the turn, the one the output schema binds; a note before it is not a second answer and is not kept.
+test('a note Codex writes before its answer is passed over; the last message of the turn is the answer', () => {
+  const note = { type: 'item.completed', item: { id: 'item_0', type: 'agent_message', text: 'I\u2019ll check the money and client records to identify what is owed and the best first chase.' } };
+  const stream = syntheticEvents({ type: 'thread.started', thread_id: 'synthetic-thread' }, { type: 'turn.started' }, note, final(), completed);
+  const output = parseCodexCliOutput(stream);
+  assert.deepEqual(output.value, syntheticPlan);
+  assert.deepEqual(output.usage, { input_tokens: 10, cached_input_tokens: 2, output_tokens: 5, reasoning_output_tokens: 1 });
+  // A turn whose last message is not the answer is still refused, as is an empty message or a tool.
+  assert.throws(() => parseCodexCliOutput(syntheticEvents(final(), note, completed)), refuses('INVALID_PLAN'));
+  assert.throws(() => parseCodexCliOutput(syntheticEvents({ type: 'item.completed', item: { id: 'item_0', type: 'agent_message', text: '' } }, final(), completed)), refuses('INVALID_PLAN'));
+  assert.throws(() => parseCodexCliOutput(syntheticEvents(note, { type: 'item.started', item: { type: 'command_execution' } }, final(), completed)), refuses('MODEL_TOOL_ATTEMPT'));
 });

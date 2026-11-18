@@ -107,7 +107,7 @@ export interface RunStep {
   id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;
   /** C5 task 4: this step's working time, and the wait for the owner just before it. */
   working?: Display; waiting?: Display;
-  tools?: RunToolLine[]; evidence?: { kind: string; id: string; label: string }[]; error?: string; audited?: boolean;
+  tools?: RunToolLine[]; evidence?: RunEvidence[]; error?: string; audited?: boolean;
   /** 4J14 (Q6): on the read step, how much of the client's files code handed over (venture.runs.get only). */
   coverage?: CoverageView;
   /** 4J14 (Q6): on the check step, the checks that could not run: id (playbook:check) and the engine line. */
@@ -248,7 +248,8 @@ export interface SpendRow {
 }
 /**
  * 4Z3 (founder, 27 Oct): which currency leads spend, as the owner chose it. 'auto': rupees lead for a business in India
- * once a rupee rate is set; 'inr': rupees first whenever a rate is set; 'usd': dollars first. Without a rate, dollars lead.
+ * (at the owner's rate, or the dated reference rate until they type one); 'inr': rupees first whenever a rate is set;
+ * 'usd': dollars first. Without a rate (a business outside India that set none), dollars lead.
  */
 export type CurrencyLead = 'auto' | 'inr' | 'usd';
 /**
@@ -278,8 +279,8 @@ export interface SpendRateInput {
   cacheReadUsdPerMillion?: string | null; cacheWriteUsdPerMillion?: string | null;
 }
 /**
- * `inrPerUsd`: the owner's own rupee rate as typed back ('83.50'); `rupeeRate`: that rate in words with the day it was
- * set; `capRupees`, `askFirstRupees`: the limits in rupees at that rate. All null or absent without a rate.
+ * `inrPerUsd`: the rupee rate in use as typed back ('83.50'); `rupeeRate`: that rate in words (the owner's own with the day it was set, or the reference rate with its source and day, which a rupee business uses until then);
+ * `capRupees`, `askFirstRupees`: the limits in rupees at that rate. All null or absent without a rate.
  */
 export interface SpendPolicyView {
   /** C5 task 15: the offer of the reference rate shipped with this release; gone once it is in use. */
@@ -354,8 +355,6 @@ export interface MoneyOverviewLine {
   id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display;
   /** 4Z3: the AI spend line as the owner's currency leads it (the 'spent' line). */
   lead?: SpendLead;
-  /** C4 (T23): a business billing in rupees with no rupee rate set. */
-  needsRate?: boolean;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
 export interface MoneyOverview { lines: MoneyOverviewLine[]; /** One-shot C6: this month's invoices all paid. */ paidInFull?: { line: Display; receiptId: string } | null }
@@ -377,14 +376,15 @@ export interface CaView { citations?: CaCitationsView; ca: CaOfRecord | null; pe
 export interface LeadEmailCheck { status: 'unverified' | 'verified' | 'failed'; at: string | null; line: string }
 export interface OutreachDraftView {
   id: string; leadId: string; to: string; subject: string; text: string;
-  footer: { businessName: string; postalAddress: string; unsubscribe: string }; sourceUrl: string; by: 'agent' | 'owner'; at: string; digest: string;
+  footer: { businessName: string; postalAddress: string; unsubscribe: string }; sourceUrl: string | null; by: 'agent' | 'owner'; at: string; digest: string;
 }
 export interface LeadSendView { draftId: string; sentAt: string; recordedBy: string; recordedAt: string; channel: 'own-mailbox' }
 export type LeadStage = 'new' | 'drafted' | 'contacted' | 'replied' | 'won' | 'lost' | 'blocked';
 /** One stage move with what it rests on: the draft, the owner's send, the reply, the outcome or the opt-out. */
 export interface LeadMoveView { from: LeadStage; to: LeadStage; at: string; by: string; evidence: { kind: 'draft' | 'send' | 'reply' | 'outcome' | 'opt-out'; id: string } }
 export interface LeadView {
-  id: string; name: string; company: string | null; email: string | null; emailDomain: string | null; sourceUrl: string; emailCheck: LeadEmailCheck;
+  /** sourceUrl: the page it was found on. sourceNote: the owner's own words for where it came from. Exactly one is set. */
+  id: string; name: string; company: string | null; email: string | null; emailDomain: string | null; sourceUrl: string | null; sourceNote: string | null; emailCheck: LeadEmailCheck;
   /** Forward only: new, drafted, contacted, replied, then won or lost; blocked is never left. */
   status: LeadStage; drafts: OutreachDraftView[]; sends: LeadSendView[]; moves: LeadMoveView[]; addedBy: string; addedAt: string;
 }
@@ -438,16 +438,17 @@ export interface BusinessList { businesses: BusinessOnComputer[]; complete: bool
 export interface VentureViewLite {
   /** country (4J20): the business's country, its code and currency; null while it is still in its interview. */
   venture: { id: string; workingName: string; serviceType: ServiceType | null; originalCountry?: CountryLite; country?: { code: string; currency: string } | null };
+  /** How far what is sold is from ready: of the plan's setup moves (accept the plan, set the prices), how many the records show done. */
   done: number; total: number;
   /** The flagship playbook the idea picks, for example { id: 'youtube', label: 'YouTube channel' }; absent when the plain service type serves. */
   playbook?: PlaybookPick;
-  /** The setup checklist item by item (4J8): its name, whether it is done, and the app address where it is done. */
-  checklist?: ChecklistItemLite[];
+  /** The field the owner kept (venture.owner.set { familyId }), by the engine's own label; absent until one is kept. */
+  field?: { id: string; label: string };
+  /** What the accepted plan sells, by its first offer's own name ("Custom cakes"); absent before a plan is accepted. */
+  sells?: string;
   /** 4F3: while the owner has paused the business (Pause all), since when and the engine's line; absent otherwise. */
   paused?: { since: string; line: Display };
 }
-/** `ChecklistItem` in platform/runtime/venture/contracts.ts, trimmed; link is an address such as #/business/prices. */
-export interface ChecklistItemLite { id: string; label: string; done: boolean; link: string }
 /** `PlaybookPick` in platform/runtime/venture/contracts.ts: worked out from the idea by the engine, never stored. */
 export interface PlaybookPick { id: string; label: string }
 
@@ -497,7 +498,8 @@ export interface RowFigureReceipt {
 }
 
 /** `venture.books.summary` (BooksSummary), trimmed. */
-export interface BooksFigureLite { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; display: Display; stale: boolean }
+/** receiptId is null for a figure that counts nothing: zero with no receipt, as the engine sends an empty sum. */
+export interface BooksFigureLite { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string | null; display: Display; stale: boolean }
 export interface BooksSummaryLite {
   currency: string; period: { from: string; to: string };
   figures: BooksFigureLite[];
@@ -565,6 +567,8 @@ export interface ModelPresetLite {
 export interface ModelConnectionLite {
   id: string; presetId: string; model: string | null; tiers: ModelTier[]; status: 'connected' | 'disconnected'; consentedAt: string;
   keyLoaded: boolean; usable: boolean; reason: string; verificationNote?: string | null;
+  /** The model agent jobs run on with this AI (the receipt's "Main model"); null unless it serves plans and drafts. */
+  jobModel?: string | null;
 }
 export interface ModelTierLite { presetId: string; model: string | null; usable: boolean; reason: string; verificationNote?: string | null }
 export interface ModelStatusLite {
@@ -577,11 +581,18 @@ export interface ModelStatusLite {
 }
 export interface ModelConnectParams { presetId: string; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string }
 export interface AiOptionsLite { presets: ModelPresetLite[]; status: ModelStatusLite; unchecked: boolean }
+/**
+ * `venture.ai.reuse` (AiReuseView): a later business's draft after the Codex or Claude Code already connected in another
+ * business on this computer was connected in it. reused names that business, or is null when nothing carried over.
+ */
+export interface AiReuseLite extends ModelStatusLite { reused: { from: string } | null }
 
 /** `venture.blueprint.get` and `.update` (BlueprintView), trimmed. Prices arrive only as receipts. */
 export type LineLabel = 'told-by-you' | 'assumption' | 'computed';
 export interface LabelledLite<T> { value: T; label: LineLabel; by: 'owner' | 'model' | 'template' | 'engine'; estimate?: true }
 export type PricingModel = 'monthly' | 'project' | 'hourly';
+/** The unit an offer is priced in (the engine's core/offer-units.ts OFFER_UNITS); its pricing model follows from it. */
+export type OfferUnit = 'project' | 'month' | 'year' | 'hour' | 'visit' | 'piece' | 'set' | 'minute' | 'word' | 'page';
 export interface OfferLite {
   id: string; name: LabelledLite<string>; description: LabelledLite<string>;
   /** The flagship playbook offer this is, for example 'licensed-clips'; absent on other plans. It decides the rights asked at intake. */
@@ -590,7 +601,7 @@ export interface OfferLite {
   addedByOwner?: true;
   /** unitPriceMinor is engine data the UI only tests for null ("Set your price"); it never formats it. */
   pricing: {
-    model: PricingModel; quantityUnit: 'month' | 'project' | 'hour'; unitPriceMinor: string | null; unitPriceLabel: 'told-by-you' | 'not-set'; defaultQuantity: string;
+    model: PricingModel; quantityUnit: OfferUnit; unitPriceMinor: string | null; unitPriceLabel: 'told-by-you' | 'not-set'; defaultQuantity: string;
     /** 5A2: priced as a share of an amount the client confirms later, in place of a fixed price; absent otherwise. */
     share?: SharePrice;
   };
@@ -602,7 +613,8 @@ export interface BlueprintStepLite { id: string; title: LabelledLite<string>; do
  */
 export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
 /** The plan About you showed: its name, its offers and who wrote them (the AI's reading, or the keywords or a tile). */
-export interface KeptShownLite { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] }
+/** unit: the unit the card showed for the offer; without one it is kept per project. */
+export interface KeptShownLite { name: string; by: 'model' | 'template' | 'owner'; callId?: string; offers: { name: string; line: string; unit?: OfferUnit }[] }
 export interface BlueprintLite {
   country?: CountryLite;
   id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template' | 'owner'; digest: string; serviceType: ServiceType;
@@ -635,16 +647,17 @@ export interface CalendarIntakeLite { month: string; channels: string[]; postsPe
 /** `OrderIntake.clientRules`: the client's own word lists; a missing list is empty. */
 export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string[]; competitors?: string[]; protectedPhrases?: string[] }
 /** intake: by offer id, worked out by the engine; absent when no offer asks anything at intake. */
-export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView; /** C4 task 33: the owner's own price applied on Save, with its Undo row. */ decided?: { line: string; undoRowId: string } }
+export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView; /** C4 task 33: the owner's own price applied on Save, with its Undo row. Also the owner's own "No, I do not charge tax" (core/owner-tax.ts), which has no Undo row. */ decided?: { line: string; undoRowId: string | null }; /** venture.blueprint.get only: the way to earn kept with the business and the agents the owner hired; absent when neither was kept. */ kept?: { way: WayToEarnLite | null; team: { name: string; job: string; duties: string[] }[] } }
 export interface BlueprintPatchLite {
   countryCode?: string;
   /** C5 task 13: I charge GST, on Prices (core/blueprint.ts applyTaxPatch). */
   taxRegistered?: boolean; taxRate?: string; taxId?: string | null; taxState?: string | null; sacCode?: string | null;
   name?: string; oneLiner?: string; customer?: string;
   /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
-  offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
+  /** unit: the unit the offer is priced in; its pricingModel follows. The engine takes unit or pricingModel, never both. */
+  offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; unit?: OfferUnit; share?: { percent: string } | null }[];
   /** 4J8: a new offer of the owner's, with no price yet; and taking out an offer the owner added. */
-  addOffer?: { name: string; description: string; pricingModel: PricingModel } | {youtubeService:string};
+  addOffer?: { name: string; description: string; pricingModel: PricingModel; unit?: OfferUnit } | {youtubeService:string};
   removeOffer?: { id: string };
 }
 
@@ -746,10 +759,17 @@ export interface ClientAddParams { name: string; email?: string; countryCode?: s
 export type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
-import type { FlowsActPayload, FlowsActView, FlowsListView } from '../../../../platform/runtime/venture/flows/flow-types';
+import type { RunEvidence } from '../../../../platform/runtime/venture/views/run-evidence';
+export type { RunEvidence, RunEvidenceKind } from '../../../../platform/runtime/venture/views/run-evidence';
 import type { FindRequest, FindView } from '../../../../platform/runtime/venture/views/find-core';
+import type { FindBrief, FindSource } from '../../../../platform/runtime/venture/customers/find-brief';
+import type { EarlierEntry } from '../../../../platform/runtime/venture/journal/earlier-list';
+export type { EarlierEntry };
+import type { FindCustomersView, FindProposedOf, FindSearchView, FindToolsView, FoundLeadView, OpenSearchView } from '../../../../platform/runtime/venture/customers/find-types';
+import type { FindSourceView } from '../../../../platform/runtime/venture/customers/find-words';
+import type { SearchState } from '../../../../platform/runtime/venture/customers/find-states';
+export type { FindBrief, FindCustomersView, FindProposedOf, FindSearchView, FindSource, FindSourceView, FindToolsView, FoundLeadView, OpenSearchView, SearchState };
 export type { FindGroup, FindHit, FindItem, FindKind, FindRequest, FindSnippet, FindView } from '../../../../platform/runtime/venture/views/find-core';
-export type { FlowsActPayload, FlowsActView, FlowsListView, FlowVersionView, FlowRunView } from '../../../../platform/runtime/venture/flows/flow-types';
 export type { SearchProviderId, WebSearchView, WebReadView, PeopleLookupView, PeopleSearchView };
 // W6 6G3 (D44) the CRM, and 6G4 dated memory: the engine's own view types (crm/crm-data.ts, memory/facts-data.ts).
 import type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView } from '../../../../platform/runtime/venture/crm/crm-data';
@@ -811,7 +831,7 @@ export interface OrderLite {
  */
 export type OrderStageId = 'agreed' | 'price' | 'episode' | 'publish' | 'files-in' | 'books' | 'gst' | 'calendar' | 'drafts' | 'client-ok' | 'posts' | 'report' | 'draft' | 'sent' | 'invoice' | 'paid';
 export type OrderStageReason =
-  | 'new-price' | 'ready' | 'question' | 'approval' | 'brief' | 'failed' | 'stopped' | 'rejected' | 'working' | 'practice'
+  | 'new-price' | 'ready' | 'question' | 'approval' | 'failed' | 'stopped' | 'rejected' | 'working' | 'practice'
   | 'send-unknown' | 'post-unknown' | 'issue-unknown' | 'ca-signed' | 'ca-returned' | 'with-ca' | 'send-to-ca' | 'no-ca'
   | 'client-approved' | 'client-changes' | 'with-client' | 'link-ended' | 'posts-waiting' | 'posting' | 'planned' | 'to-issue' | 'issued' | 'due' | 'part-paid';
 export interface OrderStageView {
@@ -827,16 +847,31 @@ export interface UploadLite {
   scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string } | { kind: 'poster'; orderId: string } | { kind: 'media'; orderId: string }; clientData: boolean;
   /**
    * Where it came from: absent or 'client', a transcript made on this computer from the cut (venture.files.transcribe),
-   * or a still from the cut (venture.files.poster, 4J3; never listed by venture.files.list).
+   * or a still from the cut (4J3; never listed by venture.files.list).
    */
   origin?: 'client' | 'local-transcription' | 'poster';
 }
+/**
+ * `DeliveryRunStatus`, the delivery run's states, each meaning one thing (the engine's delivery/run-machine.ts owns
+ * them). 'working': the AI job is queued or running. 'finishing': the AI handed over a draft and its job is still
+ * finishing. 'needs-answer': the job asked the owner for a fact. 'ready-for-review': the draft waits for the owner's
+ * verdict. 'accepted', 'edited', 'rejected': the verdict (verdict.choice is the same word). 'failed': the AI job
+ * failed. 'stopped': not running, with no verdict; stopped.reason says why.
+ */
+export type DeliveryStatus = 'working' | 'finishing' | 'needs-answer' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed' | 'stopped';
+/** A draft is in front of the owner: handed over while its job finishes, or waiting for the verdict (the engine's run-machine.ts inReview). */
+export const inReview = (run: { status: DeliveryStatus }): boolean => run.status === 'finishing' || run.status === 'ready-for-review';
+/** `RunStopReason`: why a run is stopped (run-machine.ts STOP_LINES holds each reason's line). */
+export type RunStopReason = 'owner' | 'interrupted' | 'quiet' | 'overtime' | 'answered' | 'erased' | 'superseded' | 'old-build';
+/** `RunStop`: a stopped run's stop: why, when, the line it shows, and for an interruption the job it cut and how far each step got. */
+export interface RunStop { reason: RunStopReason; at: string; line: Display; callId?: string; steps?: { callId: string; state: string }[] }
 /** `venture.delivery.list` (DeliveryRunView), trimmed to what a client's sheet shows. */
-export type DeliveryStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed'
-  | DeliveryStatusW4; // 4F3 folds in 'stopped': the owner's (or Chausar's) stop, waiting for Resume
 export interface DeliveryLite {
   id: string; at: string; orderId: string; status: DeliveryStatus; practice: boolean;
+  /** The owner's verdict: set exactly while status is 'accepted', 'edited' or 'rejected' (the engine sets both in one move). */
   deliverable: { title: string } | null; verdict: { choice: 'accepted' | 'edited' | 'rejected'; reason?: string | null; at: string } | null;
+  /** Why and when the run stopped: set exactly while status is 'stopped'. Samples and older tests may leave it out. */
+  stopped?: RunStop | null;
   /** DeliveryRunView: the run waits on the owner (it is on Today). The engine always sends it. */
   awaitingYou?: boolean;
   /**
@@ -1012,7 +1047,8 @@ export interface PlanPreviewLite {
 export interface HostedTrialView { temporary: true; line: string; expiresAt: string; endsSoon: boolean; warning: string | null }
 /** `workspace.status`. `hosted` comes only from the hosted web server: the account's businesses, and `trial` while temporary. */
 export interface WorkspaceStatusLite {
-  open: boolean; workspace?: { name: string } | undefined; unlock?: string | undefined; closedByOwner?: boolean | undefined;
+  /** folder: the open business's folder on this computer, as workspace.list names it; absent with none open. */
+  open: boolean; workspace?: { name: string } | undefined; folder?: string | undefined; unlock?: string | undefined; closedByOwner?: boolean | undefined;
   experimental?: boolean | undefined; hosted?: { businesses: { id: string; name: string }[]; trial?: HostedTrialView | null | undefined } | undefined;
 }
 /** `workspace.create`. On this computer `folder: null` lets the engine pick the folder; hosted takes no folder. */
@@ -1212,6 +1248,8 @@ export interface ComplianceLite {
   profession: { id: string; label: Display; family: string | null }; question: Display; responsibility: Display;
   /** One-shot C4 task 3: the engine's line for an owner with no day job. */
   noDayJob: Display;
+  /** Fix round 4: the engine's lines for a contract that does not allow side work, and for an owner who is not sure. */
+  notAllowed: Display; notSure: Display;
   /** verdict (W6, 3 November 2026): the engine's line at the owner's size for a statute with a size threshold, else null. */
   rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null; size: Display | null; verdict: Display | null }[]; switchedOff: { tool: string; line: Display }[];
   hardStops: { id: string; line: Display }[]; digest: string;
@@ -1248,8 +1286,6 @@ export interface RulesListView {
 // arrives as engine text with its receipt; a model number is labelled an estimate. Times and days are ISO text.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** `DeliveryRunStatus` 'stopped' (4F1): not in DeliveryStatus yet, for the same reason as QueueKindW4 (4F3 folds it in). */
-export type DeliveryStatusW4 = 'stopped';
 export type DepartmentId = 'sales' | 'marketing' | 'production' | 'money' | 'operations';
 export interface MoneyFigure { display: Display; receiptId: string }
 /** A point the engine scaled: valuePermille of the largest, null (never 0) where there is no data. */
@@ -1281,6 +1317,8 @@ export interface TeamListView {
   teamHealth?: AgentHealth;
   /** W6 6G2: the Retired shelf, oldest first; sent only when an agent is retired. */
   retired?: RetiredAgentView[];
+  /** Hired agents stand on the team before the plan is accepted: the one line that says the plan's own agents join with it. */
+  waitsForPlan?: Display;
 }
 /** W6 6G2 (D43). One agent on the Retired shelf; to is null when the owner took over its work. */
 export interface RetiredAgentView { id: string; name: string; role: Display; department?: DepartmentId; at: string; to: { id: string; name: string } | null; line: Display }
@@ -1342,7 +1380,7 @@ export type StandingUndoView = { kind: 'back'; version: number } | { kind: 'rebu
 export interface StandingOrdersView { orders: StandingOrderView[]; playbook: StandingPlaybookView | null; rebuildDue: boolean; steps: StandingStepView[]; undo: StandingUndoView | null }
 
 /** 4C1 Chats and proposals. */
-export type ProposalKind = 'brief-agent' | 'start-run' | 'start-work' | 'draft-invoice' | 'draft-reminder' | 'quote' | 'outreach-draft' | 'next-step';
+export type ProposalKind = 'brief-agent' | 'start-run' | 'start-work' | 'draft-invoice' | 'draft-reminder' | 'quote' | 'outreach-draft' | 'next-step' | 'find-customers';
 export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | 'refused';
 /** what (4C2 review): the step's own line; line says where it stands. */
 export interface ProposalView { id: string; at: string; kind: ProposalKind; status: ProposalStatus; title: Display; line: Display; what: Display; agent: string | null; rowId: string | null; digest: string; secondAsk: boolean }
@@ -1525,9 +1563,14 @@ export type WriteCapKind = 'drafts' | 'books-lines' | 'messages';
 export interface NotificationView { id: string; rowId: string; kind: QueueKind | QueueKindW4; title: Display; at: string; read: boolean; ended?: true }
 /** W6 6F6 (notify/telegram.ts). said: what a test alert did, only on a test. */
 export interface TelegramView { connected: boolean; details: boolean; line: Display; said?: Display }
-/** W6 6F7 (notify/phone.ts): the phone listener's state; a one-time pairing link and its QR code when one was asked for. */
+/**
+ * W6 6F7 (notify/phone.ts): the phone listener's state; a one-time pairing link and its QR code when one was asked for.
+ * on is the listener's state at that moment; waiting counts the pairing links made and neither used nor run out;
+ * closesAt is when the listener closes by itself if nothing changes, null while it is off.
+ */
 export interface PhoneAccessView {
   on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number;
+  waiting: number; closesAt: string | null;
   link: string | null; expiresAt: string | null; line: Display; qr: { size: number; rows: string[] } | null;
 }
 /** 4G1: the newest daily digest, for the centre only; receiptIds back its money figures. */
@@ -1584,6 +1627,39 @@ export interface CodexSetupLite {
 export interface RoleModelView { agent: string; name: string; tiers: { tier: ModelTier; presetId: string; model: string | null; price: Display; usable: boolean }[] }
 
 /** 4I1 goals and the next best step. */
+/**
+ * The chief's standing plan (`ChiefPlanView` in platform/runtime/venture/contracts.ts; chief/plan.ts): the goal, the
+ * chief's line for today, exactly one next best step with its one primary action, this week's moves with their states,
+ * and the daily review. Code decides the step whenever the records alone do; every word is the engine's.
+ */
+export type ChiefMoveState = 'planned' | 'waiting' | 'proposed' | 'working' | 'failed' | 'done' | 'dropped';
+export interface ChiefPlanMoveView { id: string; text: Display; state: ChiefMoveState; label: Display; rowId: string | null; can: ('done' | 'dropped' | 'planned')[] }
+export type ChiefPlanAction =
+  | { id: 'row'; label: Display; rowId: string }
+  | { id: 'go'; label: Display; link: string }
+  | { id: 'done'; label: Display; moveId: string };
+export interface ChiefPlanStep {
+  kind: 'offer' | 'row' | 'overdue' | 'move' | 'clear';
+  title: Display; line: Display | null; action: ChiefPlanAction | null; agent: string | null; figure: MoneyFigure | null; goalAfterPercent: number | null;
+  by: 'records' | 'chief';
+  /** The setup cards that also wait on Today (confirm tax, keep a recovery code, connect an AI), as one quiet line, with their titles in the same order; null when none. */
+  also: { line: Display; rowIds: string[]; titles: Display[] } | null;
+}
+export interface ChiefOwnUseView { runsPerDay: number; usedRuns: number; capMicros: string; cap: Display; capTyped: string; keyed: boolean; line: Display }
+export interface ChiefReviewView {
+  on: boolean; offer: { title: Display; line: Display } | null; routineId: string | null; time: string; timeZone: string; when: Display; next: string | null;
+  last: { at: string; line: Display; by: 'ai' | 'records' } | null; note: Display | null; ownUse: ChiefOwnUseView; line: Display;
+  /** The chat consent to agree to in place, only while it is missing and matters (the offer, or the review on and asking the AI). */
+  consent: ChatConsentView | null;
+}
+export interface ChiefPlanView {
+  weekOf: string;
+  goal: { month: string; state: 'set' | 'unset'; line: Display; percent: number | null; figure: MoneyFigure | null };
+  line: { text: Display; estimate: boolean; by: 'ai' | 'records' };
+  next: ChiefPlanStep;
+  moves: ChiefPlanMoveView[];
+  review: ChiefReviewView;
+}
 export interface NextBestStep { rowId: string; title: Display; agent: string | null; line: Display; figure: MoneyFigure | null; goalAfter: Display | null; goalAfterPercent: number | null }
 /** A sum on the goal card: receiptId null when nothing was added up (a zero, no receipt). */
 export interface GoalFigure { display: Display; receiptId: string | null }
@@ -1615,8 +1691,12 @@ export interface DecisionView {
 }
 export type DecisionOpens = { kind: 'invoice' | 'run' | 'order' | 'plan' | 'price' | 'client'; id: string } | null;
 export type TriageField = 'due' | 'client' | 'kind' | 'money' | 'business';
-export interface TriageRule { keys: { field: TriageField; order: 'asc' | 'desc' }[]; words: string }
-export interface TriagePreview { rule: TriageRule | null; choices: TriageRule[]; rows: QueueRow[]; digest: string; by: 'model' | 'choices' }
+/** A kind of item on Today a rule can put first: a row's kind (never a locked business), or a proposal that finds customers. */
+export type TriageGroup = Exclude<QueueRow['kind'], 'locked'> | 'find-customers';
+/** first: the kinds of item that lead, in order; the keys order everything after them. */
+export interface TriageRule { keys: { field: TriageField; order: 'asc' | 'desc' }[]; first?: TriageGroup[]; words: string }
+/** does: what the rule does, in the engine's words; null with no rule. */
+export interface TriagePreview { rule: TriageRule | null; does: Display | null; choices: TriageRule[]; rows: QueueRow[]; digest: string; by: 'model' | 'choices' }
 export interface DraftChangeView { id: string; paragraph: number; before: string; after: string; by: 'owner' | 'agent'; status: 'open' | 'taken' | 'dropped' }
 /** 4J2: line says how the revision was merged; replacement is offered when the owner's own version sits beside the agent's. */
 export interface DraftChangesView {
@@ -1669,7 +1749,7 @@ export interface CashView {
 }
 /** 4J20: a draft issued today: due on its terms from today, in that week, its total as priced. */
 export interface CashIssueView { invoiceId: string; client: string; due: string; week: string; amount: KindedFigure }
-export interface MarginsView { month: string; rows: { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null }[]; line: Display; basis: TotalBasis; /** C4 (T23): the spend is left out only for want of a rupee rate. */ needsRate?: boolean }
+export interface MarginsView { month: string; rows: { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null }[]; line: Display; basis: TotalBasis }
 /** receipts (4J10): the business's signed receipts with the public halves of its keys, for the CA to check offline; saved as its own file. */
 /** Desktop only (C4 T24): what the save answered. folder is the folder's own name; id is for showSavedExport. Never a path. */
 export interface MoneyExportSaved { saved: true; name: string; receipts?: string; readme?: string; count?: number; folder?: string; id?: string; line: string }
@@ -1768,7 +1848,9 @@ export interface PlanSuggestionView {
   left: Display; line: Display; callId: string | null;
 }
 /** kept: only on the answer that removed a stored name, the backups line Forget also shows. */
-export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[]; familyId?: string }
+/** The way to earn your AI proposed at About you (the engine's core/way.ts): who pays, how they are reached, who does what, the first week. */
+export interface WayToEarnLite { customer: string; reach: string; teamDoes: string; youDo: string; firstWeek: string[] }
+export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[]; familyId?: string; way?: WayToEarnLite; needs?: NeedIdLite[] }
 /**
  * Wave 6 (6C1): each tool found on this computer, its own sign-in state (from its own status command) and any login in
  * flight: the device code and link the tool printed (platform/runtime/venture/models/login.ts).
@@ -1788,7 +1870,7 @@ export interface ToolsLite { tools: ToolLite[]; line: string }
 /**
  * One-shot A5: start at login and keep running on this computer (app/desktop/background.cjs state()). registered: the
  * computer starts Chausar at sign-in now; systemOff: its login item is there but the computer's own startup settings
- * switched it off. startAtLogin is the saved answer (unasked, the suggestion onboarding ticks).
+ * switched it off. startAtLogin is the saved answer (unasked, false: round 5, only the owner's tick turns it on).
  */
 export interface BackgroundStateLite { supported: boolean; asked: boolean; startAtLogin: boolean; keepRunning: boolean; registered: boolean; systemOff: boolean }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
@@ -1799,7 +1881,8 @@ export interface AboutReadLite {
   family: FamilyLite | null;
   /** One-shot A5: the owner's exact profession as the AI picked it (a catalogue profession of that field), else null. */
   profession: { id: string; label: string } | null;
-  offers: { name: string; line: string }[];
+  /** unit: the unit the offer is priced in, written only where it is not per project (the field's own, or the AI's checked suggestion). */
+  offers: { name: string; line: string; unit?: OfferUnit }[];
   country: CountryLite | null;
   evidence: string | null;
   idea: string | null;
@@ -1807,16 +1890,58 @@ export interface AboutReadLite {
   /** A1 final check: the AI read's own call id, carried by the kept card. */
   callId?: string;
   file?: { name: string; included: boolean; line: string | null };
-  /** C5 task 6: your AI's first reply after About you, when it gave one (at most two sentences, no digits). */
+  /** C5 task 6: your AI's first reply after About you, when it gave one (as it wrote it, no links). */
   reply?: string;
+  /** The AI read work that fits none of the field's listed professions: the first run does not ask "Which of these are you?". */
+  ownKind?: true;
+  /**
+   * No AI read this and the words match no listed field, but are clear enough to keep (the engine's core/own-offer.ts):
+   * the plan starts from the owner's words with no field, and the owner types what they sell on the card.
+   */
+  ownOffers?: true;
+  /** A short plain business name your AI proposed, checked by the engine; the owner types over it in the Name box. */
+  name?: string;
+  /** The way to earn your AI proposed, when it had enough to go on. */
+  way?: WayToEarnLite;
+  /** The small team your AI proposed for that way: one to three agents that passed the hire rules, each with its card's digest. */
+  team?: TeamCardLite[];
+  /** What that way needs from outside, as your AI named it: up to four listed needs, checked by the engine. */
+  needs?: NeedIdLite[];
+  /** The agents that will do each order (the engine's agents/order-agents.ts): they join when the plan is accepted. Only beside a way. */
+  orderAgents?: { name: string; does: string }[];
 }
+/**
+ * What came before a follow-up in About you (the engine's core/about-before.ts): the talk so far (the owner's messages
+ * and the AI's replies, "you" as the AI is told of its own words) and the plan as the card shows it now. kept: still
+ * ticked; yours: the owner typed that name; left: the owner left that agent out.
+ */
+export interface AboutBeforeLite {
+  turns: { from: 'owner' | 'you'; text: string }[];
+  plan: {
+    familyId: string | null; professionId: string | null; name: string | null;
+    offers: { name: string; line: string; kept: boolean; yours: boolean; unit?: OfferUnit }[];
+    way: WayToEarnLite | null;
+    team: { name: string; job: string; duties: string[]; reads: string[]; left: boolean; department?: string }[];
+  };
+}
+/** One agent of the setup team (the engine's agents/team-proposal.ts TeamCard); venture.agents.hire.team takes the kept cards whole. */
+/** department: where the agent works, one of the engine's departments; its digest covers it. */
+export interface TeamCardLite { name: string; job: string; duties: string[]; reads: string[]; department?: DepartmentId; digest: string }
 /** Wave 6 (6C7): what the business needs from outside, as core/needs.ts answers. */
 export interface NeedLite {
   id: string; name: string; why: string; label: 'write' | 'read' | 'handoff' | 'planned';
-  connect: { kind: 'sign-in' | 'key' | 'guide' | 'none'; connectorId: string | null; place: 'connections' | 'connections/ai' | null };
+  /** mcpServerId: a server whose own server form is the connect flow (a curated one, or one already saved). */
+  connect: { kind: 'sign-in' | 'key' | 'guide' | 'none'; connectorId: string | null; place: 'connections' | 'connections/ai' | null; mcpServerId?: string };
   waitsOn: string | null; meanwhile: string | null; required: false;
+  /** The one thing the row offers: a real connect flow, nothing (it already works), or a planned one's manual path. */
+  action: 'set-up' | 'none' | 'manual';
 }
-export interface NeedsListLite { family: { id: string; label: string } | null; needs: NeedLite[] }
+/** What a business may need from outside (the engine's core/needs-data.ts NEED_IDS). */
+export type NeedIdLite = import('../../../../platform/runtime/venture/core/first-run-types').NeedId;
+/** groups: the kept plan's needs, each with its ways; empty when none was kept, and then needs is the field's list. */
+/** chosen: the needs kept now; choices: every need that can be chosen ("Change what you need", through venture.owner.set). */
+/** note: a need's own plain line when its ways do not say everything (the public map lists places only); else null. */
+export interface NeedsListLite { family: { id: string; label: string } | null; needs: NeedLite[]; groups: { id: NeedIdLite; ways: NeedLite[]; note: string | null }[]; chosen: NeedIdLite[]; choices: NeedIdLite[] }
 /** reason (4J22a): only 'changed' and 'unsigned-since' are mismatches; the others are not confirmed. */
 export interface ReceiptVerifyView { id: string; valid: boolean; label: 'reproduction_ready' | 'incomplete' | 'signature_only'; reason: 'signed' | 'changed' | 'unsigned-since' | 'unsigned-old' | 'no-key' | 'key-gone'; line: Display }
 /** digest: what the owner saw, sent back to accept exactly that break (venture.journal.acceptBreak). */
@@ -1844,14 +1969,11 @@ export type RoutineSchedule =
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
-export interface RoutineView { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+export interface RoutineView { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; recordReport?:'va-morning'|'va-weekly'; /** The chief's daily review of the standing plan. */ review?: 'daily'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
 /** C4 task 32: a ready routine from the plan (agents/routines.ts routineSuggestions). */
 export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
-export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
-export interface AutoReadinessView { agent: string; items: { id: string; label: Display; met: boolean; line: Display }[]; locked: true; line: Display }
-export interface ShadowSummaryView { agent: string; wouldHaveGone: number | null; held: number | null; changed: number | null; offers: Display[]; line: Display }
 export interface GuidanceLineView { stepId: string; text: string; check: string | null; state: 'measured' | 'dark' | 'unmeasured' }
 /** 4J16: a part of the drafts the owner keeps correcting. It changes nothing; starter prefills the agent's chat and is never sent. */
 export interface FixTheRuleView { field: string; stepId: string | null; agent: string | null; corrected: number; reviews: number; line: string; starter: string }
@@ -1879,12 +2001,6 @@ export interface IdeaView { id: string; title: Display; reason: Display; evidenc
 export type CapabilityItemView = { list: 'see' | 'do' | 'off'; key: string; state: 'works' | 'reads' | 'records' | 'hands-off' | 'planned' | 'off'; line: Display };
 export interface CapabilityPageView { agent: string; canSee: Display[]; canDo: Display[]; off: Display[]; items: CapabilityItemView[]; line: Display }
 
-/**
- * Ink v2 wave 5 (package 5-0): the wave 5 methods' shapes as the engine names them (platform/runtime/venture/contracts.ts
- * W5_METHODS, and each owning package's records file). A result still marked W5Placeholder is one its package has not
- * built; the package replaces its own line here with the fields the screen reads.
- */
-export interface W5Placeholder { placeholder: true }
 /**
  * 5A1: `OrderChainView` (platform/runtime/venture/playbooks/kit/records-chain.ts): a kit order's stages, each with its
  * state, the stage it is at and the line "Stage 2 of 4", where the chain stands and a note when it waits or stopped.
@@ -2052,7 +2168,6 @@ export type CitationConfirmation = { name: string; membershipNumber: string; at:
 export type CaCitationsView = { version: number; tableHash: string; confirmedBy: CitationConfirmation | null; rows: {id:string;act:string;section:string;title:string;validFrom:string;validTo:string;replacedBy:string|null;source:string;verification:string}[]; rules:{id:string;title:string;assessmentYear:string;validFrom:string;validTo:string;verification:string;source:string}[] };
 export type CitationsConfirmView = { version: number; tableHash: string; confirmedBy: CitationConfirmation };
 export type SignoffCheckView = { id:string;ca:{name:string;membershipNumber:string};at:string;decision:'signed'|'returned';playbookHash:string|null;workingDigest:string;receipts:{id:string;digest:string|null}[];rederived:'same'|'differs';differs:{key:string;line:string}|null };
-export type DifferentialAddView = W5Placeholder;
 export type DataPackExportView={name:string;mime:string;contentBase64:string;digest:string;approvalDigest:string};
 /**
  * Every business's desk (playbooks/desk-types.ts): one playbook id, one of its record kinds. rows, item and result are
@@ -2082,11 +2197,12 @@ export interface EngineMethods {
   'venture.queue.decide': { params: { id: string; digest: string; action: QueueActionId; answer?: string; viewed?: boolean }; result: QueueDecision };
   // 4J19: opened only when the owner explicitly opened the item; a card drawing its preview sends none (no view mark).
   'venture.queue.view': { params: { kind: QueueItemView['kind']; id: string; opened?: true }; result: QueueItemView };
-  'venture.runs.list': { params: { state?: 'active' | 'done' | 'all' }; result: { runs: RunSummary[] } };
+  /** searches (round 5): the searches for customers open now, Chausar's own work beside the runs; none for 'done'. */
+  'venture.runs.list': { params: { state?: 'active' | 'done' | 'all' }; result: { runs: RunSummary[]; searches: OpenSearchView[] } };
   'venture.runs.get': { params: { runId: string }; result: RunDetail };
   'venture.team.list': { params: Record<string, never>; result: TeamListView };
   'venture.team.gate': { params: { agentId: string; stepId: string; gate: 'auto' | 'hold' }; result: { agent: AgentView } };
-  'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead; needsRate?: boolean } };
+  'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead } };
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
   'venture.spend.policy.set': {
     params: {
@@ -2118,10 +2234,14 @@ export interface EngineMethods {
   'venture.ca.setOfRecord': { params: { name: string; membershipNo: string }; result: CaView };
   'venture.ca.recordSignoff': { params: { requestId: string; membershipNo: string; note?: string }; result: { request: CaSignoffRequest } };
   'venture.ca.confirmRates': { params: { tableIds: string[]; membershipNo: string }; result: CaView };
-  'venture.leads.add': { params: { name: string; company?: string; email?: string; sourceUrl: string }; result: LeadView };
+  'venture.leads.add': { params: { name: string; company?: string; email?: string; sourceUrl?: string; sourceNote?: string }; result: LeadView };
   'venture.leads.list': { params: Record<string, never>; result: { leads: LeadView[] } };
   'venture.leads.draft': { params: { leadId: string; subject: string; body: string; postalAddress?: string }; result: { lead: LeadView; draft: OutreachDraftView } };
   'venture.leads.recordSend': { params: { leadId: string; draftId: string; sentAt: string }; result: LeadView };
+  // Finding customers, for every business (customers/find-methods.ts): the view, the owner's own start (a card on Today) and a connected tool's tools.
+  'venture.leads.find.view': { params: Record<string, never>; result: FindCustomersView };
+  'venture.leads.find.propose': { params: { brief: FindBrief }; result: FindProposedOf<ProposalView> };
+  'venture.leads.find.tools': { params: { serverId: string }; result: FindToolsView };
   'venture.leads.block': { params: { value: string }; result: { blocked: string[] } };
   'venture.bank.import': { params: { csv: string; account: string }; result: BankImportResult };
   'venture.bank.consent': { params: { account: string; days?: number; revoke?: boolean }; result: BankConsentView };
@@ -2156,6 +2276,8 @@ export interface EngineMethods {
   'venture.models.disconnect': { params: { connectionId: string }; result: ModelStatusLite };
   'venture.ai.options': { params: Record<string, never>; result: AiOptionsLite };
   'venture.ai.status': { params: Record<string, never>; result: ModelStatusLite };
+  /** A later business, before its vault: the AI app already connected on this computer, connected in the new draft. */
+  'venture.ai.reuse': { params: Record<string, never>; result: AiReuseLite };
   'venture.ai.connect': { params: ModelConnectParams; result: ModelStatusLite };
   'venture.ai.disconnect': { params: { connectionId: string }; result: ModelStatusLite };
   'venture.blueprint.get': { params: Record<string, never>; result: BlueprintViewLite | null };
@@ -2283,7 +2405,7 @@ export interface EngineMethods {
   'workspace.create': { params: WorkspaceCreateParams; result: WorkspaceCreated };
   'venture.countries': { params: Record<string, never>; result: CountryLite[] };
   'venture.preview': { params: { idea: string; countryCode: string; pricingModel?: PricingModel }; result: PlanPreviewLite };
-  'venture.create': { params: { idea: string; countryCode: string; workingName?: string; reuseAi?: true }; result: VentureViewLite };
+  'venture.create': { params: { idea: string; countryCode: string; workingName?: string }; result: VentureViewLite };
   'venture.interview.next': { params: { useTemplate?: boolean }; result: InterviewViewLite };
   'venture.interview.answer': { params: { questionId: string; answer: InterviewAnswer }; result: InterviewViewLite };
   /** shown (review of A1, row 3): the plan About you showed, kept on the first template draft; by is who wrote its words. */
@@ -2385,9 +2507,6 @@ export interface EngineMethods {
   'venture.client.aiDefault.get': { params: Record<string, never>; result: ClientAiDefaultView };
   'venture.away.preview': { params: { from: string; to: string }; result: { from: string; to: string; items: AwayView['promises'] } };
   'venture.team.introduced': { params: { agentIds: string[] }; result: { met: string[] } };
-  // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI.
-  'venture.flows.list': { params: Record<string, never>; result: FlowsListView };
-  'venture.flows.act': { params: FlowsActPayload; result: FlowsActView };
   // W6 6I1: push-to-talk (agents/talk.ts)
   'venture.talk.get': { params: Record<string, never>; result: TalkView };
   'venture.talk.consent': { params: TalkConsentInput; result: TalkView };
@@ -2503,6 +2622,8 @@ export interface EngineMethods {
   // 4J1 and 4J2 decisions, allow for this session, send back, edit, undo, set approval, triage, fixes, settings drafts.
   'venture.decisions.list': { params: Record<string, never>; result: { decisions: DecisionView[] } };
   'venture.policy.allowSession': { params: { stepId: string }; result: { stepId: string; line: Display } };
+  // Round 6: what Today's Earlier lists (journal/earlier-list.ts).
+  'venture.earlier.list': { params: { limit?: number }; result: { entries: EarlierEntry[] } };
   'venture.queue.sendBack': { params: { rowId: string; digest: string; text: string }; result: QueueDecision };
   'venture.queue.edit': { params: { rowId: string; digest: string; text: string }; result: QueueDecision };
   'venture.queue.undo': { params: { rowId: string }; result: { restored: boolean; line: Display } };
@@ -2518,7 +2639,6 @@ export interface EngineMethods {
   'venture.queue.setPreview': { params: { rowIds: string[] }; result: QueueSetPreview };
   'venture.delivery.copy': { params: { runId: string }; result: DeliveryLite };
   // 4J3 a still from the cut named at the order's intake (desktop, app only).
-  'venture.files.poster': { params: { orderId: string }; result: UploadLite };
   // 4J4 to 4J6 money views, bills, credit notes, recurring invoices, reminders, money and runs across businesses.
   'venture.money.aging': { params: { asOf?: string }; result: AgingView };
   'venture.money.flow': { params: { months?: number }; result: FlowView };
@@ -2551,7 +2671,7 @@ export interface EngineMethods {
   'venture.blueprint.suggest': { params: { text: string; attachment?: { name: string; text: string } }; result: PlanSuggestionView };
   'venture.owner.get': { params: Record<string, never>; result: OwnerView };
   /** firstName null takes the owner's name back. */
-  'venture.owner.set': { params: { firstName?: string | null; excludedServices?: string[]; familyId?: string | null }; result: OwnerView };
+  'venture.owner.set': { params: { firstName?: string | null; excludedServices?: string[]; familyId?: string | null; way?: WayToEarnLite | null; needs?: NeedIdLite[] | null }; result: OwnerView };
   'venture.receipt.verify': { params: { id: string }; result: ReceiptVerifyView };
   'venture.journal.chain': { params: Record<string, never>; result: JournalChainView };
   'venture.journal.acceptBreak': { params: { digest: string }; result: JournalChainView };
@@ -2560,16 +2680,10 @@ export interface EngineMethods {
   'venture.blueprint.accept': { params: { digest: string }; result: BlueprintViewLite };
   'venture.models.calls': { params: { limit?: number; purpose?: string }; result: unknown[] };
   'venture.delivery.playbook': { params: Record<string, never>; result: unknown };
-  'venture.simulation.get': { params: { runId: string }; result: SimulationRunLite };
-  'venture.simulation.fromSignal': { params: { signalId: string }; result: ScenarioLite };
   'venture.launch.status': { params: Record<string, never>; result: LaunchStatusView };
   'venture.launch.advance': { params: { to: 'practice' | 'live' }; result: LaunchStatusView };
   'venture.delivery.review': { params: { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: string; editedText?: string }; result: DeliveryLite };
-  'venture.capabilities': { params: Record<string, never>; result: unknown[] };
   'venture.work.get': { params: { id: string }; result: WorkReceiptLite };
-  'venture.improve.get': { params: { runId: string }; result: ImprovementRunLite };
-  'venture.delegate.get': { params: { id: string }; result: unknown };
-  'venture.ai.calls': { params: { limit?: number }; result: unknown[] };
   'venture.country.suggest': { params: { text: string }; result: { country: CountryLite | null; evidence: string | null; source: 'ai' | 'not-connected' } };
   // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault; (6C7) what the business needs.
   'venture.ai.tools': { params: Record<string, never>; result: ToolsLite };
@@ -2585,7 +2699,6 @@ export interface EngineMethods {
   'venture.trackers.list': { params: Record<string, never>; result: TrackersLite };
   'venture.trackers.get': { params: { id: string }; result: TrackerDetailLite };
   'venture.trackers.set': { params: { tracker: { id?: string; name: string; columns: TrackerColumnLite[]; boardBy?: string | null; keptBy?: string[] } }; result: { tracker: TrackerLite } };
-  'venture.trackers.remove': { params: { id: string }; result: { removed: true } };
   'venture.trackers.rows.add': { params: { trackerId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
   'venture.trackers.rows.edit': { params: { rowId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
   'venture.trackers.rows.remove': { params: { rowId: string }; result: { removed: true } };
@@ -2593,19 +2706,19 @@ export interface EngineMethods {
   'venture.agents.hire.start': { params: { sentence: string }; result: HireViewLite };
   'venture.agents.hire.answer': { params: { hireId: string; phase: string; edits?: Record<string, unknown> }; result: HireViewLite };
   'venture.agents.hire.confirm': { params: { hireId: string; digest: string }; result: HireViewLite };
-  'venture.agents.hire.cancel': { params: { hireId: string }; result: { cancelled: true } };
   'venture.events.get': { params: Record<string, never>; result: EventsViewLite };
   'venture.events.relay.set': { params: { address: string | null }; result: EventsViewLite };
   'venture.events.calKey.set': { params: { key: string | null }; result: EventsViewLite };
   'venture.agents.hire.duties': { params: { agent: string; duties: string[] }; result: HireViewLite };
-  'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
+  'venture.agents.hire.team': { params: { agents: TeamCardLite[] }; result: { hired: HireViewLite[] } };
+  // The chief's standing plan and its daily review (chief/plan.ts, chief/review.ts).
+  'venture.chief.plan.get': { params: Record<string, never>; result: ChiefPlanView };
+  'venture.chief.plan.move': { params: { id: string; to: 'done' | 'dropped' | 'planned' }; result: ChiefPlanView };
+  'venture.chief.review.set': { params: { on: boolean; time?: string; runsPerDay?: number; cap?: string }; result: ChiefPlanView };
+  'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string }; before?: AboutBeforeLite }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
   'venture.needs.list': { params: Record<string, never>; result: NeedsListLite };
-  'venture.compose.decide': { params: { text: string; countryCode: string }; result: unknown };
-  'venture.compose.fill': { params: { composeId: string }; result: unknown };
-  'venture.compose.get': { params: Record<string, never>; result: unknown };
-  'venture.compose.update': { params: { composeId: string; patch: unknown }; result: unknown };
   // 4J12 to 4J18 contracts, routines, options, drills, guidance, voice, persona, knowledge, ideas, capabilities.
   'venture.order.contract': { params: { orderId: string }; result: OrderContractView | null };
   'venture.order.contract.propose': { params: { orderId: string; contract: OrderContract }; result: OrderContractView };
@@ -2616,11 +2729,8 @@ export interface EngineMethods {
   'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView; ranOn?: Display }[] } };
   'venture.routines.set': { params: { routine: RoutineInput }; result: { routine: RoutineView } };
   'venture.routines.remove': { params: { id: string }; result: { removed: true; line: Display } };
-  'venture.options.rerank': { params: { questionId: string; weights: Record<string, number> }; result: { options: RankedOptionView[] } };
   'venture.drills.run': { params: Record<string, never>; result: { run: DrillRunView } };
   'venture.drills.list': { params: Record<string, never>; result: { runs: DrillRunView[] } };
-  'venture.auto.readiness': { params: { agent: string }; result: AutoReadinessView };
-  'venture.shadow.summary': { params: { agent: string }; result: ShadowSummaryView };
   'venture.playbook.guidance': { params: Record<string, never>; result: { lines: GuidanceLineView[]; fixTheRule?: FixTheRuleView[] } };
   'venture.voice.get': { params: Record<string, never>; result: VoiceView };
   'venture.voice.set': { params: { voice: VoiceInput }; result: VoiceView };
@@ -2672,7 +2782,6 @@ export interface EngineMethods {
   'venture.speechOut.providers': { params: Record<string, never>; result: SpeechProvidersView };
   'venture.ca.confirmCitations': { params: { version: number; membershipNo: string }; result: CitationsConfirmView };
   'venture.ca.signoff.get': { params: { id: string }; result: SignoffCheckView };
-  'venture.ca.differential.add': { params: { name: string; inputs: unknown; outputs: unknown; capturedBy: string }; result: DifferentialAddView };
   'venture.ca.dataPack.export': { params: {packId:string;digest:string;fields:string[];unmask:string[];requestedBy:string;purpose:string;approvalDigest:string}; result: DataPackExportView };
   'venture.desk.list': { params: { playbook: DeskPlaybook; kind: string; filter?: unknown }; result: DeskListView };
   'venture.desk.get': { params: { playbook: DeskPlaybook; kind: string; id: string }; result: DeskItemView };

@@ -14,7 +14,7 @@ import { handlers as views } from '../runtime/venture/views/index.ts';
 import {
   AGENT_WINDOW_MS, CHECK_BEFORE_RETRYING, JOURNAL_ACTIONS, applyAction, approveAction, journalled, proposeAction, rejectAction, resolveUnknown, sweepJournal,
   type ProposeInput,
-} from '../runtime/venture/journal/index.ts';
+} from '../runtime/venture/journal/journal.ts';
 import { APPROVAL_TOKEN_PATTERN, containsApprovalToken, tokenHash } from '../runtime/venture/journal/tokens.ts';
 import { DEFAULT_SIMULATORS, shadowAction, simulateJournal } from '../runtime/venture/journal/simulation.ts';
 import { QUOTE_TTL_MS } from '../runtime/venture/money/quote.ts';
@@ -425,8 +425,8 @@ test('venture.journal.list is a views read method registered everywhere a ventur
 test('static: the journal files throw only declared codes, keep the house style, credit their sources, and never store a token', async () => {
   const folder = new URL('../runtime/venture/journal/', import.meta.url);
   const files = (await readdir(folder)).filter(name => name.endsWith('.ts'));
-  // Ink v2 wave 4 (4J1): the decision record and the system-line grammar. 4J10: the chain, signatures, end states, extras.
-  assert.deepEqual(files.sort(), ['action-extras.ts', 'backup-labels.ts', 'chain.ts', 'decisions.ts', 'end-states.ts', 'index.ts', 'journal.ts', 'list.ts', 'seal-json.ts', 'signing.ts', 'simulation.ts', 'system-lines.ts', 'tokens.ts']);
+  // Ink v2 wave 4 (4J1): the decision record and the system-line grammar. 4J10: the chain, signatures, end states, extras. Round 6: what Today's Earlier lists.
+  assert.deepEqual(files.sort(), ['action-extras.ts', 'backup-labels.ts', 'chain.ts', 'decision-words.ts', 'decisions.ts', 'earlier-list.ts', 'earlier.ts', 'end-states.ts', 'journal.ts', 'list.ts', 'seal-json.ts', 'signing.ts', 'simulation.ts', 'system-lines.ts', 'tokens.ts']);
   let all = '';
   for (const file of files) {
     const source = await readFile(new URL(file, folder), 'utf8');

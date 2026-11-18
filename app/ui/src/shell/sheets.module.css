@@ -87,6 +87,26 @@
   background: var(--wash);
 }
 
+/* A row that acts instead of going to a place (Start a new business): the same row, as a button. */
+.moreButton {
+  width: 100%;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.moreButton:disabled {
+  cursor: default;
+}
+
+.moreProblem {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
 .moreIcon {
   display: grid;
   flex: none;

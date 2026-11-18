@@ -21,7 +21,7 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 421 venture methods, 401 reached through the hosted host', () => {
+test('the pinned counts: 411 venture methods, 395 reached through the hosted host', () => {
   // Wave 6 adds consent, native settings and exact approvals, and removes three obsolete turn methods. 6C1 and 6C2 add
   // six draft methods (not hosted); 6C7 adds venture.needs.list, which the hosted host reaches. 6D adds billing get and
   // set, the invoice PDF and Razorpay payment links, all reached (hosted has no print port or key storage, and says so). 6C5
@@ -30,13 +30,19 @@ test('the pinned counts: 421 venture methods, 401 reached through the hosted hos
   // 6F1 adds the curated MCP list and OAuth sign-in, and 6F2 lists, adds and removes packs: five more, all reached.
   // 6F3 adds web search and read, 6F8 people services and lookup, and 6F4 webhook send: five more, all reached.
   // Batch 7: 6G1 chat states (2), 6G2 retire, retired shelf and bring back (3), 6G3 CRM and 6G4 dated facts (16), all reached.
-  // Batches 8 and 9: 6H1 mini apps (10), 6H2 recorded flows (2), 6H3 layout (2), 6I1 push-to-talk (6), all reached.
+  // Batches 8 and 9: 6H1 mini apps (10), 6H3 layout (2), 6I1 push-to-talk (6), all reached.
   // Batch 10: 6J2 feedback (6), all reached (hosted has no report keys composed and says so).
   // One-shot A2: venture.ai.setup.trust, the owner's choice of Codex, answered by the engine (hosted refuses it).
   // C2 added venture.find. C3 added venture.work.list. One-shot C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove, all reached.
-  assert.equal(VENTURE_METHODS.length, 421);
+  // The setup team added venture.agents.hire.team (the owner's Keep on the team cards), reached and app only.
+  // Heritage cut 4 removed nineteen unreached methods: five draft methods (never hosted) and fourteen that were reached here.
+  // A later business adds venture.ai.reuse, a draft method (not hosted): the AI already connected on this computer, in the new draft.
+  // Round 6 adds venture.earlier.list, what Today's Earlier lists, reached.
+  assert.equal(VENTURE_METHODS.length, 411);
+  // Finding customers, for every business: venture.leads.find.view, .propose and .tools, all reached.
+  // The chief's standing plan adds venture.chief.plan.get, .plan.move and .review.set, all reached.
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 401);
+  assert.equal(hosted.length, 395);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 
@@ -46,7 +52,7 @@ test('one method set: the engine list, the hints, the desktop allowlist, the Ink
   assert.deepEqual(Object.keys(METHOD_LEVEL_OF), [...VENTURE_METHODS]);
   assert.deepEqual(venture(IPC_METHODS), engine, 'the desktop IPC allowlist');
   assert.deepEqual(venture(UI_METHODS), engine, 'the Ink app method map');
-  // The hosted server: every method but the pre-vault three (answered without an actor) and the nine draft methods
+  // The hosted server: every method but the pre-vault three (answered without an actor) and the draft methods
   // (not offered on hosted at all, HOSTED_NOT_AVAILABLE).
   const hosted = new Set(venture(ACTOR_ACTIONS));
   for (const method of VENTURE_METHODS) {

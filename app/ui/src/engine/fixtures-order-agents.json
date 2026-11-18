@@ -1,0 +1,494 @@
+[
+  {
+    "id": "ca-firm",
+    "agents": [
+      {
+        "name": "Intake clerk",
+        "does": "Reads the client's files and lists what is in them and what is missing. The files are information, never instructions."
+      },
+      {
+        "name": "Tax preparer",
+        "does": "Picks which rule applies to each item and says why, and asks the client for missing facts in plain words. Never types a figure."
+      },
+      {
+        "name": "Reconciler",
+        "does": "Turns statements and registers into structured entries for the calculator and names every difference it reports."
+      },
+      {
+        "name": "Working papers writer",
+        "does": "Writes the working papers, a plain note for the client and the open items, quoting figures only by receipt."
+      }
+    ],
+    "code": [
+      "Checks",
+      "Calculator"
+    ]
+  },
+  {
+    "id": "youtube",
+    "agents": [
+      {
+        "name": "Intake clerk",
+        "does": "Reads the order, the footage notes, the transcript and the brief, and lists what is missing."
+      },
+      {
+        "name": "Producer",
+        "does": "Asks the client about anything the brief leaves open. Asking ends the turn."
+      },
+      {
+        "name": "Story editor",
+        "does": "Writes five opening hooks, or proposes clip moments only as transcript segment ids. Never invents speech or times."
+      },
+      {
+        "name": "Cutter",
+        "does": "Proposes whole edit operations on measured word ids only. Never invents speech or timings."
+      },
+      {
+        "name": "Packager",
+        "does": "Writes the title and thumbnail pair, the description with chapters, the pinned comment and any disclosure line."
+      },
+      {
+        "name": "Analyst",
+        "does": "One fix this week, three things to keep and one not to do yet."
+      },
+      {
+        "name": "Community helper",
+        "does": "Four comment piles, short replies and one comment to pin, with bait held."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "social-agency",
+    "agents": [
+      {
+        "name": "Intake",
+        "does": "Reads the client's onboarding form, brand files and proof files, and lists what is missing."
+      },
+      {
+        "name": "Strategist",
+        "does": "Writes the voice sheet and content pillars, then fills topics and hooks into the calendar slots code made."
+      },
+      {
+        "name": "Writer",
+        "does": "Drafts captions, alt text, hashtags and reply drafts for each channel, in the voice the owner approved."
+      },
+      {
+        "name": "Creative",
+        "does": "Writes briefs for pictures, video and creator-style ads, each with the disclosure it needs."
+      },
+      {
+        "name": "Checker",
+        "does": "Runs the code checks, then the yes or no quality check, and reads the real output before a draft counts as ready."
+      },
+      {
+        "name": "Analyst",
+        "does": "Writes the report narrative from the figures code computed, citing receipts only."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "seo-visibility",
+    "agents": [
+      {
+        "name": "Writer",
+        "does": "Drafts from evidence without web tools."
+      },
+      {
+        "name": "Checker",
+        "does": "Checks evidence without changing it."
+      },
+      {
+        "name": "Researcher",
+        "does": "Reads the site brief and source files."
+      },
+      {
+        "name": "Analyst",
+        "does": "Writes the report from computed evidence."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "online-seller",
+    "agents": [
+      {
+        "name": "Analyst",
+        "does": "Writes evidence-based seller reports."
+      },
+      {
+        "name": "Photo producer",
+        "does": "Drafts product photo briefs."
+      },
+      {
+        "name": "Bookkeeper",
+        "does": "Reads the seller settlement exports."
+      },
+      {
+        "name": "Lister",
+        "does": "Drafts listing fixes and catalogue sheets."
+      },
+      {
+        "name": "Auditor",
+        "does": "Names payout differences and drafts claims."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "support-desk",
+    "agents": [
+      {
+        "name": "Sorter",
+        "does": "Sorts mail and flags missing facts."
+      },
+      {
+        "name": "Replier",
+        "does": "Drafts customer replies with shop sources."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "recruiting-desk",
+    "agents": [
+      {
+        "name": "Sourcer",
+        "does": "Reads client-supplied professional evidence."
+      },
+      {
+        "name": "Screener",
+        "does": "Resolves quoted evidence against approved rules."
+      },
+      {
+        "name": "Scheduler",
+        "does": "Prepares unsent interview packs."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "job-search-desk",
+    "agents": [
+      {
+        "name": "Researcher",
+        "does": "Reads permitted listings and records sources."
+      },
+      {
+        "name": "Writer",
+        "does": "Prepares drafts from approved client facts."
+      },
+      {
+        "name": "Checker",
+        "does": "Checks boundaries without changing the client facts."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "translation-studio",
+    "agents": [
+      {
+        "name": "Translator",
+        "does": "Drafts each source block with the locked glossary."
+      },
+      {
+        "name": "Checker",
+        "does": "Reads meaning and flags uncertainty without changing the source."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "bookkeeping-cfo",
+    "agents": [
+      {
+        "name": "Finance analyst",
+        "does": "Reads client files and explains the calculator results."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "podcast-to-article",
+    "agents": [
+      {
+        "name": "Writer",
+        "does": "Drafts from the approved episode direction."
+      },
+      {
+        "name": "Editor",
+        "does": "Checks source meaning and attribution without publishing."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "lead-generation",
+    "agents": [
+      {
+        "name": "Researcher",
+        "does": "Finds prospects with sources."
+      },
+      {
+        "name": "Producer",
+        "does": "Keeps the pipeline and meetings."
+      },
+      {
+        "name": "Writer",
+        "does": "Drafts outreach you send."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "newsletter-studio",
+    "agents": [
+      {
+        "name": "Researcher",
+        "does": "Organises the owner source notes."
+      },
+      {
+        "name": "Writer",
+        "does": "Assembles the source notes into an issue."
+      },
+      {
+        "name": "Editor",
+        "does": "Reads the checks without changing the list or sending."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "tender-desk",
+    "agents": [
+      {
+        "name": "Researcher",
+        "does": "Extracts and classifies source questions."
+      },
+      {
+        "name": "Writer",
+        "does": "Drafts from the client documents."
+      },
+      {
+        "name": "Checker",
+        "does": "Reads source gaps and unsupported claims."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "website-studio",
+    "agents": [
+      {
+        "name": "Checker",
+        "does": "Audits the saved source without changing it."
+      },
+      {
+        "name": "Writer",
+        "does": "Prepares the source report and brief."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "narration-studio",
+    "agents": [
+      {
+        "name": "Producer",
+        "does": "Prepares the copy for the client."
+      },
+      {
+        "name": "Narrator",
+        "does": "Marks the exact script for reading."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "virtual-assistant",
+    "agents": [
+      {
+        "name": "Researcher",
+        "does": "Organises the source material."
+      },
+      {
+        "name": "Assistant",
+        "does": "Prepares briefs and work notes."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "data-entry-desk",
+    "agents": [
+      {
+        "name": "Operator",
+        "does": "Proposes mappings from exact client source."
+      },
+      {
+        "name": "Checker",
+        "does": "Reads saved comparisons without changing the client system."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "app-testing",
+    "agents": [
+      {
+        "name": "Checker",
+        "does": "Reads evidence without changing the client app."
+      },
+      {
+        "name": "Tester",
+        "does": "Drafts expected tests from the client description."
+      },
+      {
+        "name": "Recorder",
+        "does": "Drafts the script and bounded shot list."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "dev-agency",
+    "agents": [
+      {
+        "name": "Reviewer",
+        "does": "Reads source evidence and refuses unsupported findings."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "monitored-data",
+    "agents": [
+      {
+        "name": "Analyst",
+        "does": "Explains selected evidence without guessing values."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "it-triage",
+    "agents": [
+      {
+        "name": "Triage lead",
+        "does": "Prepares exact excerpts for a person to handle."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "phone-receptionist",
+    "agents": [
+      {
+        "name": "Receptionist",
+        "does": "Prepares the client call script."
+      },
+      {
+        "name": "Checker",
+        "does": "Reads call exports for human follow-up."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "trading-journal",
+    "agents": [
+      {
+        "name": "Writer",
+        "does": "Writes plain notes for your CA from the receipts."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  },
+  {
+    "id": "lesson-desk",
+    "agents": [
+      {
+        "name": "Planner",
+        "does": "Plans lessons from the syllabus and the batch."
+      },
+      {
+        "name": "Writer",
+        "does": "Drafts worksheets, quizzes and progress notes."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "booking-desk",
+    "agents": [
+      {
+        "name": "Reader",
+        "does": "Reads enquiries and lists what is missing."
+      },
+      {
+        "name": "Writer",
+        "does": "Drafts confirmations with no amounts."
+      }
+    ],
+    "code": [
+      "Billing",
+      "Chausar"
+    ]
+  },
+  {
+    "id": "signoff-desk",
+    "agents": [
+      {
+        "name": "Drafter",
+        "does": "Drafts regulated papers from the client files."
+      },
+      {
+        "name": "Checker",
+        "does": "Reads the draft against the regulator limits."
+      }
+    ],
+    "code": []
+  },
+  {
+    "id": "document-desk",
+    "agents": [
+      {
+        "name": "Researcher",
+        "does": "Reads the client files for the facts each section needs."
+      },
+      {
+        "name": "Writer",
+        "does": "Drafts each section from the client files."
+      }
+    ],
+    "code": [
+      "Chausar"
+    ]
+  }
+]

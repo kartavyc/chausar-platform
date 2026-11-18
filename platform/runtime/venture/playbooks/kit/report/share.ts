@@ -25,6 +25,7 @@ import { clientDraft } from '../../../build/draft-text.ts';
 import { regulatedSignoff } from '../signoff-gate.ts';
 import { blocksInScope } from './blocks.ts';
 import type { ReportBlock, ReportShareView } from '../records-report.ts';
+import { handedOver, inReview } from '../../../delivery/run-machine.ts';
 
 /** How long a report link lasts: thirty days from when it was made or last rotated. */
 export const REPORT_SHARE_HOURS = 720;
@@ -37,7 +38,6 @@ export const REPORT_SHARE_WORDS = Object.freeze({
   notReady: 'Only a draft you accepted, or one ready for you to accept, can go to your client.',
   shared: 'shared a report with you. Read only.',
 });
-const SHARABLE = new Set(['ready-for-review', 'accepted', 'edited']);
 const TOKEN = /^[A-Za-z0-9_-]{32}$/;
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -74,9 +74,9 @@ function checkSharable(state: State, venture: VentureRecord, report: ReportRecor
   check(run, 'DELIVERY_NOT_FOUND', 'That draft was not found.');
   check(!listRecords(state, 'venture-order', venture.id).find(order => order.id === run.orderId)?.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
   const view = runView(run, venture, Date.parse(nowIso), state);
-  check(SHARABLE.has(view.status), 'DELIVERY_NOT_READY', REPORT_SHARE_WORDS.notReady);
+  check(inReview(view) || handedOver(view), 'DELIVERY_NOT_READY', REPORT_SHARE_WORDS.notReady);
   check(!view.practiceNow && !run.practice, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');
-  check(view.status !== 'ready-for-review' || view.canAccept, 'DELIVERY_NOT_READY', view.acceptBlocked ?? REPORT_SHARE_WORDS.notReady);
+  check(!inReview(view) || view.canAccept, 'DELIVERY_NOT_READY', view.acceptBlocked ?? REPORT_SHARE_WORDS.notReady);
   check(clientDraft(run).digest === report.draftDigest, 'REPORT_STALE', REPORT_SHARE_WORDS.stale);
   const unsigned = regulatedSignoff(state, venture, run);
   if (unsigned) throw new ChausarError(unsigned.code, unsigned.line);

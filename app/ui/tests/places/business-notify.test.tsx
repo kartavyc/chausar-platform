@@ -118,7 +118,15 @@ describe('Business > Notifications on this computer', () => {
     fireEvent.click(within(reach).getByRole('button', { name: 'Save relay' }));
     await within(reach).findByText('Each alert sends ntfy.sh a count only, never names or figures.');
     expect(said(calls, 'venture.notify.relay')).toContainEqual({ url: 'https://ntfy.sh/my-topic' });
+    // Removing forgets the saved address, so it asks once first; Cancel leaves it as it was.
     fireEvent.click(within(reach).getByRole('button', { name: 'Remove relay' }));
+    const ask = (await within(reach).findByText('Chausar forgets this relay address, and counts stop going to it.')).closest('[data-second-ask]') as HTMLElement;
+    expect(said(calls, 'venture.notify.relay')).not.toContainEqual({ url: null });
+    fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    expect(within(reach).queryByText('Chausar forgets this relay address, and counts stop going to it.')).toBeNull();
+    expect(document.activeElement).toBe(within(reach).getByRole('button', { name: 'Remove relay' }));
+    fireEvent.click(within(reach).getByRole('button', { name: 'Remove relay' }));
+    fireEvent.click(within((await within(reach).findByText('Chausar forgets this relay address, and counts stop going to it.')).closest('[data-second-ask]') as HTMLElement).getByRole('button', { name: 'Remove relay' }));
     await waitFor(() => expect(said(calls, 'venture.notify.relay')).toContainEqual({ url: null }));
   });
 

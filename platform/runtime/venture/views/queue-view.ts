@@ -13,17 +13,22 @@ import type {
 import { invoiceView } from '../money/invoices.ts';
 import { openSpendQuotes } from '../money/spend.ts';
 import { postingName } from '../build/posting.ts';
-import { openDelegation } from '../delivery/harness/loop.ts';
-import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { judgeStateLine } from '../delivery/judge-run.ts';
 import { draftAmounts } from '../delivery/deliverable.ts';
 import { VIEW_MAX_LINES } from '../delivery/shared.ts';
-import { holdOfHandoff } from '../policy/holds.ts';
 import type { RateTable } from '../playbooks/ca-firm/rates.ts';
 import { caOfRecord, rateKey, sentTo, signoffFor, signoffRequests, unconfirmedRateTables } from '../playbooks/ca-firm/signoff.ts';
 import { queueRowsWithSubjects } from './queue.ts';
-import { agentName, businessOf, clientNameFor } from './shared.ts';
+import { businessOf, clientNameFor } from './shared.ts';
+import { runAgentName } from '../money/agent-meters.ts';
 import { agentWordsLabeller } from './agent-words.ts';
+import { planSections } from './plan-sections.ts';
+import { ownerProfileOf } from '../core/owner.ts';
+import { hiredRecords } from '../agents/hire-store.ts';
+import { teamAgents } from '../chief/routing.ts';
+import { orderAgentsOfPlan } from '../agents/order-agents.ts';
+import { deliveryFlagship } from '../delivery/playbook.ts';
+import { CARD_FIXED_WORDS as CARD, CARD_TEMPLATE_WORDS as CARD_T, fillWords } from './card-words.ts';
 
 type Section = QueueItemView['sections'][number];
 type Head = { businessName: string; agent?: string };
@@ -31,7 +36,6 @@ type Head = { businessName: string; agent?: string };
 /** Longest text a view returns, in lines: a view is for reading on a screen, not a dump. Rows say when a send is longer (W1 H21). */
 const MAX_LINES = VIEW_MAX_LINES;
 const MODEL_ESTIMATE = ' (model estimate)';
-const DONE_BY: Readonly<Record<string, string>> = { agent: 'an agent', you: 'you', 'agent-then-you': 'an agent, then you check it' };
 /** Who does a flagship playbook's step, in a few words: "the Packager, an agent", "Chausar, in code with no AI", "you". */
 function stepDoer(step: PlanFlagshipStep): string {
   if (step.doneBy === 'agent') return `the ${step.who}, an agent`;
@@ -75,7 +79,7 @@ function filesSection(state: State, venture: VentureRecord, run: DeliveryRunReco
   const ids = run.harness?.uploadIds ?? run.uploadIds ?? [];
   if (!ids.length) return [];
   const uploads = new Map(listRecords(state, 'venture-upload', venture.id).map(upload => [upload.id, upload]));
-  return [{ heading: 'Files the agent works from', lines: ids.map(id => uploads.get(id)?.name ?? 'A file that is no longer here') }];
+  return [{ heading: CARD.files, lines: ids.map(id => uploads.get(id)?.name ?? CARD.fileGone) }];
 }
 
 /** A judge that settled no rule was not checked (notChecked): it is neither a pass nor a failure, so it is not counted. */
@@ -83,94 +87,64 @@ function checksLine(run: DeliveryRunRecord): Display | undefined {
   if (!run.checks.length) return undefined;
   const counted = run.checks.filter(item => !item.notChecked);
   const passed = counted.filter(item => item.passed).length;
-  return `${passed} of ${counted.length} checks passed.${counted.length < run.checks.length ? ' The quality check settled no rule, so its check is not counted.' : ''}`;
+  return fillWords(counted.length < run.checks.length ? CARD_T.checksUnsettled : CARD_T.checksPassed, { passed, count: counted.length });
 }
 
 // ---------------------------------------------------------------------------
 // One view per thing a row can be about
 // ---------------------------------------------------------------------------
 
-function planView(head: Head, blueprint: BlueprintRecord): QueueItemView {
+/**
+ * The plan the owner reads before accepting it: the plan they kept. Beside the blueprint it holds the way to earn kept
+ * with the business (core/owner.ts) and the agents the owner hired, retired ones left out; plan-sections.ts lays it out.
+ */
+function planView(head: Head, blueprint: BlueprintRecord, state: State, venture: VentureRecord): QueueItemView {
   const currency = blueprint.backOffice.currency;
-  const offerLine = (offer: BlueprintRecord['offers'][number]) => {
-    const price = offer.pricing.unitPriceMinor === null ? 'no price yet' : `${formatMoney(offer.pricing.unitPriceMinor, currency)} per ${offer.pricing.quantityUnit}`;
-    return `${labelled(offer.name)}: ${price}. ${labelled(offer.description)}`;
-  };
   const tax = blueprint.backOffice;
-  const taxLine = tax.taxRegistered.value
-    ? `You charge ${tax.taxLabel}${tax.taxRegistered.label === 'assumption' ? ' (Chausar assumed this; confirm it)' : ''}.`
-    : `You do not charge ${tax.taxLabel}${tax.taxRegistered.label === 'assumption' ? ' (Chausar assumed this; confirm it)' : ''}.`;
+  const onTeam = new Set(teamAgents(state, venture).map(agent => agent.id));
   return {
     kind: 'plan', id: blueprint.id, ...head, title: labelled(blueprint.name), line: labelled(blueprint.oneLiner),
-    sections: [
-      { heading: 'Who it is for', lines: [labelled(blueprint.customer)] },
-      { heading: 'What you sell', lines: blueprint.offers.map(offerLine) },
+    sections: planSections({
+      serviceType: blueprint.serviceType,
+      customer: blueprint.customer,
+      offers: blueprint.offers.map(offer => ({
+        name: offer.name, description: offer.description,
+        price: offer.pricing.unitPriceMinor === null ? null : `${formatMoney(offer.pricing.unitPriceMinor, currency)} per ${offer.pricing.quantityUnit}`,
+      })),
+      steps: blueprint.deliverySteps.map(step => ({ title: step.title, doneBy: step.doneBy, note: step.note })),
       // A flagship playbook's plan lists the steps that run, in place of the four template steps.
-      {
-        heading: 'How the work is done',
-        lines: blueprint.flagshipSteps
-          ? blueprint.flagshipSteps.map(step => `${labelled(step.title)}: ${stepDoer(step)}.`)
-          : blueprint.deliverySteps.map(step => `${labelled(step.title)}: ${DONE_BY[step.doneBy] ?? step.doneBy}. ${step.note}`),
-      },
-      { heading: 'What you approve', lines: blueprint.approvals.map(labelled) },
-      { heading: 'Back office', lines: [taxLine, tax.invoiceKind === 'tax-invoice' ? 'Invoices are tax invoices.' : 'Invoices are plain invoices.', ...tax.taxInvoiceMissing.map(item => `Missing for a tax invoice: ${item}.`)] },
-    ],
+      ...(blueprint.flagshipSteps ? { flagshipSteps: blueprint.flagshipSteps.map(step => ({ title: step.title, doer: stepDoer(step) })) } : {}),
+      approvals: blueprint.approvals,
+      tax: { label: tax.taxLabel, registered: tax.taxRegistered.value, assumed: tax.taxRegistered.label === 'assumption', invoiceKind: tax.invoiceKind, missing: tax.taxInvoiceMissing },
+      way: ownerProfileOf(state, venture.id).way ?? null,
+      team: hiredRecords(state, venture.id).filter(record => record.role && onTeam.has(record.id)).map(record => ({ name: record.role!.name, job: record.role!.job, duties: [...record.role!.duties] })),
+      // The agents that do each order (agents/order-agents.ts), listed with the team: they join when the plan is accepted.
+      orderAgents: { agents: orderAgentsOfPlan(deliveryFlagship(venture, blueprint), blueprint.serviceType).agents, joined: venture.acceptedBlueprintId !== null },
+    }),
   };
 }
 
-/** A delivery run: the draft when there is one, else what the run waits on (the AI's exact text, a brief, a question). */
+/** A delivery run: the draft when there is one, else that there is none yet. A fact question's words are on Today's row and the run sheet. */
 function runItem(state: State, venture: VentureRecord, head: Head, run: DeliveryRunRecord, prefer: 'draft' | 'run', nowMs: number): QueueItemView {
   const client = clientNameFor(state, venture.id, run.orderId);
   const files = filesSection(state, venture, run);
   const text = run.editedText ?? run.renderedText;
-  if (text && (prefer === 'draft' || run.status !== 'waiting-for-you')) {
+  if (text && (prefer === 'draft' || run.status !== 'working')) {
     // The agent's own words show a number with no receipt as a model estimate (agent-words.ts).
-    const title = run.deliverable?.title ? agentWordsLabeller(state, venture, run)(run.deliverable.title) : `Draft reply for ${client}`;
+    const title = run.deliverable?.title ? agentWordsLabeller(state, venture, run)(run.deliverable.title) : fillWords(CARD_T.draftReply, { client });
     // Where the judge stands, so a verdict that is not in never reads like a pass (delivery/judge-run.ts).
-    const notes = [checksLine(run), judgeStateLine(state, venture, run, nowMs) ?? undefined, run.deliverable?.estimate ? 'Numbers the agent wrote in its own words are model estimates; figures from receipts are not.' : undefined]
+    const notes = [checksLine(run), judgeStateLine(state, venture, run, nowMs) ?? undefined, run.deliverable?.estimate ? CARD.estimates : undefined]
       .filter((line): line is string => !!line);
     return {
-      kind: 'draft', id: run.id, ...head, title, line: `For ${client}. You send it yourself.`,
-      sections: [...draftSections(text), ...files, ...(notes.length ? [{ heading: 'Checks', lines: notes }] : [])],
+      kind: 'draft', id: run.id, ...head, title, line: fillWords(CARD_T.forClient, { client }),
+      sections: [...draftSections(text), ...files, ...(notes.length ? [{ heading: CARD.checks, lines: notes }] : [])],
       // C4 task 16: each amount with the receipt that backs it, so the preview marks it.
       amounts: draftAmounts({ deliverable: run.deliverable, text, ownWords: !!run.editedText }, [...listRecords(state, 'venture-price-receipt', venture.id), ...listRecords(state, 'venture-work-receipt', venture.id)]),
     };
   }
-  if (run.status === 'waiting-for-you' && run.preview) {
-    return {
-      kind: 'draft', id: run.id, ...head, title: `The text that goes to your AI for ${client}`,
-      line: `The most it can cost: ${run.preview.estimatedMaxCostDisplay}. Nothing goes to the client.`,
-      sections: [{ heading: 'Exact text', lines: linesOf(run.preview.payloadText) }, ...files],
-    };
-  }
-  if (run.status === 'brief-waiting' && run.harness) {
-    const open = openDelegation(run.harness);
-    if (open) {
-      return {
-        kind: 'draft', id: run.id, ...head, title: `The brief for ${DELEGATE_LABELS[open.cli]} on ${client}'s order`,
-        line: `It runs on this computer with only this order's files, for at most ${open.limits.minutes} minutes.`,
-        sections: [{ heading: 'Exact brief', lines: linesOf(open.briefText) }, ...files],
-      };
-    }
-  }
-  if (run.status === 'needs-answer' && run.harness) {
-    const openIndex = run.harness.handoffs.map(item => item.answer).lastIndexOf(null);
-    const question = openIndex >= 0 ? run.harness.handoffs[openIndex] : null;
-    const hold = question ? holdOfHandoff(run.harness, openIndex) : null;
-    const words = agentWordsLabeller(state, venture, run);
-    return {
-      kind: 'draft', id: run.id, ...head, title: hold ? `A step on hold for ${client}` : `A question about ${client}'s order`,
-      ...(question ? { line: words(question.question) } : {}),
-      sections: [
-        ...(hold ? [{ heading: 'What it wants to run', lines: [`${hold.tool}: ${hold.reason}`] }] : []),
-        ...run.harness.turns.filter(turn => turn.note).slice(-5).map(turn => ({ heading: `Step ${turn.turn}`, lines: linesOf(words(turn.note)) })),
-        ...files,
-      ],
-    };
-  }
   return {
-    kind: 'draft', id: run.id, ...head, title: `The draft for ${client}`,
-    line: run.status === 'failed' ? (run.harness?.stopReason ?? 'This run stopped before it finished. Nothing was sent to the client.') : 'There is no draft text yet.',
+    kind: 'draft', id: run.id, ...head, title: fillWords(CARD_T.draftOf, { client }),
+    line: run.status === 'failed' ? (run.harness?.stopReason ?? CARD.jobStopped) : CARD.noDraftYet,
     sections: files,
   };
 }
@@ -230,11 +204,11 @@ function ratesItem(state: State, venture: VentureRecord, head: Head, rowId: stri
 function byRef(deps: VentureDeps, state: State, venture: VentureRecord, head: Head, kind: string, id: string): QueueItemView | null {
   if (kind === 'plan') {
     const blueprint = listRecords(state, 'venture-blueprint', venture.id).find(item => item.id === id);
-    return blueprint ? planView(head, blueprint) : null;
+    return blueprint ? planView(head, blueprint, state, venture) : null;
   }
   if (kind === 'draft' || kind === 'run') {
     const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === id);
-    if (run) return runItem(state, venture, { ...head, agent: agentName(state, venture) }, run, kind === 'draft' ? 'draft' : 'run', deps.clock().getTime());
+    if (run) return runItem(state, venture, { ...head, agent: runAgentName(state, venture, run) }, run, kind === 'draft' ? 'draft' : 'run', deps.clock().getTime());
     const post = listRecords(state, 'venture-connector-post', venture.id).find(item => item.id === id);
     if (post) {
       return {

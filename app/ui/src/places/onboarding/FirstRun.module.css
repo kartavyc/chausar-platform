@@ -109,37 +109,59 @@
   margin-top: var(--sp-6);
 }
 
-.option {
-  display: flex;
-  flex-direction: column;
+/* Step 1, the simple sign-in: one card with the two choices side by side (stacked when the card is narrow), each
+   with its one line under it, then the progress line, then what is sent. */
+.signIn {
+  display: grid;
+  gap: var(--sp-4);
+  width: min(640px, 100%);
+  margin-top: var(--sp-6);
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--sp-3);
-  min-height: 220px;
+  align-items: start;
 }
 
-.optionHead {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+.choice {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
 }
 
-.optionName {
-  font-size: var(--text-tile);
-  font-weight: var(--weight-strong);
+.choice > button {
+  width: 100%;
 }
 
-.optionLine {
+.progress {
   color: var(--fg2);
   font-size: var(--text-body);
 }
 
-.optionAction {
-  display: grid;
-  gap: var(--sp-2);
-  margin-top: auto;
+.sent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  min-width: 0;
+  color: var(--fg2);
+  font-size: var(--text-read);
 }
 
-.optionAction > button {
-  width: 100%;
+.sent > svg {
+  flex: none;
+  margin-top: var(--sp-1);
+}
+
+.sent > :not(svg) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The other ways on, behind the closed fold under the card. */
+.more {
+  margin-top: var(--sp-4);
 }
 
 .hint {
@@ -148,34 +170,19 @@
 }
 
 .finish {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-6);
-}
-
-.finishText {
   display: grid;
-  flex: 1 1 320px;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   min-width: 0;
-}
-
-.finishTitle {
-  font-size: var(--text-section);
-  font-weight: var(--weight-strong);
 }
 
 .finishTools {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
 }
 
 .codeBox {
   display: grid;
-  flex: 0 1 360px;
   justify-items: center;
   gap: var(--sp-2);
   min-width: 0;
@@ -191,32 +198,20 @@
   letter-spacing: 0.08em;
 }
 
-.footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  color: var(--fg2);
-  font-size: var(--text-body);
-}
-
-.footer > p {
-  flex: 1 1 300px;
-  min-width: 0;
-}
-
 .keyPanel {
-  margin-top: var(--sp-2);
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+  margin-top: var(--sp-4);
+}
+
+.keyPanel > :first-child {
+  justify-self: stretch;
 }
 
 .problem {
   color: var(--fail);
   font-size: var(--text-body);
-}
-
-/* An error that belongs to the whole grid, not one card. */
-.wide {
-  grid-column: 1 / -1;
 }
 
 .status {
@@ -277,6 +272,72 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+}
+
+/* It already works: said where a button would be, as quiet words. */
+.needReady {
+  color: var(--fg2);
+  font-size: var(--text-label);
+}
+
+/* A need in the owner's words, over its rows. */
+.needGroup {
+  display: grid;
+  margin-top: var(--sp-6);
+}
+
+.needGroup .needs {
+  margin-top: var(--sp-3);
+}
+
+.needGroupTitle {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+}
+
+/* Change what you need: a quiet button, then the fixed list of needs as tick boxes. */
+.needChange {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.needPick {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.needPickTitle {
+  padding: 0 var(--sp-1);
+  color: var(--fg2);
+  font-size: var(--text-label);
+}
+
+.needPickRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control);
+  font-size: var(--text-body);
+}
+
+/* A row's connect flow, opened in place under it: the whole row wide, and a long address breaks. */
+.needFlow {
+  display: grid;
+  flex: 1 1 100%;
+  gap: var(--sp-3);
+  justify-items: start;
+  min-width: 0;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+  overflow-wrap: anywhere;
 }
 
 .needsFoot {

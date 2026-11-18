@@ -11,7 +11,7 @@ import { Engine } from '../runtime/engine.ts';
 import { numberGuard } from '../runtime/calculator.ts';
 import { EXTERNAL_ORIGINS, STEP_PLAN } from '../runtime/venture/contracts.ts';
 import type {
-  BlueprintView, BooksSummary, BriefRecord, BuildStatus, CapabilityStatus, ClientRecord, ConnectorCard, CountryProfile, DeliveryRunRecord,
+  BlueprintView, BooksSummary, BriefRecord, BuildStatus, ClientRecord, ConnectorCard, CountryProfile, DeliveryRunRecord,
   HandoffPlan, HandoffRecord, InterviewView, InvoiceView, LaunchStatus, ModelCallRecord, ModelPreset, ModelStatusView, OrderRecord, PlanPreview, PriceReceiptRecord,
   SimulationRunRecord, VentureEventRecord, VentureView,
 } from '../runtime/venture/contracts.ts';
@@ -109,13 +109,14 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.equal((await ask('workspace.status')).open, true);
   assert.equal((await ask('trust.get')).send, 'nothing');
 
-  // 4. The venture: one of twelve done, records kept for ten years.
+  // 4. The venture: records kept for ten years, and the chief's plan says to finish what is sold first.
   const created = await ask('venture.create', { idea: IDEA, countryCode: 'IN', workingName: 'Ledger Cafe Books' }) as VentureView;
-  assert.equal(created.done, 1);
-  assert.equal(created.total, 12);
-  // Onboarding v2: connecting an AI is the first item; the AI here is added after the vault, so it is not done yet.
-  assert.deepEqual([created.checklist[0].id, created.checklist[0].label, created.checklist[0].done], ['ai', 'Connect your AI', false]);
-  assert.equal(created.checklist.find(item => item.id === 'idea')?.label, 'Say what you want to do');
+  assert.equal(created.venture.workingName, 'Ledger Cafe Books');
+  assert.deepEqual([created.done, created.total], [0, 2], 'what is sold is not ready yet: neither setup move is done');
+  const started = await ask('venture.chief.plan.get');
+  assert.deepEqual([started.next.kind, started.next.by], ['offer', 'records']);
+  assert.deepEqual(started.moves.slice(0, 2).map((move: any) => [move.text, move.state]), [['Accept your plan', 'waiting'], ['Set your prices', 'planned']]);
+  assert.equal(started.review.on, false);
   assert.equal((await ask('trust.get')).retentionDays, 3650);
   const retention = (await events()).find(e => e.name === 'retention-changed');
   assert.ok(retention);
@@ -308,13 +309,13 @@ test('the whole venture journey in India, with a model and GitHub answering from
   const ready = async (id: string): Promise<DeliveryRunRecord> => {
     for (let attempt = 0; attempt < 400; attempt++) {
       const current = (await ask('venture.delivery.list') as DeliveryRunRecord[]).find(row => row.id === id)!;
-      if (current.agentJob?.reviewReady || current.status === 'failed') return current;
+      if (current.status === 'ready-for-review' || current.status === 'failed') return current;
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     throw new Error('Synthetic native job did not settle.');
   };
   const waiting = await ask('venture.delivery.run', { orderId: order.id }) as DeliveryRunRecord;
-  assert.equal(waiting.status, 'waiting-for-you'); assert.equal(waiting.practice, true); assert.equal(waiting.preview, null);
+  assert.equal(waiting.status, 'working'); assert.equal(waiting.practice, true); assert.equal(waiting.preview, null);
   const practice = await ready(waiting.id);
   assert.equal(practice.status, 'ready-for-review', JSON.stringify(practice));
   assert.ok(practice.renderedText?.includes('INR 2,948.82 in total'), practice.renderedText ?? '');
@@ -373,11 +374,15 @@ test('the whole venture journey in India, with a model and GitHub answering from
   // 26. The old back office sees the new business's books.
   assert.equal((await ask('calculation.run', { operation: 'billed', period: { from: '2026-10-01', to: '2026-10-31' } })).totalMinor, '249900');
 
-  // 27. Every launch step is done.
-  const finished = await ask('venture.get') as VentureView;
-  assert.equal(finished.done, 12, JSON.stringify(finished.checklist.filter(item => !item.done)));
-  assert.equal(finished.total, 12);
-  assert.equal(finished.next, null);
+  // 27. The plan followed the records all the way, by code: accepted, its first client, invoice and payment are in. One
+  // offer was never priced, so the next best step is still to price it, and nothing may look for customers yet.
+  const finished = await ask('venture.chief.plan.get');
+  assert.equal((await ask('venture.get')).done, 1);
+  assert.deepEqual([finished.next.kind, finished.next.by, finished.next.action], ['offer', 'records', { id: 'go', label: 'Set prices', link: '#/business/prices' }]);
+  assert.match(finished.next.title, /^Set your price for /);
+  const states = Object.fromEntries(finished.moves.map((move: any) => [move.text, move.state]));
+  assert.deepEqual([states['Accept your plan'], states['Set your prices']], ['done', 'waiting']);
+  assert.ok(!['Add your first client', 'Send your first invoice', 'Record your first payment'].some(text => states[text] && states[text] !== 'done'));
 
   // 28. The event log tells the story in order.
   const names: string[] = (await events()).map(e => e.name);
@@ -411,21 +416,10 @@ test('the whole venture journey in India, with a model and GitHub answering from
   const vaultText = JSON.stringify(engine.vault?.read());
   assert.equal(vaultText.includes(API_KEY), false);
   assert.equal(vaultText.includes(GITHUB_TOKEN), false);
-
-  // 31. Capabilities say what runs where, honestly.
-  const capabilities = await ask('venture.capabilities') as CapabilityStatus[];
-  const capability = (id: string) => { const found = capabilities.find(c => c.id === id); assert.ok(found, id); return found; };
-  assert.equal(capability('tier-wasm').state, process.platform === 'win32' ? 'unavailable' : 'planned');
-  assert.deepEqual([capability('tier-container').state, capability('tier-container').reason], ['needs-setup', 'Needs Docker Desktop.']);
-  assert.equal(capability('tier-wasm-lite').state, 'available');
-  assert.equal(capability('agent-tools').state, 'available');
-  assert.equal(capability('tier-hosted').state, 'planned');
-  assert.equal(capability('tier-code').group, 'runtime');
-  assert.equal(capability('durable-storage').state, 'planned');
 });
 
 test('the template path in the United States works with no AI and nothing sent', async t => {
-  const { ask } = await newEngine(t, false);
+  const { engine, ask } = await newEngine(t, false);
   const idea = 'Bookkeeping for small online shops, done by templates with me checking every report.';
 
   const preview = await ask('venture.preview', { idea, countryCode: 'US' }) as PlanPreview;
@@ -433,7 +427,7 @@ test('the template path in the United States works with no AI and nothing sent',
 
   await ask('workspace.create', { name: 'Hudson Books', passphrase: PASSPHRASE, pack: 'services' });
   await ask('venture.create', { idea, countryCode: 'US', workingName: 'Hudson Books' });
-  assert.equal((await ask('ontology.get')).current.currency, 'USD', 'the dictionary is republished in US dollars');
+  assert.equal(engine.vault!.read().ontology.current.currency, 'USD', 'the dictionary is republished in US dollars');
 
   const interview = await ask('venture.interview.next', { useTemplate: true }) as InterviewView;
   const ids = interview.interview.questions.map(q => q.id);

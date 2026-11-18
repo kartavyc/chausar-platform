@@ -45,7 +45,7 @@ export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }
     <SuggestedServers servers={servers} onAdd={server => onChange([...servers, server])} />
   </fieldset>;
 }
-function ServerToken({ server, onSaved }: { server: ExternalMcpServer; onSaved(): void }) {
+export function ServerToken({ server, onSaved }: { server: ExternalMcpServer; onSaved(): void }) {
   const t = useT(), engine = useEngine(); const [token, setToken] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState<string|null>(null);
   async function save(value: string | null) {
     if (busy) return; setBusy(true); setError(null); setToken('');
@@ -61,7 +61,7 @@ function ServerToken({ server, onSaved }: { server: ExternalMcpServer; onSaved()
   </Fold>;
 }
 /** W6 6F1: Sign in opens the service's own sign-in in the owner's browser. Tokens go to protected storage only. */
-function ServerSignIn({ server }: { server: ExternalMcpServer }) {
+export function ServerSignIn({ server }: { server: ExternalMcpServer }) {
   const t = useT(), engine = useEngine(); const [busy, setBusy] = useState(false), [error, setError] = useState<string|null>(null), [link, setLink] = useState<string|null>(null);
   async function signIn() {
     if (busy) return; setBusy(true); setError(null); setLink(null);

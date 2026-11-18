@@ -3,6 +3,7 @@
 import { DEPARTMENT_IDS, type DepartmentId } from '../contracts.ts';
 import { DESTRUCTIVE_WORDS } from '../policy/effects.ts';
 import { checkHireWith, HIRE_LIMITS, HIRE_READS, type HireRead, type HireRole as CoreRole } from './hire-check-core.ts';
+import type { HireChecker } from './team-proposal.ts';
 
 export { HIRE_LIMITS, HIRE_READS, type HireRead };
 export type HireRole = Omit<CoreRole, 'department'> & { department: DepartmentId };
@@ -13,3 +14,6 @@ const RULES = Object.freeze({ departments: DEPARTMENT_IDS, floorWords: [...DESTR
 export function checkHire(role: HireRole, context: { agentNames: readonly string[] }): HireRole {
   return checkHireWith(RULES, role, context) as HireRole;
 }
+
+/** The same check for the small team proposed at setup (team-proposal.ts), whose cards name the department as text. */
+export const checkTeamHire: HireChecker = (role, context) => checkHireWith(RULES, role, context);

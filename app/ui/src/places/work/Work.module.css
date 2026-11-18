@@ -746,6 +746,13 @@
   color: var(--mute);
 }
 
+/* The file sheet (FileSheet.tsx): what a run read, said in a few plain lines. */
+.fileFacts {
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+}
+
 /* Intake: choices as plain lines, no frame. */
 .group {
   display: grid;

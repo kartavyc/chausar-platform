@@ -1,7 +1,6 @@
 // Wave 6 money (6D1 to 6D4): the shapes of the owner's billing settings, an invoice's part of its order, how a client
 // pays (UPI link and QR, bank details, a Razorpay Payment Link) and a foreign-currency order price. Types only, so the
 // contracts and the fake engine import them without loading engine code.
-export type IsoDateText = string;
 export type MinorText = string;
 
 /** The owner's bank account, as typed. ifsc for India, swift for clients abroad; both optional beside the number. */

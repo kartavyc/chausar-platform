@@ -25,10 +25,6 @@ export type MockUse = { for: 'test'; deps: Pick<VentureDeps, 'host' | 'clock' | 
 /** How failNext() makes the next call fail: the provider said no, it stopped part way, or it could not be reached. */
 export type MockFailure = 'not-sent' | 'unknown' | 'error';
 
-export type PaymentLinkInput = { amountMinor: string; currency: string; purpose: string; payer?: string | null };
-export type MailInput = { to: string; subject: string; body: string };
-/** A post is always one of a draft's posts, by its id, as build/posting.ts proposes it: never free text. */
-export type PostingInput = { connectorId: string; draftId: string; part?: number | null };
 type Checked = Record<string, Json>;
 
 /** What a mock call gives back: always labelled, with an address no browser can open. */

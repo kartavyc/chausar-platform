@@ -3,7 +3,7 @@ import {check} from '../../../portable.ts';
 import type {FlagshipOffer,FlagshipPlan} from '../plan.ts';
 import {youtubeService} from './offers2.ts';
 import {isYoutubeService,youtubeServiceIntake} from './service-fields.ts';
-export {isYoutubeService,youtubeServiceIntake,validateYoutubeServiceIntake} from './service-fields.ts';
+export {isYoutubeService,validateYoutubeServiceIntake} from './service-fields.ts';
 export function youtubeServiceOffer(plan:FlagshipPlan|null,offer:{playbookOffer?:string;addedByOwner?:true;name?:{value:string}}|null|undefined):FlagshipOffer|null{
  if(!isYoutubeService(offer?.playbookOffer))return null;
  check(plan?.id==='youtube'&&offer?.addedByOwner===true,'YOUTUBE_SERVICE_INVALID','This exact YouTube service must be added by the owner to a YouTube business.');

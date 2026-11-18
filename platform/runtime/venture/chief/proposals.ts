@@ -21,20 +21,21 @@ import { holdsIdNumber, offerFor } from '../agents/answer.ts';
 import { chatAgent, type ChatAgent } from '../agents/roles.ts';
 import type { W4Decision, W4Outcome } from '../views/queue-w4.ts';
 import type { ProposalInput } from './store.ts';
+import { briefFromWords, searchFit } from '../customers/find-brief.ts';
+import { ownerProfileOf } from '../core/owner.ts';
+import { openSearch } from '../customers/find-search.ts';
 import { stripMoney, type RawProposal } from './answer.ts';
 import {
-  CHIEF_KINDS, proposalGate, proposalKindCheck, proposalRowId, proposalSubject, proposalView, targetOf, UNKNOWN_KIND_LINE,
+  CHIEF_KINDS, IN_FLIGHT, proposalGate, proposalKindCheck, proposalRowId, proposalSubject, proposalView, targetOf, UNKNOWN_KIND_LINE,
 } from './gate.ts';
 
-export { proposalKindCheck };
+export { IN_FLIGHT, proposalKindCheck };
 
 const DECIDED = 'You decided this proposal already.';
 const GONE = 'This proposal is no longer there.';
 const NOT_FOUND = 'That proposal was not found.';
 const STALE = 'This changed since you opened it.';
 const WORK_APPROVED = 'You approved this on Today. Check the details in New order to start it. Publishing, sending and money still ask you first, at their own step.';
-/** A claimed proposal's outcome until its method answers; it stays if the outcome cannot be written, and says so. */
-export const IN_FLIGHT = 'Approved. Chausar has not recorded how it went yet, so check Work and Money before asking again.';
 /** A start-run whose method failed after a run for its order had started: done, never put back on Today. */
 export const RUN_STARTED_LINE = 'A run started for this order, though Chausar met an error after it. Check it on Work.';
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -57,6 +58,7 @@ const KIND_USES: Readonly<Record<string, string>> = Object.freeze({
   'brief-agent': 'agent and text: a note to one agent, posted in its chat at once',
   'start-run': 'orderId', 'draft-invoice': 'orderId', 'draft-reminder': 'invoiceId',
   quote: 'offerId, and quantity as digits or empty', 'outreach-draft': 'opportunityId, outreachKind, and channel (email, linkedin or whatsapp)',
+  'find-customers': 'text as one kind of place and the city, like "cafes in Pune", and quantity as how many to find, in digits up to fifty, or empty; only when business.offerReady is true. It looks on a public map of places and nothing is sent. business.mapKinds lists the kinds of place the plan\'s own customers are: search for one of those, one kind in each proposal. When business.mapKinds is given and empty, the customers are not places on a map (people, channels, online businesses), so do not propose it',
 });
 /** Why a kind whose method its package has not built yet is left out of an answer. */
 export const NOT_BUILT_REASON = 'Chausar cannot draft that yet.';
@@ -108,6 +110,12 @@ function inputOf(kind: ProposalKind, raw: RawProposal): { input: Json } | { reas
       const opportunityId = id(raw.opportunityId);
       return opportunityId ? { input: { opportunityId, kind: raw.outreachKind.trim(), channel: raw.channel.trim() } } : { reason: 'that person is not in your pipeline.' };
     }
+    case 'find-customers': {
+      // The chief writes plain words; code makes the exact brief (customers/find-brief.ts). Always the public map: a
+      // connected tool's exact call is the owner's to choose, from Clients, Pipeline.
+      const made = briefFromWords(raw.text, raw.quantity);
+      return 'reason' in made ? made : { input: { brief: made.brief, pin: null } as unknown as Json };
+    }
     default:
       return { reason: UNKNOWN_KIND_LINE };
   }
@@ -137,6 +145,11 @@ export function draftFromModel(state: State, venture: VentureRecord, raw: RawPro
   }
   const shaped = inputOf(kind, raw);
   if ('reason' in shaped) return refused(shaped.reason);
+  if (kind === 'find-customers') {
+    // The plan's own customers decide the kind of place (customers/find-brief.ts searchFit); code holds the chief to it.
+    const fit = searchFit(ownerProfileOf(state, venture.id).way, (shaped.input as { brief: { category: string } }).brief.category);
+    if (!fit.ok) return refused(fit.reason);
+  }
   const gate = targetOf(state, venture, kind, shaped.input);
   if (!gate.ok) return refused(gate.reason);
   const { title, line, agent, spends, sends } = gate.target;
@@ -303,12 +316,17 @@ export async function decideProposal(deps: VentureDeps, ctx: Context, decision: 
     const gate = proposalGate(tx.state, tx.venture!, record);
     check(gate.ok, 'APPROVAL_STALE', STALE);
     tx.replace<ProposalRecord>({ ...record, status: 'approved', decidedAt: tx.now, decidedBy: ctx.memberId, outcome: IN_FLIGHT });
+    // A search for customers is opened in the same commit as its approval (customers/find-search.ts), so the two are
+    // never apart and a restart finds it (build/journal-sweep.ts).
+    if (record.proposalKind === 'find-customers') openSearch(tx, record);
     return { claimed: record, runsBefore: runIdsOf(tx.state, tx.venture!.id, record.input) };
   });
   const kind = proposalKindCheck(claimed.proposalKind);
   let outcome: W4Outcome;
   try {
     if (kind === 'start-work') outcome = await approveWork(deps, ctx, claimed);
+    // The search runs only from here, after the claim: its own entry checks the approval and the gate again.
+    else if (kind === 'find-customers') outcome = await (await import('../customers/find-run.ts')).runApprovedSearch(deps, ctx, claimed);
     else {
       const method = METHOD_OF[kind];
       if (!method) throw new ChausarError('PROPOSAL_KIND_UNKNOWN', UNKNOWN_KIND_LINE);

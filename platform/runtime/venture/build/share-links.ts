@@ -1,4 +1,5 @@
 import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
+import { handedOver, inReview } from '../delivery/run-machine.ts';
 // Chausar venture launcher: read-only preview links for a client. venture.share.create, venture.share.list and
 // venture.share.revoke, plus the two trusted entry points the hosted web server's /share/<token> page uses
 // (sharePage and shareDecide), which no RPC reaches.
@@ -66,13 +67,11 @@ const KIND_FIELDS: Readonly<Record<ShareKind, 'deliveryId' | 'orderId' | 'client
 /** How many comments one link keeps, and how long one may be. */
 export const SHARE_MAX_COMMENTS = 50;
 export const SHARE_COMMENT_CHARS = 1000;
-const SHARABLE = new Set(['ready-for-review', 'accepted', 'edited']);
 const NO_CLIENT = 'no-client';
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 /** The address part of a share link: 24 random bytes, base64url. */
 export const SHARE_TOKEN = /^[A-Za-z0-9_-]{32}$/;
-export const shareTokenHash = (token: string) => sha256(token);
 
 /** The stored record in the approvals module's shape, so its decide-once, digest and end-date rules apply. */
 function asApprovalLink(record: ShareLinkStoredRecord): ShareLinkRecord {
@@ -154,9 +153,9 @@ export async function shareCreate(deps: VentureDeps, ctx: Context, payload: unkn
     check(!tx.find('venture-order', record.orderId)?.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
     checkManifest(tx.state, record);
     const run = runView(record, venture, Date.parse(tx.now));
-    check(SHARABLE.has(run.status), 'DELIVERY_NOT_READY', SHARE_WORDS.notReady);
+    check(inReview(run) || handedOver(run), 'DELIVERY_NOT_READY', SHARE_WORDS.notReady);
     check(!run.practiceNow, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');
-    check(run.status !== 'ready-for-review' || run.canAccept, 'DELIVERY_NOT_READY', run.acceptBlocked ?? SHARE_WORDS.notReady);
+    check(!inReview(run) || run.canAccept, 'DELIVERY_NOT_READY', run.acceptBlocked ?? SHARE_WORDS.notReady);
     // AI-native CA firm: regulated papers reach a client only as the CA of record signed them; an edit needs its own sign-off.
     // W6 6E5: a sign-off desk output likewise reaches a client only as its professional of record signed it.
     const unsigned = regulatedSignoff(tx.state, venture, record);

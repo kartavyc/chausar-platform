@@ -8,11 +8,11 @@ import { listRecords } from '../records.ts';
 import type { DeliveredFile, DeliveredView, DeliveryRunRecord, IsoTime, UploadRecord, VentureRecord } from '../contracts.ts';
 import { TOOL_PURPOSE } from './harness/tool-purpose.ts';
 import { DELEGATE_LABELS } from './harness/delegate.ts';
+import { handedOver as wentOut } from './run-machine.ts';
 
 export const CHANGED_DURING_RUN = "Changed during this run, not proven to be the agent's.";
 const DRAFT_ONLY = 'Handed over the draft only: its tools made no files.';
 /** The verdicts that hand a draft over: accepted as it is, or accepted in the owner's edited version. */
-const HANDED_OVER: readonly DeliveryRunRecord['status'][] = ['accepted', 'edited'];
 
 /** Where a changed file came from, in a code the screen words for itself, and the engine's words for it. */
 function changedSource(upload: UploadRecord): Pick<DeliveredFile, 'source' | 'line'> {
@@ -60,7 +60,7 @@ function changedDuring(state: State, venture: VentureRecord, run: DeliveryRunRec
 
 /** The Delivered card of a run, or null for a run whose draft was not handed over (accepted or edited). */
 export function deliveredOf(state: State, venture: VentureRecord, run: DeliveryRunRecord): DeliveredView | null {
-  if (!HANDED_OVER.includes(run.status) || run.practice) return null;
+  if (!wentOut(run) || run.practice) return null;
   const end = run.verdict?.at ?? run.readyAt ?? run.at;
   const files = handedOver(state, venture, run);
   const changed = changedDuring(state, venture, run, end);

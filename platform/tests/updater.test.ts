@@ -11,6 +11,9 @@ import { once } from 'node:events';
 import { ReleaseUpdater, canonicalReleaseManifest, canonicalReleaseFeed, compareVersions, installIdIn, rolloutBucket, type ReleaseManifest } from '../runtime/updater.ts';
 import { acquireProcessLock } from '../runtime/process-lock.ts';
 import { noNet } from './helpers/no-net.ts';
+import type {DownloadRequest,ReleaseDownload} from '../runtime/updater.ts';
+/** A stand-in download that hands the whole answer over as one chunk. */
+const whole=(respond:(request:DownloadRequest)=>unknown):ReleaseDownload=>async request=>{const answer=await respond(request) as {status:number;body:string|Uint8Array;url?:string;headers?:Record<string,string>};return{status:answer.status,url:answer.url,headers:answer.headers,body:(async function*(){yield Buffer.from(answer.body as Uint8Array);})()};};
 
 test.beforeEach(t => noNet(t));
 
@@ -42,7 +45,7 @@ test('unknown fields, malformed timestamps, private URLs and non-Ed25519 keys ar
 });
 
 test('downgrades, incompatible engine and platform artifacts are rejected before network',async t=>{
-  let calls=0;const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t),http:async()=>{calls++;return{status:200,body:artifact};}});
+  let calls=0;const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t),download:whole(async()=>{calls++;return{status:200,body:artifact};})});
   for(const release of [manifest('0.9.0'),manifest('1.0.0')])await assert.rejects(updater.stage(release,signature(release)),code('RELEASE_DOWNGRADE_REFUSED'));
   const incompatible={...manifest(),minEngineVersion:'2.0.0'};await assert.rejects(updater.stage(incompatible,signature(incompatible)),code('INCOMPATIBLE_ENGINE'));
   const platform={...manifest(),platform:process.platform==='win32'?'linux':'win32'} as ReleaseManifest;await assert.rejects(updater.stage(platform,signature(platform)),code('INCOMPATIBLE_PLATFORM'));
@@ -50,7 +53,7 @@ test('downgrades, incompatible engine and platform artifacts are rejected before
 });
 
 test('staging verifies bytes, writes an atomic plan and requires a native installer and backup',async t=>{
-  const stageDirectory=await directory(t),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async r=>{assert.equal(r.redirect,'error');assert.equal(r.maxBytes,artifact.length);return{status:200,url:r.url,body:artifact};}}),release=manifest();
+  const stageDirectory=await directory(t),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole(async r=>{assert.equal(r.redirect,'error');return{status:200,url:r.url,body:artifact};})}),release=manifest();
   const staged=await updater.stage(release,signature(release));assert.deepEqual(await readFile(staged.artifactPath),artifact);assert.equal(staged.installed,false);assert.equal(staged.unsignedFallbackAllowed,false);assert.equal(staged.rollback.automatic,false);assert.equal(staged.rollback.requiresVaultBackup,true);
   assert.equal((updater as any).install,undefined);assert.equal((updater as any).execute,undefined);assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.tmp')||name==='stage.lock'));
   const pending=JSON.parse(await readFile(join(stageDirectory,'pending-release.json'),'utf8'));assert.equal(pending.manifest.sha256,release.sha256);
@@ -58,14 +61,14 @@ test('staging verifies bytes, writes an atomic plan and requires a native instal
 
 test('corrupt, oversized, truncated and redirected downloads never publish a pending release',async t=>{
   for(const response of [{status:200,body:Buffer.from('wrong')},{status:200,body:Buffer.concat([artifact,Buffer.from('extra')])},{status:302,body:artifact},{status:200,url:'https://attacker.example.com/file',body:artifact}]){
-    const stageDirectory=join(await directory(t),'stage'),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>response}),release=manifest();
+    const stageDirectory=join(await directory(t),'stage'),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole(async()=>response)}),release=manifest();
     await assert.rejects(updater.stage(release,signature(release)));
     assert.deepEqual(await readdir(stageDirectory),[]);
   }
 });
 
 test('a newer signed staged release prevents an older replay and altered artifacts are refused',async t=>{
-  const stageDirectory=await directory(t),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>({status:200,body:artifact})});
+  const stageDirectory=await directory(t),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole(async()=>({status:200,body:artifact}))});
   const newer=manifest('1.2.0'),staged=await updater.stage(newer,signature(newer)),older=manifest('1.1.0');
   await assert.rejects(updater.stage(older,signature(older)),code('RELEASE_DOWNGRADE_REFUSED'));
   await writeFile(staged.artifactPath,'modified by attacker');await assert.rejects(updater.stage(newer,signature(newer)),code('UNSAFE_STAGE'));
@@ -77,27 +80,27 @@ test('semantic version ordering respects prereleases and does not compare versio
 });
 
 test('a valid pending record from the previous engine does not block a newer release after upgrade',async t=>{
-  const stageDirectory=await directory(t),older=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>({status:200,body:artifact})}),oldRelease=manifest('1.1.0');
+  const stageDirectory=await directory(t),older=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole(async()=>({status:200,body:artifact}))}),oldRelease=manifest('1.1.0');
   await older.stage(oldRelease,signature(oldRelease));
-  const upgraded=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.1.0',stageDirectory,http:async()=>({status:200,body:artifact})}),newRelease=manifest('1.2.0');
+  const upgraded=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.1.0',stageDirectory,download:whole(async()=>({status:200,body:artifact}))}),newRelease=manifest('1.2.0');
   assert.equal((await upgraded.stage(newRelease,signature(newRelease))).manifest.version,'1.2.0');
 });
 
 test('staging refuses a symlink directory and concurrent staging lock',async t=>{
   const root=await directory(t),real=join(root,'real'),linked=join(root,'linked');await mkdir(real);
   try{await symlink(real,linked,process.platform==='win32'?'junction':'dir');}catch(error:any){if(['EPERM','EACCES'].includes(error.code)){t.diagnostic('Symlink creation unavailable in this environment.');return;}throw error;}
-  const release=manifest(),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:linked,http:async()=>({status:200,body:artifact})});await assert.rejects(updater.stage(release,signature(release)),code('UNSAFE_PATH'));
-  await writeFile(join(real,'stage.lock'),'existing writer');const busy=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:real,http:async()=>({status:200,body:artifact})});await assert.rejects(busy.stage(release,signature(release)),code('UPDATE_BUSY'));
+  const release=manifest(),updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:linked,download:whole(async()=>({status:200,body:artifact}))});await assert.rejects(updater.stage(release,signature(release)),code('UNSAFE_PATH'));
+  await writeFile(join(real,'stage.lock'),'existing writer');const busy=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:real,download:whole(async()=>({status:200,body:artifact}))});await assert.rejects(busy.stage(release,signature(release)),code('UPDATE_BUSY'));
 });
 
 test('an abruptly killed staging process leaves recoverable complete owner metadata',{timeout:10000},async t=>{
   const stageDirectory=await directory(t),release=manifest(),moduleURL=new URL('../runtime/updater.ts',import.meta.url).href;
-  const program=`import {ReleaseUpdater} from ${JSON.stringify(moduleURL)};setInterval(()=>{},1000);const updater=new ReleaseUpdater({publicKey:${JSON.stringify(keys.publicKey.export({format:'pem',type:'spki'}).toString())},version:'1.0.0',stageDirectory:${JSON.stringify(stageDirectory)},http:async()=>{process.stdout.write('READY\\n');return new Promise(()=>{});}});await updater.stage(${JSON.stringify(release)},${JSON.stringify(signature(release))});`;
+  const program=`import {ReleaseUpdater} from ${JSON.stringify(moduleURL)};setInterval(()=>{},1000);const updater=new ReleaseUpdater({publicKey:${JSON.stringify(keys.publicKey.export({format:'pem',type:'spki'}).toString())},version:'1.0.0',stageDirectory:${JSON.stringify(stageDirectory)},download:async()=>{process.stdout.write('READY\\n');return new Promise(()=>{});}});await updater.stage(${JSON.stringify(release)},${JSON.stringify(signature(release))});`;
   const child=spawn(process.execPath,['--experimental-strip-types','--input-type=module','-e',program],{windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});t.after(()=>child.kill());
   await new Promise<void>((accept,reject)=>{let output='';child.stdout.on('data',chunk=>{output+=chunk;if(output.includes('READY\n'))accept();});child.once('error',reject);child.once('exit',()=>reject(new Error('Staging child exited before readiness.')));});
   const owner=JSON.parse(await readFile(join(stageDirectory,'stage.lock'),'utf8'));assert.equal(owner.pid,child.pid);assert.ok(owner.token&&owner.startedAt);
   const exited=once(child,'exit');assert.equal(child.kill('SIGKILL'),true);await exited;assert.throws(()=>process.kill(owner.pid,0),(error:any)=>error.code==='ESRCH');
-  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>({status:200,body:artifact})});assert.equal((await updater.stage(release,signature(release))).staged,true);
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole(async()=>({status:200,body:artifact}))});assert.equal((await updater.stage(release,signature(release))).staged,true);
   assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.lock')));
 });
 
@@ -105,7 +108,7 @@ test('competing stale-lock recovery has exactly one writer and never removes its
   const stageDirectory=await directory(t),release=manifest(),pid=deadPid();await writeFile(join(stageDirectory,'stage.lock'),JSON.stringify({pid,token:randomUUID(),startedAt:new Date().toISOString()}));
   let releaseHttp!:()=>void,entered!:()=>void,refused!:()=>void,calls=0;const errors:any[]=[];
   const gate=new Promise<void>(accept=>{releaseHttp=accept;}),first=new Promise<void>(accept=>{entered=accept;}),others=new Promise<void>(accept=>{refused=accept;});t.after(()=>releaseHttp());
-  const attempts=Array.from({length:10},()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>{calls++;entered();await gate;return{status:200,body:artifact};}}).stage(release,signature(release)).then(value=>({value}),error=>{errors.push(error);if(errors.length===9)refused();return{error};}));
+  const attempts=Array.from({length:10},()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole(async()=>{calls++;entered();await gate;return{status:200,body:artifact};})}).stage(release,signature(release)).then(value=>({value}),error=>{errors.push(error);if(errors.length===9)refused();return{error};}));
   await Promise.all([first,others]);assert.equal(calls,1);assert.ok(errors.every(error=>error.code==='UPDATE_BUSY'));
   const owner=JSON.parse(await readFile(join(stageDirectory,'stage.lock'),'utf8'));assert.equal(owner.pid,process.pid);releaseHttp();
   const results=await Promise.all(attempts);assert.equal(results.filter(result=>'value'in result).length,1);assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.lock')));

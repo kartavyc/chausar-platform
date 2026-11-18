@@ -250,11 +250,90 @@ test('the exe\'s company and copyright are NOTICE\'s own line', async () => {
 
 test('the exe hook does nothing off Windows, for another target, or when electron-builder edits the exe itself', async () => {
   const runs: unknown[] = [];
-  const deps = (platform: string) => ({ platform, readFile: async () => { throw new Error('never read'); }, sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { runs.push(args); } });
-  for (const [host, target, sign] of [['linux', 'linux', false], ['darwin', 'darwin', false], ['linux', 'win32', false], ['win32', 'linux', false], ['win32', 'win32', true], ['win32', 'win32', undefined]] as const) {
-    assert.deepEqual(await hook.afterPack(context(target, sign), deps(host)), { edited: false }, `${host} ${target} ${sign}`);
+  // The Mac build (14 Nov 2026): on a Mac building for macOS the hook has its own step (the test below), named
+  // adHocSigned; the exe is still never edited there, and rcedit never runs.
+  const deps = (platform: string) => ({ platform, env: {}, sign: async () => {}, readFile: async () => { throw new Error('never read'); }, sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { runs.push(args); } });
+  for (const [host, target, sign] of [['linux', 'linux', false], ['darwin', 'darwin', false], ['linux', 'win32', false], ['win32', 'linux', false], ['win32', 'win32', true], ['win32', 'win32', undefined], ['linux', 'darwin', false], ['darwin', 'linux', false]] as const) {
+    assert.deepEqual(await hook.afterPack(context(target, sign), deps(host)), host === 'darwin' && target === 'darwin' ? { edited: false, adHocSigned: true } : { edited: false }, `${host} ${target} ${sign}`);
   }
   assert.deepEqual(runs, []);
+});
+
+// The Mac build (14 Nov 2026). electron-builder leaves a Mac app unsigned when it has no certificate, and macOS on Apple
+// chips then calls a downloaded copy damaged, with no way to open it. So the one hook gives such a build macOS's own
+// local (ad-hoc) signature with /usr/bin/codesign: no certificate, no identity, nothing downloaded. macOS still blocks
+// the first open, and the owner allows it in System Settings. When a certificate is given, electron-builder signs after
+// this hook and the hook leaves the app alone.
+test('Mac: an app electron-builder will leave unsigned gets a local (ad-hoc) signature, checked, and a build with a certificate is left for electron-builder', async () => {
+  const macContext = (identity?: null) => ({
+    appOutDir: '/out/mac-arm64', electronPlatformName: 'darwin',
+    packager: { appInfo: { productName: 'Chausar', productFilename: 'Chausar', version: '0.3.0' }, platformSpecificBuildOptions: identity === null ? { identity: null } : { hardenedRuntime: true } },
+  });
+  const app = joinPath('/out/mac-arm64', 'Chausar.app');
+  const calls: unknown[][] = [];
+  const sign = async (...args: unknown[]) => { calls.push(args); };
+  const never = async () => { throw new Error('rcedit never runs on a Mac'); };
+  assert.deepEqual(await hook.afterPack(macContext(), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), { edited: false, adHocSigned: true });
+  assert.deepEqual(calls, [['/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]], ['/usr/bin/codesign', ['--verify', '--deep', '--strict', app]]]);
+  // A certificate in the environment: electron-builder signs next, so nothing is done here.
+  calls.length = 0;
+  assert.deepEqual(await hook.afterPack(macContext(), { platform: 'darwin', env: { CSC_LINK: '/keys/developer-id.p12' }, sign, run: never, readFile: never }), { edited: false, adHocSigned: false });
+  assert.deepEqual(calls, []);
+  // The preview switches signing off in its file (identity null), so it gets the local signature whatever the environment holds.
+  assert.deepEqual(await hook.afterPack(macContext(null), { platform: 'darwin', env: { CSC_LINK: '/keys/developer-id.p12' }, sign, run: never, readFile: never }), { edited: false, adHocSigned: true });
+  assert.equal(calls.length, 2);
+  // A failure stops the build in words: an app macOS would call damaged is never packed into a dmg.
+  await assert.rejects(hook.afterPack(macContext(), { platform: 'darwin', env: {}, sign: async () => { throw new Error('codesign failed'); }, run: never, readFile: never }), /local \(ad-hoc\) signature.*codesign failed/);
+  // Never off a Mac: codesign is macOS's own tool.
+  for (const host of ['linux', 'win32']) assert.deepEqual(await hook.afterPack(macContext(), { platform: host, env: {}, sign: never, run: never, readFile: never }), { edited: false });
+  assert.equal(hook.CODESIGN, '/usr/bin/codesign');
+});
+
+// The Mac build, first real build (14 Nov 2026, macOS 27.2, Apple silicon). Electron keeps one empty marker folder for
+// each language in Contents/Resources (en.lproj and 54 more). electron-builder copies the local Electron folder
+// (electronDist) with a copy that never makes empty folders, so the real app came out with none of them, and macOS then
+// takes the app as English only. The hook puts back exactly the ones the Mac target names (mac.electronLanguages), each
+// only when Electron's own framework carries that language's file, before the app is signed.
+test('Mac: the hook puts back the language marker folders the copy of the local Electron drops, before signing, and never one Electron has no file for', async t => {
+  const { mkdtemp, mkdir, writeFile, readdir, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const out = await mkdtemp(joinPath(tmpdir(), 'chausar-mac-languages-'));
+  t.after(() => rm(out, { recursive: true, force: true }));
+  const app = joinPath(out, 'Chausar.app'), resources = joinPath(app, 'Contents', 'Resources');
+  const framework = joinPath(app, 'Contents', 'Frameworks', 'Electron Framework.framework', 'Versions', 'A', 'Resources');
+  await mkdir(resources, { recursive: true });
+  for (const language of ['en', 'en_GB', 'hi', 'ta']) { await mkdir(joinPath(framework, `${language}.lproj`), { recursive: true }); await writeFile(joinPath(framework, `${language}.lproj`, 'locale.pak'), 'pak'); }
+  const macContext = (electronLanguages?: unknown) => ({
+    appOutDir: out, electronPlatformName: 'darwin',
+    packager: { appInfo: { productName: 'Chausar', productFilename: 'Chausar', version: '0.3.0' }, platformSpecificBuildOptions: { hardenedRuntime: true, ...(electronLanguages === undefined ? {} : { electronLanguages }) } },
+  });
+  const never = async () => { throw new Error('rcedit never runs on a Mac'); };
+  const seen: string[][] = [];
+  const sign = async (_command: string, args: string[]) => { if (args[0] === '--force') seen.push((await readdir(resources)).sort()); };
+  const lproj = async () => (await readdir(resources)).filter(name => name.endsWith('.lproj')).sort();
+  // No languages named for the Mac target: nothing is made (the package check then refuses the build).
+  assert.deepEqual(await hook.afterPack(macContext(), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), { edited: false, adHocSigned: true });
+  assert.deepEqual(await lproj(), []);
+  // The three named: made, and already there when the app is signed.
+  seen.length = 0;
+  assert.deepEqual(await hook.afterPack(macContext(['en', 'en_GB', 'hi']), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), { edited: false, adHocSigned: true, languageFolders: ['en.lproj', 'en_GB.lproj', 'hi.lproj'] });
+  assert.deepEqual(await lproj(), ['en.lproj', 'en_GB.lproj', 'hi.lproj']);
+  assert.deepEqual(seen, [['en.lproj', 'en_GB.lproj', 'hi.lproj']]);
+  for (const name of await lproj()) assert.deepEqual(await readdir(joinPath(resources, name)), [], `${name} is an empty marker`);
+  // Again (electron-builder kept them, say): nothing new to make, nothing fails.
+  assert.deepEqual(await hook.afterPack(macContext(['en', 'en_GB', 'hi']), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), { edited: false, adHocSigned: true });
+  // With a certificate the hook leaves signing to electron-builder, and still puts the folders back first.
+  await rm(joinPath(resources, 'hi.lproj'), { recursive: true });
+  assert.deepEqual(await hook.afterPack(macContext(['en', 'en_GB', 'hi']), { platform: 'darwin', env: { CSC_LINK: '/keys/developer-id.p12' }, sign: never, run: never, readFile: never }), { edited: false, adHocSigned: false, languageFolders: ['hi.lproj'] });
+  // A language Electron has no file for, or a name that is not a plain language name, stops the build in words.
+  await assert.rejects(hook.afterPack(macContext(['en', 'mr']), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), /Electron in this build carries no mr language file/);
+  for (const bad of ['../x', 'en/..', '', 7]) await assert.rejects(hook.afterPack(macContext(['en', bad]), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), /mac\.electronLanguages names plain macOS language names/);
+  await assert.rejects(hook.afterPack(macContext('en'), { platform: 'darwin', env: {}, sign, run: never, readFile: never }), /mac\.electronLanguages names plain macOS language names/);
+  assert.deepEqual(await lproj(), ['en.lproj', 'en_GB.lproj', 'hi.lproj']);
+  // Never off a Mac.
+  await rm(joinPath(resources, 'hi.lproj'), { recursive: true });
+  for (const host of ['linux', 'win32']) assert.deepEqual(await hook.afterPack(macContext(['en', 'en_GB', 'hi']), { platform: host, env: {}, sign: never, run: never, readFile: never }), { edited: false });
+  assert.deepEqual(await lproj(), ['en.lproj', 'en_GB.lproj']);
 });
 
 test('the exe hook refuses a missing or different rcedit.exe in plain words, and never runs it', async () => {

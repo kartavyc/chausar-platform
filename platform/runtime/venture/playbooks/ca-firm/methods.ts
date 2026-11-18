@@ -21,6 +21,7 @@ import type { PortalDiff } from './portal.ts';
 import { regulatedPapersOf } from './signoff-gate.ts';
 import { CITATION_TABLE, citationTableHash, citationUseFor } from './citations.ts';
 import { rederiveCaReceipt } from './stored-receipt.ts';
+import { handedOver, inReview } from '../../delivery/run-machine.ts';
 import {
   caOfRecord, confirmRateTables, diffExplanations, rateKey, recordCaSignoff, recordDiffExplanation, sendToCa, sentTo, setCaOfRecord, signoffFor,
   signoffRequests, unconfirmedRateTables, type DiffExplanation, type SignoffRequest,
@@ -66,7 +67,7 @@ function caReceiptOf(state: State, ventureId: string, id: string): WorkReceiptRe
  */
 function latestPapers(state: State, venture: VentureRecord): CaLatestPapers | null {
   const runs = listRecords(state, 'venture-delivery-run', venture.id)
-    .filter(run => !run.practice && run.servedBy === 'model' && (run.status === 'ready-for-review' || run.status === 'accepted' || run.status === 'edited'))
+    .filter(run => !run.practice && run.servedBy === 'model' && (inReview(run) || handedOver(run)))
     .sort((a, b) => b.at.localeCompare(a.at));
   for (const run of runs) {
     const papers = regulatedPapersOf(state, venture, run.orderId);

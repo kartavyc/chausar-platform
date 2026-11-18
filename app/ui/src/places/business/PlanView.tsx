@@ -1,5 +1,5 @@
 import {playbookLabel} from '../../text/playbook-label';
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -8,10 +8,9 @@ import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
-import { ProgressBar } from '../../parts/ProgressBar';
 import { Tile } from '../../parts/Tile';
-import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite, type ChecklistItemLite } from '../../engine/types';
-import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, totalOf, usePlan } from './shared';
+import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite } from '../../engine/types';
+import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, takePlanFocus, totalOf, usePlan } from './shared';
 import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
@@ -19,6 +18,11 @@ import fields from '../../parts/Field.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { shownStepNote } from '../../../../../platform/runtime/venture/views/plan-sections';
+import { usePlanWords } from '../today/plan-words';
+
+/** A job or duty as a sentence, as the plan sheet writes a team line (views/plan-sections.ts). */
+const asSentence = (text: string) => { const words = text.trim(); return /[.!?]$/.test(words) ? words : `${words}.`; };
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -35,17 +39,28 @@ export function PlanView() {
   const t = useT();
   const plan = usePlan();
   const [changing, setChanging] = useState(false);
+  // Read on another settings page brought the owner here (shared.tsx readPlan): the plan's name takes focus once shown.
+  const shown = plan.data !== undefined && plan.data !== null;
+  useEffect(() => { if (shown && takePlanFocus()) document.getElementById('business-plan-name')?.focus(); }, [shown]);
 
   if (plan.error) return <p className={s.problem} role="alert">{t('business.failed', { message: plan.error.message })}</p>;
   if (plan.data === undefined) return <LoadingPlace shape="settings" />;
   if (plan.data === null) {
-    return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
+    return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.week.onToday'), href: '#/today' }]} />;
   }
   const view = plan.data;
   const bp = view.blueprint;
   // The playbook's own label when the idea picked a flagship playbook; else the service type's label.
-  const kind = playbookLabel(t,view.playbook) ?? (SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
+  // The plain service type's label ("Service business") names no kind of work: over a business with its own name it
+  // reads as that business's name (seen on Windows, 15 Nov 2026), so it is not said; the version stands alone.
+  const kind = playbookLabel(t,view.playbook) ?? (bp.serviceType === 'other' ? null : SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
   const version = t(bp.status === 'accepted' ? 'business.versionAccepted' : 'business.versionDraft', { version: bp.version });
+  // Words Chausar assumed are the owner's once the plan is accepted: "assumption" is said only on a plan still to accept.
+  const accepted = bp.status === 'accepted';
+  // The plan the owner kept (the engine's `kept`, the same parts the plan sheet on Today lays out): who pays leads in
+  // place of the template's "who it is for", and the way and the hired team have their own sections.
+  const way = view.kept?.way ?? null;
+  const team = view.kept?.team ?? [];
 
   return (
     <div className={s.page}>
@@ -53,10 +68,12 @@ export function PlanView() {
       <div className={s.split} data-ratio="8-4">
         <Tile as="section" labelledBy="business-plan-name">
           <div className={s.body}>
-            <p className={s.kind}>{kind} · {version}{bp.source === 'template' ? ` · ${t('business.fromTemplates')}` : ''}</p>
-            <h2 id="business-plan-name" tabIndex={-1} className={s.name}>{bp.name.value}<LabelTag line={bp.name} /></h2>
-            <p className={s.lead}>{bp.oneLiner.value}<LabelTag line={bp.oneLiner} /></p>
-            <p className={s.line}>{t('business.for', { customer: bp.customer.value })}<LabelTag line={bp.customer} /></p>
+            <p className={s.kind}>{kind ? `${kind} · ` : ''}{version}{bp.source === 'template' ? ` · ${t('business.fromTemplates')}` : ''}</p>
+            <h2 id="business-plan-name" tabIndex={-1} className={s.name}>{bp.name.value}<LabelTag line={bp.name} accepted={accepted} /></h2>
+            <p className={s.lead}>{bp.oneLiner.value}<LabelTag line={bp.oneLiner} accepted={accepted} /></p>
+            {way
+              ? <p className={s.line} data-content="">{t('business.kept.whoPays', { customer: way.customer })}</p>
+              : <p className={s.line}>{t('business.for', { customer: bp.customer.value })}<LabelTag line={bp.customer} accepted={accepted} /></p>}
             {changing ? (
               <ChangeForm plan={bp} onDone={() => { setChanging(false); plan.reload(); }} onCancel={() => setChanging(false)} />
             ) : (
@@ -67,6 +84,30 @@ export function PlanView() {
         <Setup />
       </div>
       <Offers view={view} />
+      {(way || team.length > 0) && (
+        <div className={s.split}>
+          {way && (
+            <TileSection title={t('business.kept.earn')}>
+              <ul className={s.list} data-content="">
+                <li className={s.line}>{t('business.kept.reach', { text: way.reach })}</li>
+                <li className={s.line}>{t('business.kept.teamDoes', { text: way.teamDoes })}</li>
+                <li className={s.line}>{t('business.kept.youDo', { text: way.youDo })}</li>
+              </ul>
+            </TileSection>
+          )}
+          {team.length > 0 && (
+            <TileSection title={t('business.kept.team')} more={{ href: '#/team', label: t('business.kept.openTeam') }}>
+              <ul className={s.list}>
+                {team.map((agent) => (
+                  <li key={agent.name} className={s.line} data-content=""><strong>{agent.name}</strong>: {[agent.job, ...agent.duties].map(asSentence).join(' ')}</li>
+                ))}
+              </ul>
+              <p className={s.note}>{t('business.kept.teamNever')}</p>
+              <p className={s.note}>{t('business.kept.teamAsks')}</p>
+            </TileSection>
+          )}
+        </div>
+      )}
       <div className={s.split}>
         <TileSection title={t('business.steps')}>
           {bp.flagshipSteps ? (
@@ -84,14 +125,15 @@ export function PlanView() {
               <ol className={s.flow}>
                 {bp.deliverySteps.map((step) => (
                   <li key={step.id} className={s.flowStep}>
-                    {step.title.value}<LabelTag line={step.title} />
+                    {step.title.value}<LabelTag line={step.title} accepted={accepted} />
                     <span className={s.stepWho}>{step.doneBy === 'you' && step.capability === 'planned' ? t('business.who.youPlanned') : `${t(`business.doneBy.${step.doneBy}`)} · ${t(`business.capability.${step.capability}`)}`}</span>
                   </li>
                 ))}
               </ol>
               <Fold summary={t('business.stepsMore')} className={s.fold}>
                 <div className={s.foldBody}>
-                  {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {step.note}</p>)}
+                  {/* The stored note is part of the plan's structure; what is shown follows the plan sheet's rule (shownStepNote). */}
+                  {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {shownStepNote(step.note, bp.serviceType)}</p>)}
                 </div>
               </Fold>
             </>
@@ -114,55 +156,30 @@ export function PlanView() {
   );
 }
 
-/** How far setup has come, from the engine's own count (venture.get done and total); what is left waits on Today. */
+/**
+ * This week from the chief's standing plan (venture.chief.plan.get): the moves in order, a tick on each one done and
+ * every state said aloud in the engine's words. The plan itself, with each state in words and its next best step, is
+ * on Today.
+ */
 function Setup() {
   const t = useT();
-  const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
-  const data = venture.data;
-  if (!data || data.total <= 0) return null;
-  const done = data.done >= data.total;
+  const planWords = usePlanWords();
+  const plan = useResource('venture.chief.plan.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
+  const moves = plan.data?.moves;
+  if (!moves || moves.length === 0) return null;
   return (
-    <TileSection title={t('business.setup.title')} more={done ? undefined : { href: '#/today?show=setup', label: t('business.setup.left') }}>
-      <ProgressBar progress={{ done: data.done, total: data.total }} tone="working" />
-      {/* W4 4J21: with the steps listed by name, "each step that is left waits on Today" goes; the links say it. */}
-      {(done || !data.checklist?.length) && <p className={s.note}>{t(done ? 'business.setup.done' : 'business.setup.line')}</p>}
-      {data.checklist && data.checklist.length > 0 && <Checklist items={data.checklist} />}
+    <TileSection title={t('business.week.title')} more={{ href: '#/today', label: t('business.week.onToday') }}>
+      <ul className={s.list} data-week-moves="">
+        {moves.map((move) => (
+          <li key={move.id} className={cx(s.line, s.checkItem)} data-state={move.state}>
+            {move.state === 'done' && <span data-done="" className={s.tick}><Icon name="check" size={14} /></span>}
+            <span>{planWords(move.text)}</span>
+            {/* The state is one of five the engine names by code, so the app says it from its own pack (Hindi too). */}
+            <span className="sr-only">{t(`state.move.${move.state}`)}</span>
+          </li>
+        ))}
+      </ul>
     </TileSection>
-  );
-}
-
-/** How many of the steps left show at rest; every step is one fold away. */
-const NEXT_STEPS = 3;
-
-/**
- * The setup steps by name (W4 4J21, from 4J8's checklistFor): the next steps left, each linking where it is done, and
- * every step, done or not, one fold away. Names and links are the engine's.
- */
-function Checklist({ items }: { items: ChecklistItemLite[] }) {
-  const t = useT();
-  const nextId = useId();
-  const left = items.filter((item) => !item.done).slice(0, NEXT_STEPS);
-  return (
-    <>
-      {left.length > 0 && (
-        <>
-          <p id={nextId} className="sr-only">{t('business.owner.nextSteps')}</p>
-          <ul className={s.list} aria-labelledby={nextId} data-setup-next="">
-            {left.map((item) => <li key={item.id}><a className={s.link} href={item.link}>{item.label}</a></li>)}
-          </ul>
-        </>
-      )}
-      <Fold summary={t('business.owner.allSteps', { count: String(items.length) })} className={s.fold}>
-        <ul className={cx(s.foldBody, s.list)}>
-          {items.map((item) => (
-            <li key={item.id} className={cx(s.line, s.checkItem)}>
-              {item.done && <span data-done="" className={s.tick}><Icon name="check" size={14} /><span className="sr-only">{t('business.owner.stepDone')}</span></span>}
-              <a className={s.link} href={item.link}>{item.label}</a>
-            </li>
-          ))}
-        </ul>
-      </Fold>
-    </>
   );
 }
 
@@ -215,7 +232,7 @@ function OfferCard({ view, offerId }: { view: BlueprintViewLite; offerId: string
   const notSet = offer.pricing.unitPriceMinor === null;
   return (
     <Tile as="li" card labelledBy={titleId} className={s.offer}>
-      <h3 id={titleId} className={s.offerTitle}><span data-offer-name="">{offer.name.value}</span><LabelTag line={offer.name} /></h3>
+      <h3 id={titleId} className={s.offerTitle}><span data-offer-name="">{offer.name.value}</span><LabelTag line={offer.name} accepted={view.blueprint.status === 'accepted'} /></h3>
       <p className={s.line}>{offer.description.value}</p>
       <div className={s.price}>
         {receipt && total ? (

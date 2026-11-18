@@ -78,13 +78,3 @@ export function useLeaveEnd(element: { current: Element | null }, leaving: boole
 export function staggerClass(index: number): string | undefined {
   return index >= 0 && index < STAGGER_PLACES ? `i${index}` : undefined;
 }
-
-/**
- * Hold a value (a count) in the same area until a leave there ends, so two things never move together. While `holding`
- * it keeps what it was; the moment the leave ends it changes.
- */
-export function useAfterLeave<T>(value: T, holding: boolean): T {
-  const kept = useRef(value);
-  if (!holding) kept.current = value;
-  return kept.current;
-}

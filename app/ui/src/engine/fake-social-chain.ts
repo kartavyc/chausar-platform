@@ -10,6 +10,7 @@ import {fakeSocialSteps as SOCIAL_STEPS} from './fake-social-plan';
 import {createReportComputer,type ExportPlatform} from '../../../../platform/runtime/venture/playbooks/social/report-core';
 import {csvRows} from '../../../../platform/runtime/csv';
 import {EngineError,type DeliveryLite,type OrderLite,type OrderChainView,type QueueRow,type QueueItemView} from './types';
+import { RUN_STOP_LINES } from './fake-run-controls';
 import type {FakeForgottenPerson} from './fake-playbooks';
 import type {WorkHost} from './fake-work';
 type Pin={offerKey:string;stages:string[];brand:string;stage:number;state:'running'|'done'|'stopped';since:string;voice:{runId:string;text:string;digest:string}|null};
@@ -40,7 +41,7 @@ export class FakeSocialChain {
  private pin(order:OrderLite):Pin|null{
   if(this.host.plan()?.playbook?.id!=='social-agency')return null;
   const known=this.pins.get(this.key(order.id)),brand=this.brand(order.clientId);if(known?.brand===brand)return known;
-  if(known)for(const run of this.hooks.deliveries().filter(r=>r.orderId===order.id&&['waiting-for-you','ready-for-review','brief-waiting','needs-answer'].includes(r.status))){run.status='stopped';run.awaitingYou=false;(run as SocialRun).preview=null;this.clearRow(run.id);}
+  if(known)for(const run of this.hooks.deliveries().filter(r=>r.orderId===order.id&&['working','finishing','needs-answer','ready-for-review'].includes(r.status))){run.status='stopped';run.verdict=null;run.stopped={reason:'superseded',at:this.host.now(),line:RUN_STOP_LINES.superseded};run.awaitingYou=false;(run as SocialRun).preview=null;this.clearRow(run.id);}
   const offerKey=this.host.plan()?.blueprint.offers.find(o=>o.id===order.offerId)?.playbookOffer;if(!offerKey)return null;
   const stages=known?.stages??[...socialStages(offerKey)];
   const reusable=this.hooks.orders().filter(o=>o.clientId===order.clientId).map(o=>this.pins.get(this.key(o.id))).find(p=>p?.brand===brand&&p.voice&&this.hooks.deliveries().some(r=>r.id===p.voice!.runId&&!r.practice&&['accepted','edited'].includes(r.status)));
@@ -125,7 +126,7 @@ export class FakeSocialChain {
   for(const order of orders){const pin=this.pins.get(this.key(order.id))!;if(named(pin.voice?.text??'')||named(order.request))affected.add(order.id);for(const file of this.hooks.files(order.id)){const text=new TextDecoder().decode(Uint8Array.from(atob(file.contentBase64),c=>c.charCodeAt(0)));if(named(file.name)||named(text)){files.add(file.id);affected.add(order.id);}}}
   for(const run of this.hooks.deliveries())if(orders.some(o=>o.id===run.orderId)&&(named(JSON.stringify(run))||named(JSON.stringify(this.reports.get(this.key(run.id))??{}))))affected.add(run.orderId);
   for(const order of orders)if(affected.has(order.id)){const pin=this.pins.get(this.key(order.id))!;pin.voice=null;pin.stage=1;pin.state='running';pin.since=this.host.now();if(named(order.request))order.request='This request was erased because it named someone you asked Chausar to forget.';}
-  for(const run of this.hooks.deliveries())if(affected.has(run.orderId)){run.status='stopped';run.awaitingYou=false;run.canAccept=false;run.renderedText=null;run.editedText=null;run.deliverable=null;run.verdict=null;run.playbookChecks=[];(run as SocialRun).preview=null;this.reports.delete(this.key(run.id));this.sourcePins.delete(this.key(run.id));this.clearRow(run.id);const detail=this.host.runs().find(r=>r.runId===run.id);if(detail)detail.state='done';}
+  for(const run of this.hooks.deliveries())if(affected.has(run.orderId)){run.status='stopped';run.stopped={reason:'erased',at:this.host.now(),line:RUN_STOP_LINES.erased};run.awaitingYou=false;run.canAccept=false;run.renderedText=null;run.editedText=null;run.deliverable=null;run.verdict=null;run.playbookChecks=[];(run as SocialRun).preview=null;this.reports.delete(this.key(run.id));this.sourcePins.delete(this.key(run.id));this.clearRow(run.id);const detail=this.host.runs().find(r=>r.runId===run.id);if(detail)detail.state='done';}
   this.history.set(this.host.current(),(this.history.get(this.host.current())??[]).filter(row=>!affected.has(row.orderId)));this.hooks.eraseFiles(files);
  }
  queueView(kind:unknown,id:unknown):QueueItemView|null{
@@ -136,7 +137,7 @@ export class FakeSocialChain {
  private clearRow(id:string){this.host.setRows?.((this.host.rows?.()??[]).filter(r=>!(r.id.startsWith('social-stage:')&&r.viewRef?.id===id)));}
  refreshRevision(run:DeliveryLite){this.row(run as SocialRun);}
  private row(run:SocialRun){
-  if(!this.host.setRows)return;this.clearRow(run.id);const waiting=run.status==='waiting-for-you';
+  if(!this.host.setRows)return;this.clearRow(run.id);const waiting=run.status==='working';
   const row:QueueRow={id:`social-stage:${run.id}:${run.status}`,businessId:this.host.current(),businessName:this.host.current(),kind:'draft',title:waiting?'Preview the demo writing stage':'Review the demo draft',line:'Demo content. Sending and publishing ask separately.',createdAt:this.host.now(),digest:this.digest(run),viewRef:{kind:'draft',id:run.id},actions:[{id:'read',label:'Read',primary:false},{id:'approve',label:waiting?'Approve':'Accept',primary:true,requiresView:true}]};this.host.setRows([...(this.host.rows?.()??[]),row]);
  }
  decide(row:QueueRow,action:string):string|null{

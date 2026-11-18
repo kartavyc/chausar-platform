@@ -12,7 +12,6 @@ import * as chats from '../places/chats';
 import * as clients from '../places/clients';
 import * as connections from '../places/connections';
 import * as money from '../places/money';
-import * as onboarding from '../places/onboarding';
 import * as team from '../places/team';
 import * as today from '../places/today';
 import * as work from '../places/work';
@@ -21,7 +20,7 @@ import type { PlaceId } from './routes';
 
 export interface PlaceModule { Place: ComponentType; sheets?: Readonly<Record<string, SheetComponent>> }
 
-export const PLACES: Readonly<Record<PlaceId, PlaceModule>> = { today, chats, team, work, clients, money, apps, connections, business, onboarding, approve };
+export const PLACES: Readonly<Record<PlaceId, PlaceModule>> = { today, chats, team, work, clients, money, apps, connections, business, approve };
 
 /** All sheet kinds: the foundation's, then each place's. A place may not replace `run` or `receipt`. */
 export const SHEETS: Readonly<Record<string, SheetComponent>> = Object.assign(

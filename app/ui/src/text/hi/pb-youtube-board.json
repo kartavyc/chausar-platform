@@ -170,7 +170,7 @@
   "pb-youtube-board.page.uploadDate": "अपलोड तारीख़, यदि मालूम हो",
   "pb-youtube-board.preparePage": "क्लिप पेज तैयार करें",
   "pb-youtube-board.audio": "ऑडियो निकालें",
-  "pb-youtube-board.audioHelp": "एक स्थानीय फ़ाइल या सार्वजनिक मीडिया पता चुनें। स्रोत की सीमा 500 MB और निकाले ऑडियो की सीमा बीस मिनट है। बोली प्रदाता को कुछ नहीं भेजते। ffmpeg ख़ुद इंस्टॉल करें। चौसर उसे साथ नहीं देता।",
+  "pb-youtube-board.audioHelp": "एक स्थानीय फ़ाइल या सार्वजनिक मीडिया पता चुनें। स्रोत की सीमा 500 MB और निकाले ऑडियो की सीमा बीस मिनट है। बोली प्रदाता को कुछ नहीं भेजते। ffmpeg ख़ुद इंस्टॉल करें। Chausar उसे साथ नहीं देता।",
   "pb-youtube-board.audioFile": "ऑडियो स्रोत फ़ाइल",
   "pb-youtube-board.audioUrl": "सार्वजनिक मीडिया पता",
   "pb-youtube-board.extractAudio": "ऑडियो निकालें",

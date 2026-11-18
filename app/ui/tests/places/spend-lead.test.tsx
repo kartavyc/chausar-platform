@@ -55,15 +55,24 @@ describe('4Z3: the fake engine agrees with its own spend policy, as the engine d
     expect(spend.totalLead).toEqual({ currency: 'INR', figure: '₹60.10 this month (includes estimates)', beside: '$0.72 at ₹83.50 per $1', other: '$0.72' });
   });
 
-  it('with the rate cleared, no view shows rupees and dollars lead with two decimals; a new rate is used everywhere', async () => {
+  // Fix round 4 (real-app problem 12): the business's own currency leads from its first day. With no rate of the owner's
+  // own, a rupee business reads every spend view at the dated reference rate shipped with the release, named with its
+  // source and day: 719800 x 943996 / 10^8 = 6795.38 paise, ₹67.95; 215600 held: ₹20.35.
+  it('with the owner\'s rate cleared, every view shows rupees first at the reference rate, named; a new rate is used everywhere', async () => {
     const engine = new FakeEngine({ now: () => NOW });
-    await engine.request('venture.spend.policy.set', { inrPerUsd: null });
+    const cleared_ = await engine.request('venture.spend.policy.set', { inrPerUsd: null }) as { inrPerUsd: string | null; rupeeRate: string | null; leads?: string; reference?: unknown };
+    const reference = '₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)';
+    expect([cleared_.inrPerUsd, cleared_.rupeeRate, cleared_.leads, cleared_.reference]).toEqual(['94.3996', reference, 'INR', undefined]);
     const cleared = await views(engine);
-    expect([cleared.spent.rupees, cleared.team.rupees, cleared.team.rate, cleared.spend.totalRupees]).toEqual([undefined, undefined, undefined, undefined]);
-    expect(cleared.spent.lead).toEqual({ currency: 'USD', figure: '$0.72, includes estimates' });
-    expect(cleared.team.lead).toEqual({ currency: 'USD', figure: '$0.72 (includes estimates)' });
-    expect(cleared.team.held).toBe('including $0.22 held for running work');
-    expect(cleared.spend.totalLead).toEqual({ currency: 'USD', figure: '$0.72 this month (includes estimates)' });
+    expect([cleared.spent.rupees, cleared.team.rupees, cleared.team.rate, cleared.spend.totalRupees]).toEqual([`₹67.95 at ${reference}`, `₹67.95 at ${reference}`, reference, `₹67.95 at ${reference}`]);
+    const rupeesFirst = { currency: 'INR', beside: '$0.72 at ₹94.40 per $1', other: '$0.72' };
+    expect(cleared.spent.lead).toEqual({ ...rupeesFirst, figure: '₹67.95, includes estimates' });
+    expect(cleared.team.lead).toEqual({ ...rupeesFirst, figure: '₹67.95 (includes estimates)' });
+    expect(cleared.team.held).toBe(`including ₹20.35 held for running work: $0.22 at ${reference}`);
+    expect(cleared.spend.totalLead).toEqual({ ...rupeesFirst, figure: '₹67.95 this month (includes estimates)' });
+    // The settings form sends the rate field as it stands: the reference rate sent back is not made the owner's own.
+    const same = await engine.request('venture.spend.policy.set', { inrPerUsd: '94.3996' }) as { rupeeRate: string | null };
+    expect(same.rupeeRate).toBe(reference);
     // At 84.00: 719800 x 840000 / 10^8 = 6046.32 paise, ₹60.46.
     await engine.request('venture.spend.policy.set', { inrPerUsd: '84' });
     const moved = await views(engine);

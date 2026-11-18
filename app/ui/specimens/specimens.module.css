@@ -30,12 +30,6 @@
   color: var(--fg2);
 }
 
-.h2 {
-  margin: var(--gap-section) 0 var(--sp-4);
-  font-size: var(--text-section);
-  font-weight: var(--weight-strong);
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));

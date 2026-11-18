@@ -1,8 +1,6 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { createInterface } from 'node:readline';
-import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
+import { authorize, check, ChausarError } from './contracts.ts';
 import type { Context, StateStore } from './contracts.ts';
-import { ActionService, canonical, current, digest, sourceAccess } from './actions.ts';
+import { canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
 import { acceptModelSlips } from './tool-edge.ts';
 
@@ -114,26 +112,4 @@ export class MCPService {
     }
   }
   close(context: Context, sessionId = 'local') { this.sessions.delete(`${this.scope(context)}:${sessionId}`); }
-}
-
-/** One-time phone approval tokens are narrowly bound to an exact simple message. */
-export class PhoneApprovalService {
-  store: StateStore; actions: ActionService; clock: () => number;
-  constructor(store: StateStore, actions: ActionService, options: { clock?: () => number } = {}) { this.store = store; this.actions = actions; this.clock = options.clock ?? Date.now; }
-  async issue(context: Context, actionId: string, expectedDigest: string, ttlMs = 300000) {
-    check(Number.isInteger(ttlMs) && ttlMs > 0 && ttlMs <= 300000, 'INVALID_PHONE_TOKEN', 'Phone tokens expire within five minutes.'); const token = randomBytes(32).toString('base64url');
-    await this.store.update(state => { current(state, context, 'approve'); check(context.role === 'owner' && !context.sourceTainted && context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'The owner must issue the token inside the app.'); const action = this.actions.find(state, actionId); sourceAccess(state, context, action.sourceIds); check(this.actions.operation(action.connector, action.operation).impact === 'message' && action.status === 'prepared', 'PHONE_MONEY_FORBIDDEN', 'Phone tokens approve only prepared simple messages.'); check(action.digest === expectedDigest && action.digest === this.actions.identity(action), 'PREVIEW_CHANGED', 'The exact message changed.'); state.sessions.push({ id: newId('phone'), type: 'phone-approval', tokenHash: hash(token), memberId: context.memberId, role: context.role, epoch: context.epoch, actionId, digest: expectedDigest, expiresAt: new Date(this.clock() + ttlMs).toISOString(), used: false }); audit(state, 'phone.token-issued', { actionId, digest: expectedDigest }); });
-    return { token, actionId, digest: expectedDigest, expiresAt: new Date(this.clock() + ttlMs).toISOString(), scope: 'simple-message-approval' };
-  }
-  async approve(token: string) {
-    check(typeof token === 'string' && /^[A-Za-z0-9_-]{43}$/.test(token), 'INVALID_PHONE_TOKEN', 'Invalid phone approval token.');
-    const reserved = await this.store.update(state => { const tokenHash = hash(token); const session = state.sessions.find(s => s.type === 'phone-approval' && typeof s.tokenHash === 'string' && s.tokenHash.length === tokenHash.length && timingSafeEqual(Buffer.from(s.tokenHash), Buffer.from(tokenHash))); check(session && !session.used && Date.parse(session.expiresAt) > this.clock(), 'INVALID_PHONE_TOKEN', 'This token expired or was already used.'); current(state, { memberId: session.memberId, role: session.role, epoch: session.epoch }, 'approve'); check(session.role === 'owner', 'PHONE_OWNER_REQUIRED', 'Phone approval is limited to the owner.'); const action = this.actions.find(state, session.actionId); sourceAccess(state, { memberId: session.memberId, role: session.role, epoch: session.epoch }, action.sourceIds); check(this.actions.operation(action.connector, action.operation).impact === 'message' && action.digest === session.digest && action.digest === this.actions.identity(action), 'PREVIEW_CHANGED', 'The exact simple message changed.'); session.used = true; audit(state, 'phone.token-consumed', { actionId: session.actionId }); return structuredClone(session); });
-    return this.actions.approve({ memberId: reserved.memberId, role: reserved.role, epoch: reserved.epoch, channel: 'phone' }, reserved.actionId, reserved.digest);
-  }
-}
-
-export async function serveMCPStdio(service: MCPService, context: Context, input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout) {
-  const lines = createInterface({ input, crlfDelay: Infinity });
-  for await (const line of lines) { if (line.length > 65536) { output.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Request exceeds 64 KiB.' } })}\n`); continue; } try { const response = await service.handle(context, JSON.parse(line), 'stdio'); if (response) output.write(`${JSON.stringify(response)}\n`); } catch { output.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Invalid JSON.' } })}\n`); } }
-  service.close(context, 'stdio');
 }

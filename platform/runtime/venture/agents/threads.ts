@@ -6,7 +6,7 @@
 // Every stored message emits agent.message with ids only.
 import { check,type Context,type State } from '../../contracts.ts';
 import { draftProposal } from '../chief/store.ts';
-import type { AgentMessageRecord,AgentMessageView,AgentRunItem,AgentSendResult,AgentThreadItem,AgentThreadView,ProposalRecord,VentureDeps,VentureRecord } from '../contracts.ts';
+import type { AgentMessageRecord,AgentMessageView,AgentRunItem,AgentSendResult,AgentThreadItem,AgentThreadView,ChatPart,ProposalRecord,VentureDeps,VentureRecord } from '../contracts.ts';
 import { secretFindings } from '../core/secrets.ts';
 import { ownerControlReason } from '../delivery/harness/patches.ts';
 import { ensurePlaybook } from '../delivery/playbook.ts';
@@ -130,9 +130,11 @@ const asItem = (record: AgentMessageRecord, state?: State): AgentThreadItem => (
  * - "from now on" (standing.ts): the agent drafts a change to its instructions, stored as a proposal for Accept;
  * - "remember that" (standing.ts): code drafts a note from the words, quoting them, stored as a note proposal (4B2);
  * - a pending job question is context only; its exact answer belongs on Work or Today;
- * - a request on the floor (publish, send, money, prices): a drafted proposal for Today, and "That needs your approval on Today.";
- * - a request for work: a prefilled New order suggestion, nothing created;
- * - anything else: one answer from the agent's own facts.
+ * - a request on the floor (publish, send, money, prices): a drafted proposal for Today, under the agent's answer;
+ * - a request for work: a prefilled New order suggestion under the agent's answer, nothing created;
+ * - anything else: the agent's answer alone.
+ * The owner's AI answers all three in its own words (founder, 11 Nov 2026: code no longer replies in its place). Only
+ * with no AI connected, or when its answer does not pass, does code say the fixed line for the first two.
  * options.routine (4J13): a routine's prompt the owner ran from Today. It is never a standing order or a note, and never
  * the answer to a question the agent's run waits on: it goes on from the floor check as any other message.
  */
@@ -210,31 +212,49 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   // C7: a trigger's run that asks for a draft is words for the owner to check, whatever nouns it names (a payment, an invoice).
   const asksDraft = currentRoutineScope()?.draftOnly === true && /^\s*(?:please\s+)?(?:draft|write|prepare|summari[sz]e|list|suggest|note|check)\b/i.test(words);
   const intent: ReturnType<typeof intentOf> = asksDraft ? { kind: 'question' } : intentOf(words, agent.team);
-  if (intent.kind === 'floor') return floorRequest(deps, ctx, agent.id, words, intent);
   // C7: a trigger's run asks the agent for words: a draft in its chat, never a New order suggestion.
-  if (intent.kind === 'work' && !currentRoutineScope()?.draftOnly) {
+  const work = intent.kind === 'work' && !currentRoutineScope()?.draftOnly;
+  // What the words lead to besides the answer; the AI is told, so it talks about the request and never refuses it.
+  const request = intent.kind === 'floor' ? 'needs-approval' as const : work ? 'work' as const : undefined;
+  // With no AI connected there is nobody to talk: code says the fixed line for a request, as before. A routine's run
+  // (4J13, C7) is no conversation either: its request is taken by code, with no call to the AI, as before.
+  const answer: Answer | null = request && (!route || options.routine) ? null : await answerQuestion(deps, ctx, route, { state, venture, agent, question: words, waiting, ...(request ? { request } : {}) });
+  // An answer that did not pass (the template from the records) is no reply to a request: the fixed line is.
+  const spoken = answer && (!request || answer.author === 'model') ? answer : null;
+  if (intent.kind === 'floor') return floorRequest(deps, ctx, agent.id, words, intent, spoken);
+  if (work) {
     const offerId = offerFor(state, venture, words);
     return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
       const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
-      const reply = put(tx, { agent: agent.id, from: 'agent', text: WORK_REPLY, author: 'engine', suggestion: { kind: 'order', offerId, request: words } });
-      return { added: [asItem(said), asItem(reply)], line: null };
+      const reply = put(tx, { ...replyOf(agent.id, spoken, WORK_REPLY), suggestion: { kind: 'order', offerId, request: words } });
+      return { added: [asItem(said), asItem(reply)], line: spoken?.line ?? null };
     });
   }
-  const answer: Answer = await answerQuestion(deps, ctx, route, { state, venture, agent, question: words, waiting });
+  // Not a request: the answer as it came, the template from the records included.
+  const plain = answer!;
   return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
     const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
-    const text = answer.parts.map(part => (part.kind === 'figure' ? part.display : part.text)).join(' ');
-    const reply = put(tx, { agent: agent.id, from: 'agent', text, parts: answer.parts, author: answer.author, callId: answer.callId, ...(answer.suggestion ? { suggestion: answer.suggestion } : {}) });
-    return { added: [asItem(said), asItem(reply)], line: answer.line };
+    const text = plainOf(plain.parts);
+    const reply = put(tx, { agent: agent.id, from: 'agent', text, parts: plain.parts, author: plain.author, callId: plain.callId, ...(plain.suggestion ? { suggestion: plain.suggestion } : {}) });
+    return { added: [asItem(said), asItem(reply)], line: plain.line };
   });
+}
+
+const plainOf = (parts: readonly ChatPart[]): string => parts.map(part => (part.kind === 'figure' ? part.display : 'text' in part ? part.text : '')).join(' ');
+/** The agent's reply to a request: the AI's own words when it answered, else the fixed line code says. */
+function replyOf(agent: string, spoken: Answer | null, fixed: string): AgentMessageInput {
+  return spoken
+    ? { agent, from: 'agent', text: plainOf(spoken.parts), parts: spoken.parts, author: 'model', callId: spoken.callId }
+    : { agent, from: 'agent', text: fixed, author: 'engine' };
 }
 
 /**
  * A request on the floor: never done from chat. It is stored with draftProposal (kind start-work) and raised to Today
  * here, once (raisedAt, one proposal.created); 4C1 lists raised proposals on Today and decides them there, and never
- * announces a raised one again. The agent says it needs the owner's approval on Today.
+ * announces a raised one again. spoken: the AI's own answer, which the proposal sits under; without one the agent says
+ * the fixed line, that it needs the owner's approval on Today.
  */
-async function floorRequest(deps: VentureDeps, ctx: Context, agentId: string, words: string, intent: FloorRequest): Promise<AgentSendResult> {
+async function floorRequest(deps: VentureDeps, ctx: Context, agentId: string, words: string, intent: FloorRequest, spoken: Answer | null = null): Promise<AgentSendResult> {
   return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
     const agent = chatAgent(tx.state, tx.venture!, agentId);
     const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
@@ -246,8 +266,8 @@ async function floorRequest(deps: VentureDeps, ctx: Context, agentId: string, wo
     });
     tx.replace<ProposalRecord>({ ...proposal, status: 'raised', raisedAt: tx.now });
     tx.emit('proposal.created', { proposalId: proposal.id });
-    const reply = put(tx, { agent: agent.id, from: 'agent', text: FLOOR_REPLY, author: 'engine', proposalId: proposal.id });
-    return { added: [asItem(said), asItem(reply, tx.state)], line: null };
+    const reply = put(tx, { ...replyOf(agent.id, spoken, FLOOR_REPLY), proposalId: proposal.id });
+    return { added: [asItem(said), asItem(reply, tx.state)], line: spoken?.line ?? null };
   });
 }
 

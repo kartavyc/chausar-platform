@@ -71,7 +71,7 @@ test('totals say what they counted and what they left out, never a silent zero',
   assert.deepEqual(owed.basis, { filters: ['Open invoices in INR, tax included'], truncated: false, notCounted: null });
   const spent = overview.lines.find(line => line.id === 'spent')!;
   assert.deepEqual(spent.basis?.filters, ['Paid AI and tool calls this UTC month, in US dollars as providers bill']);
-  assert.equal(spent.uses, undefined, 'no rupee rate, so nothing is taken as given');
+  assert.deepEqual(spent.uses, ['₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)'], 'a rupee business with no rate of its own rests on the dated reference rate, and says so');
   await env.money('venture.spend.policy.set', { inrPerUsd: '83.50' });
   const withRate = (await env.money<MoneyOverview>('venture.money.overview')).lines.find(line => line.id === 'spent')!;
   assert.deepEqual(withRate.uses, ['₹83.50 per $1 (your rate, set 23 Oct 2026)']);

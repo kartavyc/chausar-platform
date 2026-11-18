@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
+import { skipAi } from './first-run-steps';
 
 /**
  * One-shot B1 (A5 notes line 28; hands-on row 5; SCREENS shots 1 to 4): the first run's words. The stepper names steps,
@@ -14,14 +15,13 @@ function start(engine = new FakeEngine({ fresh: true })) {
   render(<App client={createFakeClient(engine)} language="en" />);
   return engine;
 }
-async function press(name: string | RegExp) { const button = await screen.findByRole('button', { name }, { timeout: 4000 }); await act(async () => { fireEvent.click(button); }); }
 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('first run words (B1)', () => {
   it('after Skip, step 1 reads "No AI yet", and step 2 asks in plain words', async () => {
     start();
-    await press('Skip for now: use templates');
+    await skipAi();
     expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByText('Tell Chausar about your work, or pick a field.')).toBeTruthy();
     const steps = screen.getByRole('list', { name: 'Setup steps' });
@@ -29,11 +29,10 @@ describe('first run words (B1)', () => {
     expect(document.body.textContent).not.toContain('Using templates');
   });
 
-  it('step 1 says what is sent once; each signed-in tool keeps its full consent in a closed fold', async () => {
-    const engine = new FakeEngine({ fresh: true });
-    engine.firstRun.signIn();
-    start(engine);
-    expect(await screen.findByText('Signed in', {}, { timeout: 4000 })).toBeTruthy();
+  it('step 1 says what is sent once; each tool that can be used keeps its full consent in a closed fold', async () => {
+    // The sign-in button connects in one click, so the words agreed to are there before any sign-in.
+    start();
+    expect(await screen.findByText("What's sent", {}, { timeout: 4000 })).toBeTruthy();
     const main = screen.getByRole('main');
     expect(within(main).getAllByText("Chausar sends your idea, answers and plan to the AI you pick, never your books, keys or client details. It runs on your plan and its limits. Anything that sends, posts, pays or changes a price waits for your tap.")).toHaveLength(1);
     const fold = within(main).getByText("What's sent").closest('details')!;

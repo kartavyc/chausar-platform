@@ -13,6 +13,7 @@
  * An agent file import is a proposal in the agent's chat through the agents' desk; nothing changes until it is accepted.
  */
 
+import { hiredCapabilityPage } from '../../../../platform/runtime/venture/agents/hired-capabilities';
 import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type AgentProposalView, type AgentView, type BlueprintViewLite, type CapabilityItemView, type CapabilityPageView,
@@ -822,6 +823,8 @@ export class FakeAgentExtras {
 
   private capabilities(agentId: string): CapabilityPageView {
     const agent = this.agent(agentId);
+    // An agent the owner hired owns no step: its page is the engine's own (agents/hired-capabilities.ts).
+    if (agent.hired) return hiredCapabilityPage({ id: agent.id, duties: agent.hired.duties, reads: agent.hired.reads });
     const kinds = agent.steps.map((step) => STEP_KIND[step.id] ?? 'work');
     const acts = kinds.some((kind) => kind === 'gather' || kind === 'work');
     const writes = kinds.includes('write');

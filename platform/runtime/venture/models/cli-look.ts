@@ -37,6 +37,34 @@ export function locateOnThisComputer(command: string, env: NodeJS.ProcessEnv = p
   return null;
 }
 
+const isFolder = (path: string): boolean => { try { return statSync(path).isDirectory(); } catch { return false; } };
+/**
+ * Where the tools' own installers and the usual package managers put a command on macOS and Linux: under the owner's
+ * home folder first, then the two shared folders. Fixed names only; nothing is read from a setting or a file.
+ */
+const HOME_TOOL_FOLDERS: readonly string[][] = [['.local', 'bin'], ['.claude', 'local'], ['.npm-global', 'bin'], ['.bun', 'bin'], ['.volta', 'bin']];
+const SHARED_TOOL_FOLDERS: readonly string[] = ['/opt/homebrew/bin', '/usr/local/bin'];
+/**
+ * The search path with the usual install folders added after the owner's own, or null when there is nothing to add. A
+ * desktop app opened from the Dock or a launcher is given a short search path that leaves these folders out, so
+ * neither tool was found there although both were installed (seen on macOS, 11 Nov 2026). Only folders that exist are
+ * added, never on Windows (its installers put the tools on the search path themselves), and the owner's own folders
+ * stay first, so a tool they chose still wins.
+ */
+export function withToolFolders(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, exists: (path: string) => boolean = isFolder): string | null {
+  if (platform === 'win32') return null;
+  const current = (env.PATH ?? '').split(delimiter).filter(Boolean);
+  const home = typeof env.HOME === 'string' && posix.isAbsolute(env.HOME) ? env.HOME : null;
+  const known = [...(home ? HOME_TOOL_FOLDERS.map(parts => join(home, ...parts)) : []), ...SHARED_TOOL_FOLDERS];
+  const added = known.filter(folder => !current.includes(folder) && exists(folder));
+  return added.length ? [...current, ...added].join(delimiter) : null;
+}
+/** At engine start: this process, and so every tool it looks for or starts, gets the fuller search path. */
+export function addToolFolders(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): void {
+  const path = withToolFolders(env, platform);
+  if (path !== null) env.PATH = path;
+}
+
 /**
  * The version a tool's --version printed, only in the form the real tool prints it on its first line: 'x.y.z (Claude
  * Code)' or 'codex-cli x.y.z', a pre-release or build suffix allowed. Anything else is null: not that tool.

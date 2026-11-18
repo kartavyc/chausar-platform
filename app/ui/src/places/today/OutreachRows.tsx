@@ -20,6 +20,7 @@ import { reserveTab } from '../connections/external';
 import { handoffText, opensPage, performHandoff } from '../clients/handoff';
 import { codeOf, messageOf } from '../clients/network';
 import { NeverContactLost } from '../clients/NeverContactLost';
+import { fixedWords } from './plan-words';
 import s from './OutreachRows.module.css';
 
 type Note = { text: string; problem: boolean; code: string; copy: string | null };
@@ -184,9 +185,17 @@ export function wordedRow(row: QueueRow, t: T): QueueRow {
       actions: row.actions.map((action) => ({ ...action, label: action.id === 'open' ? t('today.reply.notes.add') : action.id === 'deny' ? t('today.reply.notes.none') : action.label })),
     };
   }
+  // Round 5 (re-check 082): a setup card's title and line that the queue writes the same every time ("Keep this
+  // business") are said from the pack (plan-words.ts); a line with a name or a reason in it stays as the engine wrote it.
+  // Round 6 (re-check 036): a draft's card too ("Draft reply for ...", the practice notice), from its template.
+  const words = fixedWords(t);
+  const own = row.kind === 'setup' || row.kind === 'draft';
+  const title = own ? words(row.title) : row.title;
+  const line = own && row.line ? words(row.line) : row.line;
+  const worded = title !== row.title || line !== row.line ? { ...row, title, line } : row;
   // The same row when no word changes (English), so a card's row keeps its identity from render to render.
-  if (row.actions.every((action) => actionWords(action.label, t) === action.label)) return row;
-  return { ...row, actions: row.actions.map((action) => ({ ...action, label: actionWords(action.label, t) })) };
+  if (worded.actions.every((action) => actionWords(action.label, t) === action.label)) return worded;
+  return { ...worded, actions: worded.actions.map((action) => ({ ...action, label: actionWords(action.label, t) })) };
 }
 
 /** The card's preview place on a follow-up, reply or notes card: what its handoff did, once it did something. */

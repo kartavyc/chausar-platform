@@ -160,7 +160,7 @@ test("Run it carries the routine to the AI call, and the run's history shows a m
   const [run] = (await runsOf(env, routineId)).runs;
   const receipt = run.receipt!;
   assert.deepEqual([receipt.tool, receipt.model, receipt.tier, receipt.usage, receipt.cost, receipt.state, receipt.agent],
-    ['Claude Sonnet 5.5, your key', 'claude-sonnet-5-5', 'Main model', '1,200 tokens in, 300 out', 'USD 0.0420', 'priced', 'Story editor']);
+    ['Claude Sonnet 5.5, your key', 'claude-sonnet-5-5', 'Plans and drafts', '1,200 tokens in, 300 out', 'USD 0.0420', 'priced', 'Story editor']);
   const sum = findRecord(env.store.read(), 'venture-sum-receipt', receipt.receiptId!) as SumReceiptRecord;
   assert.deepEqual(sum.subject, { type: 'spent-by', scope: 'routine-run', id: runId, month: null });
 });
@@ -200,7 +200,9 @@ test('a routine run on the owner\'s plan: tokens when reported, "On your plan", 
   const venture = currentVenture(state)!;
   const calls = [{ id: 'call_a', kind: 'venture-model-call', purpose: 'agent-chat', agentId: 'story-editor', tier: 'fast', presetId: 'codex-cli', routeKind: 'codex-cli', model: 'gpt-6-astra', status: 'completed', costMicros: null, usage: { inputTokens: 500, outputTokens: 80 } }] as unknown as ModelCallRecord[];
   const receipt = callsModelReceipt(state, venture, calls, { agent: 'story-editor' });
-  assert.deepEqual([receipt.tool, receipt.model, receipt.tier, receipt.usage, receipt.cost, receipt.state], ['Codex', 'gpt-6-astra', 'Quick model', '500 tokens in, 80 out', 'On your plan', 'plan']);
+  assert.deepEqual([receipt.tool, receipt.model, receipt.tier, receipt.usage, receipt.cost, receipt.state], ['Codex', 'gpt-6-astra', 'Quick work', '500 tokens in, 80 out', 'On your plan', 'plan']);
+  // Fix round 6: a call names its role in the words Connections uses (Quick work, Plans and drafts); "Main model" is
+  // only an agent job's, the main model AI settings names, so one role word never stands for two models.
   assert.equal(JSON.stringify(receipt).includes('₹'), false);
   const none = callsModelReceipt(state, venture, [], { agent: null });
   assert.deepEqual([none.tool, none.state], ['Built-in templates', 'none']);

@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 
@@ -14,7 +15,14 @@ describe('fake Codex setup', () => {
     const client = createFakeClient(engine);
     const answer = await client.request('venture.ai.setup.trust', { cli: 'codex', sha256: 'c'.repeat(64), path: 'C:/evil/codex.exe', version: '9.9.9' } as never);
     expect([answer.setup.state, answer.setup.origin]).toEqual(['trusted', 'owner']);
-    expect(engine.firstRun.dialogs).toEqual([{ title: 'Use this Codex?', detail: String.raw`Chausar will run Codex 0.166.0 from C:\Users\owner\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe for your AI work.`, buttons: ['Use this Codex', 'Cancel'] }]);
+    // The words are main's own (app/desktop/codex-choice.cjs), written for an ordinary owner, the version and program last.
+    const { CODEX_CHOICE_WORDS } = createRequire(import.meta.url)('../../../desktop/codex-choice.cjs') as { CODEX_CHOICE_WORDS: { title: string; detail: (version: string, path: string) => string; buttons: readonly string[] } };
+    const program = String.raw`C:\Users\owner\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`;
+    expect(engine.firstRun.dialogs).toEqual([{ title: CODEX_CHOICE_WORDS.title, detail: CODEX_CHOICE_WORDS.detail('0.166.0', program), buttons: [...CODEX_CHOICE_WORDS.buttons] }]);
+    expect(engine.firstRun.dialogs[0]!.title).toBe('Use Codex with Chausar?');
+    expect(engine.firstRun.dialogs[0]!.detail).toContain("Codex is OpenAI's tool that your ChatGPT plan runs through. It is already on this computer.");
+    expect(engine.firstRun.dialogs[0]!.detail).toContain('Chausar never sees your password.');
+    expect(engine.firstRun.dialogs[0]!.detail.endsWith(`Version 0.166.0, at ${program}`)).toBe(true);
     // Once it is in use, a second call asks nothing more.
     await client.request('venture.ai.setup.trust', { cli: 'codex', sha256: 'c'.repeat(64) });
     expect(engine.firstRun.dialogs.length).toBe(1);

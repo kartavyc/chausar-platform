@@ -1,21 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { noAnswerLine, questionWindowMs, withQuestionExpiry } from '../runtime/venture/delivery/timed-questions.ts';
-import { newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';
+import { expireQuestions } from '../runtime/venture/delivery/timed-questions.ts';
+import { askOwner, OWNER_WAIT_LIMIT_MS, RUN_TRANSITIONS, startJob, type RunSeed } from '../runtime/venture/delivery/run-machine.ts';
 
-// These helpers remain for rehearsal playbooks. Native jobs use their tool session and durable fact questions.
-test('rehearsal question windows retain explicit playbook timing and a safe UTC display without a country', () => {
-  const hour = 3_600_000;
-  const step = (timeoutMs?: number) => ({ steps: [{ id: 'ask', kind: 'question' as const, title: 'Ask', tier: 'code' as const, model: null, doneBy: 'agent' as const, requiredSections: [], checks: [], ...(timeoutMs === undefined ? {} : { timeoutMs }) }] });
-  assert.equal(questionWindowMs(null), 24 * hour);
-  assert.equal(questionWindowMs(step()), 24 * hour);
-  assert.equal(questionWindowMs(step(2 * hour)), 2 * hour);
-  assert.equal(questionWindowMs(step(1000)), 15 * 60_000);
-  assert.equal(noAnswerLine('2026-10-17T10:00:00.000Z', { country: null } as never), 'No answer by 2026-10-17, 10:00 am. Go on without it, or stop.');
+// An AI job's waits on the owner have no clock, on purpose (run-machine.ts OWNER_WAIT_LIMIT_MS says why). The old round
+// loop's 24 hour question window went with the loop.
+test('no wait on the owner runs out: the tick stops no run, and the machine has no move that would', async () => {
+  assert.deepEqual(OWNER_WAIT_LIMIT_MS, { 'needs-answer': null, 'ready-for-review': null, 'step-approval': null });
+  assert.deepEqual(await expireQuestions({} as never, {} as never), []);
+  // The only ways out of a pending question are the owner's: an answer, a stop, or erasing the data.
+  const leaves = Object.entries(RUN_TRANSITIONS).filter(([, rule]) => rule.from.length < 9 && rule.from.includes('needs-answer')).map(([event]) => event).sort();
+  assert.deepEqual(leaves, ['ownerAnswered', 'stopByOwner', 'supersede']);
 });
 
-test('rehearsal question stamping never adds expiry to a trusted missing-facts question', () => {
-  const state = newHarnessState([], { maxTurns: 4, maxToolCalls: 12, maxCallsPerTurn: 4, maxCostMicros: '250000', keepOutputs: 6, stubChars: 600 }, []);
-  state.handoffs = [{ to: 'client', question: 'Confirm the current facts.', answer: null, answeredBy: null, turn: 1, expiresAt: null }];
-  assert.equal(withQuestionExpiry(state, '2026-10-16T10:00:00.000Z', 86400000).handoffs[0].expiresAt, null);
+test('a question for a missing fact stays pending for as long as it takes', () => {
+  const seed = { id: 'run_1', kind: 'venture-delivery-run', ventureId: 'v', memberId: 'm', epoch: 1, at: '2026-10-16T10:00:00.000Z', orderId: 'o', playbookId: 'p', playbookHash: 'h',
+    servedBy: 'model', practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], editedText: null,
+    agentJob: { scope: { jobId: 'j' }, sourceDigest: 's', draftDigest: null, proposal: null, messages: [], tools: [] } } as unknown as RunSeed;
+  const asked = askOwner(startJob(seed), { digest: 'q', missing: [], question: 'Confirm the current facts.', callId: 'calculation-1', at: '2026-10-16T10:00:00.000Z' });
+  assert.equal(asked.status, 'needs-answer');
+  assert.equal(asked.agentJob!.pendingFacts!.question, 'Confirm the current facts.');
+  assert.equal('expiresAt' in asked.agentJob!.pendingFacts!, false, 'it carries no expiry');
 });

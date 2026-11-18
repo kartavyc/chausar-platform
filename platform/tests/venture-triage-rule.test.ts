@@ -7,8 +7,9 @@ import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import type { ModelOutcome, ModelTask, QueueList, QueueRow, TriagePreview, TriageRule, TriageRuleView } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
-import { orderRows, TRIAGE_CHOICES, triageTask, validateRule, withTriage } from '../runtime/venture/views/triage.ts';
+import { orderRows, ruleLine, TRIAGE_CHOICES, triageTask, validateRule, withTriage } from '../runtime/venture/views/triage.ts';
 import { call, code, owner, phone, seedBlueprint, seedOrder, seedRun, setStage, setup, StubModels, type Env } from './venture-views-env.ts';
+import { leadsFindPropose } from '../runtime/venture/customers/find-methods.ts';
 
 /** The owner's AI, answering the triage task with keys; it records what it was sent. */
 type TriageModels = StubModels & { answer: unknown; sent: ModelTask<unknown>[] };
@@ -71,6 +72,7 @@ test('preview with the owner\'s AI maps the words to fixed fields and ranks toda
   assert.equal(task.purpose, 'triage-rule');
   assert.equal(task.containsClientData, false);
   assert.deepEqual(task.input, { words: 'clients A to Z please', fields: ['due', 'client', 'kind', 'money', 'business'] });
+  assert.equal(shown.does, 'client A to Z', 'the dry run says what the rule does, in code\'s words');
   assert.ok(!JSON.stringify(task.input).includes('Zara'), 'no row or client goes to the AI');
   // Today's order has not changed yet.
   assert.deepEqual(clients((await queue(env)).rows), ['Zara Tiles', 'Arjun Prints', 'Meera Cafe']);
@@ -155,4 +157,50 @@ test('rows of another business are never read with the open business\'s state or
   assert.deepEqual(byClient.map(item => item.id), ['mine-a:1', 'mine-z:1', 'other:1'], 'another business\'s client is not read: it goes last');
   const byBusiness = orderRows(state, venture, rows, { keys: [{ field: 'business', order: 'asc' }], words: 'x' }, 'main');
   assert.deepEqual(byBusiness.map(item => item.id), ['other:1', 'mine-z:1', 'mine-a:1']);
+});
+
+// Found on Windows, 16 Nov 2026 (screen 094): the owner wrote "Proposals that find customers first", the box said
+// "Your words as a rule: Proposals that find customers first", and the dry run read Confirm your tax, Keep this
+// business, Find possible customers. A rule could only sort by five fields, so it had no way to say "this kind of item
+// first", and the setup cards led whatever the rule said. A rule can now name the kinds of item that lead.
+test('"Proposals that find customers first" puts that proposal first, ahead of the setup cards', async () => {
+  const models = triageModels();
+  const env = await setup();
+  env.deps.models = models; models.connected = true;
+  env.workspace.keep = 'not-made';
+  await seedBlueprint(env, { status: 'accepted', price2: '250000', taxAssumed: true });
+  const search = await leadsFindPropose(env.deps, owner, { brief: { who: 'Company offices', place: 'Indore', category: 'office=company', count: 10, source: { kind: 'public-map' } } });
+  assert.equal(search.title, 'Find possible customers: company offices in Indore');
+  const three = ['Confirm your tax', 'Keep this business', search.title];
+  const titles = (rows: QueueRow[]) => rows.map(row => row.title).filter(title => three.includes(title));
+  const before = titles((await queue(env)).rows);
+  assert.deepEqual([...before].sort(), [...three].sort(), 'the three cards of the tour are on Today');
+  assert.equal(before.at(-1), search.title, 'in Chausar\'s own order the setup cards lead');
+  models.answer = { first: ['find-customers'], keys: [] };
+  const shown = await preview(env, 'Proposals that find customers first');
+  assert.equal(shown.by, 'model');
+  assert.deepEqual(shown.rule, { keys: [], first: ['find-customers'], words: 'Proposals that find customers first' });
+  assert.equal(shown.does, 'proposals that find customers first');
+  assert.deepEqual(titles(shown.rows), [search.title, ...before.slice(0, 2)]);
+  assert.equal(shown.rows[0]!.title, search.title, 'it leads the whole dry run');
+  assert.deepEqual(shown.rows.map(row => row.id).sort(), (await queue(env)).rows.map(row => row.id).sort(), 'the same rows, each once');
+  const saved = await save(env, shown.rule!, shown.digest);
+  assert.equal(saved.line, 'Today is ordered: proposals that find customers first. Nothing is hidden.');
+  assert.equal((await queue(env)).rows[0]!.title, search.title);
+  // Any proposal, as a group of its own; and a kind first, then the fields.
+  assert.equal(ruleLine({ keys: [{ field: 'due', order: 'asc' }], first: ['proposal', 'draft'], words: 'x' }), 'Today is ordered: proposals first, then drafts, then nearest deadline first. Nothing is hidden.');
+  // The vocabulary is fixed: a kind code does not know, a kind twice, or more than three, is refused.
+  for (const first of [['secrets'], ['draft', 'draft'], ['draft', 'quote', 'invoice', 'reply'], 'draft']) assert.throws(() => validateRule({ keys: [], first }, 'x'), code('INVALID_VENTURE_REQUEST'));
+  // An answer with neither keys nor a kind to lead is no rule: the choices are offered.
+  models.answer = { first: [], keys: [] };
+  assert.deepEqual([(await preview(env, 'hide the small ones')).by, (await preview(env, 'hide the small ones')).does], ['choices', null]);
+});
+
+test('orderRows: the kinds a rule names lead in the order named, locked businesses stay last, another business is never read', () => {
+  const base = { businessId: 'main', businessName: 'Ledgerline', title: 't', digest: 'd', actions: [], createdAt: '2026-10-15T10:00:00.000Z' } as const;
+  const row = (id: string, kind: QueueRow['kind'], extra: Partial<QueueRow> = {}): QueueRow => ({ ...base, id, kind, ...extra } as QueueRow);
+  const rows = [row('setup:1', 'setup'), row('draft:1', 'draft'), row('quote:1', 'quote'), row('draft:2', 'draft'), row('lock:1', 'locked'), row('other:1', 'quote', { businessId: 'second' })];
+  const state = { conversations: [] } as never, venture = { id: 'v', country: null } as never;
+  const ordered = orderRows(state, venture, rows, { keys: [], first: ['quote', 'draft'], words: 'x' }, 'main');
+  assert.deepEqual(ordered.map(item => item.id), ['quote:1', 'draft:1', 'draft:2', 'setup:1', 'other:1', 'lock:1']);
 });

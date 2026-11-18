@@ -11,6 +11,7 @@ import { stateText } from '../../parts/states';
 import { EngineError, type AgentView, type RoutineSchedule, type RoutineSuggestion, type RoutineView } from '../../engine/types';
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
+import { placeTail } from '../../parts/when';
 import { ModelReceipt } from '../../parts/ModelReceipt';
 import { ResultLine } from '../../parts/ResultLine';
 import { EventTriggers } from './EventTriggers';
@@ -32,7 +33,8 @@ function whenOf(routine: RoutineView, t: T): string {
   const days = schedule.weekdays.length === 7 ? t('business.routines.everyDay')
     : schedule.weekdays.join() === '1,2,3,4,5' ? t('business.routines.weekdays')
       : listOf(schedule.weekdays.map((day) => t(`business.routines.day.${day}`)), t);
-  return t('business.routines.when', { days, time: formatClock(schedule.time), zone: schedule.timeZone });
+  // The place only when it is not where this computer is (parts/when.ts placeTail), as the daily review reads on Today.
+  return t('business.routines.when', { days, time: formatClock(schedule.time), place: placeTail(t, schedule.timeZone) });
 }
 
 /**

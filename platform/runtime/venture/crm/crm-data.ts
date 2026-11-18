@@ -58,7 +58,6 @@ export const MAX_LISTS = 30;
 export const MAX_LIST_ENTRIES = 500;
 export const MAX_TIMELINE = 200;
 export const LISTS_LINE = 'Your pipeline keeps its board. A list is another pipeline with its own stages; nothing in a list is ever sent.';
-export const LOGGED_LINE = 'You log calls and WhatsApp messages here yourself. Chausar has no WhatsApp connection.';
 
 const BAD = 'INVALID_VENTURE_REQUEST';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

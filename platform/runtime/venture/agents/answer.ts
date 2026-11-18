@@ -2,18 +2,18 @@
 // words. Code decides what they ask for: a question gets one answer; a request for work suggests a prefilled New
 // order and creates nothing; a request that lands on the floor (publish, send, money, prices, deleting) becomes a
 // drafted proposal for Today. An answer is typed parts written from the agent's own facts (its last runs, the order
-// files' names, its notes and standing orders): a figure only by a receipt those facts hold, any other number labelled
-// a model estimate, and words that state money without a receipt left out. With templates only, code answers.
+// files' names, its notes and standing orders): a figure only by a receipt those facts hold, and any number of the
+// agent's own labelled a model estimate (estimate.ts: a number it was given is not). With templates only, code answers.
 // Nothing the consent promises is never sent reaches the AI: card, bank account, Aadhaar and one-time code numbers are
 // screened out of every fact, and client file names and the run's question pass the untrusted screen first.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { securitiesAdviceIn } from '../policy/securities-guard.ts';
 import type { AgentWaiting, ChatPart, Json, ModelTask, RunDetail, VentureDeps, VentureRecord } from '../contracts.ts';
-import { copiedTokens, digest, listRecords, modelNumbers, tidyWords } from '../records.ts';
+import { digest, listRecords, tidyWords } from '../records.ts';
 import { digitCopy, screenReadback } from '../core/secrets.ts';
 import { screenUntrusted } from '../policy/untrusted.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
-import { hindiNumberWords, plainHindi, statesMoney } from '../delivery/harness/patches.ts';
+import { plainHindi } from '../delivery/harness/patches.ts';
 import { acceptedBlueprintOrNull, readAs } from '../delivery/shared.ts';
 import { deliveryRunDetails } from '../views/runs.ts';
 import { short } from '../views/shared.ts';
@@ -25,6 +25,7 @@ import { usableNoteText } from './recall.ts';
 import { assertAgentAnswerCurrent } from '../agent-runtime/native-job.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { hiredFacts } from './hired-facts.ts';
+import { citedCounts, givenWords, ownFigure } from './estimate.ts';
 
 // ---------------------------------------------------------------------------
 // One chat call: preview, then the send the owner's message in the app approves, under the chat consent
@@ -238,30 +239,81 @@ function factsOf(deps: VentureDeps, state: State, venture: VentureRecord, agent:
 // The answer
 // ---------------------------------------------------------------------------
 
-type RawPart = { kind: 'text' | 'figure'; text: string; receiptId: string; key: string };
-export type AnswerOutput = { parts: RawPart[] };
+/** A figure the answer cites: one of the figures given, by its receipt and key. */
+export type CitedFigure = { receiptId: string; key: string };
+/**
+ * What the AI writes for a chat: its words, as one piece of plain writing, and the receipts it cites. No typed parts
+ * (founder, 11 Nov 2026): the earlier shape made every sentence carry two empty fields, and Claude Code 2.1.321
+ * answered an ordinary message without them, so its own schema check failed the whole call (seen live that day).
+ */
+export type AnswerOutput = { reply: string; figures: CitedFigure[] };
 
-/** One-shot C4 task 10 (154.f1): the length rule is part of the fixed instructions, early, before anything per question. */
+/** One earlier message of a chat as the AI is given it: the owner's words, its own reply, or a brief Chausar passed on. */
+export type ChatTurn = { from: 'owner' | 'you' | 'chausar'; text: string };
+/** How much of a chat the AI is given: the newest messages, each cut to a length, within a total. */
+const HISTORY_TURNS = 12;
+const HISTORY_TURN_CHARS = 1500;
+const HISTORY_CHARS = 8000;
+/**
+ * Conversation memory: the earlier messages of one chat, oldest first, so a follow-up means something (until 11 Nov
+ * 2026 every message was answered on its own). Only the newest twelve, each cut to a length. Nothing written before a
+ * client last withdrew their AI permission is given again: a reply from then may hold that client's details. The chat
+ * consent names these messages, and the facts screen (screenFacts) reads them like every other word sent.
+ */
+export function chatHistory(state: State, venture: VentureRecord, messages: readonly { at: string; from: string; text: string }[]): ChatTurn[] {
+  const withdrawn = listRecords(state, 'venture-client', venture.id).reduce((latest, client) => { const at = client.aiConsent?.withdrawnAt ?? ''; return at > latest ? at : latest; }, '');
+  const kept: ChatTurn[] = [];
+  let room = HISTORY_CHARS;
+  for (const message of [...messages].reverse()) {
+    if (kept.length >= HISTORY_TURNS || (withdrawn && message.at <= withdrawn)) break;
+    const words = message.text.trim();
+    if (!words) continue;
+    const text = words.length > HISTORY_TURN_CHARS ? `${words.slice(0, HISTORY_TURN_CHARS - 3)}...` : words;
+    if (text.length > room) break;
+    room -= text.length;
+    kept.unshift({ from: message.from === 'owner' ? 'owner' : message.from === 'chausar' ? 'chausar' : 'you', text });
+  }
+  return kept;
+}
+
+/**
+ * What the owner's words lead to besides the agent's answer, by code (intentOf): a New order button under the reply, or
+ * a proposal on Today. The AI is told, so it can talk about the request truthfully.
+ */
+export type ChatRequest = 'work' | 'needs-approval';
+
+/**
+ * The agent talks (founder, 11 Nov 2026): no word limit, a question back when it needs one, and its own numbers kept,
+ * shown as model estimates. What it may not do is unchanged and is held by code, not by cutting its words: nothing is
+ * published, sent, paid or priced from chat, whatever the answer says.
+ */
 export const ANSWER_INSTRUCTIONS = [
-  'You are one agent of a small business the owner runs with Chausar. The owner asks you about your work. Answer briefly, in plain words, from the facts given only: your runs and their steps, the file names, your notes and the standing orders the owner gave you.',
-  'Keep the answer to at most two short paragraphs, under 60 words, unless the owner asks for more.',
-  'Give every amount, count or total as a figure part that names one of the figures given, by its receiptId and key; never write money in words. Any other number you write is shown to the owner as a model estimate.',
-  'Never claim work the runs do not show. Never say you will publish, send, pay or change a price: those wait for the owner on Today.',
-  'Use text parts for words, with receiptId and key empty; use figure parts with text empty.',
+  'You are one agent of a small business the owner runs with Chausar. The owner is talking to you. Talk back as a capable colleague would, in plain words, in the language of question (in English when the owner wrote in English, in Hindi only when they wrote in Hindi): answer as fully as the message needs, and ask the owner a question when you need to know more.',
+  'Draw on the facts given: what the business is (business.about, the owner\'s own words), your runs and their steps, the file names, your notes and the standing orders the owner gave you. history, when given, holds the earlier messages of this chat, oldest first: use it to follow what the owner means. Say so when you do not know something; never claim work the runs do not show.',
+  'When one of the figures given fits, cite it in figures by its receiptId and key, so the owner sees it with its receipt beside your words. Any number or amount you write yourself is shown to the owner as a model estimate, so say when you are estimating.',
+  // What an agent can do itself, and where the rest really starts (found live, 14 Nov 2026: "I'll find prospects in Pune").
+  // Seen on Windows, 15 Nov 2026: the agent sent the owner to Clients while a search card was already on Today (searchWaiting).
+  'In this chat you work only from the facts given: you cannot search the web, look anything up, find customers or contact anyone, so never say you will. A search for possible customers is its own step: the owner starts it from Clients, under Find customers, and approves it before it runs, or Chausar proposes it on Today. When searchWaiting is given, that search already waits on Today for the owner\'s approval: name it and send the owner to Today, not to Clients. When asked for one, say that, and say what you can do with the list once it is there, such as keep it in order or draft a first message for the owner to send.',
+  // Found live, 15 Nov 2026: "I'll prepare subtitle drafts from your video files", on a computer with no transcription.
+  'You are given only the names of files, never what is inside a file, and you cannot open, hear or watch one here: never say you will make subtitles, a transcript or an edit from a file. Work on a client\'s files starts as an order, where each step that needs the owner asks first.',
+  'You cannot publish, send, pay, change a price or start an order from this chat, so never say you did. When request is "work", say how you would go about it and what you need; Chausar shows a New order button under your reply. When request is "needs-approval", say what you would do; Chausar puts it on Today for the owner to approve.',
+  'Write what you say in reply as plain text, in short paragraphs when it helps: no markdown, asterisks or bullet marks. Leave figures empty when you cite none.',
 ].join(' ');
+/** Bounds of the transport, never of the conversation: far above what an answer needs. */
+const MAX_REPLY_CHARS = 16_000;
+const MAX_FIGURES = 40;
+const MAX_PARTS = 40;
 
-const ANSWER_SCHEMA: Json = {
-  type: 'object', additionalProperties: false, required: ['parts'],
+/** Exported so a test holds it to the model schema rule (models/schema.ts) every real call is checked against. */
+export const ANSWER_SCHEMA: Json = {
+  type: 'object', additionalProperties: false, required: ['reply', 'figures'],
   properties: {
-    parts: {
-      type: 'array',
+    reply: { type: 'string', description: 'What you say to the owner, in plain words.' },
+    figures: {
+      type: 'array', description: 'The figures given that you cite; empty when you cite none.',
       items: {
-        type: 'object', additionalProperties: false, required: ['kind', 'text', 'receiptId', 'key'],
-        properties: {
-          kind: { type: 'string', enum: ['text', 'figure'] }, text: { type: 'string' },
-          receiptId: { type: 'string', description: 'For a figure part: the receiptId of one of the figures given.' },
-          key: { type: 'string', description: 'For a figure part: the key of that figure.' },
-        },
+        type: 'object', additionalProperties: false, required: ['receiptId', 'key'],
+        properties: { receiptId: { type: 'string', description: 'The receiptId of one of the figures given.' }, key: { type: 'string', description: 'The key of that figure.' } },
       },
     },
   },
@@ -270,21 +322,33 @@ const ANSWER_SCHEMA: Json = {
 const HIDDEN = /[\p{Cf}\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/u;
 const rejected = (message: string): never => { throw new ChausarError('MODEL_OUTPUT_REJECTED', message); };
 
-/** The answer's shape: one to eight parts, each closed, short and with no hidden characters. */
+const closedRecord = (value: unknown, keys: readonly string[]): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+
+/** The answer's shape: the reply's words, with no hidden characters, and the figures it cites, each closed. */
 export function validateAnswer(raw: unknown): AnswerOutput {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 1 || !Array.isArray((raw as { parts?: unknown }).parts)) return rejected('The answer was not a list of parts.');
-  const parts = (raw as { parts: unknown[] }).parts;
-  if (parts.length < 1 || parts.length > 8) return rejected('The answer had too few or too many parts.');
+  if (!closedRecord(raw, ['reply', 'figures'])) return rejected('The answer was not a reply and its figures.');
+  const { reply, figures } = raw;
+  if (typeof reply !== 'string' || !reply.trim() || reply.length > MAX_REPLY_CHARS || HIDDEN.test(reply)) return rejected('The reply was not plain text.');
+  // W6 6E7 (D49): an answer that gives securities advice is refused, so the template answer is used.
+  if (securitiesAdviceIn(reply)) return rejected('The answer gave securities advice, which Chausar never gives.');
+  if (!Array.isArray(figures) || figures.length > MAX_FIGURES) return rejected('The answer cited too many figures.');
   return {
-    parts: parts.map(part => {
-      const item = part as Record<string, unknown>;
-      if (!item || typeof item !== 'object' || Object.keys(item).length !== 4 || (item.kind !== 'text' && item.kind !== 'figure')) return rejected('A part of the answer had the wrong shape.');
-      for (const field of ['text', 'receiptId', 'key']) if (typeof item[field] !== 'string' || (item[field] as string).length > 600 || HIDDEN.test(item[field] as string)) return rejected('A part of the answer was not plain short text.');
-      // W6 6E7 (D49): an answer that gives securities advice is refused, so the template answer is used.
-      if (securitiesAdviceIn(item.text as string)) return rejected('A part of the answer gave securities advice, which Chausar never gives.');
-      return { kind: item.kind, text: item.text as string, receiptId: item.receiptId as string, key: item.key as string };
+    reply,
+    figures: figures.map(item => {
+      if (!closedRecord(item, ['receiptId', 'key']) || typeof item.receiptId !== 'string' || typeof item.key !== 'string' || item.receiptId.length > 200 || item.key.length > 60 || HIDDEN.test(item.receiptId) || HIDDEN.test(item.key)) return rejected('A cited figure had the wrong shape.');
+      return { receiptId: item.receiptId, key: item.key };
     }),
   };
+}
+
+/**
+ * The reply as the thread shows it: one part for each paragraph, so only a paragraph that states a number is labelled an
+ * estimate. Past the most parts a message holds, the rest stay together in the last one; nothing is cut.
+ */
+export function paragraphsOf(reply: string, limit = MAX_PARTS): string[] {
+  const lines = tidyWords(reply, true).split('\n').filter(Boolean);
+  return lines.length <= limit ? lines : [...lines.slice(0, limit - 1), lines.slice(limit - 1).join(' ')];
 }
 
 const COUNT_WORDS = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'];
@@ -295,26 +359,31 @@ export function leftOutLine(count: number): string | null {
 }
 
 /**
- * Code checks every part before it is stored: a figure part must name a figure the agent's facts hold (its display
- * comes from the receipt, never the model), else it is left out; words that state money (a currency code, sign or name,
- * Hindi रुपये and रु included) are left out; any other number in words, Hindi number words too, becomes an estimate
- * part, labelled a model estimate. question: the owner's own words, whose names (B2B, Web3) may be copied.
+ * Code labels the answer before it is stored, and cuts none of the AI's words: a paragraph that holds a number or an
+ * amount of the agent's own (agents/estimate.ts ownFigure: Hindi number words too) is kept whole as an estimate part,
+ * labelled a model estimate; any other paragraph is plain words. A number the agent was given is not its estimate: the
+ * owner's own figure repeated back, a receipted figure, a count in its facts. A cited figure the agent's facts hold
+ * follows the words, with that receipt's own display (never the model's); one naming a receipt Chausar does not hold
+ * has nothing to show and is counted as left out. question: the owner's own words. given: the rest of what the agent
+ * was given (estimate.ts givenWords over the task's input).
  */
-export function checkedParts(output: AnswerOutput, figures: readonly Figure[], question: string): { parts: ChatPart[]; leftOut: number } {
+export function checkedParts(output: AnswerOutput, figures: readonly Figure[], question: string, given: readonly string[] = []): { parts: ChatPart[]; leftOut: number } {
   const parts: ChatPart[] = [];
   let leftOut = 0;
-  for (const part of output.parts) {
-    if (part.kind === 'figure') {
-      const found = figures.find(item => item.receiptId === part.receiptId && item.key === part.key);
-      if (found) parts.push({ kind: 'figure', receiptId: found.receiptId, key: found.key, display: found.display });
-      else leftOut += 1;
-      continue;
-    }
-    const words = tidyWords(part.text);
-    if (!words) continue;
-    if (statesMoney(words, question)) { leftOut += 1; continue; }
-    const counted = modelNumbers(words, copiedTokens(question)) || hindiNumberWords(words).length > 0;
-    parts.push(counted ? { kind: 'estimate', text: words } : { kind: 'text', text: words });
+  // What the agent was given: the owner's words, what the caller passes of the task's input, and the receipted figures.
+  const citedShown = output.figures.flatMap(cited => { const found = figures.find(item => item.receiptId === cited.receiptId && item.key === cited.key); return found ? [found.display] : []; });
+  const known = [question, ...given, ...figures.map(figure => figure.display), ...citedCounts(citedShown)];
+  for (const words of paragraphsOf(output.reply)) {
+    parts.push(ownFigure(words, known) ? { kind: 'estimate', text: words } : { kind: 'text', text: words });
+  }
+  const shown = new Set<string>();
+  for (const cited of output.figures) {
+    const found = figures.find(item => item.receiptId === cited.receiptId && item.key === cited.key);
+    if (!found) { leftOut += 1; continue; }
+    const id = `${found.receiptId}\u0000${found.key}`;
+    if (shown.has(id)) continue;
+    shown.add(id);
+    parts.push({ kind: 'figure', receiptId: found.receiptId, key: found.key, display: found.display });
   }
   return { parts, leftOut };
 }
@@ -337,12 +406,23 @@ export function templateAnswer(deps: VentureDeps, state: State, venture: Venture
 export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: string | null; line: string | null; suggestion?: { kind: 'connect-ai' } };
 
 /**
+ * The search for possible customers that waits on Today for the owner's approval (a raised find-customers proposal:
+ * customers/find-methods.ts), by its card's own title, or null. The newest when several wait. The agent in chat is
+ * given it, so it names the card that is there and does not send the owner off to start another.
+ */
+export function searchWaitingOf(state: State, ventureId: string): string | null {
+  return listRecords(state, 'venture-proposal', ventureId).filter(item => item.proposalKind === 'find-customers' && item.status === 'raised').at(-1)?.title ?? null;
+}
+
+/**
  * One answer to the owner's question: the AI's typed parts from the agent's facts, checked by code (chatCall), or the
  * template answer with templates only or when the AI's answer came back in a shape Chausar refuses.
  */
-export async function answerQuestion(deps: VentureDeps, ctx: Context, route: ChatRoute | null, input: { state: State; venture: VentureRecord; agent: ChatAgent; question: string; waiting: AgentWaiting | null }): Promise<Answer> {
-  const { state, venture, agent, question, waiting } = input;
+export async function answerQuestion(deps: VentureDeps, ctx: Context, route: ChatRoute | null, input: { state: State; venture: VentureRecord; agent: ChatAgent; question: string; waiting: AgentWaiting | null; request?: ChatRequest }): Promise<Answer> {
+  const { state, venture, agent, question, waiting, request } = input;
   const facts = factsOf(deps, state, venture, agent);
+  // The earlier messages of this agent's chat; a job's progress lines (runId) are not part of the conversation.
+  const history = chatHistory(state, venture, listRecords(state, 'venture-agent-message', venture.id).filter(message => message.agent === agent.id && !message.runId));
   // C7: a hired agent answers only from what its hire says it reads.
   if (agent.hired) {
     const read = await hiredFacts(deps, ctx, agent);
@@ -371,10 +451,12 @@ export async function answerQuestion(deps: VentureDeps, ctx: Context, route: Cha
   };
   // The run's question was written by an agent that read the client's files: outside words, screened like a file name.
   const asked = waiting ? outsideWords(state, venture, waiting.question) : null;
+  const searchWaiting = searchWaitingOf(state, venture.id);
   const task: ModelTask<AnswerOutput> = {
     purpose: 'agent-chat', instructions: ANSWER_INSTRUCTIONS,
-    input: { agent: { name: agent.name, job: agent.job }, question, waiting: asked, ...facts } as unknown as Json,
-    schemaName: 'venture-agent-answer', schema: ANSWER_SCHEMA, validate: validateAnswer, containsClientData: true, maxOutputTokens: 1024,
+    // The business in the owner's own words (the idea kept at onboarding), so the agent knows what it works for.
+    input: { business: { name: venture.workingName, about: venture.idea }, agent: { name: agent.name, job: agent.job }, question, ...(request ? { request } : {}), ...(history.length ? { history } : {}), ...(searchWaiting ? { searchWaiting } : {}), waiting: asked, ...facts } as unknown as Json,
+    schemaName: 'venture-agent-answer', schema: ANSWER_SCHEMA, validate: validateAnswer, containsClientData: true, maxOutputTokens: 2048,
   };
   const answered = await chatCall(deps, ctx, route, task, guard);
   if (!answered) {
@@ -382,7 +464,8 @@ export async function answerQuestion(deps: VentureDeps, ctx: Context, route: Cha
     // C5 task 5: with no AI the reply's tail says to connect one, and code puts the button under it.
     return { parts: templateAnswer(deps, state, venture, agent, waiting), author: 'template', callId: null, line, ...(route ? {} : { suggestion: { kind: 'connect-ai' as const } }) };
   }
-  const { parts, leftOut } = checkedParts(answered.value, facts.figures, question);
+  // Everything the agent was given but Chausar's own ids: a number from there, repeated back, is not the agent's estimate.
+  const { parts, leftOut } = checkedParts(answered.value, facts.figures, question, givenWords(task.input));
   const kept = parts.length ? parts : [{ kind: 'text' as const, text: 'I could not answer that with figures I can prove. Ask me another way.' }];
   return { parts: kept, author: 'model', callId: answered.callId, line: leftOutLine(leftOut) };
 }

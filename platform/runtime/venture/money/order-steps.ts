@@ -17,6 +17,7 @@ import { stageListFor, type StageRule } from '../playbooks/order-stages.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { latestBlueprint } from './shared.ts';
 import { invoiceCountry } from '../core/country-history.ts';
+import { decided } from '../delivery/run-machine.ts';
 
 type SignoffRequest = Extract<CaFirmRecord, { entry: 'signoff-request' }>;
 type Signoff = Extract<CaFirmRecord, { entry: 'signoff' }>;
@@ -67,7 +68,6 @@ const ALWAYS_ASKS: StageReading = { state: 'always-asks', detail: 'always asks y
 const waits = (detail: string, reason: OrderStageReason, what: string): StageReading => ({ state: 'waits', detail, reason, what });
 const notYet = (detail: string, reason: OrderStageReason, extra: Pick<StageReading, 'waitsOn' | 'due'> = {}): StageReading => ({ state: 'not-yet', detail, reason, ...extra });
 /** The verdicts after which nothing more of a run goes to the owner's AI. */
-const FINISHED: readonly DeliveryRunRecord['status'][] = ['accepted', 'edited', 'rejected'];
 
 /** The newest of records in stored order, by time, a later record winning a tie. */
 function newest<T extends { at: string }>(records: readonly T[] | undefined): T | null {
@@ -137,7 +137,7 @@ function draftReading(context: StageContext): StageReading {
   if (!run) return NOT_YET;
   // The last send to the owner's AI that may or may not have gone out: never sent again, so the owner checks it. A
   // draft already accepted, edited or rejected sends nothing more, so an old unknown send of it is not reopened.
-  if (!FINISHED.includes(run.status) && newest(index.sendsByRun.get(run.id))?.state === 'outcome_unknown') {
+  if (!decided(run) && newest(index.sendsByRun.get(run.id))?.state === 'outcome_unknown') {
     return { state: 'unknown', detail: 'not sure: the last send timed out', reason: 'send-unknown' };
   }
   const open = order.status === 'open';
@@ -151,11 +151,9 @@ function draftReading(context: StageContext): StageReading {
   }
   const view = runView(run, index.venture, index.nowMs, index.state);
   // One-shot A1 (row 9): a draft the AI is still finishing reads as the agent working, practice or not.
-  const finishing = view.status === 'ready-for-review' && !!view.agentJob && !view.agentJob.reviewReady;
-  if (!view.awaitingYou) return view.status === 'ready-for-review' && view.practiceNow && !finishing ? notYet('a practice draft, not for clients', 'practice') : notYet('the agent is working', 'working');
+  if (!view.awaitingYou) return view.status === 'ready-for-review' && view.practiceNow ? notYet('a practice draft, not for clients', 'practice') : notYet('the agent is working', 'working');
   if (view.status === 'ready-for-review') return waits('ready, waits for you to read it', 'ready', draftWhat(context.label, 'draft'));
   if (view.status === 'needs-answer') return waits('a question waits on you', 'question', 'a question');
-  if (view.status === 'brief-waiting') return waits('a brief waits for your approval', 'brief', 'a brief to approve');
   return waits('a step waits for your approval', 'approval', 'a step to approve');
 }
 

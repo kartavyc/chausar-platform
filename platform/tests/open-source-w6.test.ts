@@ -24,7 +24,7 @@ test('LICENSE is the official GNU AGPL version 3 text, unchanged', async () => {
 });
 
 test('the shipped package files declare AGPL-3.0-only', async () => {
-  for (const path of ['package.json', 'app/companion/native/package.json', 'platform/semantic-qualification/package.json']) {
+  for (const path of ['package.json']) {
     assert.equal(JSON.parse(await read(path)).license, 'AGPL-3.0-only', path);
   }
 });

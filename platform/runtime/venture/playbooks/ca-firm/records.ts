@@ -13,7 +13,5 @@ export type CaDataPackBody = { clientId:string; facts:import('./pack-core.ts').P
 export type CitationsConfirmView = CaCitationsBody;
 /** venture.ca.signoff.get's answer: same, or the first difference (5C1). */
 export type SignoffCheckView = { id: string; ca: { name: string; membershipNumber: string }; at: string; decision: 'signed' | 'returned'; playbookHash: string | null; workingDigest: string; receipts: { id: string; digest: string | null }[]; rederived: 'same' | 'differs'; differs: { key: string; line: string } | null };
-/** venture.ca.differential.add's answer (5C2). */
-export type DifferentialAddView = CaDifferentialBody & { id: string };
 /** venture.ca.dataPack.export's answer (5C2). */
 export type DataPackExportView = { name:string; mime:string; contentBase64:string; digest:string; approvalDigest:string };

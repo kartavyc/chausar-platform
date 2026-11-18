@@ -26,8 +26,10 @@
 
 .tools {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  min-width: 0;
   gap: var(--sp-2);
 }
 

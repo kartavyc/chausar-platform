@@ -27,6 +27,8 @@ export class FakeCountryMoney {
 
   private venture() { return (this.host.ask?.('venture.get', {}) as VentureViewLite | null)?.venture; }
   private currency() { return this.venture()?.country?.currency ?? 'INR'; }
+  /** Whether the business bills in rupees (money/spend.ts rupeeRateFor gives it the reference rate until the owner types one). */
+  rupeeBusiness(): boolean { return this.currency() === 'INR'; }
   private today(): string {
     const code = this.venture()?.country?.code ?? 'IN';
     const parts = new Intl.DateTimeFormat('en', { timeZone: COUNTRY_TIME_ZONES[code as keyof typeof COUNTRY_TIME_ZONES] ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(this.host.now()));
@@ -101,8 +103,8 @@ export class FakeCountryMoney {
     const office = plan?.backOffice;
     if (caFirm && venture?.country?.code === 'IN') {
       const registered = !!office && ((office as { taxMode?: string }).taxMode ?? 'gst') === 'gst' && office.taxRegistered.value;
-      const assumed = office && office.taxRegistered.label !== 'told-by-you' ? ' Chausar assumed this; turn on I charge GST under Business, Prices if you do.' : '';
-      const sections: TaxWorking['sections'] = [{ id: 'gst', title: 'GST', lines: [], note: registered ? 'Add your GSTIN under Business, Prices to see the GST working.' : `${office ? 'Your plan says you do not charge GST, so there is no GST working.' : 'Your plan is not made yet.'}${assumed}` }];
+      const assumed = office && office.taxRegistered.label !== 'told-by-you' ? ' Chausar assumed this; say whether you charge GST under Settings, Prices.' : '';
+      const sections: TaxWorking['sections'] = [{ id: 'gst', title: 'GST', lines: [], note: registered ? 'Add your GSTIN under Settings, Prices to see the GST working.' : `${office ? 'Your plan says you do not charge GST, so there is no GST working.' : 'Your plan is not made yet.'}${assumed}` }];
       let unconfirmed = false;
       if (period.assessmentYear) {
         const all = this.host.ledger!().invoices.filter(invoice => ['issued', 'part-paid', 'paid'].includes(invoice.status) && invoice.number && invoice.issueDate && invoice.issueDate >= period.from && invoice.issueDate <= period.to);
@@ -125,7 +127,7 @@ export class FakeCountryMoney {
     }
     const bps = BigInt(office?.taxRateBps ?? '0');
     const rate = `${bps / 100n}${bps % 100n ? '.' + String(bps % 100n).padStart(2, '0').replace(/0+$/, '') : ''}`;
-    lines.push({ label: 'What your plan says', value: office ? `${office.taxRegistered.value ? `You charge ${taxLabel} at ${rate}%` : `You do not charge ${taxLabel}`}${office.taxRegistered.label === 'told-by-you' ? '' : ' (Chausar assumed this; confirm it under Business, Prices)'}` : 'Your plan is not made yet.' });
+    lines.push({ label: 'What your plan says', value: office ? `${office.taxRegistered.value ? `You charge ${taxLabel} at ${rate}%` : `You do not charge ${taxLabel}`}${office.taxRegistered.label === 'told-by-you' ? '' : ' (Chausar assumed this; confirm it under Settings, Prices)'}` : 'Your plan is not made yet.' });
     const issued = () => this.host.ledger!().invoices.filter(invoice => ['issued', 'part-paid', 'paid'].includes(invoice.status) && invoice.number !== null && invoice.issueDate !== null && invoice.issueDate >= period.from && invoice.issueDate <= period.to).sort((a, b) => a.issueDate!.localeCompare(b.issueDate!) || a.number!.localeCompare(b.number!));
     const groups = new Map<string, { label: string; currency: string }>();
     const invoices = issued();

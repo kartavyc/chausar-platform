@@ -1,11 +1,12 @@
-// Shared steps for the composer and draft desk tests: a real Engine (demo, experimental file storage, a temp folder)
-// on a synthetic replay transport, the recommended Anthropic pair connected before any vault, and a composed plan.
+// Shared steps for the draft desk and plan tests: a real Engine (demo, experimental file storage, a temp folder)
+// on a synthetic replay transport, the recommended Anthropic pair connected before any vault, and a business made the
+// way the first run makes one.
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../../../../runtime/engine.ts';
-import type { GitHubTransport, ModelPreset, ModelReplayFixture, ModelTransport } from '../../../../runtime/venture/contracts.ts';
-import type { AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan } from '../../../../runtime/venture/onboarding-contracts.ts';
+import type { BlueprintView, GitHubTransport, ModelPreset, ModelReplayFixture, ModelTransport } from '../../../../runtime/venture/contracts.ts';
+import type { AiOptionsView, AiStatusView } from '../../../../runtime/venture/onboarding-contracts.ts';
 import { replay } from './plans.ts';
 
 export const PASSPHRASE = 'long-enough-passphrase';
@@ -49,8 +50,33 @@ export async function connectPair(engine: Engine, key = TEST_KEY): Promise<AiSta
   return await engine.request('venture.ai.connect', { presetId: 'anthropic-sonnet-5-5', consentDigest: presetOf(options, 'anthropic-sonnet-5-5').consentDigest, apiKey: key }) as AiStatusView;
 }
 
-export async function compose(engine: Engine, text: string, countryCode: string): Promise<{ decision: ComposeDecision; plan: ComposedPlan }> {
-  const decision = await engine.request('venture.compose.decide', { text, countryCode }) as ComposeDecision;
-  const plan = await engine.request('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
-  return { decision, plan };
+/**
+ * The built-in interview, answered as the first run answers it (app/ui/src/places/onboarding/flow.ts): the first way
+ * to charge, no tax, the rest skipped. answers: an answer to give a question in place of that, by question id.
+ */
+export async function answerInterview(engine: Engine, answers: Record<string, unknown> = {}): Promise<void> {
+  let view = await engine.request('venture.interview.next', { useTemplate: true }) as any;
+  const asked = new Set<string>();
+  for (let guard = 0; guard < 12; guard++) {
+    const question = view.interview.questions.find((q: any) => q.answer === null && !asked.has(q.id));
+    if (!question) break;
+    asked.add(question.id);
+    const answer = answers[question.id] ?? (question.id === 'q_pricing_model' ? { choiceId: question.choices[0].id }
+      : question.id === 'q_tax' ? { yes: false }
+        : question.id === 'q_tax_rate' ? { rate: question.prefill }
+          : { skipped: true });
+    view = await engine.request('venture.interview.answer', { questionId: question.id, answer });
+  }
+}
+
+/**
+ * A business made the way the first run makes one: the vault, venture.create from the idea and the country, the
+ * built-in interview, then the first plan. draft: what venture.blueprint.draft takes; the built-in words when left out,
+ * and {} asks the connected AI for the words.
+ */
+export async function business(engine: Engine, input: { name: string; idea: string; countryCode: string; answers?: Record<string, unknown>; draft?: Record<string, unknown> }): Promise<BlueprintView> {
+  await engine.request('workspace.create', { name: input.name, passphrase: PASSPHRASE, pack: 'services' });
+  await engine.request('venture.create', { idea: input.idea, countryCode: input.countryCode, workingName: input.name });
+  await answerInterview(engine, input.answers);
+  return await engine.request('venture.blueprint.draft', input.draft ?? { useTemplate: true }) as BlueprintView;
 }

@@ -79,7 +79,7 @@ test('a run already going keeps its version, and the thread says so (spec 8)', a
   const native = await nativeContext(env.deps, owner, order.id);
   t.after(() => native.job.close());
   const run = native.run;
-  assert.equal(run.status, 'waiting-for-you');
+  assert.equal(run.status, 'working');
   const proposal = await propose(env, 'packager', 'package', PINNED);
   const decided = await accept(env, proposal);
   assert.equal(decided.line, `Version ${first.version + 1} is in use from the next job. Job 1 keeps version ${first.version}.`);

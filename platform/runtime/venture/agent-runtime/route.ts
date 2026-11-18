@@ -1,7 +1,7 @@
 import { check, type Context } from '../../contracts.ts';
 import type { VentureDeps } from '../contracts.ts';
 import { listRecords, readVenture } from '../records.ts';
-import { agentSettingsOf, driverSettingsFor } from './settings.ts';
+import { agentSettingsOf, driverSettingsFor, jobProviderOf } from './settings.ts';
 import { createClaudeDriver } from './claude-driver.ts';
 import { CodexDriver } from './codex-driver.ts';
 import { locateOnThisComputer, startableProgram } from '../models/cli-look.ts';
@@ -15,7 +15,7 @@ export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId:
   check(state.policy.send !== 'nothing', 'MODEL_SEND_BLOCKED', 'Allow your AI to receive work in privacy settings.');
   const serving = deps.models.status(ctx).tiers.main;
   check(serving.presetId !== 'built-in-templates', 'NO_MODEL_CONNECTED', 'Connect your AI first.');
-  const provider = serving.presetId.startsWith('anthropic-') || serving.presetId === 'claude-code-cli' ? 'claude' : 'codex';
+  const provider = jobProviderOf(serving.presetId);
   check(provider !== 'claude' || deps.claudeCodeTerms !== 'pending', 'PRESET_UNAVAILABLE', 'Claude Code is switched off on this computer.');
   const settings = driverSettingsFor(agentSettingsOf(state, venture.id), provider, 'main', agentId, research);
   // A2: while the owner has not set the agent models, Codex's main work uses the model Codex's own list offers.

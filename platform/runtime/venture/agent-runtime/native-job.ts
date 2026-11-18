@@ -25,6 +25,7 @@ import type {PoliteNet} from '../build/fetch-policy.ts';
 import {SEO_SOURCE_CLAIM,sourceClaimOffer,checkedSourceClaim,sourceClaimUnchanged} from './seo-source-claims.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { calculatePack, isPackOperation, packCalculations, packSkills } from '../packs/packs.ts';
+import { handOver, jobAlive, saveDraft, stopReason } from '../delivery/run-machine.ts';
 
 /** Trusted delivery composition supplies the existing playbook and policy checks, never model arguments. */
 export type NativeJobOptions = {
@@ -70,7 +71,8 @@ export function assertAgentDraftCurrent(state: State, run: DeliveryRunRecord): v
 
 /** The UI and Resume use the same checkpoint eligibility, including current source bindings. */
 export function canResumeAgentJob(state: State, run: DeliveryRunRecord): boolean {
-  if (!run.agentJob || run.status !== 'stopped' || run.verdict) return false;
+  // An erased run kept none of the client's work, so there is nothing to continue from.
+  if (!run.agentJob || run.status !== 'stopped' || stopReason(run) === 'erased') return false;
   const savedDraft = run.deliverable && run.renderedText && run.agentJob.draftDigest;
   if (!savedDraft && !run.agentJob.ownerNotes?.length) return false;
   try {
@@ -93,7 +95,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
   options = { ...options, sections: [...options.sections] };
   const scope = await ventureAction(deps, ctx, 'prepare', 'agent.job.open', tx => {
     const run = tx.find('venture-delivery-run', runId);
-    check(run && !run.verdict && run.status === 'waiting-for-you', 'JOB_CLOSED', 'Start a new job for this order.');
+    check(run && run.status === 'working', 'JOB_CLOSED', 'Start a new job for this order.');
     const source = sources(tx.state, run);
     const consent = requireClientAiConsent(tx.state, run.ventureId, source.client.id);
     check(tx.state.policy.send !== 'nothing', 'MODEL_SEND_BLOCKED', 'AI sharing is switched off in privacy settings.');
@@ -118,7 +120,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
     requireClientAiConsent(state, expected.ventureId, expected.clientId, expected);
     check(state.policy.send !== 'nothing', 'MODEL_SEND_BLOCKED', 'AI sharing is switched off in privacy settings.');
     const run = findRecord(state, 'venture-delivery-run', expected.runId);
-    check(run && run.ventureId === expected.ventureId && !run.verdict && ['waiting-for-you', 'ready-for-review'].includes(run.status)
+    check(run && run.ventureId === expected.ventureId && jobAlive(run)
       && digest(run.agentJob?.scope) === digest(expected), 'JOB_CLOSED', 'This job is no longer running.');
     const source = sources(state, run);
     check(source.order.status !== 'cancelled' && source.sourceDigest === run.agentJob!.sourceDigest, 'JOB_SOURCE_CHANGED', 'The order or its files changed. Start a new job.');
@@ -244,8 +246,8 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
         const denied=writeCapDenial(withoutThisRun,venture,'drafts',tx.now);
         check(!denied,denied?.code??'WRITE_CAP_REACHED',denied?.reason??'The daily draft limit was reached.');
         // A verdict belongs to the draft it read. Keep it through pending Undo, then replace it only with this draft.
-        tx.replace({ ...run, status: 'waiting-for-you', readyAt:run.readyAt??tx.now, deliverable: draft.deliverable, renderedText: draft.renderedText, ...checked, judge: undefined, judgePending: null,
-          agentJob: { ...run.agentJob!, draftDigest: draft.digest, proposal: null, proposalAt:undefined } });
+        tx.replace(saveDraft({ ...run, readyAt:run.readyAt??tx.now, deliverable: draft.deliverable, renderedText: draft.renderedText, ...checked, judge: undefined, judgePending: null,
+          agentJob: { ...run.agentJob!, draftDigest: draft.digest, proposal: null, proposalAt:undefined } }));
         recordCheckSignal(tx, run.id, checked.checks);
         return { draftId: run.id, digest: draft.digest, checks: checked.checks,
           ...(checked.playbookChecks ? { playbookChecks: checked.playbookChecks } : {}) };
@@ -261,7 +263,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
         const denied=writeCapDenial(withoutThisRun,venture,'messages',tx.now);
         check(!denied,denied?.code??'WRITE_CAP_REACHED',denied?.reason??'The daily message limit was reached.');
       }
-      const next = tx.replace({ ...run, status: 'ready-for-review', readyAt: run.readyAt??tx.now, agentJob: { ...run.agentJob!, proposal, proposalAt:run.agentJob!.proposalAt??tx.now } });
+      const next = tx.replace(handOver({ ...run, readyAt: run.readyAt??tx.now, agentJob: { ...run.agentJob!, proposal, proposalAt:run.agentJob!.proposalAt??tx.now } }));
       tx.emit('delivery-ready', { runId: run.id, orderId: run.orderId, servedBy: 'model' });
       tx.emit('run.waiting', { runId: run.id });
       return { cardId: `run:${run.id}:review`, digest: digest(next.agentJob!.proposal) };

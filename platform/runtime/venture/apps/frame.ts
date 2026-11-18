@@ -13,8 +13,7 @@
 
 /** The MCP Apps protocol version this host and the bridge speak. */
 export const APP_PROTOCOL_VERSION = '2026-01-26';
-/** The MCP Apps resource type: an HTML view. Each app version is served as ui://chausar/apps/<id>/v<version>. */
-export const APP_MIME_TYPE = 'text/html;profile=mcp-app';
+/** Each app version is served as ui://chausar/apps/<id>/v<version>. */
 export const appUri = (id: string, version: number): string => `ui://chausar/apps/${id}/v${version}`;
 
 /** What an app may be allowed, in the order the permission screen lists them. */
@@ -47,8 +46,6 @@ export const FRAME_BASE_COLOURS = Object.freeze({
   light: Object.freeze({ bg: '#fbfbfa', fg: '#16181b', mute: '#5c6168', line: '#e3e5e8', link: '#2f5bd3' }),
   dark: Object.freeze({ bg: '#121417', fg: '#eceef0', mute: '#a3a8ae', line: '#2a2e33', link: '#8fb4ff' }),
 });
-/** The colour variables an app may be given and may use: var(--bg), var(--fg), var(--mute), var(--line), var(--link). */
-export const FRAME_VARIABLES = Object.freeze(['--bg', '--fg', '--mute', '--line', '--link'] as const);
 const colours = (theme: keyof typeof FRAME_BASE_COLOURS) => Object.entries(FRAME_BASE_COLOURS[theme]).map(([name, value]) => `--${name}:${value}`).join(';');
 const BASE_STYLE = `:root{color-scheme:light dark;${colours('light')}}`
   + `@media (prefers-color-scheme:dark){:root{${colours('dark')}}}`

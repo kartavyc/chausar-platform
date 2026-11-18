@@ -7,7 +7,8 @@ import { SERVICE_TYPES, type BusinessOnComputer } from '../engine/types';
 import { refusalWords } from '../parts/custody';
 import { initialsOf } from '../parts/Avatar';
 import { Icon } from '../parts/Icon';
-import { LeftContext, StartedContext } from '../places/onboarding/started';
+import { LeftContext, NewBusinessContext, StartedContext } from '../places/onboarding/started';
+import { leaveBusiness, switchBusiness } from './switchBusiness';
 import { RunControlsMenu } from './RunControlsMenu';
 import { SETTINGS_HREF } from './settings';
 import s from './BusinessMenu.module.css';
@@ -21,12 +22,26 @@ import { usePresence } from '../parts/motion';
  * phone it is a popover under the button, no wider than the rail, so it never reaches over the page; in the rail folded
  * to icons (760 to 959 px) it is a full-height panel from the window's left edge, over the rail. It is a portal on the
  * body, so the rail and the phone top bar never clip it. It closes when the address changes, by any route.
- * The engine keeps one business open, so switching closes this one first (workspace.lock), then opens the other and
- * reads the app again. This menu never asks for a passphrase or a code itself: a business that needs one says so, and
- * Continue closes this business and asks for it on Welcome back, under that business's own row.
+ * The engine keeps one business open, so switching closes this one first, then opens the other and reads the app again,
+ * as one safe operation (switchBusiness.ts). This menu never asks for a passphrase or a code itself: a business that
+ * needs one says so, and Continue closes this business and asks for it on Welcome back, under that business's own row.
+ * New business closes this one too and starts the same first run steps every business gets (started.ts NewBusinessContext).
  */
 /** The kind under the business name, unless it only repeats the name (a business named after its playbook). */
 export const kindLine = (kind: string | null | undefined, name: string | null | undefined) => (kind && kind !== name ? kind : null);
+
+/**
+ * What the line under the name says: the way to earn the idea picked (its playbook), else what the accepted plan sells
+ * (venture.get's sells, its first offer's own name), else the field the owner kept (venture.get's field, in the
+ * engine's own words), else the service type the plan was read as. The catch-all type ('other': "Service business")
+ * says nothing true about a business, so it shows nothing (seen live, 15 Nov 2026: a potter in Creative work was called
+ * a "Service business"; 17 Nov 2026: a home baker of custom cakes was called "Local services", the salons' field).
+ */
+export function kindOf(t: (key: string) => string, view: { playbook?: { id: string; label: string } | null | undefined; sells?: string | undefined; field?: { label: string } | undefined; venture: { serviceType: string | null } } | null | undefined): string | null {
+  if (!view) return null;
+  const type = view.venture.serviceType;
+  return playbookLabel(t, view.playbook) ?? view.sells ?? view.field?.label ?? (type && type !== 'other' && (SERVICE_TYPES as readonly string[]).includes(type) ? t(`business.kind.${type}`) : null);
+}
 
 /** Pixels between the button and the popover, and the least space it keeps from the window's edge. */
 const GAP = 4;
@@ -47,6 +62,7 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
   const client = useEngine();
   const restarted = useContext(StartedContext);
   const left = useContext(LeftContext);
+  const newBusiness = useContext(NewBusinessContext);
   const menuId = useId();
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -62,11 +78,10 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
   // 4Z3: "No business open" only when the engine answers that none is (null); while venture.get loads, no name yet.
   const loading = venture.data === undefined;
   const name = venture.data ? venture.data.venture.workingName : venture.data === null ? t('business.none') : '';
-  const type = venture.data?.venture.serviceType;
-  // The playbook's own label ("YouTube channel") when the idea picked one; else the service type's label.
-  const kind = playbookLabel(t,venture.data?.playbook) ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
-  // C1 task 9: Settings (every settings page, from the one list) and New business; Away comes with the run controls.
-  const links: (readonly [string, string])[] = [['place.business', SETTINGS_HREF], ['business.new', '#/onboarding']];
+  const kind = kindOf(t, venture.data);
+  // C1 task 9: Settings (every settings page, from the one list); New business is a button below it, since it closes
+  // this business; Away comes with the run controls.
+  const links: (readonly [string, string])[] = [['place.business', SETTINGS_HREF]];
 
   // 26.f2: any change of address closes the menu, not only its own links.
   useEffect(() => {
@@ -159,26 +174,29 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
     setNotice(null);
     if (business.opens === 'needs-passphrase') { setNotice({ business, with: 'passphrase' }); return; }
     if (business.opens === 'key-missing') { setNotice({ business, with: 'recovery-code' }); return; }
-    // Hosted switches its session itself; this computer's engine opens one business at a time.
-    const hosted = client.transport === 'hosted';
     setBusy(true);
-    try {
-      if (!hosted) await client.request('workspace.lock', {});
-    } catch (error) {
-      setProblem(refusalWords(error, t));
-      setBusy(false);
-      return;
-    }
-    try {
-      await client.request('workspace.open', { folder: business.folder });
+    const outcome = await switchBusiness(client, { folder: business.folder });
+    if (outcome.opened) {
       setOpen(false);
       onNavigate?.();
       restarted();
-    } catch (error) {
-      // This business is closed already: Welcome back says what went wrong and offers every way in.
-      if (!hosted) left({ problem: refusalWords(error, t) });
-      else { setProblem(refusalWords(error, t)); setBusy(false); }
+      return;
     }
+    // Nothing changed (the lock was refused, or the hosted session did not switch): say why here.
+    if (outcome.stage === 'lock') { setProblem(refusalWords(outcome.error, t)); setBusy(false); return; }
+    // This business is closed already: Welcome back says what went wrong and offers every way in.
+    left({ problem: refusalWords(outcome.error, t) });
+  }
+
+  /** New business: this one closes and the first run steps start; a refusal to close it is said here. */
+  async function startNew() {
+    setProblem(null);
+    setNotice(null);
+    setBusy(true);
+    const refused = await newBusiness();
+    if (refused === null) { setOpen(false); onNavigate?.(); return; }
+    setProblem(refusalWords(refused, t));
+    setBusy(false);
   }
 
   /** Close this business, then Welcome back asks for the other one's passphrase or recovery code. */
@@ -186,13 +204,10 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
     if (!notice) return;
     setBusy(true);
     setProblem(null);
-    try {
-      await client.request('workspace.lock', {});
-      left({ ask: { folder: notice.business.folder, with: notice.with } });
-    } catch (error) {
-      setProblem(refusalWords(error, t));
-      setBusy(false);
-    }
+    const outcome = await leaveBusiness(client);
+    if (outcome.left) { left({ ask: { folder: notice.business.folder, with: notice.with } }); return; }
+    setProblem(refusalWords(outcome.error, t));
+    setBusy(false);
   }
 
   const isOpen = (b: BusinessOnComputer) => b.name !== null && b.name === venture.data?.venture.workingName;
@@ -265,6 +280,9 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
                 <a className={s.item} href={href} onClick={() => { setOpen(false); onNavigate?.(); }}>{t(key)}</a>
               </li>
             ))}
+            <li>
+              <button type="button" className={s.item} disabled={busy} onClick={() => void startNew()}>{t('business.new')}</button>
+            </li>
           </ul>
           {/* W4 4F3: Pause all, Stop all and Away (RunControlsMenu.tsx). */}
           <RunControlsMenu onLeave={() => { setOpen(false); onNavigate?.(); }} />

@@ -6,6 +6,7 @@ import type { Context, State } from '../../../contracts.ts';
 import { listRecords } from '../../records.ts';
 import type { BlueprintRecord, ServiceType, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { acceptedBlueprintOrNull } from '../shared.ts';
+import { UNIT_WORDS } from '../../core/offer-units.ts';
 
 export type DictionaryKind = 'term' | 'offer' | 'step' | 'approval' | 'setting' | 'definition' | 'concept';
 export type DictionaryEntry = { id: string; kind: DictionaryKind; name: string; meaning: string; aliases: string[] };
@@ -33,7 +34,8 @@ export function dictionaryEntries(state: State, venture: VentureRecord, aliases:
   const blueprint: BlueprintRecord | null = acceptedBlueprintOrNull(state, venture);
   if (blueprint) {
     for (const offer of blueprint.offers) {
-      const unit = offer.pricing.quantityUnit === 'month' ? 'priced per month' : offer.pricing.quantityUnit === 'hour' ? 'priced per hour' : 'priced per project';
+      // The unit the owner prices it in (core/offer-units.ts): a unit this build does not know reads as per project, as before.
+      const unit = `priced ${UNIT_WORDS[offer.pricing.quantityUnit] ?? UNIT_WORDS.project}`;
       entries.push({ id: `offer.${offer.id}`, kind: 'offer', name: offer.name.value, meaning: `${offer.description.value} It is ${unit}; the price comes from Chausar's calculator.`, aliases: [] });
     }
     for (const step of blueprint.deliverySteps) entries.push({ id: `step.${step.id}`, kind: 'step', name: step.title.value, meaning: step.note, aliases: [] });

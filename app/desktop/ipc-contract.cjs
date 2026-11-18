@@ -40,52 +40,30 @@ const UPDATE_SHOW_CHANNEL = 'chausar:updates:showInstaller';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
-  'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
+  'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.export', 'workspace.delete',
   'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect', 'workspace.backups.inspect',
   // One-shot C3: the app's own preferences on this computer (APP_PREFERENCE_METHODS, platform/runtime/app-preferences.ts).
   'app.preferences.get', 'app.preferences.set',
   // One-shot C3: which step long work is on, for a page opened mid-job (ENGINE_METHODS, answered by the engine).
   'venture.work.list',
-  'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
-  'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
-  'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
-  'trials.create', 'trials.evaluate', 'trials.get', 'trials.receiptContext', 'trials.list', 'trials.savedQuestions', 'trials.discard', 'trials.impact', 'trials.promote',
-  'auth.invite', 'auth.accept', 'auth.session', 'auth.revoke', 'auth.sessions',
-  'phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer',
-  'sync.status', 'sync.identity', 'sync.enable', 'sync.trust', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull',
-  'sync.writer.status', 'sync.writer.review', 'sync.reconcile',
-  'dashboard.get', 'conversation.ask', 'conversation.history', 'conversation.get', 'conversation.continuation', 'conversation.synthesis.preview', 'conversation.synthesis.run', 'business.context.receipt', 'business.profile.record', 'business.profile.history', 'business.profile.remove', 'calculation.run', 'receipts.get',
-  'answers.recovery.review', 'answers.recovery.prepare', 'answers.recovery.execute', 'answers.recovery.get', 'answers.recovery.list',
-  'analysis.bridge.publish', 'analysis.bridge.profiles', 'analysis.bridge.run', 'analysis.bridge.get',
-  'investigations.create', 'investigations.get', 'investigations.list', 'investigations.advance', 'investigations.resume', 'investigations.pause', 'investigations.revise', 'investigations.cancel', 'investigations.capsule', 'investigations.drilldown', 'research.search',
-  'sources.list', 'sources.delete', 'sources.preview', 'sources.import', 'sources.catalogue', 'sources.groups', 'sources.fetch', 'sources.recipe', 'sources.accept', 'sources.workbook', 'sources.workbookPreview', 'sources.workbookImport',
-  'connectors.profiles', 'connectors.read', 'connectors.reviewMapping', 'connectors.capture', 'connectors.publish', 'connectors.ready', 'connectors.captureStatus', 'connectors.releaseRead',
-  'ontology.packs', 'ontology.get', 'ontology.publish', 'memory.list', 'memory.correct', 'memory.merge', 'memory.undo', 'memory.precedence',
-  'decisions.list', 'decisions.create', 'decisions.review',
-  'decisions.journal.draft', 'decisions.journal.confirm', 'decisions.journal.revise', 'decisions.journal.review', 'decisions.journal.due',
-  'reports.get', 'reports.brief', 'reports.forecast',
-  'forecasts.evaluate', 'forecasts.get', 'alerts.create', 'alerts.publish', 'alerts.evaluate', 'alerts.list', 'alerts.get',
-  'actions.list', 'actions.catalogue', 'actions.prepare', 'actions.approve', 'actions.revise', 'actions.execute', 'actions.reconcile',
-  'jobs.list', 'jobs.types', 'jobs.create', 'jobs.amend', 'jobs.cancel', 'jobs.reconcile', 'jobs.progress', 'jobs.pause', 'jobs.resume', 'jobs.accept', 'jobs.approve', 'jobs.reject', 'jobs.run',
-  'jobs.calendar.preview', 'jobs.calendar.configure', 'jobs.calendar.pause', 'jobs.calendar.resume',
-  'trust.get', 'trust.update', 'members.list', 'members.add', 'members.revoke',
-  'models.list', 'models.configure', 'models.preview', 'models.approve', 'models.test',
-  'speech.list', 'speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe', 'activity.list',
-  'learning.list', 'learning.log', 'learning.preview', 'learning.consent', 'learning.sharing', 'learning.share',
-  'plugins.list', 'plugins.install', 'plugins.enable', 'plugins.disable', 'plugins.remove', 'plugins.run', 'plugins.miniapp',
-  'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.settings', 'updates.check', 'updates.verify', 'updates.stage',
+  'auth.session', 'auth.revoke',
+  'calculation.run', 'receipts.get',
+  'trust.get', 'trust.update', 'members.add', 'members.revoke',
+  'updates.status', 'updates.settings', 'updates.check',
   'venture.countries', 'venture.preview',
-  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status',
   'venture.country.suggest',
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.ai.reuse',
   'venture.needs.list',
   // A2: the owner's yes to the Codex found on this computer (engine.ts answers it, with or without a vault).
   'venture.ai.setup.trust',
   'venture.agents.hire.duties',
+  'venture.agents.hire.team',
+  'venture.chief.plan.get', 'venture.chief.plan.move', 'venture.chief.review.set',
   'venture.events.calKey.set',
   'venture.events.relay.set',
   'venture.events.get',
-  'venture.agents.hire.cancel',
   'venture.agents.hire.confirm',
   'venture.agents.hire.answer',
   'venture.agents.hire.start',
@@ -93,7 +71,6 @@ const METHODS = Object.freeze([
   'venture.trackers.rows.remove',
   'venture.trackers.rows.edit',
   'venture.trackers.rows.add',
-  'venture.trackers.remove',
   'venture.trackers.set',
   'venture.trackers.get',
   'venture.trackers.list',
@@ -108,16 +85,17 @@ const METHODS = Object.freeze([
   'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
   'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.spend.list', 'venture.build.brief',
   'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
-  'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
-  'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
-  'venture.files.add', 'venture.files.list', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
-  'venture.delegate.get',
+  'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.launch.status',
+  'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.review', 'venture.delivery.list',
+  'venture.files.add', 'venture.files.list', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.adopt',
   'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
   'venture.evidence.list', 'venture.evidence.apply',
   'venture.journal.list', 'venture.journal.resolve',
   'venture.untrusted.mode', 'venture.untrusted.release',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
   'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend',
+  // Finding customers, for every business: the view, the owner's own start (a card on Today) and a connected tool's tool list.
+  'venture.leads.find.view', 'venture.leads.find.propose', 'venture.leads.find.tools',
   'venture.spend.policy.get', 'venture.spend.policy.set',
   'venture.queue.view', 'venture.team.posture', 'venture.evidence.dismiss', 'venture.money.overview', 'venture.tax.working',
   'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
@@ -153,8 +131,6 @@ const METHODS = Object.freeze([
   'venture.client.aiDefault.get',
   'venture.away.preview',
   'venture.team.introduced',
-  // Wave 6 (6H2): recorded flows
-  'venture.flows.list', 'venture.flows.act',
   'venture.proposals.raise', 'venture.proposals.dismiss',
   'venture.network.import', 'venture.network.importUndo', 'venture.network.merge', 'venture.network.split', 'venture.network.forget',
   'venture.network.hide', 'venture.network.people', 'venture.network.person', 'venture.network.sources',
@@ -178,11 +154,10 @@ const METHODS = Object.freeze([
   'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   'venture.models.cli.status', 'venture.models.roles',
   'venture.goals.get', 'venture.goals.set', 'venture.goals.suggest',
-  'venture.decisions.list', 'venture.policy.allowSession',
+  'venture.decisions.list', 'venture.policy.allowSession', 'venture.earlier.list',
   'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set', 'venture.triage.preview',
   'venture.delivery.fix', 'venture.delivery.decideChange', 'venture.delivery.changes', 'venture.settings.draft', 'venture.settings.drafts',
   'venture.queue.setPreview', 'venture.delivery.copy',
-  'venture.files.poster',
   'venture.money.aging', 'venture.money.flow', 'venture.money.cash', 'venture.money.margins', 'venture.money.export',
   'venture.bills.add', 'venture.bills.pay', 'venture.bills.list', 'venture.credit.issue', 'venture.invoice.recurring', 'venture.invoice.recurringList',
   'venture.invoice.remind', 'venture.payment.clear', 'venture.bills.stop',
@@ -193,8 +168,7 @@ const METHODS = Object.freeze([
   'venture.receipt.verify', 'venture.journal.chain', 'venture.journal.acceptBreak',
   'venture.order.contract', 'venture.order.contract.propose', 'venture.order.contract.sign',
   'venture.routines.list', 'venture.routines.runs', 'venture.routines.set', 'venture.routines.remove',
-  'venture.options.rerank',
-  'venture.drills.run', 'venture.drills.list', 'venture.auto.readiness', 'venture.shadow.summary',
+  'venture.drills.run', 'venture.drills.list',
   'venture.playbook.guidance',
   'venture.voice.get', 'venture.voice.set', 'venture.voice.learn', 'venture.persona.get', 'venture.persona.set', 'venture.persona.test',
   'venture.agents.export', 'venture.agents.import',
@@ -209,7 +183,7 @@ const METHODS = Object.freeze([
   'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable', 'venture.report.list',
   'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
   'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
-  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
+  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.dataPack.export',
   'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
   // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent".
   'venture.invoice.shared',
@@ -376,8 +350,13 @@ function validateBackgroundChange(input) {
   return { ...(keys.includes('startAtLogin') ? { startAtLogin: input.startAtLogin } : {}), ...(keys.includes('keepRunning') ? { keepRunning: input.keepRunning } : {}) };
 }
 // B1 fix round 1: `owner: true` (only ever true) says the engine wrote these words for the owner, so the page shows them as sent.
+// Words the engine wrote for the owner arrive whole (a consent to read is several sentences, and was cut mid-sentence at
+// 512), up to a bound of their own. Any other message, which may be an engine fault's text, keeps the short bound.
+const MESSAGE_MAX = 512;
+const OWNER_MESSAGE_MAX = 4096;
 function publicError(error) {
-  return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.', ...(error?.owner === true ? { owner: true } : {}) };
+  const owner = error?.owner === true;
+  return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, owner ? OWNER_MESSAGE_MAX : MESSAGE_MAX) : 'The desktop request failed.', ...(owner ? { owner: true } : {}) };
 }
 // A run event from the engine worker, cut down to its plain fields (seq when present, count on notify.new only); null
 // when anything is off.

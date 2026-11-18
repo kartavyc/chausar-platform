@@ -33,16 +33,17 @@ import {
   type CliPlan, type CodexHost,
 } from './cli.ts';
 import { callCostOrHeld, costDisplay, estimateMaxCostMicros, recordedCallMicros } from './cost.ts';
-import { formatCost } from '../../owner-format.ts';
+import { monthSpendLine, rupeesOf } from '../money/spend.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
 import {
-  AVAILABILITY_REASONS, PRESETS, availabilityOf, endpointFor, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, type PresetSpec,
+  AVAILABILITY_REASONS, PRESETS, availabilityOf, endpointFor, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, verificationNoteNow, type PresetSpec,
 } from './presets.ts';
-import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
+import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, lastPresetTask, locateOnThisComputer, type CliStaticChecks } from './cli-status.ts';
 import { CLI_COMMANDS, cliGateOpen } from './cli-look.ts';
 import { KEPT_LOOK_MAX_AGE_MS, keepable, programStamp, readKeptLooks, type CliLookPort, type KeptCliFinding, type KeptLooks } from './cli-look-file.ts';
 import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
+import { agentSettingsOf, jobProviderOf } from '../agent-runtime/settings.ts';
 import { readCodexPlan } from './plan-read.ts';
 import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { assertSchemaSafe } from './schema.ts';
@@ -316,7 +317,11 @@ function failureOf(error: unknown, fallback: { code: string; message: string }):
 // ---------------------------------------------------------------------------
 
 /** D4 task 6: the host's file of looks kept between starts (models/cli-look-file.ts); absent, nothing is kept. */
-export type ModelPortHostOptions = ModelPortOptions & { cliLooks?: CliLookPort };
+/**
+ * cliStaticChecks: what unchanged programs' version and help said earlier in this engine run (cli-status.ts). A port
+ * keeps its own unless it is given one that outlives it (the draft desk's, shared by every draft of one engine run).
+ */
+export type ModelPortHostOptions = ModelPortOptions & { cliLooks?: CliLookPort; cliStaticChecks?: CliStaticChecks };
 
 export function createModelPort(options: ModelPortHostOptions): ModelPort {
   const { store, clock, transport, secrets } = options;
@@ -328,6 +333,19 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
   const codexNow = (): CodexHost | null => (hosted ? null : codexHost(options.codexCli));
   /** A2: the models list Codex gave this session, by program. */
   let codexModelsKept: { program: string; models: CodexModels } | null = null;
+  /** Fix round 7: the program whose list could not be read this session, so a quiet read does not ask it again. */
+  let codexModelsMissed: string | null = null;
+  /** The program codexModels reads the list from, or null when it gives the fixed ids without asking. */
+  const codexListProgram = (): string | null => {
+    const evidence = codexNow()?.capabilities.evidence;
+    return evidence?.kind === 'installed-help' && !hosted && transport.replay !== true ? evidence.executable : null;
+  };
+  /** Codex's main model as codexModels gives it now, or null while the list of this program is not read yet. */
+  const codexMainKnown = (): string | null => {
+    const program = codexListProgram();
+    if (!program) return pickCodexModels(null).main;
+    return codexModelsKept?.program === program ? codexModelsKept.models.main : null;
+  };
   const locate = options.locateCli ?? locateOnThisComputer;
   // The newest look at each command-line tool this session (4H1). In memory only: a restart looks again.
   const looks = new Map<DelegateCli, CliFinding>();
@@ -377,6 +395,8 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
 
   // D4 task 6: the looks kept between starts (custody/cli-looks.json). Never on the hosted web server or a replay.
   const keptLooks = hosted || transport.replay === true ? null : options.cliLooks ?? null;
+  // What a program's own version and help said, asked once per unchanged program while this engine runs.
+  const staticChecks: CliStaticChecks = options.cliStaticChecks ?? new Map();
   /** The file as read once this session, then as this session last wrote it. */
   let keptFile: Promise<KeptLooks> | null = null;
   const keptOnDisk = () => (keptFile ??= keptLooks ? keptLooks.read().then(readKeptLooks, (): KeptLooks => ({})) : Promise.resolve<KeptLooks>({}));
@@ -424,7 +444,7 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
   /** Starts a real look; every other asker joins it. What it finds is kept for availability and in the file. */
   const startLook = (cli: DelegateCli): Promise<CliFinding> => {
     const startedMs = clock().getTime();
-    const flight = inspectInstalledCli(cli, { transport, locate, codex: codexNow(), claudeTerms, now: () => clock().toISOString() })
+    const flight = inspectInstalledCli(cli, { transport, locate, codex: codexNow(), claudeTerms, now: () => clock().toISOString(), staticChecks })
       .then(finding => {
         const seen = withRefused(finding);
         looks.set(cli, seen);
@@ -693,11 +713,22 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
         spent += BigInt(micros);
         if (!call.priceConfirmed || call.costMicros === null) estimate = true;
       }
+      // The note beside each option says how its last real task in this business went, once one ran (presets.ts).
+      const noteOf = (spec: PresetSpec) => verificationNoteNow(spec.verificationNote, lastPresetTask(state, venture?.id ?? null, spec.id));
+      // Fix round 6: the model agent jobs run on, chosen as the job route chooses it (agent-runtime/route.ts).
+      const mainRoute = resolveTier(state, venture?.id ?? null, 'main');
+      const jobModelOf = (connection: ConnectionRecord): string | null => {
+        if (!venture || mainRoute.kind !== 'model' || mainRoute.connection.id !== connection.id) return null;
+        if (connection.presetId === 'openrouter') return connection.model;
+        const provider = jobProviderOf(connection.presetId);
+        if (provider === 'codex' && venture.aiSettings === undefined && connection.presetId === 'codex-cli') return codexMainKnown();
+        return agentSettingsOf(state, venture.id)[provider].main.model;
+      };
       const views: ConnectionView[] = newestFirst(connections).map(connection => {
         const spec = presetSpec(connection.presetId);
         return {
-          ...structuredClone(connection), verification: spec.verification, verificationNote: spec.verificationNote,
-          keyLoaded: spec.needsKey && secrets.has(SECRET(spec.id)), ...usableOf(connection, spec, state),
+          ...structuredClone(connection), verification: spec.verification, verificationNote: noteOf(spec),
+          keyLoaded: spec.needsKey && secrets.has(SECRET(spec.id)), ...usableOf(connection, spec, state), jobModel: jobModelOf(connection),
         };
       });
       const tiers = {} as ModelStatusView['tiers'];
@@ -707,7 +738,7 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
           ? { presetId: 'built-in-templates', model: null, usable: true, reason: MESSAGES.templatesServe, verification: 'built-in', verificationNote: null }
           : {
             presetId: route.spec.id, model: route.connection.model, ...usableOf(route.connection, route.spec, state),
-            verification: route.spec.verification, verificationNote: route.spec.verificationNote,
+            verification: route.spec.verification, verificationNote: noteOf(route.spec),
           };
       }
       const spentText = String(spent);
@@ -716,7 +747,8 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
         tiers,
         spentThisMonthMicros: spentText,
         // B2: the month's total in the owner form; nothing spent reads $0.00 here (the total, not one call).
-        spentThisMonthDisplay: formatCost(spentText, { paidCalls: true, estimate }),
+        // In the business's own currency first (rupees at the owner's or the reference rate), as Money shows it.
+        spentThisMonthDisplay: monthSpendLine(spentText, venture ? rupeesOf(state, venture) : null, estimate),
         estimate,
         sendPolicy: state.policy.send,
         replay: { active: transport.replay === true, label: transport.replay === true ? 'synthetic recording' : null },
@@ -724,9 +756,11 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
     },
 
     presets(): ModelPreset[] {
-      const live = liveOf(store.read());
+      const state = store.read();
+      const live = liveOf(state);
+      const ventureId = currentVenture(state)?.id ?? null;
       return PRESETS.filter(spec => spec.id !== 'claude-code-cli' || claudeTermsOpen(claudeTerms))
-        .map(spec => ({ ...structuredClone(spec), ...availabilityOf(spec.id, live) }));
+        .map(spec => ({ ...structuredClone(spec), verificationNote: verificationNoteNow(spec.verificationNote, lastPresetTask(state, ventureId, spec.id)), ...availabilityOf(spec.id, live) }));
     },
 
     /**
@@ -757,13 +791,14 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
      */
     /**
      * A2: the models Codex itself offers this account, read once per program this session with `codex debug models` in
-     * an empty folder (ids only are kept), and the ones Chausar uses. The fixed ids when it cannot be read.
+     * an empty folder (ids only are kept), and the ones Chausar uses. The fixed ids when it cannot be read. once (fix
+     * round 7, the status read): a program whose list could not be read this session is not asked again.
      */
-    async codexModels() {
-      const evidence = codexNow()?.capabilities.evidence;
-      const program = evidence?.kind === 'installed-help' ? evidence.executable : null;
-      if (!program || hosted || transport.replay === true) return pickCodexModels(null);
+    async codexModels(options?: { once?: boolean }) {
+      const program = codexListProgram();
+      if (!program) return pickCodexModels(null);
       if (codexModelsKept?.program === program) return structuredClone(codexModelsKept.models);
+      if (options?.once === true && codexModelsMissed === program) return pickCodexModels(null);
       let folder: string | undefined, response: ModelProcessResponse | null = null;
       try {
         folder = await mkdtemp(join(tmpdir(), CLI_LOOK_FOLDER));
@@ -772,6 +807,7 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
       finally { if (folder) await rm(folder, { recursive: true, force: true }).catch(() => undefined); }
       const models = codexModelsFrom(response);
       if (models.source === 'codex') codexModelsKept = { program, models };
+      else codexModelsMissed = program;
       return structuredClone(models);
     },
 

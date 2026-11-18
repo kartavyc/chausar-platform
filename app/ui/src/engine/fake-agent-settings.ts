@@ -31,6 +31,20 @@ export class FakeAgentSettings {
     }
     return structuredClone({ settings: this.saved.get(this.host.current()) ?? defaultAiSettings(), boundaries: AI_SETTING_BOUNDARIES, agents, models: { codex: this.codexModels } });
   }
+  /**
+   * Fix round 6: the main model an agent job runs on with this provider, as agent-runtime/route.ts picks it: the owner's
+   * choice once saved; before that, for Codex on this computer, the main model Codex's own list offers (codex-models.ts).
+   */
+  jobModel(provider: 'codex' | 'claude', codexCli: boolean): string {
+    const saved = this.saved.get(this.host.current());
+    if (!saved && provider === 'codex' && codexCli) {
+      // As codex-models.ts pickCodexModels (not imported: its engine types would come with it): the default when the
+      // list offers it or there is none, else the list's first.
+      const wanted = defaultAiSettings().codex.main.model, listed = this.codexModels;
+      return !listed?.length || listed.includes(wanted) ? wanted : listed[0]!;
+    }
+    return (saved ?? defaultAiSettings())[provider].main.model;
+  }
   credential(raw: unknown): { serverId: string; saved: boolean } {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || ![Object.prototype,null].includes(Object.getPrototypeOf(raw))) throw new EngineError('INVALID_VENTURE_REQUEST','Send one request object.');
     const p = raw as Record<string, unknown>;

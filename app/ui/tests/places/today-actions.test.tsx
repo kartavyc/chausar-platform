@@ -297,7 +297,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
       ? { ...run, checks: [{ check: 'length-bounds', passed: false, detail: 'The draft is 40 words over the limit.' }, { check: 'house-style', passed: false, detail: 'Two long dashes.' }] } : run));
     const real = DELIVERIES.lumen!;
     // The fake's own draft passed its checks, so the list and the fix answer here as the engine would for a failing one.
-    const { spy } = start({ queue: [row], stub: (method) => (method === 'venture.delivery.list' ? failing(real) : method === 'venture.delivery.fix' ? { ...failing(real)[0], status: 'waiting-for-you' } : undefined) });
+    const { spy } = start({ queue: [row], stub: (method) => (method === 'venture.delivery.list' ? failing(real) : method === 'venture.delivery.fix' ? { ...failing(real)[0], status: 'working' } : undefined) });
     const card = await cardTitled('Sponsor script for episode 14');
     await press(within(card).getByRole('button', { name: 'More' }));
     await press(within(card).getByRole('button', { name: 'Send back' }));
@@ -654,6 +654,34 @@ describe('Today: sort by the owner\'s words (O18)', () => {
     await press(within(box).getByRole('button', { name: 'Save' }));
     expect(calls(spy, 'venture.triage.set')).toEqual([{ rule: { keys: [{ field: 'due', order: 'asc' }], words: 'Nearest deadline first' }, digest: expect.any(String) }]);
     expect(box.textContent).toContain('Today is ordered: nearest deadline first. Nothing is hidden.');
+  });
+
+  // Found on Windows, 16 Nov 2026 (screen 094): the box said "Your words as a rule: Proposals that find customers
+  // first" over a dry run that put that proposal last. It now says what the rule does, in the engine's words.
+  it('with the owner\'s AI the box says what the rule does, never the owner\'s words back, and Save sends that rule', async () => {
+    const rule = { keys: [], first: ['find-customers'], words: 'Proposals that find customers first' };
+    const { spy } = start({ stub: (method) => (method === 'venture.triage.preview'
+      ? { rule, does: 'proposals that find customers first', choices: [], rows: [{ ...QUEUE[1]!, title: 'Find possible customers: company offices in Indore' }, QUEUE[0]!], digest: 'a'.repeat(64), by: 'model' }
+      : method === 'venture.triage.set' ? { rule, line: 'Today is ordered: proposals that find customers first. Nothing is hidden.' } : undefined) });
+    await cardTitled('Episode 14 is cut');
+    await press(screen.getByRole('button', { name: 'Sort' }));
+    const box = document.querySelector<HTMLElement>('[data-triage]')!;
+    fireEvent.change(within(box).getByRole('textbox', { name: 'How you want Today ordered' }), { target: { value: 'Proposals that find customers first' } });
+    await press(within(box).getByRole('button', { name: 'Show me' }));
+    expect(box.querySelector('[data-triage-rule]')?.textContent).toBe('As a rule: proposals that find customers first');
+    expect([...box.querySelectorAll('[data-dry-run] li')].map((item) => item.textContent)[0]).toBe('Find possible customers: company offices in Indore');
+    await press(within(box).getByRole('button', { name: 'Save' }));
+    expect(calls(spy, 'venture.triage.set')).toEqual([{ rule, digest: 'a'.repeat(64) }]);
+    expect(box.textContent).toContain('Today is ordered: proposals that find customers first. Nothing is hidden.');
+  });
+
+  it('the fake engine takes a rule that names kinds to lead, as the engine does, and refuses a kind it does not know', async () => {
+    const client = createFakeClient(new FakeEngine({ now: () => NOW }));
+    const shown = await client.request('venture.triage.preview', { text: 'proposals first' });
+    expect([shown.rule, shown.does, shown.by]).toEqual([null, null, 'choices']);
+    await expect(client.request('venture.triage.set', { rule: { keys: [], first: ['secrets' as never], words: 'x' }, digest: shown.digest })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });
+    const saved = await client.request('venture.triage.set', { rule: { keys: [{ field: 'due', order: 'asc' }], first: ['find-customers', 'draft'], words: 'x' }, digest: shown.digest });
+    expect(saved.line).toBe('Today is ordered: proposals that find customers first, then drafts, then nearest deadline first. Nothing is hidden.');
   });
 });
 

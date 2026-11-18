@@ -1,4 +1,4 @@
-import test, { type TestContext } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -9,6 +9,7 @@ import type { CodexCliHostDependencies, CodexCliHostManifest } from '../runtime/
 import { createServerEngine } from '../runtime/server.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
 import type { GatewayOptions, ProcessRequest, ProcessResult } from '../runtime/gateway.ts';
+import type { CodexTrust } from '../runtime/codex-trust.ts';
 
 // Every manifest, executable digest, CLI snapshot, model and process result here
 // is synthetic. Injected ports never read or execute an installed Codex binary.
@@ -315,13 +316,10 @@ test('synthetic default filesystem binary hashing detects replacement before the
   assert.equal(invocations, 0);
 });
 
-test('synthetic process gateway rechecks the exact binary before dispatch and preserves other trusted ports', async () => {
+test('synthetic process gateway rechecks the exact binary before dispatch', async () => {
   const requests: ProcessRequest[] = [];
-  const http: NonNullable<GatewayOptions['http']> = async request => ({ status: 200, body: '{}', endpoint: request.endpoint });
-  const credentialBroker = async () => undefined;
-  const f = syntheticEvidence({ http, credentialBroker, process: async request => { requests.push(request); return completed; } });
+  const f = syntheticEvidence({ process: async request => { requests.push(request); return completed; } });
   const gateway = await loadCodexCliHostGateway(f.environment, f.dependencies); assert.ok(gateway?.process);
-  assert.equal(gateway.http, http); assert.equal(gateway.credentialBroker, credentialBroker);
   const request: ProcessRequest = { command: syntheticExecutable, args: ['exec'], cwd: resolve('synthetic-work'), env: {}, stdin: 'synthetic prompt', timeoutMs: 10, schema: {} };
   assert.deepEqual(await gateway.process(request), completed); assert.equal(requests[0], request);
   assert.deepEqual(f.binaryChecks, [syntheticExecutable, syntheticExecutable]);
@@ -368,16 +366,13 @@ for (const entrypoint of entrypoints) {
       ...f.environment, CHAUSAR_VAULT_DIRECTORY: vault, CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1',
       CHAUSAR_POSTGRES_URL: 'postgresql://synthetic-user:synthetic-fixture-password@127.0.0.1/synthetic',
       CHAUSAR_PYTHON: 'synthetic-python', CHAUSAR_UPDATE_PUBLIC_KEY: 'synthetic-public-key',
-      CHAUSAR_JOB_WORKER_ID: 'synthetic-worker', CHAUSAR_JOB_MAX_ACTIVE: '2', CHAUSAR_JOB_LEASE_MS: '45000',
     };
     const engine = await entrypoint.create(environment, f.dependencies, false);
     assert.equal(engine.options.directory, environment.CHAUSAR_VAULT_DIRECTORY); assert.equal(engine.options.demo, false);
     assert.equal(engine.options.storage, entrypoint.label === 'worker' ? 'experimental-file' : 'postgres');
     assert.equal(engine.options.postgresUrl, entrypoint.label === 'worker' ? undefined : environment.CHAUSAR_POSTGRES_URL);
     assert.equal(engine.options.pythonExecutable, 'synthetic-python'); assert.equal(engine.options.updatePublicKey, 'synthetic-public-key');
-    assert.equal(engine.options.durableJobs?.workerId, 'synthetic-worker'); assert.equal(engine.options.durableJobs?.maxActiveJobs, 2);
-    assert.equal(engine.options.durableJobs?.leaseMs, 45000); assert.equal(engine.options.durableJobs?.networkAvailable(), false);
-    assert.equal(engine.options.gateway?.codexCli?.capabilities.evidence.kind, 'installed-help');
+    assert.equal((engine.options.venture?.codexCli as CodexTrust).current()?.origin, 'operator');
     assert.deepEqual(f.binaryChecks, [syntheticExecutable]); assert.equal(engine.vault, null);
     await engine.shutdown();
   });
@@ -394,52 +389,5 @@ for (const entrypoint of entrypoints) {
     });
   }
 
-  async function attached(t: TestContext, hostConfiguration: boolean) {
-    const directory = await mkdtemp(join(tmpdir(), `chausar-synthetic-${entrypoint.label}-host-`));
-    const invocations: ProcessRequest[] = [];
-    const f = syntheticEvidence({ process: async request => { invocations.push(structuredClone(request)); return completed; } });
-    const engine = await entrypoint.create({ ...(hostConfiguration ? f.environment : {}), CHAUSAR_VAULT_DIRECTORY: directory }, f.dependencies, true);
-    t.after(async () => { try { await engine.shutdown(); } finally { await removeSyntheticDirectory(directory); } });
-    await engine.request('workspace.create', { name: 'Synthetic host wiring business', passphrase: 'synthetic-host-wiring-passphrase', demo: true });
-    await engine.request('trust.update', { send: 'shape' });
-    const route = await engine.request('models.configure', { config: { id: 'synthetic-host-codex', kind: 'codex-cli', model: 'synthetic-exact-model', command: syntheticExecutable } });
-    return { f, engine, invocations, route };
-  }
-
-  test(`synthetic ${entrypoint.label} attached Engine dispatches through verified exact-command gateway`, async t => {
-    const { f, engine, invocations, route } = await attached(t, true);
-    assert.equal(route.interfaceEvidenceKind, 'installed-help'); assert.equal(route.credentialConfigured, false);
-    assert.equal(route.authenticationStatus, 'cli-managed-unverified'); assert.equal(route.accountAccess, 'unverified');
-    assert.equal(route.modelAccess, 'unverified');
-    const listed = await engine.request('models.list'); assert.equal(listed[0].installationVerified, false);
-    const preview = await engine.request('models.preview', { question: 'What was earned?', routeId: 'synthetic-host-codex' });
-    const approval = await engine.request('models.approve', { id: preview.id });
-    await engine.request('conversation.ask', { question: 'What was earned?', routeId: 'synthetic-host-codex', previewId: preview.id, approvalId: approval.id });
-    assert.equal(invocations.length, 1); assert.equal(invocations[0].command, syntheticExecutable);
-    assert.equal(invocations[0].args[invocations[0].args.indexOf('--model') + 1], 'synthetic-exact-model');
-    assert.equal(invocations[0].stdin, preview.payload); assert.deepEqual(f.binaryChecks, [syntheticExecutable, syntheticExecutable]);
-    f.setBinaryDigest('b'.repeat(64));
-    const next = await engine.request('models.preview', { question: 'What was earned?', routeId: 'synthetic-host-codex' });
-    const nextApproval = await engine.request('models.approve', { id: next.id });
-    await assert.rejects(engine.request('conversation.ask', { question: 'What was earned?', routeId: 'synthetic-host-codex', previewId: next.id, approvalId: nextApproval.id }), code('CLI_HOST_EVIDENCE_INVALID'));
-    assert.equal(invocations.length, 1);
-  });
-
-  test(`synthetic ${entrypoint.label} attached Engine without host configuration retains the capability gate`, async t => {
-    const { f, engine, invocations, route } = await attached(t, false);
-    assert.equal(route.interfaceEvidenceKind, 'unverified');
-    const preview = await engine.request('models.preview', { question: 'What was earned?', routeId: 'synthetic-host-codex' });
-    const approval = await engine.request('models.approve', { id: preview.id });
-    await assert.rejects(engine.request('conversation.ask', { question: 'What was earned?', routeId: 'synthetic-host-codex', previewId: preview.id, approvalId: approval.id }), code('CLI_CAPABILITY_REQUIRED'));
-    assert.equal(invocations.length, 0); assert.deepEqual(f.artifactReads, []); assert.deepEqual(f.binaryChecks, []);
-    const listed = await engine.request('models.list'); assert.equal(listed[0].costConsumedMinor, '0');
-  });
-
-  test(`synthetic ${entrypoint.label} attached Engine refuses a route command outside the verified binary`, async t => {
-    const { f, engine, invocations } = await attached(t, true);
-    await engine.request('models.configure', { config: { id: 'synthetic-host-codex', kind: 'codex-cli', model: 'synthetic-exact-model', command: 'codex' } });
-    await assert.rejects(engine.request('conversation.ask', { question: 'What was earned?', routeId: 'synthetic-host-codex' }), code('INVALID_COMMAND'));
-    assert.equal(invocations.length, 0); assert.deepEqual(f.binaryChecks, [syntheticExecutable]);
-  });
 
 }

@@ -1,4 +1,5 @@
 // Translate only complete, known system templates. Values and unknown evidence stay verbatim.
+import {placeTail} from '../../../parts/when';
 import en from '../../../text/en/room-receipt.json';
 import type {T} from '../../../text';
 import type {PriceFigureLite,ReceiptLite,RoutineSchedule} from '../../../engine/types';
@@ -39,5 +40,5 @@ export function roomReceiptCalculation(t:T,receipt:ReceiptLite):string|null {
 export function vaScheduleWords(t:T,schedule:RoutineSchedule,fallback:string):string {
  if(schedule.kind!=='calendar')return fallback;
  const days=schedule.weekdays.length===7?t('business.routines.everyDay'):schedule.weekdays.map(day=>t('business.routines.day.'+day)).join(', ');
- return t('business.routines.when',{days,time:formatClock(schedule.time),zone:schedule.timeZone});
+ return t('business.routines.when',{days,time:formatClock(schedule.time),place:placeTail(t,schedule.timeZone)});
 }

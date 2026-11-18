@@ -407,7 +407,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
       case 'venture-lead-source': {
         if (!options.erase) return false;
         const evidence = JSON.stringify(record.community ?? null);
-        return (typeof record.personId === 'string' && ids.has(record.personId)) || mentionsName(evidence) || [...emails, ...phones].some(contact => evidence.toLowerCase().includes(contact.toLowerCase()));
+        // A found lead's source record (the page, the site, the search that found it) goes with the lead it describes.
+        return (typeof record.personId === 'string' && ids.has(record.personId)) || (typeof record.leadId === 'string' && leadIds.has(record.leadId)) || mentionsName(evidence) || [...emails, ...phones].some(contact => evidence.toLowerCase().includes(contact.toLowerCase()));
       }
       case 'venture-lead': return options.erase && typeof record.email === 'string' && emails.has(record.email.toLowerCase());
       case 'venture-notification': return options.erase && (mentionsId(record.subject) || mentionsId(record.rowId) || mentionsName(record.title));

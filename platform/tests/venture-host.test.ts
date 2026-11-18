@@ -93,12 +93,16 @@ test('PACKAGE_LOADERS has one loader per package and missingHandlers lists what 
   // 5-0 added playbooks (Ink v2 wave 5).
   assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'playbooks', 'views']);
   const all = missingHandlers({});
-  const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest');
-  assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - draftOnly.length - ENGINE_METHODS.length);
-  for (const method of [...PRE_VAULT_METHODS, ...draftOnly]) assert.equal(all.includes(method), false, method);
+  // About you's list of fields is read after setup too (Settings, About you; 15 Nov 2026), as the country suggestion is.
+  const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest' && method !== 'venture.about.families');
+  // The side-work question is answered before a vault by the engine and, with a business open, by core through this host.
+  const preVaultOnly: readonly VentureMethod[] = PRE_VAULT_METHODS.filter(method => method !== 'venture.compliance.get');
+  assert.equal(all.length, VENTURE_METHODS.length - preVaultOnly.length - draftOnly.length - ENGINE_METHODS.length);
+  assert.equal(all.includes('venture.compliance.get'), true);
+  for (const method of [...preVaultOnly, ...draftOnly]) assert.equal(all.includes(method), false, method);
   const fn = async () => null;
   const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify', 'playbooks'] as VenturePackageId[]).map(id => [id,
-    Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !PRE_VAULT_METHODS.includes(m) && !draftOnly.includes(m)).map(m => [m, fn]))]));
+    Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !preVaultOnly.includes(m) && !draftOnly.includes(m)).map(m => [m, fn]))]));
   assert.deepEqual(missingHandlers(full), []);
   // A handler registered in the wrong package's table does not count, and neither does a value that is not a function.
   const misplaced = { ...full, core: { ...full.core, 'venture.get': 'not a function' }, money: { ...full.money, 'venture.events': fn } } as any;
@@ -134,7 +138,7 @@ test('a loader that throws synchronously or returns no handler table counts as n
   });
   const host = new VentureHost(new VentureTestStore(), services, baseOptions, fake);
   await assert.rejects(host.request(owner, 'venture.build.status', {}), code('NOT_BUILT_YET'));
-  await assert.rejects(host.request(owner, 'venture.capabilities', {}), code('NOT_BUILT_YET'));
+  await assert.rejects(host.request(owner, 'venture.delivery.playbook', {}), code('NOT_BUILT_YET'));
 });
 
 test('a handler placed in the wrong package table is never reached', async () => {
@@ -165,8 +169,8 @@ test('every app-only method refuses phone, MCP and tainted contexts before any l
     { memberId: 'owner', role: 'owner', epoch: 1 },
     { ...owner, sourceTainted: true },
   ];
-  // Country suggestions use this host when a business exists; other draft methods stay before the vault.
-  const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest');
+  // Country suggestions and About you's list of fields use this host when a business exists; other draft methods stay before the vault.
+  const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest' && method !== 'venture.about.families');
   for (const method of APP_ONLY_METHODS.filter(m => !draftOnly.includes(m))) for (const ctx of contexts) {
     await assert.rejects(host.request(ctx, method, {}), code('APP_APPROVAL_REQUIRED'), `${method} ${JSON.stringify(ctx)}`);
   }

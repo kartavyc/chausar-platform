@@ -9,16 +9,10 @@ import { assertSourceAccess } from './trust.ts';
 export type CalculationRequest = FactFilter & { operation: string; currency?: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
 export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; currency?: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
-export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; requestedCurrency?: string; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown; restatement?: ReceiptRestatement };
+export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; requestedCurrency?: string; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
 export type CalculatorOptions = {
-  /** Trusted publication context only, never a caller-authored calculation parameter. */
-  restatement?: ReceiptRestatement;
   verifier?: (receipt: CalculationReceipt) => Promise<unknown>;
-  consumerGuard?: (context: Context, request: CalculationRequest) => void;
-  receiptGuard?: (context: Context, receipt: CalculationReceipt) => void;
 };
-export type ReceiptRestatement = { version: 1; interpretation: 'restated-private-diagnostic'; trialId: string; forkDigest: string;
-  candidateStateDigest: string; publicationId: string; originalAnswerId: string; originalReceiptId: string };
 export function sumMoney(values: string[]) { return String(values.reduce((sum, value) => { check(/^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Calculator amounts must be whole minor-unit strings.'); return sum + BigInt(value); }, 0n)); }
 const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMoney(value, currency), unit: 'money', currency });
 /**
@@ -36,41 +30,32 @@ export function numberGuard(text: string, receipt: Pick<CalculationReceipt, 'all
   const allowed = new Set(receipt.allowedNumbers.map(normalizedNumber)); const unsupported = numericTokens(text).filter(n => !allowed.has(normalizedNumber(n)));
   check(unsupported.length === 0, 'UNGROUNDED_NUMBER', 'The explanation contains a number absent from its calculation receipt.'); return { accepted: true, checkedNumbers: numericTokens(text).length };
 }
-function matchQuestion(question: string, available: string[]): string | null {
-  const normalized = question.toLowerCase().replace(/[?!.]/g, '').trim();
-  const patterns: Record<string, RegExp> = { billed: /^(?:what (?:was|is) |how much (?:was|is) )?(?:billed|invoiced)(?: revenue| sales| amount)?$/, received: /^(?:what (?:was|is) |how much (?:was|is) )?(?:received|collections|cash received|money received)$/, earned: /^(?:what (?:was|is) |how much (?:was|is) )?earned(?: revenue)?$/, revenue: /^(?:what (?:was|is) (?:the )?|how much (?:was|is) (?:the )?)?revenue$/, refunds: /^(?:what (?:was|is) (?:the )?)?(?:refunds|returns)$/, margin: /^(?:what (?:was|is) (?:the )?)?(?:margin|contribution margin|order margin)$/, aging: /^(?:what (?:was|is) (?:the )?)?(?:aging|receivable aging|unpaid invoices)$/, net_sales: /^(?:what (?:was|is) (?:the )?)?net sales$/, costs: /^(?:what (?:was|is) (?:the )?)?costs$/, purchases: /^(?:what (?:was|is) (?:the )?)?purchases$/ };
-  return available.find(id => patterns[id]?.test(normalized)) ?? null;
+/**
+ * What makes two receipts the same work: who asked, what was asked, the published definitions, every counted and
+ * excluded row and every figure. Its id, when it was made, its knowledge cut and its database proof are not part of it.
+ */
+function workOf(receipt: CalculationReceipt): string {
+  return JSON.stringify([receipt.memberId, receipt.epoch, receipt.operation, receipt.period, receipt.comparePeriod, receipt.branch, receipt.currency,
+    receipt.requestedSourceIds ?? null, receipt.requestedCurrency ?? null, receipt.ontologyVersion, receipt.dictionaryHash, receipt.definitionHash,
+    receipt.compiledCalculation ?? null, receipt.sourceIds, receipt.figures, receipt.totalMinor, receipt.rowIds, receipt.rows, receipt.exclusions, receipt.coverage,
+    receipt.assumptions, receipt.explanation]);
 }
-
+/**
+ * reuse: the receipt already kept for the same work is answered again, with no new proof and no commit, so the same
+ * figure always opens the same receipt and a screen that asks again and again writes nothing. skipEmpty: a selection
+ * that counts nothing answers null instead of a receipt, since there is nothing to prove or keep. With neither, every
+ * call keeps a new receipt, as an owner's own calculation does.
+ */
+export type CalculateOptions = { reuse?: boolean; skipEmpty?: boolean };
 export class CalculatorService {
   store: StateStore;
   verifier?: CalculatorOptions['verifier'];
-  consumerGuard?: CalculatorOptions['consumerGuard'];
-  receiptGuard?: CalculatorOptions['receiptGuard'];
-  readonly restatement?: ReceiptRestatement;
   constructor(store: StateStore, options: CalculatorOptions = {}) {
-    this.store = store; this.verifier = options.verifier; this.consumerGuard = options.consumerGuard; this.receiptGuard = options.receiptGuard;
-    if (options.restatement) {
-      const value = options.restatement;
-      check(value.version === 1 && value.interpretation === 'restated-private-diagnostic'
-        && Object.keys(value).sort().join(',') === 'candidateStateDigest,forkDigest,interpretation,originalAnswerId,originalReceiptId,publicationId,trialId,version'
-        && [value.forkDigest, value.candidateStateDigest].every(pin => /^[a-f0-9]{64}$/.test(pin))
-        && [value.trialId, value.publicationId, value.originalAnswerId, value.originalReceiptId].every(id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(id)),
-      'RESTATEMENT_CONTEXT_REQUIRED', 'Restated receipts need the exact issued fork, version and original receipt context.');
-      this.restatement = structuredClone(value);
-    }
+    this.store = store; this.verifier = options.verifier;
   }
-  catalog(ctx: Context) { const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before asking for numbers.'); return dictionary.operations; }
-  guard(text: string, receipt: CalculationReceipt) { return numberGuard(text, receipt); }
-  async ask(ctx: Context, question: string, filters: Omit<CalculationRequest, 'operation'> = {}) {
-    authorize(this.store, ctx); const operation = matchQuestion(question, this.catalog(ctx).map(o => o.id));
-    if (!operation) {
-      await this.store.update(state => { authorize(this.store, ctx); state.unsupported.push({ id: newId('wanted'), at: now(), question, status: 'not-yet', by: ctx.memberId }); });
-      return { supported: false, message: 'I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list.', receipt: null };
-    }
-    const receipt = await this.calculate(ctx, { ...filters, operation }); return { supported: true, message: receipt.explanation, receipt };
-  }
-  async calculate(ctx: Context, request: CalculationRequest): Promise<CalculationReceipt> {
+  async calculate(ctx: Context, request: CalculationRequest): Promise<CalculationReceipt>;
+  async calculate(ctx: Context, request: CalculationRequest, options: CalculateOptions): Promise<CalculationReceipt | null>;
+  async calculate(ctx: Context, request: CalculationRequest, options: CalculateOptions = {}): Promise<CalculationReceipt | null> {
     authorize(this.store, ctx);
     check(request && typeof request === 'object' && !Array.isArray(request) && Object.keys(request).every(k => ['operation', 'currency', 'sourceIds', 'period', 'asOf', 'branch', 'customerId', 'orderId', 'comparePeriod', 'onDate', 'assumptions', 'kinds'].includes(k)), 'INVALID_CALCULATION', 'Only declared calculation parameters are accepted.');
     request = structuredClone(request);
@@ -86,7 +71,6 @@ export class CalculatorService {
       update: async () => { throw new Error('Calculation selection is read-only.'); },
     };
     validatePeriod(request.period); validatePeriod(request.comparePeriod);
-    this.consumerGuard?.(ctx, structuredClone(request));
     const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before calculating.');
     const currency = request.currency ?? dictionary.currency;
     const sourceSnapshot = () => { const s = this.store.read(); return hash({ facts: s.facts, sourceRules: s.sourceRules, merges: s.merges, tombstones: s.tombstones }); }; const factsSnapshotHash = sourceSnapshot();
@@ -213,16 +197,22 @@ export class CalculatorService {
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; row.validFrom = fact.validFrom; for (const field of ['dueDate', 'invoiceId', 'customerId', 'orderId', 'status'] as const) if (typeof fact.fields[field] === 'string') row[field] = fact.fields[field]; }
     receipt.allowedNumbers = [...new Set([...figureNumbers(figures), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
-    if (this.restatement) receipt.restatement = structuredClone(this.restatement);
+    // Nothing counted, with nothing held back for a conflict or a missing amount: no figure to prove, nothing kept.
+    if (options.skipEmpty === true && receipt.coverage.completeness === 'empty') return null;
+    if (options.reuse === true) {
+      // The same work already has its receipt (the newest one that still reads as current): the same figure opens it.
+      const work = workOf(receipt);
+      const kept = state.receipts.findLast((candidate: CalculationReceipt) => candidate.stale !== true && candidate.operation === receipt.operation && candidate.totalMinor === receipt.totalMinor && workOf(candidate) === work);
+      if (kept) return structuredClone(kept);
+    }
     if (this.verifier) receipt.databaseProof = await this.verifier(structuredClone(receipt));
     assertRequestedAccess();
-    this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt));
     // A request for the current view has already resolved its actual knowledge
     // cut during this calculation. Retain that cut with NEW saved requests so
     // dashboard/conversation results can replay their original meaning later.
     // Explicit supplied cuts and all existing saved requests remain unchanged.
     const savedRequest = { ...structuredClone(request), asOf: request.asOf ?? receipt.asOf };
-    await this.store.update(s => { assertRequestedAccess(s); this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt)); rows.forEach(f => check(canSeeFact(this.store, ctx, f), 'ACCESS_REVOKED', 'Read permission changed while this number was being calculated.')); check(sourceSnapshot() === factsSnapshotHash, 'FACTS_CHANGED', 'The source facts or identity rules changed during calculation. Recalculate.'); check(new OntologyService(this.store).current(ctx)?.hash === dictionary.hash, 'DICTIONARY_CHANGED', 'The dictionary changed; calculate again.'); s.receipts.push(structuredClone(receipt)); s.answers.push({ id: newId('answer'), receiptId: receipt.id, request: savedRequest, at: receipt.createdAt, text: receipt.explanation, stale: false }); audit(s, 'calculation.completed', { receiptId: receipt.id, operation: request.operation, rowCount: rows.length }); });
+    await this.store.update(s => { assertRequestedAccess(s); rows.forEach(f => check(canSeeFact(this.store, ctx, f), 'ACCESS_REVOKED', 'Read permission changed while this number was being calculated.')); check(sourceSnapshot() === factsSnapshotHash, 'FACTS_CHANGED', 'The source facts or identity rules changed during calculation. Recalculate.'); check(new OntologyService(this.store).current(ctx)?.hash === dictionary.hash, 'DICTIONARY_CHANGED', 'The dictionary changed; calculate again.'); s.receipts.push(structuredClone(receipt)); s.answers.push({ id: newId('answer'), receiptId: receipt.id, request: savedRequest, at: receipt.createdAt, text: receipt.explanation, stale: false }); audit(s, 'calculation.completed', { receiptId: receipt.id, operation: request.operation, rowCount: rows.length }); });
     return receipt;
   }
   receipt(ctx: Context, id: string): CalculationReceipt {
@@ -230,6 +220,6 @@ export class CalculatorService {
     check(receipt.memberId === ctx.memberId && receipt.epoch === ctx.epoch, 'RECEIPT_FORBIDDEN', 'This private saved receipt belongs to a different account or permission epoch. Recalculate under your current access.');
     if (receipt.requestedSourceIds !== undefined) assertSourceAccess(this.store.read(), ctx, receipt.requestedSourceIds);
     const facts = this.store.read().facts; for (const rowId of new Set([...receipt.rowIds, ...(receipt.exclusions ?? []).map((e: { rowId: string }) => e.rowId)])) { const fact = facts.find(f => f.id === rowId); check(fact && !fact.deletedAt && canSeeFact(this.store, ctx, fact), 'RECEIPT_FORBIDDEN', 'This saved receipt contains rows outside your current access.'); }
-    currentAccess(this.store, ctx, receipt.branch ?? undefined); this.receiptGuard?.(ctx, structuredClone(receipt)); return structuredClone(receipt);
+    currentAccess(this.store, ctx, receipt.branch ?? undefined); return structuredClone(receipt);
   }
 }

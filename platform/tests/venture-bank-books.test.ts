@@ -236,7 +236,7 @@ test('venture.bank.apply as payment goes through the payment path once; the book
   const after = await run<BooksSummary>(env, 'venture.books.summary', { from: '2026-10-01', to: '2026-10-31' });
   const received = after.figures.find(f => f.operation === 'received')!;
   assert.equal(BigInt(received.minor) - receivedBefore, 1180000n);
-  assert.equal(env.deps.services.calculator.receipt(owner, received.receiptId).totalMinor, received.minor);
+  assert.equal(env.deps.services.calculator.receipt(owner, received.receiptId!).totalMinor, received.minor);
 
   await assert.rejects(run(env, 'venture.bank.apply', { transactionId: full.id, as: 'payment', invoiceId: invoice.id }), code('BANK_ALREADY_APPLIED'));
   // The invoice is paid now, so the part payment is more than its balance.

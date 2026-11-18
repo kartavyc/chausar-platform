@@ -8,9 +8,9 @@
  * W4DeskHost is what fake.ts gives every wave 4 desk (fake-agents.ts, fake-chief.ts, fake-network.ts, fake-notify.ts).
  */
 
-import { EngineError, type AgentView, type DeliveryLite, type JournalEntry, type QueueAction, type QueueRow, type ReceiptLite, type RunDetail, type RunSummary, type TeamListView, type VentureRunEvent } from './types';
-// 4J3: previews on Today's rows, order stage steps and the poster method (fake-previews.ts).
-import { FAKE_4J3_METHODS, fakePoster, withFakePreviews } from './fake-previews';
+import { EngineError, type AgentView, type DecisionView, type DeliveryLite, type JournalEntry, type QueueAction, type QueueActionId, type QueueRow, type ReceiptLite, type RunDetail, type RunSummary, type TeamListView, type VentureRunEvent, type RunStopReason } from './types';
+// 4J3: previews on Today's rows and order stage steps (fake-previews.ts).
+import { withFakePreviews } from './fake-previews';
 // 4J8: "Add this to {business}", the plan suggestion (fake-plan-suggest.ts).
 import { FAKE_4J8_METHODS, fakePlanSuggest } from './fake-plan-suggest';
 // 4H2: the CLI status on this computer and the AI serving each role (fake-cli.ts).
@@ -24,6 +24,8 @@ import { FAKE_4J6_METHODS, FakeAcross } from './fake-across';
 import { FAKE_4A2_METHODS, FakeTeamDesk } from './fake-team';
 // 4I2: goals, today's pace and the next best step (fake-goals.ts).
 import { FAKE_4I2_METHODS, FakeGoals } from './fake-goals';
+// The chief's standing plan and its daily review (fake-plan.ts).
+import { FAKE_PLAN_METHODS, FakePlan } from './fake-plan';
 // 4F3: Stop, Force stop, Resume, the round gate, notes for the next step, Pause all and Away (fake-run-controls.ts).
 import { FAKE_4F3_METHODS, FakeRunControls } from './fake-run-controls';
 // 4J21: the owner's name, connection checks, the client's file request link and settings drafts (fake-setup.ts).
@@ -39,12 +41,18 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  /**
+   * The names the plan's own team takes, as the engine's chief/routing.ts teamNames adds them to the team's: the agents
+   * that do each order and the playbook's code roles, known from the idea before the plan is accepted. No hired agent
+   * may take one (fake-hire.ts).
+   */
+  joinNames?(): readonly string[];
   /** C4 (T25): a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
   noteDecision?(subject: string, action: string, reason: string): void;
   /** A2 review: the Codex setup Your AI shows (fake-first-run.ts connectionsSetup). */
   codexSetup?(): import('./types').CodexSetupLite;
   nativeCanResume?(run:RunDetail):boolean;
-  nativeStop?(run:RunDetail):void;
+  nativeStop?(run:RunDetail,reason?:RunStopReason,line?:string):void;
   nativeRestart?(run:RunDetail,resume:boolean):Promise<RunDetail>;
   eraseR5Copies?(orderIds:readonly string[]):void;
   erasePhoneCopies?(orderIds:readonly string[]):void;
@@ -78,6 +86,8 @@ export interface W4DeskHost {
   taxFields?(): boolean;
   /** Today's rows, shared with the other desks, and the fake's digest for a row it adds or changes. */
   rows(): QueueRow[];
+  /** Today's rows still waiting (a decided one left out), as venture.queue.list answers; left out means rows(). */
+  waiting?(): QueueRow[];
   setRows(rows: QueueRow[]): void;
   digest(value: unknown): string;
   /** Another desk's answer, for the records this desk reads. */
@@ -123,7 +133,7 @@ export interface W4DeskHost {
   receipt?(id: string): ReceiptLite | undefined;
 }
 
-const W4_METHODS = new Set<string>([...FAKE_EVENT_METHODS, ...FAKE_HIRE_METHODS, ...FAKE_TRACKER_METHODS, ...FAKE_4J3_METHODS, ...FAKE_4J8_METHODS, ...FAKE_4J6_METHODS, ...FAKE_4A2_METHODS, ...FAKE_4I2_METHODS, ...FAKE_4H2_METHODS, ...FAKE_4F3_METHODS, ...FAKE_4J2_METHODS, ...FAKE_4J19_METHODS, ...FAKE_4J21_METHODS, ...FAKE_4J22B_METHODS, ...FAKE_4J22A_METHODS]);
+const W4_METHODS = new Set<string>([...FAKE_PLAN_METHODS, ...FAKE_EVENT_METHODS, ...FAKE_HIRE_METHODS, ...FAKE_TRACKER_METHODS, ...FAKE_4J8_METHODS, ...FAKE_4J6_METHODS, ...FAKE_4A2_METHODS, ...FAKE_4I2_METHODS, ...FAKE_4H2_METHODS, ...FAKE_4F3_METHODS, ...FAKE_4J2_METHODS, ...FAKE_4J19_METHODS, ...FAKE_4J21_METHODS, ...FAKE_4J22B_METHODS, ...FAKE_4J22A_METHODS]);
 
 export class FakeW4Desk {
   protected readonly host: W4DeskHost;
@@ -134,6 +144,7 @@ export class FakeW4Desk {
   private readonly across: FakeAcross;
   private readonly team: FakeTeamDesk;
   private readonly goals: FakeGoals;
+  private readonly plan: FakePlan;
   private readonly runControls: FakeRunControls;
   private readonly sets: FakeSets;
   private readonly approvals: FakeApprovalsDesk;
@@ -142,6 +153,9 @@ export class FakeW4Desk {
   /** C4 task 15: a draft's Reject, which can be taken back. */
   noteReject(row: QueueRow, runId: string, prior: DeliveryLite): void { this.approvals.rejected(row, runId, prior); }
   chausarNote(subject: string, action: string, reason: string): void { this.approvals.chausarNote(subject, action, reason); }
+  /** Round 6: a Today click, in the decision record; and the decisions Today's Earlier lists (fake-4j19.ts). */
+  noteClick(row: QueueRow, action: QueueActionId, line: string): void { this.approvals.noteClick(row, action, line); }
+  ownDecisions(): DecisionView[] { return this.approvals.ownDecisions(); }
   private readonly setup: FakeSetupDesk;
   private readonly extras: FakeAgentExtras;
   /** 4J22a's desk; public so tests can break the chain or put a contract on an order. */
@@ -162,6 +176,11 @@ export class FakeW4Desk {
     this.events = new FakeEvents(host);
     this.extras = new FakeAgentExtras(host, { fresh: this.fresh, hooks: options.extras ?? {} });
     this.quality = new FakeQualityDesk(host, { fresh: this.fresh });
+    // The daily review is a routine in the routines desk, which the plan reads and sets.
+    this.plan = new FakePlan(host, {
+      find: (business) => this.quality.reviewRoutine(business), ever: (business) => this.quality.reviewRoutineEver(business),
+      set: (business, on, time) => this.quality.setReviewRoutine(business, on, time),
+    }, { fresh: this.fresh });
     // 4J3: the engine adds previews after each row's digest; the fake adds its own rows' the same way.
     if (!this.fresh) host.setRows(withFakeMeta(withFakePreviews(host.rows())));
     // 4J22a: the question run 29 waits on ends in a few hours, so the run sheet shows its expiry.
@@ -179,11 +198,11 @@ export class FakeW4Desk {
   }
 
   /** 4A2: venture.team.list, the fake's agents as the engine lists them (fake.ts answers the method with this). */
-  teamList(agents: AgentView[], runs: readonly RunSummary[]): TeamListView {
+  teamList(agents: AgentView[], runs: readonly RunSummary[], accepted = true): TeamListView {
     // C7: the agents the owner hired stand before Keeper.
     const keeper = agents.findIndex((agent) => agent.id === 'keeper');
     const hired = this.hire.agents();
-    return this.team.list(keeper < 0 ? [...agents, ...hired] : [...agents.slice(0, keeper), ...hired, ...agents.slice(keeper)], runs);
+    return this.team.list(keeper < 0 ? [...agents, ...hired] : [...agents.slice(0, keeper), ...hired, ...agents.slice(keeper)], runs, accepted);
   }
 
   /** 4F3: a run as venture.runs.get sends it, its scope's cap in rupees when the owner set a rate. */
@@ -207,6 +226,13 @@ export class FakeW4Desk {
     this.sets.markViewed(opened);
   }
 
+  /** The chat consent was given just now: a daily review held today for it runs (fake-plan.ts, as chief/review.ts). */
+  afterChatConsent(): void { this.plan.afterConsent(); }
+  /** Events move the chief's plan: fake.ts calls this on each queue change, as the engine keeps the plan in the same commit. */
+  keepPlan(): void { this.plan.keep(); }
+  /** venture.get's done and total: how far what is sold is from ready, as the plan counts its setup (fake.ts answers the method). */
+  setupProgress(): { done: number; total: number } { return this.plan.setup(); }
+
   handles(method: string): boolean {
     return W4_METHODS.has(method);
   }
@@ -215,7 +241,6 @@ export class FakeW4Desk {
     if (FAKE_TRACKER_METHODS.includes(method)) return this.trackers.request(method, p);
     if (FAKE_HIRE_METHODS.includes(method)) return this.hire.request(method, p);
     if (FAKE_EVENT_METHODS.includes(method)) return this.events.request(method, p);
-    if (method === 'venture.files.poster') return fakePoster(this.host, p);
     if (method === 'venture.blueprint.suggest') return fakePlanSuggest(this.host, p);
     if (method === 'venture.models.cli.status') return fakeCliStatus(this.host, p);
     if (method === 'venture.models.plan') return fakePlan(this.host, p);
@@ -227,6 +252,7 @@ export class FakeW4Desk {
     if (FAKE_4J6_METHODS.includes(method)) return this.across.request(method, p);
     if (FAKE_4A2_METHODS.includes(method)) return this.team.request(method, p);
     if (FAKE_4I2_METHODS.includes(method)) return this.goals.request(method, p);
+    if (FAKE_PLAN_METHODS.includes(method)) return this.plan.request(method, p);
     if (FAKE_4F3_METHODS.includes(method)) return this.runControls.request(method, p);
     if (FAKE_4J21_METHODS.includes(method)) return this.setup.request(method, p);
     if (FAKE_4J22B_METHODS.includes(method)) return this.extras.request(method, p);

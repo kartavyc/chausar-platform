@@ -7,7 +7,7 @@ import type { RunDetail, RunSummary } from '../../engine/types';
 import s from './Work.module.css';
 
 export interface StopRun {
-  /** "Stop", named "Stop run 31"; nothing on a run that is stopping, stopped, done or failed. */
+  /** "Stop", named by what the run is doing ("Stop: Cutting shorts from episode 13"); nothing on a run that is stopping, stopped, done or failed. */
   button: ReactNode;
   /** The small dialog it opens, then the engine's answer in its own words. */
   panel: ReactNode;

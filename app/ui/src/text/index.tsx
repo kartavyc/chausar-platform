@@ -30,9 +30,6 @@ const HINDI_FILES = import.meta.glob('./hi/*.json', { import: 'default' });
 let hindi: Catalogue | null = null;
 let loading: Promise<void> | null = null;
 
-/** The pack, once it has landed; null until then. */
-export function hindiCatalogue(): Catalogue | null { return hindi; }
-
 async function loadHindi(): Promise<void> {
   // A font that fails to load leaves the system's Devanagari face; the words still show.
   const fonts = import('../tokens/fonts-hi.css').catch(() => {});
@@ -78,15 +75,6 @@ export function format(catalogue: Catalogue, language: Language, key: string, va
 export function say(english: Catalogue, pack: Catalogue | null, language: Language, key: string, values?: TextValues): string {
   if (language === 'hi' && pack && pack[key] !== undefined) return format(pack, 'hi', key, values);
   return format(english, 'en', key, values);
-}
-
-/** The named values a message uses, across all its forms, sorted. */
-export function placeholders(message: Message | undefined): string[] {
-  if (message === undefined) return [];
-  const texts = typeof message === 'string' ? [message] : Object.values(message);
-  const names = new Set<string>();
-  for (const text of texts) for (const m of text.matchAll(/\{(\w+)\}/g)) names.add(m[1]!);
-  return [...names].sort();
 }
 
 export function pickLanguage(_preferred: readonly string[] = []): Language {

@@ -274,14 +274,15 @@ test('the venture journey runs through one hosted actor per business, with key-o
   assert.equal((await owner.rpc('venture.blueprint.accept', { digest: updated.digest })).blueprint.status, 'accepted');
   await assert.rejects(owner.rpc('receipts.get', { id: 'not-a-receipt' }), (error: any) => error.code !== 'HOSTED_NOT_AVAILABLE', 'receipts.get is on the hosted list');
 
-  for (const method of ['workspace.backup', 'workspace.export', 'sources.import', 'plugins.install', 'mcp.handle', 'conversation.ask', 'workspace.restore', 'trust.get']) {
+  for (const method of ['workspace.export', 'workspace.restore', 'trust.get']) {
     await assert.rejects(owner.rpc(method), code('HOSTED_NOT_AVAILABLE'), method);
   }
   // Hosted keeps server custody: none of the ten keep-it-on-this-computer methods is on the hosted list.
   const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
   for (const method of CUSTODY_METHODS) await assert.rejects(owner.rpc(method), code('HOSTED_NOT_AVAILABLE'), method);
-  const capabilities = await owner.rpc('venture.capabilities');
-  assert.equal(capabilities.find((row: any) => row.id === 'hosted-actors').state, 'unverified');
+  // A read through the hosted server knows where it runs: the books carry the test version note.
+  const books = await owner.rpc('venture.books.summary');
+  assert.ok(books.notes.includes("Test version: practice here, don't send real invoices yet."));
   assert.equal(app.runtime.descriptor.adapter, 'local');
 });
 

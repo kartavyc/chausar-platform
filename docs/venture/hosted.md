@@ -51,7 +51,7 @@ hosted server                          platform/runtime/hosted/server.ts
   |-- account directory, sealed        directory.ts, custody.ts
   |-- rate and budget limits           limits.ts, models.ts
   |-- request router                   app.ts
-  '-- actor runtime                    runtime/local.ts (runtime/rivet.ts is the planned seam)
+  '-- actor runtime                    runtime/local.ts
         '-- one actor per business: an Engine over its own encrypted vault
               files:      <data folder>/tenants/<tenant id>/<business id>/
               PostgreSQL: one row per business, slot hosted.<tenant id>.<business id>
@@ -158,7 +158,7 @@ The runtime follows Rivet Actors' shape, so a hosted adapter can map onto real R
 
 An actor wakes by opening its vault with the passphrase from custody. Sleeping closes the vault and drops every key typed into it, the same as a restart on the desktop. The server keeps at most 200 businesses awake and sleeps the one idle longest when it needs room.
 
-The Rivet adapter (`runtime/rivet.ts`) is written against structural types, because `rivetkit` is not a dependency. It is checked only against an in-memory stand-in, so every capability it declares says planned, and the server refuses `CHAUSAR_VENTURE_RUNTIME=rivet`.
+A Rivet adapter is planned and not written yet: `rivetkit` is not a dependency, and the server refuses `CHAUSAR_VENTURE_RUNTIME=rivet`.
 
 ## PostgreSQL storage
 
@@ -212,7 +212,7 @@ The delivery harness ([harness.md](harness.md)) runs here too. Agents work on th
 | Python in a container (`sandbox.python`) | Refused (`TIER_UNAVAILABLE`); not offered; nothing checks for Docker | Containers never run on a shared server |
 | Bills picked from PDFs (`bills.pick`) | Refused (`TIER_UNAVAILABLE`); not offered | Needs PDF text |
 
-A playbook keeps the tools it grants. The host decides only what the agent is offered and what runs: a call to a refused tool comes back to the agent as a `TIER_UNAVAILABLE` envelope with the reason, before its input is read. The capability list's light sandbox and container rows use the same words, and its agent tools row says PDFs and agent-written code are off here.
+A playbook keeps the tools it grants. The host decides only what the agent is offered and what runs: a call to a refused tool comes back to the agent as a `TIER_UNAVAILABLE` envelope with the reason, before its input is read.
 
 Bookkeeping's work product still works here. `books.reconcile` reads the bank statement and the bills from CSV or XLSX with code and adds with BigInt, so a reconciled month needs no sandbox. Without row programs the agent can't make its own match keys, so matching uses the other three passes: a bill number in the bank text, the same amount and the supplier's name, then an amount that is unique on both sides. A test runs a real order on a hosted host this way: the agent reads both files, its row program and Python calls are refused, and the month reconciles and balances with receipts.
 
@@ -278,7 +278,7 @@ An owner can turn on phone alerts in a browser (Business > Notifications). The s
 | Storage | experimental | Encrypted files on one server, or PostgreSQL. PostgreSQL is checked against a stand-in only, not yet a real server or a real deploy. On the hosted server the storage row says `unverified` and invoices keep their practice notice on either store. |
 | Email sign-in | development only | No mail sender; links print on the console |
 | Passkeys | experimental | Checked with a software authenticator in tests, not yet with real devices on a real domain |
-| Rivet Actors adapter | planned | In-memory stand-in only |
+| Rivet Actors adapter | planned | Not written yet |
 | Schedules, cron, queues, workflows | planned | No venture action needs them yet |
 | Containers and plugins | unavailable on hosted | Never on a shared server; nothing checks for Docker there |
 | Agent-written code (the light sandbox) | unavailable on hosted | Off until the founder decides; the desktop app runs it |
@@ -296,7 +296,7 @@ Each of these is outside this branch. The labels above change only after the dep
 3. **A mail sender.** SMTP or a mail API under the operator's account, with SPF, DKIM and DMARC on the sending domain. Not built: `CHAUSAR_HOSTED_MAILER` accepts only `none` outside development. Without it, new people can't sign up; existing people can sign in with passkeys.
 4. **Durable storage.** The PostgreSQL path is written ([PostgreSQL storage](#postgresql-storage)). A deploy still needs: a managed PostgreSQL with backups and a tested restore; the TLS proxy on the server's loopback, with its certificate checks confirmed; and a passing qualification run against a real server: `npm install` (for `pg`), then `CHAUSAR_TEST_POSTGRES_URL=postgres://user:password@127.0.0.1:5432/db node --test platform/tests/qualification/hosted-postgres-real.test.ts` on a disposable database. It runs the two real directory and vault checks and the runtime conformance suite on real rows. After a restore, restart every server process: each one refuses a directory that went back.
 5. **One server process, or shared state.** File storage holds a lock, so one process serves one data folder. On PostgreSQL the directory, sessions and usage ledger are shared, and more than one process can serve them. Still per process: rate limits, the AI concurrency gate and event-stream counts. Each business also needs one process at a time, so a load balancer must send each business to one process (or the Rivet runtime places them). Until a shared rate-limit store and that routing exist, run one process.
-6. **The real actor runtime.** Run the runtime conformance suite (`runtimeConformance` in `platform/tests/hosted-runtime-conformance.ts`) against a real Rivet engine on Linux before the Rivet adapter is labelled anything but planned.
+6. **The real actor runtime.** Write the Rivet adapter, then run the runtime conformance suite (`runtimeConformance` in `platform/tests/hosted-runtime-conformance.ts`) against a real Rivet engine on Linux before it is labelled anything but planned.
 7. **Operations.** Logs without secrets or client text, monitoring, abuse handling, account and data deletion requests, a privacy notice and terms, and an incident plan.
 8. **Review.** A security review and a test of passkeys and email links on the real domain with real devices.
 
@@ -332,7 +332,7 @@ On Windows with Node 24.13.1, with no network beyond this computer's loopback an
 - `hosted-webauthn.test.ts`: real P-256, Ed25519 and RSA passkeys from a software authenticator; wrong site, challenge, ceremony, user, signature and counter are each refused.
 - `hosted-accounts.test.ts`: email links bound to the asking browser, expiry, rate limits, passkeys from a fresh session, session expiry and limits, account deletion, and the sealed directory file (no email on disk in the clear, one server per folder, a wrong key refused).
 - `hosted-limits.test.ts`: token buckets, the concurrency gate, the monthly ceiling, and the transport that applies them and refuses processes.
-- `hosted-runtime.test.ts`: the same conformance checks (`hosted-runtime-conformance.ts`) on the local runtime, on the Rivet adapter over its stand-in, and on the local runtime with every vault in the PostgreSQL stand-in, each business a real Engine over a real vault.
+- `hosted-runtime.test.ts`: the same conformance checks (`hosted-runtime-conformance.ts`) on the local runtime and on the local runtime with every vault in the PostgreSQL stand-in, each business a real Engine over a real vault.
 - `hosted-postgres.test.ts`, against `hosted-postgres-standin.ts`, which answers the exact statements with PostgreSQL's rules (compare and set, unique slots, advisory locks, revisions as text, JSONB key order): two servers changing the directory at once take turns and lose nothing; two servers sent at one sign-in link sign in once; a session made on one server works on the other after it catches up, and so does signing out; a change that keeps losing to a writer outside the turns gives up and writes nothing; a wrong key, a damaged row and a table put back to an older copy are refused; an unreachable database answers 503; the settings accept loopback only; a business vault is one row that opens from another data folder, and a second writer on the same business is refused rather than lost; and two hosted servers over real sockets share one sign-in, with a business made on the first opened, read and deleted on the second. Removing the turn's lock on purpose fails two of these tests, and removing the per-request catch-up fails the two-server one.
 - The qualification run on a real PostgreSQL server, `platform/tests/qualification/hosted-postgres-real.test.ts`, on 16 October against a throwaway PostgreSQL 17.11 server started from the installed programs with its own data folder, port and generated password (the installed server was not touched). It holds the two "real PostgreSQL" tests (two pools on one directory row; a business vault in its own row) and the six runtime conformance checks on the local runtime with every vault in the real database. It sits outside the open suite on purpose: CI doesn't qualify PostgreSQL, and the benchmark fails any shard with a skipped test. Without `CHAUSAR_TEST_POSTGRES_URL` it fails with one test that says so, and it never skips, so it can't pass by accident. First run: 6 of 8 passed. The two failures were a cleanup that closed its pool before deleting its rows (test code), and a real bug: two pools changing the directory at once ended in "busy", because the faster server kept winning compare and set. Directory changes now take turns under an advisory lock (see [PostgreSQL storage](#postgresql-storage)). After the fix: 8 of 8, three runs in a row; with the old directory code put back, the two-pool test failed three runs out of three.
 - `hosted-server.test.ts`: the server over real sockets: headers, host and origin checks, cookies, the bearer, the allow-list, two tenants that never meet, the event stream, limits, and the venture journey from the idea to an accepted plan with the synthetic recordings, the cost reaching the account ledger.

@@ -8,7 +8,7 @@ import { currentVenture, exactPayload } from '../records.ts';
 import { formatTime, formatWeekday, ownerZone } from '../../owner-format.ts';
 import { CLI_LABELS } from './presets.ts';
 import { fromCodexLimits, type PlanState, type PlanWindowKind } from './plan-meter.ts';
-import { planBookOf } from './plan-book.ts';
+import { planBookFor } from './plan-book.ts';
 
 export type PlanWindowView = { kind: PlanWindowKind; usedPercent: number | null; resetsAt: IsoTime | null; state: PlanState; line: string };
 export type PlanToolView = { cli: DelegateCli; label: string; state: PlanState; windows: PlanWindowView[]; readAt: IsoTime | null; source: string; canCheck: boolean };
@@ -30,8 +30,8 @@ function windowLine(kind: PlanWindowKind, usedPercent: number | null, resetsAt: 
 }
 
 /** The view of one tool's reading, in the owner's zone. */
-export function planToolView(deps: Pick<VentureDeps, 'store'>, cli: DelegateCli, now: IsoTime, zone: string): PlanToolView {
-  const reading = planBookOf(deps.store).read(cli, now), label = CLI_LABELS[cli];
+export function planToolView(deps: Pick<VentureDeps, 'store' | 'planKey'>, cli: DelegateCli, now: IsoTime, zone: string): PlanToolView {
+  const reading = planBookFor(deps).read(cli, now), label = CLI_LABELS[cli];
   const windows = reading.windows.map(window => ({ ...window, line: windowLine(window.kind, window.usedPercent, window.resetsAt, zone) }));
   const source = reading.readAt === null ? PLAN_WORDS.notYet(label)
     : !windows.length && reading.state === 'used-up' ? PLAN_WORDS.usedUp(label) : PLAN_WORDS.reported(label, formatTime(reading.readAt, zone));
@@ -45,7 +45,7 @@ export async function planView(deps: VentureDeps, ctx: Context, payload: unknown
   check(deps.host !== 'hosted-web', 'TIER_UNAVAILABLE', PLAN_WORDS.hosted);
   if (input.fresh === true) {
     const raw = await deps.models.codexPlan?.().catch(() => null) ?? null;
-    if (raw !== null) planBookOf(deps.store).note(fromCodexLimits(raw, deps.clock().toISOString()));
+    if (raw !== null) planBookFor(deps).note(fromCodexLimits(raw, deps.clock().toISOString()));
   }
   const venture = currentVenture(deps.store.read());
   const zone = ownerZone(venture?.country?.code, 'Etc/GMT'), now = deps.clock().toISOString();

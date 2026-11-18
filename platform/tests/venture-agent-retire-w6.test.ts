@@ -45,6 +45,7 @@ const AGENT_IDS = ['intake-clerk', 'producer', 'story-editor', 'cutter', 'packag
 test('retire check: what the agent holds, what is in flight, the routines that switch off and who can take over', async () => {
   const env = await agentBusiness();
   await consent(env);
+  env.models.respond['agent-chat'] = () => ({ reply: 'Here is how I would go about it.', figures: [] });
   await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Publish the trailer on YouTube today.' });
   const on = await routine(env, 'story-editor');
   await routine(env, 'story-editor', false, 'Old check');
@@ -128,6 +129,7 @@ test('retire: the agent goes to the Retired shelf, its routines switch off and i
 test('retire never loses a receipt, an approval in flight or an undo, and Today names it with (retired)', async () => {
   const env = await agentBusiness();
   await consent(env);
+  env.models.respond['agent-chat'] = () => ({ reply: 'Here is how I would go about it.', figures: [] });
   await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Publish the trailer on YouTube today.' });
   const proposal = listRecords(env.store.read(), 'venture-proposal').at(-1)!;
   const said = await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Remember that Meera wants files by the 5th.' });

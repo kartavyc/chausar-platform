@@ -24,7 +24,6 @@ const MAX_MODULE_BYTES = 900 * 1024;
 const WORKER_TIMEOUT_MS = 4000;
 const WORKER_OUTPUT_BYTES = 2 * 1024 * 1024;
 
-export const WASM_LITE_REASON = "Runs the agent's row programs on this computer, compiled to WebAssembly, in a separate process with no file, network or process access for the program, a memory cap and a time limit. Row programs make labels and keys; they can't add up money.";
 export const PYTHON_IMAGE = 'python:3.12-alpine';
 export const DOCKER_MISSING = 'Needs Docker Desktop.';
 export const DOCKER_STOPPED = 'Docker Desktop is installed but not running.';
@@ -202,23 +201,6 @@ export async function containerAvailability(ports: SandboxPorts | undefined): Pr
   catch { return { state: 'needs-setup', reason: DOCKER_MISSING }; }
   if (image.exitCode !== 0) return { state: 'needs-setup', reason: DOCKER_IMAGE_MISSING };
   return { state: 'unverified', reason: DOCKER_READY };
-}
-
-const AVAILABILITY_TTL_MS = 60_000;
-const checked = new WeakMap<object, { at: number; value: Promise<TierAvailability> }>();
-const REAL_PORT = {};
-
-/**
- * The container check, reused for a minute per port so a screen that lists capabilities does not start docker on
- * every load. A changed Docker setup shows within a minute.
- */
-export function cachedContainerAvailability(ports: SandboxPorts | undefined, nowMs: number): Promise<TierAvailability> {
-  const key = ports ?? REAL_PORT;
-  const hit = checked.get(key);
-  if (hit && nowMs - hit.at < AVAILABILITY_TTL_MS) return hit.value;
-  const value = containerAvailability(ports);
-  checked.set(key, { at: nowMs, value });
-  return value;
 }
 
 /** The fixed runner inside the container: it calls the agent's transform(row) once per row and prints JSON. */

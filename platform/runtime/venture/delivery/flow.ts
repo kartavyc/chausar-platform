@@ -8,8 +8,7 @@
 // that reaches an outside step without the owner's approval: only an approval step's done counts as approved, an edge
 // or fail-over into an outside step comes only from that done, and an approval step times out only through its gate.
 // An optional step (skipped under budget pressure, 4F2) is never an approval, a check or an outside step, never breaks
-// a loop, and its skip is walked as an edge too. advanceFlow and walkFlow work a run's path out from step
-// outcomes, numbering each attempt. Shipped playbooks get edges in W5 (spec 5.8): no shipped step has one in W4.
+// a loop, and its skip is walked as an edge too. Shipped playbooks get edges in W5 (spec 5.8): no shipped step has one in W4.
 // The shape follows Beeline's workflow contracts (docs/workflows/README.md, MIT); this is a rewrite, not a copy.
 import { ChausarError, check } from '../../contracts.ts';
 import type { HarnessLimits, PlaybookStep, StepEdge } from '../contracts.ts';
@@ -178,98 +177,4 @@ export function validateFlow(steps: readonly PlaybookStep[], limits?: Pick<Harne
   }
   const outside = unapprovedOutside(steps);
   if (outside) refuse(`The step ${outside} acts outside Chausar, and an edge reaches it before you approve.`);
-}
-
-// ---------------------------------------------------------------------------
-// Walking a run's path
-// ---------------------------------------------------------------------------
-
-/** What one attempt at a step came to. blocked always says why. */
-export type StepOutcome = { outcome: 'done' } | { outcome: 'failed'; reason?: string } | { outcome: 'blocked'; reason: string } | { outcome: 'timeout' };
-/** How a run's path ended: on which step, and why when it did not end done. */
-export type FlowEnd = { state: 'done' | 'blocked' | 'failed'; reason: string | null; stepId: string | null };
-/** One attempt at a step, numbered from 1 for each step; outcome is null while the attempt is going on. */
-export type FlowEntry = { stepId: string; attempt: number; outcome: StepOutcome['outcome'] | null };
-/** Where a run's path is: the step it is on, the attempts and timeouts so far, every attempt in order, and its end. */
-export type FlowState = {
-  stepId: string | null;
-  attempts: Record<string, number>;
-  timeouts: Record<string, number>;
-  trail: FlowEntry[];
-  startedAt: number;
-  deadlineAt: number | null;
-  end: FlowEnd | null;
-};
-
-/** A run's path at its start: on the first step, attempt 1. deadlineMs (the playbook's limits) sets the deadline. */
-export function startFlow(steps: readonly PlaybookStep[], limits: Pick<HarnessLimits, 'deadlineMs'> | undefined, startedAt: number): FlowState {
-  check(steps.length >= 1, 'INVALID_VENTURE_REQUEST', 'A work plan needs at least one step.');
-  const first = steps[0].id;
-  return {
-    stepId: first, attempts: { [first]: 1 }, timeouts: {}, trail: [{ stepId: first, attempt: 1, outcome: null }], startedAt,
-    deadlineAt: limits?.deadlineMs === undefined ? null : startedAt + limits.deadlineMs, end: null,
-  };
-}
-
-const ended = (flow: FlowState, state: FlowEnd['state'], reason: string | null, stepId: string | null): FlowState => ({ ...flow, stepId: null, end: { state, reason, stepId } });
-
-/**
- * The path after the current attempt's outcome, as a new state (the one given is not changed). The step's edge for
- * the outcome decides the next step; with none, done goes on down the list and anything else ends the run. A timeout
- * fails over to the step's next fail-over step in order, then takes its timeout edge, then ends the run failed; on a
- * gated approval step it ends the run with the gate's default. Coming back to a step past its cap ends the run with
- * its onExceeded (blocked unless it says failed); a run past its deadline ends blocked before the next step.
- */
-export function advanceFlow(steps: readonly PlaybookStep[], flow: FlowState, result: StepOutcome, nowMs: number): FlowState {
-  check(!flow.end && flow.stepId !== null, 'INVALID_VENTURE_REQUEST', 'This run has ended.');
-  const at = steps.findIndex(item => item.id === flow.stepId);
-  check(at >= 0, 'STEP_NOT_FOUND', 'That step was not found.');
-  const step = steps[at];
-  check(result && typeof result === 'object' && EDGE_OUTCOMES.includes(result.outcome), 'INVALID_VENTURE_REQUEST', 'A step ends done, failed, blocked or out of time.');
-  const reason = 'reason' in result && typeof result.reason === 'string' ? result.reason.trim() : '';
-  if (result.outcome === 'blocked') check(reason.length > 0 && reason.length <= 300, 'INVALID_VENTURE_REQUEST', 'A blocked step must say why, in up to 300 characters.');
-  const trail = flow.trail.map((entry, index) => (index === flow.trail.length - 1 ? { ...entry, outcome: result.outcome } : entry));
-  const timeouts = { ...flow.timeouts };
-  const done: FlowState = { ...flow, trail, timeouts };
-  const edge = (on: StepEdge['on']) => (step.next ?? []).find(item => item.on === on)?.to ?? null;
-  let to: string | null;
-  if (result.outcome === 'timeout') {
-    if (step.gate) return ended(done, step.gate.default, GATE_TIMEOUT_LINE, step.id);
-    const tried = timeouts[step.id] ?? 0;
-    timeouts[step.id] = tried + 1;
-    to = step.failover?.[tried] ?? edge('timeout');
-    if (!to) return ended(done, 'failed', `The step ${step.id} ran out of time.`, step.id);
-  } else {
-    to = edge(result.outcome);
-    if (!to) {
-      if (result.outcome === 'done') {
-        if (at + 1 >= steps.length) return ended(done, 'done', null, step.id);
-        to = steps[at + 1].id;
-      } else {
-        return ended(done, result.outcome, reason || `The step ${step.id} failed.`, step.id);
-      }
-    }
-  }
-  if (done.deadlineAt !== null && nowMs > done.deadlineAt) return ended(done, 'blocked', DEADLINE_LINE, step.id);
-  const target = steps.find(item => item.id === to);
-  check(target, 'STEP_NOT_FOUND', `The step ${to} is not in this work plan.`);
-  const before = done.attempts[target.id] ?? 0;
-  if (before > 0 && target.maxLoops !== undefined && before > target.maxLoops) {
-    return ended(done, target.onExceeded ?? 'blocked', `The run came back to ${target.id} ${target.maxLoops} ${target.maxLoops === 1 ? 'time' : 'times'}, its limit.`, step.id);
-  }
-  return { ...done, stepId: target.id, attempts: { ...done.attempts, [target.id]: before + 1 }, trail: [...trail, { stepId: target.id, attempt: before + 1, outcome: null }] };
-}
-
-/**
- * Walks a run's whole path from its start, asking decide for each attempt's outcome (a rehearsal, or a test). now:
- * the time each outcome is taken at, the start by default. Stops at the end, or at a guard on the number of attempts.
- */
-export function walkFlow(steps: readonly PlaybookStep[], decide: (stepId: string, attempt: number) => StepOutcome, options: { startedAt: number; limits?: Pick<HarnessLimits, 'deadlineMs'>; now?: (entries: number) => number }): FlowState {
-  let flow = startFlow(steps, options.limits, options.startedAt);
-  while (!flow.end) {
-    check(flow.trail.length <= MAX_FLOW_ENTRIES, 'INVALID_VENTURE_REQUEST', 'This run went round too many times.');
-    const current = flow.trail[flow.trail.length - 1];
-    flow = advanceFlow(steps, flow, decide(current.stepId, current.attempt), options.now ? options.now(flow.trail.length) : options.startedAt);
-  }
-  return flow;
 }

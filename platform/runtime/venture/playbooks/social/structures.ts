@@ -2,7 +2,7 @@
 import type { FlagshipCheckInput } from '../draft-checks.ts';
 import type { PlaybookCheckResult } from '../../contracts.ts';
 import { ghostwritingTextChecks } from './ghostwriting-core.ts';
-export { LINKEDIN_STRUCTURES, LINKEDIN_GUIDANCE, structureOf, ghostwritingSections } from './structures-data.ts';
+export { LINKEDIN_STRUCTURES, LINKEDIN_GUIDANCE, ghostwritingSections } from './structures-data.ts';
 export function ghostwritingChecks(input: FlagshipCheckInput): PlaybookCheckResult[] {
     if (input.offerKey !== 'linkedin-ghostwriting')
         return [];

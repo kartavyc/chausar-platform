@@ -95,3 +95,20 @@ test('a failed command-line call says why in owner words, not "stopped with an e
   // A plain failure keeps the plain words.
   assert.equal((parseCodexCli({ exitCode: 1, stdout: '', stderr: 'odd' }) as { code: string }).code, 'MODEL_FAILED');
 });
+
+// Seen live on 14 Nov 2026 (Claude Code 2.1.321, a sign-in that had run out): the tool answered "Failed to authenticate:
+// OAuth session expired and could not be refreshed". No sign-in phrase matched it, so the owner was shown the plain
+// "stopped with an error" line beside "Claude is having problems right now, not you", when the fix was to sign in again.
+test('an expired or failed sign-in, in the words Claude Code uses, is a refused sign-in', async () => {
+  const { classifyAiText, classifyClaudeResult } = await import('../runtime/venture/models/ai-failure.ts');
+  for (const words of [
+    'Failed to authenticate: OAuth session expired and could not be refreshed',
+    'failed to authenticate',
+    'Your session has expired. Please sign in.',
+    'OAuth session expired',
+  ]) assert.equal(classifyAiText(words), 'sign-in-refused', words);
+  assert.equal(classifyClaudeResult({ type: 'result', subtype: 'success', is_error: true, result: 'Failed to authenticate: OAuth session expired and could not be refreshed' }), 'sign-in-refused');
+  // Words about a session that are not a sign-in problem stay unclassified.
+  assert.equal(classifyAiText('The planning session expired at five.'), null);
+  assert.equal(classifyAiText('A long working session.'), null);
+});

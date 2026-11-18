@@ -30,7 +30,7 @@ async function taxJob(t: {after(fn:()=>unknown):void}) {
   const order = await env.call('venture.order.create',{clientId:env.client.id,offerId:env.offers.find((row:any)=>row.playbookOffer==='gst-working')!.id,request:'Prepare GST from the attached sales register.'});
   const file=await env.call('venture.files.add',{orderId:order.id,name:'sales.csv',contentBase64:Buffer.from('Invoice,Date,GSTIN,State,HSN,Taxable,Rate\nINV-101,03/10/2026,27AAAFS1234K1ZB,27,998222,10000.00,18%').toString('base64')});
   const playbook=await ensurePlaybook(env.deps,owner);
-  const run=await ventureAction(env.deps,owner,'prepare','test.calculation-job',tx=>tx.put({...tx.base('venture-delivery-run'),orderId:order.id,playbookId:playbook.id,playbookHash:playbook.hash,status:'waiting-for-you',servedBy:'model',practice:false,callId:null,preview:null,deliverable:null,renderedText:null,checks:[],verdict:null,editedText:null}));
+  const run=await ventureAction(env.deps,owner,'prepare','test.calculation-job',tx=>tx.put({...tx.base('venture-delivery-run'),orderId:order.id,playbookId:playbook.id,playbookHash:playbook.hash,status:'working',servedBy:'model',practice:false,callId:null,preview:null,deliverable:null,renderedText:null,checks:[],verdict:null,editedText:null}));
   await consentForOrder(env.deps,owner,order.id);
   async function open(runId:string, resumeFrom?:string) {
   const job=await createNativeJob(env.deps,owner,runId,{agentId:'accountant',sections:['Working papers'],check:()=>undefined,resumeFrom});t.after(()=>job.close());
@@ -75,7 +75,7 @@ test('native missing facts wait durably for an exact owner answer and fresh sess
  await assert.rejects(answerAgentFacts(env.deps,{...owner,channel:'mcp',sourceTainted:true},held.id,held.agentJob!.pendingFacts!.digest,'October 2026'),{code:'APP_APPROVAL_REQUIRED'});
  await answerAgentFacts(env.deps,owner,held.id,held.agentJob!.pendingFacts!.digest,'October 2026');
  const stopped=findRecord(env.store.read(),'venture-delivery-run',held.id)!;assert.equal(stopped.status,'stopped');
- const next=await ventureAction(env.deps,owner,'prepare','test.next-job',tx=>tx.put({...stopped,...tx.base('venture-delivery-run'),agentJob:undefined,status:'waiting-for-you'}));
+ const next=await ventureAction(env.deps,owner,'prepare','test.next-job',tx=>tx.put({...stopped,...tx.base('venture-delivery-run'),agentJob:undefined,status:'working'}));
  const continued=await env.open(next.id,stopped.id),result=await continued.call('calculate',{operation:'tax_gst',arguments:gstArgs});
  assert.equal(result.result.ok,true,JSON.stringify(result));assert.equal(result.receipts[0].runRef.runId,next.id);
  assert.equal(findRecord(env.store.read(),'venture-delivery-run',next.id)!.agentJob!.factAnswers!.length,1);

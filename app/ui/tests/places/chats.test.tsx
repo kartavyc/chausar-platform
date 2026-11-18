@@ -128,12 +128,12 @@ describe('the rail and the header (spec 4.3: Today, Chats, Team, Work, Clients, 
 describe('Ctrl K and the bar', () => {
   it('Ctrl K inside another field is left to that field; inside the bar it selects the words', async () => {
     stubWidth(false);
-    await start('#/onboarding');
-    const box = await screen.findByRole('textbox', { name: /^(What do you want to start\?|Or describe it in one sentence)$/ });
+    await start('#/business/owner');
+    const box = await screen.findByRole('textbox', { name: 'Your first name' });
     box.focus();
     await act(async () => { fireEvent.keyDown(box, { key: 'k', ctrlKey: true }); });
     await hashChanged();
-    expect(window.location.hash).toBe('#/onboarding');
+    expect(window.location.hash).toBe('#/business/owner');
     expect(document.activeElement).toBe(box);
     const bar = screen.getByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
     bar.focus();
@@ -502,6 +502,54 @@ describe('#/chats: asking', () => {
   });
 
   // C4 task 30: a failed send stays in the thread as a bubble, the box is clear, and the reason sits under the bubble.
+  it('the owner\'s own message shows at once while the answer is written, the box is clear, and it shows once when the answer comes', async () => {
+    stubWidth(false);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await start('#/chats', { override: answer('venture.chief.thread.send', async (params, base) => { await held; return base('venture.chief.thread.send', params); }) });
+    await screen.findByRole('navigation', { name: 'Your chats' });
+    fireEvent.change(composer(), { target: { value: 'What did we receive this month?' } });
+    await click(screen.getByRole('button', { name: 'Send' }));
+    await settle();
+    // The answer is still being written: the owner's words are in the chat already, and the box holds nothing.
+    const bubble = within(thread()).getByText('What did we receive this month?').closest('[data-from="owner"]') as HTMLElement;
+    expect(bubble.hasAttribute('data-unsent')).toBe(false);
+    expect(composer().value).toBe('');
+    expect(composer().readOnly).toBe(true);
+    expect(screen.getByText(/^Writing/)).toBeTruthy();
+    release();
+    await settle();
+    await hashChanged();
+    await settle();
+    await waitFor(() => expect(assertFiguresProved(thread()).length).toBeGreaterThan(0));
+    expect(within(thread()).getAllByText('What did we receive this month?')).toHaveLength(1);
+    expect(composer().readOnly).toBe(false);
+  });
+
+  it('after Agree and send the words show in the chat at once, not an empty pane', async () => {
+    stubWidth(false);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const { seen, override } = consentEngine('needed', 'Chats send your message and what Chausar reads to answer it to Claude Sonnet 5.5 with your key.');
+    await start('#/chats', { override: both(override, (client) => {
+      const base = client.request.bind(client) as (m: string, p?: unknown) => Promise<unknown>;
+      client.request = (async (m: string, params?: unknown) => { if (m === 'venture.chief.thread.send' && seen.agreed) await held; return base(m, params); }) as EngineClient['request'];
+    }) });
+    await screen.findByRole('navigation', { name: 'Your chats' });
+    fireEvent.change(composer(), { target: { value: 'How is the month going?' } });
+    await click(screen.getByRole('button', { name: 'Send' }));
+    await settle();
+    await click(within(screen.getByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Agree and send' }));
+    await settle();
+    expect(screen.queryByRole('region', { name: 'Before your first message' })).toBeNull();
+    expect(within(thread()).getByText('How is the month going?').closest('[data-from="owner"]')).not.toBeNull();
+    release();
+    await settle();
+    await hashChanged();
+    await settle();
+    expect(within(thread()).getAllByText('How is the month going?')).toHaveLength(1);
+  });
+
   it('another refusal stays as a bubble marked Not sent, and Try again sends the same words', async () => {
     stubWidth(false);
     let refuse = true;
@@ -590,73 +638,6 @@ describe('Today with no agents, and the phone', () => {
     const back = await screen.findByRole('link', { name: 'All chats' });
     const head = back.closest('header')!;
     expect(head.firstElementChild).toBe(back);
-  });
-});
-
-describe('Start: the fit and "Not sure which fits?"', () => {
-  it('the fit is a model call, so it is asked only when the owner presses "Which way fits me?"', async () => {
-    stubWidth(false);
-    const { spy } = await start('#/onboarding');
-    const unsure = await screen.findByRole('region', { name: 'Not sure which fits?' });
-    await settle();
-    expect(calls(spy, 'venture.chief.fit')).toHaveLength(0);
-    expect(screen.queryByRole('region', { name: /^Good fit for you/ })).toBeNull();
-    await click(within(unsure).getByRole('button', { name: 'Which way fits me?' }));
-    await settle();
-    expect(calls(spy, 'venture.chief.fit').map(([, p]) => p)).toEqual([{}]);
-    expect(screen.getByRole('region', { name: /^Good fit for you/ })).toBeTruthy();
-  });
-
-  it('"Good fit for you" from venture.chief.fit, its line labelled a model estimate; Start with this fills the box and sends nothing', async () => {
-    stubWidth(false);
-    const { spy } = await start('#/onboarding');
-    await click(within(await screen.findByRole('region', { name: 'Not sure which fits?' })).getByRole('button', { name: 'Which way fits me?' }));
-    const fit = await screen.findByRole('region', { name: /^Good fit for you/ });
-    expect(calls(spy, 'venture.chief.fit').map(([, p]) => p)).toEqual([{}]);
-    expect(within(fit).getByText('Good fit for you')).toBeTruthy();
-    expect(within(fit).getByRole('heading', { level: 2 }).textContent).toBe('Social media agency');
-    expect(within(fit).getByText('model estimate')).toBeTruthy();
-    await click(within(fit).getByRole('button', { name: 'Start with this' }));
-    const box = screen.getByRole('textbox', { name: /^(What do you want to start\?|Or describe it in one sentence)$/ }) as HTMLTextAreaElement;
-    expect(box.value.length).toBeGreaterThan(10);
-    expect(document.activeElement).toBe(box);
-    expect(calls(spy, 'venture.preview')).toHaveLength(0);
-    assertInkRules(document.body);
-  });
-
-  it('no fit (no AI, or no ways listed) is no tile, and says so', async () => {
-    stubWidth(false);
-    await start('#/onboarding', { override: answer('venture.chief.fit', () => null) });
-    const unsure = await screen.findByRole('region', { name: 'Not sure which fits?' });
-    await click(within(unsure).getByRole('button', { name: 'Which way fits me?' }));
-    await settle();
-    expect(screen.queryByRole('region', { name: /^Good fit for you/ })).toBeNull();
-    expect(within(unsure).getByRole('status').textContent).toBe('No fit to show: Chausar needs your AI and the ways to earn for that.');
-  });
-
-  it('a fit the engine refuses keeps the Not sure tile, with the engine\'s words', async () => {
-    stubWidth(false);
-    await start('#/onboarding', { override: answer('venture.chief.fit', () => { throw new EngineError('MODEL_UNAVAILABLE', 'Your AI did not answer. Try again in a minute.'); }) });
-    const unsure = await screen.findByRole('region', { name: 'Not sure which fits?' });
-    await click(within(unsure).getByRole('button', { name: 'Which way fits me?' }));
-    await settle();
-    expect(within(unsure).getByRole('alert').textContent).toBe('Your AI did not answer. Try again in a minute.');
-    expect(within(unsure).getAllByRole('button').map((b) => b.textContent)).toContain('Which way fits 5 hours a week?');
-  });
-
-  it('"Not sure which fits? Ask Chausar": two questions that prefill the composer in Chats, and Open Chats', async () => {
-    stubWidth(false);
-    const { spy } = await start('#/onboarding');
-    const unsure = await screen.findByRole('region', { name: 'Not sure which fits?' });
-    expect(within(unsure).getByRole('link', { name: 'Open Chats' }).getAttribute('href')).toBe('#/chats');
-    const questions = within(within(unsure).getByRole('group', { name: 'Questions to ask' })).getAllByRole('button');
-    expect(questions.map((b) => b.textContent)).toEqual(['Which way fits 5 hours a week?', 'What could I add to my business?']);
-    await click(questions[0]!);
-    await hashChanged();
-    await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(composer().value).toBe('Which way fits 5 hours a week?'));
-    expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
   });
 });
 

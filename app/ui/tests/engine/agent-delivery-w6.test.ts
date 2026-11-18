@@ -70,7 +70,7 @@ it('fake AI jobs require this client permission, have progress, and never use tu
  const consent=await engine.request('venture.client.aiConsent.get',{clientId:order.clientId}) as ClientAiConsentView;
  await engine.request('venture.client.aiConsent.agree',{clientId:order.clientId,disclosureDigest:consent.disclosureDigest});
  const started=await engine.request('venture.delivery.run',{orderId:order.id}) as DeliveryLite&{preview:unknown};
- expect(started.status).toBe('waiting-for-you');expect(started.awaitingYou).toBe(false);expect(started.preview).toBeNull();expect(started.deliverable).toBeNull();
+ expect(started.status).toBe('working');expect(started.awaitingYou).toBe(false);expect(started.preview).toBeNull();expect(started.deliverable).toBeNull();
  const run=await engine.request('venture.runs.get',{runId:started.id}) as RunDetail;expect(run.state).toBe('active');expect(run.agentProgress).toEqual({messages:[],tools:[]});expect(run.steps.some(step=>step.state==='done')).toBe(false);
  await engine.request('venture.client.aiConsent.withdraw',{clientId:order.clientId});
  const stopped=await engine.request('venture.runs.get',{runId:started.id}) as RunDetail;expect(stopped.state).toBe('failed');

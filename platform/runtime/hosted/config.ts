@@ -108,7 +108,7 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
   if (mailerName !== 'dev-outbox' && mailerName !== 'none') refuse(`The ${mailerName} mail sender is planned, not built. Use none and sign in with passkeys, or --dev.`);
 
   const runtimeName = env.CHAUSAR_VENTURE_RUNTIME ?? 'local';
-  if (runtimeName === 'rivet') refuse('The Rivet Actors adapter is planned: it is mapped and checked against an in-memory stand-in only. Use the local runtime.');
+  if (runtimeName === 'rivet') refuse('The Rivet Actors adapter is planned, not built. Use the local runtime.');
   if (runtimeName !== 'local') refuse('CHAUSAR_VENTURE_RUNTIME must be local.');
   const storageName = env.CHAUSAR_HOSTED_STORAGE ?? 'experimental-file';
   if (storageName !== 'experimental-file' && storageName !== 'postgres') refuse('CHAUSAR_HOSTED_STORAGE must be experimental-file or postgres.');

@@ -13,6 +13,11 @@ export type CodexCliCapabilityProfile = {
   configKeys: readonly string[];
   stdinPrompt: boolean;
   sandboxModes: readonly string[];
+  /**
+   * Features this Codex turns on by default that the review did not cover (unreviewedCodexFeatures, read from its own
+   * feature list). The text route switches each one off, so a newer Codex runs as the reviewed one did. Absent when none.
+   */
+  unreviewedFeatures?: readonly string[];
 };
 
 export const CODEX_CLI_FLAGS = Object.freeze([
@@ -70,14 +75,54 @@ export const CODEX_FEATURES_LEFT_ON: Readonly<Record<string, string>> = Object.f
 });
 /** A2 review: the default-on features the check commands (version, help, features, models, login) also switch off. */
 export const CODEX_QUIET_ARGS = Object.freeze(['daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch', 'in_app_updates'].flatMap(name => ['--disable', name]));
-/** A2 review: the Codex versions that review (codex-trust.ts CODEX_CONFIG_REVIEW and the agent driver's protocol pin) covers. */
+/** A2 review: the Codex versions the review (codex-trust.ts CODEX_CONFIG_REVIEW) was run against live. */
 export const REVIEWED_CODEX_VERSIONS: readonly string[] = Object.freeze(['0.166.0']);
+/** The oldest Codex Chausar runs: the first reviewed version. */
+export const CODEX_MINIMUM_VERSION = '0.166.0';
+const VERSION = /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})(-[0-9A-Za-z][0-9A-Za-z.-]{0,63})?$/;
+const [MINIMUM_MAJOR, MINIMUM_MINOR, MINIMUM_PATCH] = CODEX_MINIMUM_VERSION.split('.').map(Number) as [number, number, number];
 /**
- * A2 second review: the quiet flags go only to a reviewed Codex version, which is known to take them; any other Codex
- * (an older one earlier on the search path) may not know them, so its commands run without them.
+ * Whether Chausar runs this Codex version: the first reviewed version or a newer one in the same major. Codex ships
+ * often, and an exact version stopped every owner at each update (found live on 11 Nov 2026: 0.167.0-alpha.3.2 answered
+ * the reviewed command but was refused by its version alone). The version is the floor, never the proof: what a Codex
+ * can do is still read from its own help and feature list (codex-cli-host.ts) and, for a job, from the running tool
+ * (the agent driver), and anything missing refuses it. A pre-release of a newer version counts; a pre-release of the
+ * floor itself is older than the floor; a build suffix and a new major are refused until they are reviewed.
+ */
+export function codexVersionAccepted(version: string | null | undefined): boolean {
+  const match = typeof version === 'string' ? VERSION.exec(version) : null;
+  if (!match) return false;
+  const major = Number(match[1]), minor = Number(match[2]), patch = Number(match[3]);
+  if (major !== MINIMUM_MAJOR) return false;
+  if (minor !== MINIMUM_MINOR) return minor > MINIMUM_MINOR;
+  if (patch !== MINIMUM_PATCH) return patch > MINIMUM_PATCH;
+  return match[4] === undefined;
+}
+/**
+ * A2 second review: the quiet flags go only to a Codex version Chausar runs, which is known to take them; any other
+ * Codex (an older one earlier on the search path) may not know them, so its commands run without them.
  */
 export function codexQuietArgsFor(version: string | null | undefined): readonly string[] {
-  return typeof version === 'string' && REVIEWED_CODEX_VERSIONS.includes(version) ? CODEX_QUIET_ARGS : [];
+  return codexVersionAccepted(version) ? CODEX_QUIET_ARGS : [];
+}
+const FEATURE_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
+const FEATURE_ROW = /^([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)\s+(stable|experimental|under development|deprecated|removed)\s+(true|false)$/;
+/**
+ * The features a Codex turns on by default that the review did not cover, from its own `features list` answer, in the
+ * listing's order: on, not removed, not switched off by CODEX_CLI_CONFIG and not on CODEX_FEATURES_LEFT_ON. Empty for
+ * the reviewed version (a test holds that). The text route switches each one off (buildCodexCliArguments).
+ */
+export function unreviewedCodexFeatures(featureListing: string): string[] {
+  const off = new Set(CODEX_CLI_CONFIG.filter(value => value.startsWith('features.')).map(value => value.slice('features.'.length).split('=')[0]));
+  const found: string[] = [];
+  for (const line of featureListing.split(/\r?\n/)) {
+    const row = FEATURE_ROW.exec(line.trim());
+    if (!row || row[3] !== 'true' || row[2] === 'removed') continue;
+    const name = row[1]!;
+    if (off.has(name) || Object.hasOwn(CODEX_FEATURES_LEFT_ON, name) || found.includes(name)) continue;
+    found.push(name);
+  }
+  return found;
 }
 export const CODEX_CLI_LIMITS = Object.freeze({
   stdoutBytes: 1048576, eventBytes: 262144, events: 256,
@@ -94,10 +139,16 @@ export type CodexCliBoundary = {
   stdinDigest: string; declaredSchemaDigest: string;
 };
 
-const ENVIRONMENT_NAMES = new Set([
-  'PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE',
-  'APPDATA', 'LOCALAPPDATA', 'CODEX_HOME',
+/**
+ * The names an official command-line tool needs to start and to find its own sign-in, and no others: the search path,
+ * the system and temp folders, the owner's profile folders, and the account name. USER and LOGNAME were missing until
+ * 11 Nov 2026: on macOS Claude Code finds its sign-in in the keychain by the account name, so without them it answered
+ * "Not logged in" while the owner was signed in. One list, so the places that start a tool cannot drift apart.
+ */
+export const CLI_BASE_ENV_NAMES: readonly string[] = Object.freeze([
+  'PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'USER', 'LOGNAME',
 ]);
+const ENVIRONMENT_NAMES = new Set([...CLI_BASE_ENV_NAMES, 'CODEX_HOME']);
 const TOOL_ITEMS = new Set([
   'command_execution', 'file_change', 'mcp_tool_call', 'web_search', 'tool_call',
   'function_call', 'computer_use',
@@ -119,6 +170,7 @@ function assertCapabilities(profile: CodexCliCapabilityProfile): void {
   check(Array.isArray(profile.flags) && CODEX_CLI_FLAGS.every(flag => profile.flags.includes(flag)), 'CLI_CAPABILITY_UNSUPPORTED', 'The reviewed CLI interface is missing a required flag.');
   check(Array.isArray(profile.configKeys) && CODEX_CLI_CONFIG.every(value => profile.configKeys.includes(value.split('=')[0])), 'CLI_CAPABILITY_UNSUPPORTED', 'The reviewed CLI interface is missing a required configuration key.');
   check(profile.stdinPrompt === true && Array.isArray(profile.sandboxModes) && profile.sandboxModes.includes('read-only'), 'CLI_CAPABILITY_UNSUPPORTED', 'The reviewed CLI must support stdin and the read-only sandbox.');
+  check(profile.unreviewedFeatures === undefined || (Array.isArray(profile.unreviewedFeatures) && profile.unreviewedFeatures.length <= 64 && profile.unreviewedFeatures.every(name => typeof name === 'string' && name.length <= 96 && FEATURE_NAME.test(name))), 'CLI_CAPABILITY_UNSUPPORTED', 'The CLI feature listing names a feature Chausar cannot switch off.');
 }
 
 /** Profile support is interface evidence only; it never proves account/model access. */
@@ -128,7 +180,9 @@ export function buildCodexCliArguments(model: string, schemaPath: string, profil
   check(typeof schemaPath === 'string' && isAbsolute(schemaPath) && schemaPath.length <= 4096 && !/[\0\r\n]/.test(schemaPath), 'INVALID_SCHEMA', 'Use an absolute schema-file path.');
   return ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
     '--sandbox', 'read-only', '--json', '--model', model, '--output-schema', schemaPath,
-    ...CODEX_CLI_CONFIG.flatMap(value => ['--config', value]), '-'];
+    ...CODEX_CLI_CONFIG.flatMap(value => ['--config', value]),
+    // A newer Codex runs as the reviewed one did: what it newly turns on by default is switched off.
+    ...(profile.unreviewedFeatures ?? []).flatMap(name => ['--config', `features.${name}=false`]), '-'];
 }
 
 function usage(value: unknown): CodexCliUsage | undefined {
@@ -147,7 +201,7 @@ function usage(value: unknown): CodexCliUsage | undefined {
   return result;
 }
 
-/** Bounded JSONL decoding. validatePlan remains the authority for plan semantics. */
+/** Bounded JSONL decoding. The caller checks what the answer means. */
 export function parseCodexCliOutput(stdout: string): CodexCliOutput {
   check(typeof stdout === 'string' && Buffer.byteLength(stdout) <= CODEX_CLI_LIMITS.stdoutBytes, 'RESPONSE_TOO_LARGE', 'The CLI returned too much output.');
   const lines = stdout.trim().split(/\r?\n/);
@@ -178,7 +232,9 @@ export function parseCodexCliOutput(stdout: string): CodexCliOutput {
       if (item.id !== undefined) check(typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 256, 'INVALID_PLAN', 'The CLI returned an invalid item identifier.');
       if (item.text !== undefined) check(typeof item.text === 'string', 'INVALID_PLAN', 'The CLI returned invalid item text.');
       if (item.type === 'agent_message' && event.type === 'item.completed') {
-        check(finalText === undefined && typeof item.text === 'string' && item.text.length > 0, 'INVALID_PLAN', 'The CLI must return exactly one final plan.');
+        // The answer is the last message of the turn, the one the output schema binds. Codex may write a short note
+        // before it (seen live on 0.167.0-alpha.3.2, 11 Nov 2026); refusing that as a second answer failed the call.
+        check(typeof item.text === 'string' && item.text.length > 0, 'INVALID_PLAN', 'The CLI returned an empty message.');
         check(Buffer.byteLength(item.text) <= CODEX_CLI_LIMITS.planBytes, 'RESPONSE_TOO_LARGE', 'The CLI returned an oversized plan.');
         finalText = item.text;
       }

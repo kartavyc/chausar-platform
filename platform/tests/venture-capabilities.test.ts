@@ -75,9 +75,12 @@ test('the fixed steps: the delivery agent shows the run\'s grant; the hands-on w
   assert.deepEqual(toolsOn(view), [...playbookGrant({ steps })].filter(name=>name!=='agent.delegate').sort());
   const work = item(view, 'step:work');
   assert.equal(work.state, 'planned', 'the owner\'s own hands-on work never shows as working');
-  assert.equal(work.line, `${steps.find(entry => entry.id === 'work')!.title}. ${STEP_PLAN[1].note}`);
+  // Outside bookkeeping the stored note's bookkeeping sentence is not shown (found live, 15 Nov 2026: a potter read it).
+  assert.equal(work.line, `${steps.find(entry => entry.id === 'work')!.title}. You do the hands-on work. An agent doing this work is planned.`);
+  assert.ok(!/bookkeeping/i.test(work.line));
   const books = capabilityPage({ id: 'delivery', name: 'Bookkeeper', kind: 'agent', steps }, teamOf(steps, { serviceType: 'bookkeeping', flagship: false }), desktop);
   assert.equal(item(books, 'step:work').state, 'works', 'bookkeeping\'s reconciling is the agent\'s real work');
+  assert.equal(item(books, 'step:work').line, `${steps.find(entry => entry.id === 'work')!.title}. ${STEP_PLAN[1].note}`, 'a bookkeeping business still reads the whole note');
 });
 
 test('the Story editor: the team\'s tools, everything a turn carries, its step, its questions and the owner\'s own AI', async () => {

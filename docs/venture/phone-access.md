@@ -37,7 +37,8 @@ Good to know:
 - Only devices on your home network (or Tailscale) can reach it. Everything else is refused before it is read.
 - The connection on your Wi-Fi is plain http. Use it on your own Wi-Fi with a password, not on cafe or office Wi-Fi.
 - Refreshing the page on the phone ends that pairing. Make a new link.
-- **Stop phone access** closes it and ends every paired phone at once. Quitting Chausar closes it too.
+- **Stop phone access** closes it and ends every paired phone at once. Quitting Chausar closes it too. The button shows under **How alerts reach you** (and on **Your phone** in Connections) for as long as phone access is on.
+- Phone access turns off by itself: when a pairing link runs out and no phone used it, and when the last paired phone's time ends. Nothing is left open on your network that you are not using.
 
 ## Away from home: Tailscale
 

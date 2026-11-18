@@ -8,12 +8,16 @@
 import { useT } from '../text';
 import type { ModelReceiptView } from '../engine/types';
 import { Figure } from './Figure';
+import { fixedWords } from '../places/today/plan-words';
 import s from './ModelReceipt.module.css';
 
 export function ModelReceipt({ receipt }: { receipt: ModelReceiptView | undefined }) {
   const t = useT();
   if (!receipt) return null;
-  const parts = [receipt.tool, receipt.model, receipt.tier, receipt.usage];
+  // Round 7 (re-check 6, item 5): the tier, the tokens and an unpriced cost are Chausar's words, said from the pack; the
+  // tool and the model keep their names, and a priced figure stays with its receipt.
+  const words = fixedWords(t);
+  const parts = [words(receipt.tool), receipt.model, words(receipt.tier), words(receipt.usage)];
   // 4Z3: a priced cost as the owner's currency leads it, the engine's own figure otherwise.
   const shown = receipt.costLead?.figure ?? receipt.cost;
   return (
@@ -23,7 +27,7 @@ export function ModelReceipt({ receipt }: { receipt: ModelReceiptView | undefine
         {parts.map((part, index) => <span key={index} data-content={index === 1 ? '' : undefined}>{part}<span className={s.dot} aria-hidden="true"> · </span></span>)}
         {receipt.state === 'priced' && receipt.receiptId
           ? <Figure value={shown} receiptId={receipt.receiptId} />
-          : <span data-engine-line="">{shown}</span>}
+          : <span data-engine-line="">{words(shown)}</span>}
       </p>
       {receipt.agent && <p className={s.by}>{t('run.modelReceipt.by', { agent: receipt.agent })}</p>}
     </div>

@@ -10,6 +10,7 @@ import { rateUseFor } from '../playbooks/ca-firm/signoff.ts';
 import { toolSpec, type Field, type ToolEnv, type ToolResult } from '../delivery/harness/tools.ts';
 import { tablesOfFile } from '../delivery/harness/files.ts';
 import { missingOf, needsFactsHandoff } from '../playbooks/ca-firm/needs-facts.ts';
+import { askOwner } from '../delivery/run-machine.ts';
 import type { JobCalculation, JobCalculationResult } from './job-tools.ts';
 import { SELLER_REPORT_TOOLS } from '../playbooks/online-seller/report-source.ts';
 
@@ -113,8 +114,8 @@ export async function calculateTrustedJob(deps: VentureDeps, ctx: Context, runId
     const facts = error && needsFactsHandoff(error);
     const pendingFacts = facts ? { digest: digest({ job: current.run.agentJob!.scope.jobId, call: trace.id, source: current.run.agentJob!.sourceDigest, missing: missingOf(error!.details) }),
       missing: missingOf(error!.details), question: facts.question, callId: trace.id, at: tx.now } : undefined;
-    tx.replace({ ...current.run, ...(pendingFacts ? { status: 'needs-answer' as const } : {}), agentJob: { ...current.run.agentJob!,
-      calculations: [...(current.run.agentJob?.calculations ?? []), trace], ...(pendingFacts ? { pendingFacts } : {}) } });
+    const traced = { ...current.run, agentJob: { ...current.run.agentJob!, calculations: [...(current.run.agentJob?.calculations ?? []), trace] } };
+    tx.replace(pendingFacts ? askOwner(traced, pendingFacts) : traced);
     if (pendingFacts) { tx.emit('delivery-needs-answer', { runId, question: pendingFacts.question }); tx.emit('queue.changed', {}); }
     return { result: trace.envelope, receipts: madeReceipts };
   });

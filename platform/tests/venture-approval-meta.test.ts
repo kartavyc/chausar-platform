@@ -153,7 +153,7 @@ test('meta: a row waiting over a day says since when; a draft older than 14 days
 
 test('meta: only actual spend quotes and post proposals expire', async () => {
   const { env, order, fields } = await agentBusiness();
-  await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', preview: PREVIEW, harness: harness() });
+  await seedRun(env, order, { ...fields, status: 'working', callId: 'call_1', preview: PREVIEW, harness: harness() });
   await setSpendPolicy(env.deps, owner, { askAboveMicros: '100000' });
   await assert.rejects(paidCall(env.deps, owner, { key: 'render-1', item: 'connector:fal', label: 'Thumbnail render', payer: 'connector:fal', draftDigest: 'b'.repeat(64), list: FAL }, async () => ({ value: 'x', billedMicros: null })), code('QUOTE_WAITING'));
   await seedPost(env, 'x', 'Books closed for September. #books', { expiresAt: '2026-10-15T10:15:00.000Z' });
@@ -172,7 +172,7 @@ test('meta: only actual spend quotes and post proposals expire', async () => {
 
 test('sendsTo: a post goes to the public; a turn sent to your own AI or a draft you send yourself names no one', async () => {
   const { env, order, fields } = await agentBusiness();
-  await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', preview: PREVIEW, harness: harness() });
+  await seedRun(env, order, { ...fields, status: 'working', callId: 'call_1', preview: PREVIEW, harness: harness() });
   await seedPost(env, 'linkedin', 'Our cafe books service is open.');
   const rows = await list(env);
   assert.equal(kindOf(rows, 'connector')[0].sendsTo, 'public');

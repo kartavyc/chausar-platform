@@ -7,19 +7,22 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { lockfileProblems, PINNED_BUILD_GIT_SOURCES } from './lockfile.mjs';
 import { TRIM } from './package-trim.mjs';
-import { readPackageContents } from './package-contents.mjs';
+import { readPackageContents, resourcesFolder } from './package-contents.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
 const architectures = new Set(['x64', 'arm64']);
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const previewOutput = 'release/preview';
-// Wave 6 (6J1, D3): the unsigned beta, Windows and Linux only, with real data and the bundled Codex.
+// Wave 6 (6J1, D3): the unsigned beta, with real data and the bundled Codex: Windows and Linux, and (the founder's
+// decision of 14 Nov 2026) macOS on arm64 and x64, unsigned until an Apple Developer ID is given (macSigningState).
 const betaOutput = 'release/beta';
 const modes = Object.freeze({ preview: { config: 'app/desktop/builder.preview.json', output: previewOutput }, beta: { config: 'app/desktop/builder.beta.json', output: betaOutput }, final: { config: 'app/desktop/builder.json', output: 'release' } });
 // 2 Nov: the deb comes first on Linux. Its install script (electron-builder's own) adds an AppArmor profile on Ubuntu
 // 24.04 and later, or makes chrome-sandbox SUID root where user namespaces are off; without one, Electron will not start.
-const betaArtifactExtensions = { win32: ['exe'], linux: ['deb', 'AppImage', 'tar.gz'] };
+// macOS: the dmg is what a person installs from; the zip is the file the update check downloads and shows (updates on
+// a Mac are by hand: app/desktop/updates.cjs).
+const betaArtifactExtensions = { win32: ['exe'], linux: ['deb', 'AppImage', 'tar.gz'], darwin: ['dmg', 'zip'] };
 const CODEX_CHECK = 'bundled Codex with its LICENSE and NOTICE';
 // 6J1: electron-builder 26 depends on Electron's own node-gyp fork, which npm records as a Git source. It is a build-time
 // (dev) package, never shipped, and never run here (npmRebuild is off). Only this exact commit is accepted, still with
@@ -104,7 +107,7 @@ export function createDesktopPackagePlan({ mode = 'preview', platform = process.
   if (!Object.hasOwn(modes, mode)) throw new Error('mode must be preview, beta or final');
   if (!platforms.has(platform) || !architectures.has(architecture)) throw new Error('supported targets are win32, darwin or linux with x64 or arm64 architecture');
   if (platform !== hostPlatform || architecture !== hostArchitecture) throw new Error(`build ${platform}-${architecture} on a matching native host; this host is ${hostPlatform}-${hostArchitecture}`);
-  if (mode === 'beta' && !Object.hasOwn(betaArtifactExtensions, platform)) throw new Error('the beta is built for Windows and Linux only; Mac is out of scope');
+  if (mode === 'beta' && !Object.hasOwn(betaArtifactExtensions, platform)) throw new Error('the beta is built for Windows, Linux and macOS only');
   if (typeof unpacked !== 'boolean') throw new Error('unpacked must be a boolean');
   const { config, output } = modes[mode];
   if (typeof allowUnrecordedCodex !== 'boolean') throw new Error('allowUnrecordedCodex must be a boolean');
@@ -114,9 +117,67 @@ export function createDesktopPackagePlan({ mode = 'preview', platform = process.
     output,
     builderArguments: ['--config', config, flags[platform], `--${architecture}`, '--publish', 'never', ...(unpacked ? ['--dir'] : [])],
     qualification: mode === 'preview' ? 'unsigned demo preview; no production runtimes, signing, publishing or update channel'
-      : mode === 'beta' ? 'unsigned beta with real data and the bundled Codex; Windows warns about an unknown publisher; no publishing or update channel'
+      : mode === 'beta' ? (platform === 'darwin' ? MAC_UNSIGNED_QUALIFICATION : 'unsigned beta with real data and the bundled Codex; Windows warns about an unknown publisher; no publishing or update channel')
         : 'signed prerequisites required; packaging does not prove native launch or rollback',
   };
+}
+
+// The Mac build (14 Nov 2026). Signing and notarising a Mac build needs an Apple Developer ID, which is an outside
+// step: nothing here makes, names or stores one. They are wired only through the five values electron-builder itself
+// reads. With none set the build is unsigned, and the checks say so in the words a person installing it needs. With
+// all five set, electron-builder signs with the certificate in CSC_LINK and sends the app to Apple for notarisation.
+// A half-set list is refused by name. No value is ever printed, logged or kept in the receipt.
+export const MAC_SIGNING_VARIABLES = Object.freeze(['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID']);
+const MAC_SIGNING_CHECK = 'macOS signing and notarisation';
+const MAC_UNSIGNED_QUALIFICATION = 'unsigned beta with real data and the bundled Codex; macOS blocks an unsigned app until the person allows it in System Settings; signed and notarised only when the five Apple signing values are set; no publishing or update channel';
+const MAC_SIGNED_QUALIFICATION = 'beta with real data and the bundled Codex; signed with an Apple Developer ID and notarised by electron-builder, the signature checked with macOS codesign; no publishing or update channel';
+export const MAC_UNSIGNED_WORDS = `This Mac build is not signed with an Apple Developer ID and not notarised (Apple has not checked it). macOS blocks it the first time someone opens it. On macOS 15 or later they open System Settings, Privacy & Security, and choose Open Anyway; on macOS 14 or older they right-click the app and choose Open. Updates on a Mac are by hand: the app shows the new file, and the person replaces the app with it. To sign and notarise, set ${MAC_SIGNING_VARIABLES.slice(0, -1).join(', ')} and ${MAC_SIGNING_VARIABLES.at(-1)}, then build again.`;
+export const MAC_SIGNED_WORDS = 'This Mac build will be signed with the Apple Developer ID certificate in CSC_LINK and sent to Apple for notarisation with the Apple ID and team given. The build stops if macOS does not confirm the signature afterwards. Updates on a Mac are still by hand.';
+
+/**
+ * 'unsigned' when none of the five values is set; 'developer-id' when all five are and CSC_LINK is a certificate file
+ * on this computer, outside the code folder. A half-set list throws, naming what is missing and never a value. Reads
+ * no certificate and contacts nobody.
+ */
+export async function macSigningState({ root = projectRoot, environment = process.env } = {}) {
+  const set = name => typeof environment[name] === 'string' && environment[name].trim() !== '';
+  const missing = MAC_SIGNING_VARIABLES.filter(name => !set(name));
+  if (missing.length === MAC_SIGNING_VARIABLES.length) return { state: 'unsigned', words: MAC_UNSIGNED_WORDS };
+  if (missing.length) throw new Error(`A Mac build is signed and notarised only with all five of ${MAC_SIGNING_VARIABLES.join(', ')}. Not set: ${missing.join(', ')}. Set all five or none`);
+  const certificate = environment.CSC_LINK.trim();
+  if (!isAbsolute(certificate)) throw new Error('CSC_LINK must be the absolute path of the Apple Developer ID certificate file on this computer (not a web address or pasted text)');
+  if (inside(resolve(root), resolve(certificate))) throw new Error('CSC_LINK must be a file outside the code folder; a signing certificate is never kept in the checkout');
+  try { await regular(certificate); }
+  catch (error) { throw new Error(error.code === 'ENOENT' ? 'CSC_LINK names a certificate file that is missing' : 'CSC_LINK must be a regular file, not a link or a folder'); }
+  return { state: 'developer-id', words: MAC_SIGNED_WORDS };
+}
+
+function quietAnswer(command, args) {
+  return new Promise(accept => {
+    let output = '';
+    const child = spawn(command, args, { shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+    const add = chunk => { if (output.length < 262144) output += String(chunk); };
+    child.stdout.on('data', add); child.stderr.on('data', add);
+    child.once('error', () => accept({ exitCode: -1, output }));
+    child.once('exit', code => accept({ exitCode: typeof code === 'number' ? code : -1, output }));
+  });
+}
+
+/**
+ * After a Mac build that was to be signed: macOS's own codesign must accept the app, and its signature must be a
+ * Developer ID one for the given team with the hardened runtime. Null when it is; else the problem in plain words.
+ * electron-builder warns and carries on when it finds no identity in the certificate, so without this an unsigned app
+ * could leave under a signed label. Read only; macOS only (the caller runs it on a Mac).
+ */
+export async function macSignatureProblem(appPath, { teamId, run = quietAnswer } = {}) {
+  const verified = await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', appPath]);
+  if (verified.exitCode !== 0) return "the app does not pass macOS's own signature check (codesign --verify)";
+  const shown = await run('/usr/bin/codesign', ['--display', '--verbose=2', appPath]);
+  const lines = String(shown.output ?? '').split(/\r?\n/);
+  if (shown.exitCode !== 0 || !lines.some(line => /^Authority=Developer ID Application: /.test(line))) return 'the app carries no Developer ID signature; electron-builder found no usable identity in the certificate';
+  if (!lines.includes(`TeamIdentifier=${teamId}`)) return 'the app is signed by another team than APPLE_TEAM_ID names';
+  if (!lines.some(line => /^CodeDirectory .*flags=[^ ]*\(([^)]*,)?runtime(,[^)]*)?\)/.test(line))) return 'the app is signed without the hardened runtime, which notarisation needs';
+  return null;
 }
 
 export function parseDesktopPackageArguments(args) {
@@ -139,15 +200,22 @@ export function parseDesktopPackageArguments(args) {
   return result;
 }
 
-/** Preview and beta child processes never receive signing, release publishing or production service credentials. */
-export function desktopPackagingEnvironment(mode, environment = process.env) {
+/**
+ * Preview and beta child processes never receive signing, release publishing or production service credentials.
+ * The one exception (the Mac build, 14 Nov 2026): macSigning true, which packageDesktop passes only for the
+ * electron-builder child of a Mac beta whose five Apple signing values are all set (macSigningState). That child gets
+ * exactly those five back, and identity discovery is left on: electron-builder looks for the identity only in the
+ * keychain it makes from the certificate file in CSC_LINK.
+ */
+export function desktopPackagingEnvironment(mode, environment = process.env, { macSigning = false } = {}) {
   if (!Object.hasOwn(modes, mode)) throw new Error('mode must be preview, beta or final');
   const result = { ...environment };
   if (mode === 'preview' || mode === 'beta') {
     for (const name of Object.keys(result)) {
       if (/^(?:CSC_|WIN_CSC_|APPLE_|CHAUSAR_|AWS_|DO_|KEYGEN_|COMPOSIO_)/i.test(name) || /(?:TOKEN|PASSWORD|SECRET|PRIVATE_KEY|CREDENTIAL)/i.test(name)) delete result[name];
     }
-    result.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
+    if (mode === 'beta' && macSigning === true) for (const name of MAC_SIGNING_VARIABLES) result[name] = environment[name];
+    else result.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
   }
   return result;
 }
@@ -257,6 +325,8 @@ export function engineReceipt(manifest) {
 /** Every mode: exactly the three languages, and the Agent SDK's platform packages left out after node_modules. */
 export function validateTrim(config) {
   if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
+  // The Mac build: macOS spells the same three its own way (package-trim.mjs); a Mac target without them keeps only Hindi.
+  if (config.mac !== undefined && JSON.stringify(config.mac?.electronLanguages) !== JSON.stringify(TRIM.macElectronLanguages)) throw new Error(`a Mac target names the same three as macOS languages: ${TRIM.macElectronLanguages.join(', ')} (mac.electronLanguages)`);
   const files = Array.isArray(config.files) ? config.files : [];
   const all = files.indexOf('node_modules/**/*'), cut = files.indexOf(TRIM.claudeBinaryExclusion);
   const putBack = files.slice(cut + 1).some(entry => JSON.stringify(entry).includes('@anthropic-ai/claude-agent-sdk-'));
@@ -273,7 +343,7 @@ function validatePreviewConfig(config) {
   for (const [key, targets] of Object.entries(expected)) {
     if (JSON.stringify(config[key]?.target) !== JSON.stringify(targets)) throw new Error(`preview ${key} targets must match the documented formats; Windows preview is ZIP only`);
   }
-  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'platform/runtime/**/*', 'fixtures/**/*', 'node_modules/**/*']) {
+  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'platform/runtime/**/*', 'node_modules/**/*']) {
     if (!config.files?.includes(glob)) throw new Error(`preview package is missing ${glob}`);
   }
   for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
@@ -291,16 +361,45 @@ export function expectedArtifactNames({ mode, platform, architecture, version })
   return mode === 'preview' ? named('Preview', artifactExtensions[platform]) : mode === 'beta' ? named('Beta', betaArtifactExtensions[platform]) : [];
 }
 
+// The Mac build (14 Nov 2026): the beta's Mac target, held field by field.
+export const MAC_ENTITLEMENTS = 'app/desktop/entitlements.mac.plist';
+// electron-builder never re-signs the bundled Codex: the engine checks its program against the digest recorded when it
+// was staged (platform/runtime/codex-trust.ts), and a new signature would change the file.
+export const MAC_CODEX_SIGN_IGNORE = '/Contents/Resources/codex/';
+const MAC_MICROPHONE_WORDS = 'Chausar uses the microphone only when you start push to talk or live captions.';
+const BETA_MAC_KEYS = Object.freeze(['target', 'icon', 'electronLanguages', 'hardenedRuntime', 'entitlements', 'entitlementsInherit', 'signIgnore', 'extendInfo']);
+/**
+ * A dmg and a zip; the hardened runtime and the app's own entitlements, used when a certificate is given; the bundled
+ * Codex left as staged; the microphone words macOS shows. No identity and no notarisation switch in the file: a name
+ * there would be a made-up identity, and null or false would switch them off for good. Both come only from the
+ * environment values electron-builder reads (macSigningState).
+ */
+function validateBetaMacConfig(config) {
+  const mac = config.mac;
+  if (!mac || typeof mac !== 'object') throw new Error('the beta needs its Mac target (mac): a dmg and a zip');
+  if (JSON.stringify(mac.target) !== JSON.stringify(['dmg', 'zip'])) throw new Error('the beta Mac targets are a dmg and a zip');
+  if (Object.hasOwn(mac, 'identity')) throw new Error('the beta names no Mac signing identity in its file; it comes only from the certificate in CSC_LINK');
+  if (Object.hasOwn(mac, 'notarize')) throw new Error('the beta sets no notarisation switch in its file; Apple notarises only when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are set');
+  if (mac.hardenedRuntime !== true) throw new Error('a signed Mac build uses the hardened runtime (mac.hardenedRuntime true)');
+  if (mac.entitlements !== MAC_ENTITLEMENTS || mac.entitlementsInherit !== MAC_ENTITLEMENTS) throw new Error(`the Mac entitlements are the app's own file, for the app and what it starts: ${MAC_ENTITLEMENTS}`);
+  if (JSON.stringify(mac.signIgnore) !== JSON.stringify([MAC_CODEX_SIGN_IGNORE])) throw new Error(`the bundled Codex is never re-signed on a Mac (mac.signIgnore ${MAC_CODEX_SIGN_IGNORE}); the engine checks it against the digest recorded at staging`);
+  if (JSON.stringify(mac.extendInfo) !== JSON.stringify({ NSMicrophoneUsageDescription: MAC_MICROPHONE_WORDS })) throw new Error('the Mac build says in plain words why it asks for the microphone (mac.extendInfo NSMicrophoneUsageDescription)');
+  const extra = Object.keys(mac).filter(name => !BETA_MAC_KEYS.includes(name));
+  if (extra.length) throw new Error(`the beta Mac target carries only ${BETA_MAC_KEYS.join(', ')}; not ${extra.join(', ')}`);
+  if (config.dmg !== undefined || config.mas !== undefined || config.pkg !== undefined) throw new Error('the Mac dmg keeps electron-builder\'s own layout and is not signed on its own; the beta has no dmg, pkg or Mac App Store options');
+}
+
 /** 6J1: the unsigned beta. Real data (no preview flag), NSIS per user without admin, deb, AppImage and tar.gz, only the
- * staged Codex bundle and the notices as extra resources, the local Electron, no signing, hooks or publishing. */
+ * staged Codex bundle and the notices as extra resources, the local Electron, no signing, hooks or publishing.
+ * 14 Nov 2026: and a Mac dmg and zip (validateBetaMacConfig), unsigned unless the Apple signing values are set. */
 export function validateBetaConfig(config) {
   if (config.appId !== 'in.chausar.desktop' || config.productName !== 'Chausar' || config.extraMetadata?.name !== 'chausar' || config.extraMetadata?.productName !== 'Chausar' || config.extraMetadata?.chausarReleaseChannel !== 'beta' || Object.hasOwn(config.extraMetadata ?? {}, 'chausarPreview')) throw new Error('the beta needs the Chausar identity, the beta release channel and no preview flag');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false) throw new Error('the beta is unsigned: signing and electron-builder\'s own exe editing (its winCodeSign download) stay off; the pinned afterPack hook sets the exe\'s icon and names');
   if (config.publish !== null || config.npmRebuild !== false || config.directories?.output !== betaOutput) throw new Error('the beta disables publishing and dependency rebuilds and uses release/beta');
   if (config.extends !== undefined || !onlyPinnedHook(config)) throw new Error(`the beta cannot inherit another configuration or run custom build hooks; the one hook is afterPack ${AFTER_PACK_HOOK}`);
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('the beta must use the verified local Electron distribution instead of another download');
-  if (config.mac !== undefined) throw new Error('Mac is out of scope for the beta');
   validateIconConfig(config);
+  validateBetaMacConfig(config);
   if (JSON.stringify(config.win?.target) !== JSON.stringify(['nsis']) || JSON.stringify(config.linux?.target) !== JSON.stringify(['deb', 'AppImage', 'tar.gz'])) throw new Error('beta targets are the Windows installer (NSIS) and Linux deb, AppImage and tar.gz');
   if (!/^[^<>]+ <[^@\s<>]+@[^@\s<>]+>$/.test(config.deb?.maintainer ?? '') || !/^https:\/\//.test(config.extraMetadata?.homepage ?? '')) throw new Error('the deb needs a maintainer with an email address and an https homepage');
   if ([config.linux, config.deb].some(options => Object.keys(options ?? {}).some(name => /^(after|before)/.test(name)))) throw new Error('the deb keeps the install scripts electron-builder ships, which set up the Chromium sandbox');
@@ -313,7 +412,7 @@ export function validateBetaConfig(config) {
   }
   // electron-builder 26 writes every unpacked file of a mixed file set into one pattern that @electron/asar refuses
   // over 64 KB, so each folder unpacked whole is its own file set and adds one short entry.
-  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
+  for (const folder of ['platform/runtime', 'platform/helpers']) {
     if (!config.files?.some(entry => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] }))) throw new Error(`beta package carries ${folder} as its own file set`);
     if (config.files.includes(`${folder}/**/*`)) throw new Error(`beta package lists ${folder} once, as its own file set`);
   }
@@ -376,7 +475,9 @@ async function dependencyPrerequisites(root, platform) {
  */
 export async function desktopPackagePrerequisites({ root = projectRoot, plan, environment = process.env, hostPlatform = process.platform, hostArchitecture = process.arch } = {}) {
   plan ??= createDesktopPackagePlan({ platform: hostPlatform, architecture: hostArchitecture, hostPlatform, hostArchitecture });
-  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, hostPlatform, hostArchitecture });
+  // 14 Nov 2026: the one flag a plan may carry (--allow-unrecorded-codex) is rebuilt with it. Before, every build
+  // that passed the flag was refused here as a changed plan. Only true counts; any other value is still a changed plan.
+  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, hostPlatform, hostArchitecture, allowUnrecordedCodex: plan.allowUnrecordedCodex === true });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
   const failures = [], checks = [];
   let cliPath, viteCli, version;
@@ -413,6 +514,14 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
       await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     });
   }
+  // The Mac build (14 Nov 2026): a Mac beta is unsigned unless all five Apple signing values are set. Unsigned passes
+  // (it is the state today), and the words for the person installing it go out as a notice; a half-set list blocks.
+  let signing = null;
+  const notices = [];
+  if (plan.mode === 'beta' && plan.platform === 'darwin') {
+    await check(MAC_SIGNING_CHECK, async () => { signing = await macSigningState({ root, environment }); });
+    if (signing) notices.push(signing.words);
+  }
   // 6J2: half-set or malformed report keys block even a --check run, by variable name only.
   if (plan.mode !== 'preview') await check('report keys (CHAUSAR_FEEDBACK_*)', () => { feedbackResource(environment); });
   if (plan.mode === 'final') {
@@ -421,14 +530,33 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
     checks.push(...final.checks.map(name => `final: ${name}`));
     failures.push(...final.failures.map(item => ({ ...item, check: `final: ${item.check}` })));
   }
-  return { ok: failures.length === 0, mode: plan.mode, target: plan.target, cliPath, viteCli, version, checks, failures, qualification: plan.qualification };
+  return {
+    ok: failures.length === 0, mode: plan.mode, target: plan.target, cliPath, viteCli, version, checks, failures,
+    qualification: signing?.state === 'developer-id' ? MAC_SIGNED_QUALIFICATION : plan.qualification,
+    ...(signing ? { macSigning: signing.state } : {}), ...(notices.length ? { notices } : {}),
+  };
 }
 
 // D5 task 4: a build proves its own notices. The unpacked folder electron-builder leaves (win-unpacked, linux-unpacked)
 // is read after the build: a beta or final build carries the AGPL LICENSE, NOTICE, the third-party notices and each
 // font's OFL text (app/desktop/notices/fonts, shipped as resources/notices/fonts), and feedback.json exactly when report
 // keys were staged; the demo preview carries none of them. Read only; nothing is started.
+// These are the x64 names; an arm64 build's folder carries the chip (unpackedBuild below).
 export const UNPACKED_FOLDER = Object.freeze({ win32: 'win-unpacked', linux: 'linux-unpacked' });
+/**
+ * The Mac build (14 Nov 2026): where electron-builder leaves the unpacked build inside the output folder, and where
+ * its resources are. Windows and Linux: the unpacked folder and its resources folder. macOS: the app itself, with its
+ * resources in Contents/Resources. electron-builder names the folder with the chip unless it is x64 (its default):
+ * win-unpacked and win-arm64-unpacked, linux-unpacked and linux-arm64-unpacked, mac and mac-arm64. Before 14 Nov 2026
+ * the Windows and Linux names here were the x64 ones only, so an arm64 build was read from a folder that is not there.
+ */
+export function unpackedBuild({ platform, architecture, productName }) {
+  if (!platforms.has(platform) || !architectures.has(architecture)) throw new Error('supported targets are win32, darwin or linux with x64 or arm64 architecture');
+  if (platform !== 'darwin') { const folder = `${artifactOS[platform]}${architecture === 'x64' ? '' : `-${architecture}`}-unpacked`; return { folder, resources: `${folder}/resources` }; }
+  if (typeof productName !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9 ._-]*$/.test(productName) || productName.includes('..')) throw new Error('the Mac app folder is named after the product name, which must be plain words');
+  const folder = `${architecture === 'x64' ? 'mac' : `mac-${architecture}`}/${productName}.app`;
+  return { folder, resources: `${folder}/Contents/Resources` };
+}
 const NOTICE_RESOURCES = Object.freeze(['LICENSE', 'NOTICE', 'notices/THIRD-PARTY-NOTICES.md']);
 
 /** The font licence files a build must carry: the OFL texts in app/desktop/notices/fonts (none until they are copied there). */
@@ -439,7 +567,8 @@ export async function packagedFontLicences(folder = join(projectRoot, 'app/deskt
 
 /** What a packaged build lacks or should not carry, in plain words; empty when it is right. */
 export async function packagedResourceProblems(unpackedDir, { mode, reports, fonts = [] } = {}) {
-  const resources = join(unpackedDir, 'resources');
+  // A Mac app keeps them inside itself (package-contents.mjs resourcesFolder).
+  const resources = resourcesFolder(unpackedDir);
   const present = async relativePath => { try { return (await lstat(join(resources, ...relativePath.split('/')))).isFile(); } catch { return false; } };
   try { if (!(await lstat(resources)).isDirectory()) return ['the unpacked build has no resources folder']; }
   catch { return ['the unpacked build has no resources folder']; }
@@ -465,7 +594,7 @@ async function sha256(path) {
 /** Check freshness before building; never remove or overwrite previous output. */
 export async function validateDesktopPackagingOutput({ root = projectRoot, plan = createDesktopPackagePlan(), version } = {}) {
   if (!exactVersion.test(version ?? '')) throw new Error('output checks require an exact package version');
-  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked });
+  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, allowUnrecordedCodex: plan.allowUnrecordedCodex === true });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
   for (const path of ['release', ...(plan.mode === 'final' ? [] : [plan.output])]) {
     try {
@@ -515,9 +644,11 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   // 6J2: the report keys are staged before electron-builder copies the resources; the demo preview carries none.
   const feedback = plan.mode !== 'preview' ? await stageFeedbackKeys({ root, environment }) : undefined;
   let engine;
+  // The Mac build: the Apple signing values, read once here and never kept; only the state goes on the receipt.
+  const signing = plan.mode === 'beta' && plan.platform === 'darwin' ? await macSigningState({ root, environment }) : null;
   for (const command of desktopPackageCommands(plan, prerequisites)) {
     const status = await new Promise((accept, reject) => {
-      const child = spawn(process.execPath, command.args, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
+      const child = spawn(process.execPath, command.args, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment, { macSigning: command.name === 'electron-builder' && signing?.state === 'developer-id' }), shell: false, windowsHide: true, stdio: 'inherit' });
       child.once('error', reject);
       child.once('exit', (code, signal) => signal ? reject(new Error(`${command.name} stopped with signal ${signal}`)) : accept(code));
     });
@@ -528,9 +659,12 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (command.name === 'engine bundle') { await regular(join(root, ENGINE_BUNDLE.worker)); engine = engineReceipt(JSON.parse(await readFile(join(root, ENGINE_BUNDLE.manifest), 'utf8'))); }
   }
   // D5 task 4: no receipt for a build that lacks its notices (or carries report keys nobody staged).
-  let contents;
-  if (Object.hasOwn(UNPACKED_FOLDER, plan.platform)) {
-    const unpackedDir = join(root, plan.output, UNPACKED_FOLDER[plan.platform]);
+  let contents, macApp = null;
+  if (Object.hasOwn(UNPACKED_FOLDER, plan.platform) || plan.platform === 'darwin') {
+    // macOS: the app itself (mac or mac-arm64), named after the product name in the build's own configuration.
+    const productName = plan.platform === 'darwin' ? JSON.parse(await readFile(join(root, plan.config), 'utf8')).productName : undefined;
+    const unpackedDir = join(root, plan.output, ...unpackedBuild({ platform: plan.platform, architecture: plan.architecture, productName }).folder.split('/'));
+    if (plan.platform === 'darwin') macApp = unpackedDir;
     const problems = await packagedResourceProblems(unpackedDir, { mode: plan.mode, reports: feedback, fonts: await packagedFontLicences(join(root, 'app/desktop/notices/fonts')) });
     if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
     // D5 task 5: what the build carries goes on the receipt; any problem (a fourth language, a Claude Code program file,
@@ -554,8 +688,21 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     bundled = bundledReceipt(codex, plan);
+    // The Mac build: signing (ad-hoc or Developer ID) must not have rewritten the bundled Codex, or the engine would
+    // refuse it at start (codex-trust.ts checks the program against the digest recorded at staging). No receipt then.
+    if (macApp) {
+      try { await verifyCodexBundle({ directory: join(resourcesFolder(macApp), 'codex'), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true }); }
+      catch (error) { throw new Error(`the Codex inside the Mac app differs from the staged bundle, so no receipt was written: ${error.message}`); }
+    }
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}), ...(contents ? { contents } : {}), ...(engine ? { engine } : {}) };
+  // The Mac build: a build that was to be signed is checked with macOS codesign; an unsigned app never gets a signed label.
+  if (signing?.state === 'developer-id') {
+    const problem = await macSignatureProblem(macApp, { teamId: String(environment.APPLE_TEAM_ID).trim() });
+    if (problem) throw new Error(`the Mac build was to be signed, but ${problem}; no receipt was written`);
+  }
+  const macReceipt = signing ? { macSigning: { state: signing.state, localSignature: signing.state === 'unsigned' ? 'ad-hoc, by scripts/desktop-after-pack.cjs' : false, notarised: signing.state === 'developer-id' ? 'by electron-builder, which stops the build when Apple refuses; not checked again here' : false, words: signing.words } } : {};
+  const signed = plan.mode === 'final' ? 'requires-native-verification' : signing?.state === 'developer-id' ? 'developer-id' : false;
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed, published: false, qualification: prerequisites.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...macReceipt, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}), ...(contents ? { contents } : {}), ...(engine ? { engine } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }
@@ -570,6 +717,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       for (const failure of result.failures) console.error(`- ${failure.check}: ${failure.reason}`);
       process.exitCode = 1;
     } else if (checkOnly) console.log(`Packaging prerequisites passed (${plan.mode}, ${plan.target}); no package or launch was attempted.`);
-    else console.log(`Desktop package created (${plan.mode}, ${plan.target}). ${plan.qualification}. Receipt: ${result.receiptPath}`);
+    else console.log(`Desktop package created (${plan.mode}, ${plan.target}). ${result.qualification}. Receipt: ${result.receiptPath}`);
+    // The Mac build: what the signing state means for the person installing it, said whether the checks passed or not.
+    for (const notice of result.notices ?? []) console.log(`Note: ${notice}`);
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

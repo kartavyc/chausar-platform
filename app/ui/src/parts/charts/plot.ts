@@ -10,8 +10,6 @@
 
 /** The plot's height in pixels: 1000 per mille is 160 px, so 1 per mille is 0.16 px. */
 export const PLOT = 160;
-/** Room above the plot for the value over the tallest bar. */
-export const ROOM = 20;
 /** A column's whole height: the room, the plot and the 1 px baseline under it. */
 export const COLUMN = 180;
 /** Where the bars stand in a column, just above the baseline at 179.5. */

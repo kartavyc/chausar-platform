@@ -96,6 +96,9 @@ export function Place() {
   const client = useEngine();
   const cards = useResource('venture.connectors.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
+  // What the kept plan needs (the first run's services step), shown first when the plan was kept with any.
+  const needs = useResource('venture.needs.list', {}, { skip: !venture.data });
+  const planNeeds = Boolean(venture.data) && (needs.data?.groups.length ?? 0) > 0;
   const groups = useMemo(() => grouped(cards.data ?? []), [cards.data]);
   // Transcription reads files on this computer: only the desktop app, inside a business, offers it.
   const local = Boolean(venture.data) && client.transport !== 'hosted';
@@ -110,8 +113,9 @@ export function Place() {
   return (
     <>
       <PageTitle title={t('place.connections')} line={t('connections.line')} />
-      {venture.data && <p className={s.needsLink}><a href="#/connections/needs">{t('first-run.needs.link')}</a></p>}
+      {venture.data && !planNeeds && <p className={s.needsLink}><a href="#/connections/needs">{t('first-run.needs.link')}</a></p>}
       <div className={s.place}>
+        {planNeeds && <BusinessNeeds place="connections" />}
         <YourAi focus={route.sub === 'ai'} />
         <CliStatus />
         {venture.data && <ChecksTile />}
@@ -235,7 +239,8 @@ function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
         {card.id === 'github' && <a className={s.link} href="#/business/build">{t('connections.follow')}</a>}
         {/* One import path: the bank account sheet holds the import, the ledger, consent and alerts (BankSheet.tsx). */}
         {card.id === BANK && <Button size="sm" onClick={(event) => openSheet('bank', card.id, event.currentTarget)}>{t('connections.bank.open')}</Button>}
-        {card.vendorUrl && <ExternalLink href={card.vendorUrl}>{t('connections.visit')}<span className="sr-only">, {card.name}</span></ExternalLink>}
+        {/* The card's name is in the link's own name for a screen reader, never hidden text beside "Visit site". */}
+        {card.vendorUrl && <ExternalLink href={card.vendorUrl} label={`${t('connections.visit')}, ${card.name}`}>{t('connections.visit')}</ExternalLink>}
       </div>
     </Tile>
   );

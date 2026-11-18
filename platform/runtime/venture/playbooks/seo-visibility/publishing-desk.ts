@@ -13,6 +13,7 @@ import {seoExact} from './work-core.ts';
 import type {DeskHandlers} from '../desk-types.ts';
 import type {SeoPublication} from './records.ts';
 import {articleHtml} from './article-html.ts';
+import { handedOver } from '../../delivery/run-machine.ts';
 export type SeoPublishingDeskTypes={publishing:{filter:null;row:any;item:any;actions:Record<string,{payload:any;result:any}>}};
 const secret=(ventureId:string):SecretName=>`seo:${ventureId}:wordpress`;
 function connection(deps:VentureDeps,id:string):WordpressConnection|null{const raw=deps.secrets.get(secret(id));return raw?JSON.parse(raw):null;}
@@ -21,7 +22,7 @@ export function approvedSeoDraft(state:State,venture:VentureRecord,runId:string,
  const run=findRecord(state,'venture-delivery-run',runId),order=run?findRecord(state,'venture-order',run.orderId):null;
  check(run&&order&&run.ventureId===venture.id&&order.ventureId===venture.id&&!run.practice,'DELIVERY_NOT_FOUND','Choose a real client article.');
  const playbook=findRecord(state,'venture-playbook',run.playbookId),offer=acceptedBlueprintOrNull(state,venture)?.offers.find(o=>o.id===order.offerId);check(playbook?.flagship==='seo-visibility'&&(purpose==='edge'?['content-retainer','local-seo','fix-and-measure']:['content-retainer','local-seo']).includes(offer?.playbookOffer??''),'SEO_DRAFT_REQUIRED','Choose a search visibility article.');
- check(['accepted','edited'].includes(run.status),'OWNER_APPROVAL_FIRST','Approve this exact draft before sending it to WordPress.');
+ check(handedOver(run),'OWNER_APPROVAL_FIRST','Approve this exact draft before sending it to WordPress.');
  check(!run.checks?.some(c=>!c.passed&&!c.notChecked)&&!run.playbookChecks?.some(c=>c.outcome==='fail'),'SEO_CHECK_FAILED','Resolve this draft checks before sending it.');
  const shown=clientDraft(run);check(shown.text&&shown.digest,'SEO_DRAFT_REQUIRED','This draft has no current client text.');
  check(countedAnswer(state,run)?.decision==='approved','SEO_CLIENT_APPROVAL_REQUIRED','The client must approve this exact draft before it leaves Chausar.');

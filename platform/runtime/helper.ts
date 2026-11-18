@@ -70,4 +70,3 @@ export class AnalyticalHelper {
     } finally { check(dirname(resolve(directory)) === resolve(tmpdir()) && directory.split(/[\\/]/).at(-1)!.startsWith('chausar-helper-'),'HELPER_PATH_INVALID','The helper directory left its temporary root.'); await rm(directory,{recursive:true,force:true}); }
   }
 }
-export { AnalyticalHelper as PythonHelper };

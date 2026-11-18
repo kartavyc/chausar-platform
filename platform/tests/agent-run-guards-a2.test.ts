@@ -32,7 +32,7 @@ test('a job that goes quiet is stopped, keeps the notes it wrote, and says it we
   await waitForAgentWork(env.store, started.id);
   const run = record(env, started.id);
   assert.equal(run.status, 'stopped');
-  assert.equal(run.agentJob!.quiet, true);
+  assert.equal(run.stopped?.reason, 'quiet');
   assert.ok(run.agentJob!.messages.some(message => message.text.includes('half done')), 'the partial work is kept');
   assert.equal(seen[0], 'interrupt');
   // A2 review: the run says it went quiet, never "Stopped by you".
@@ -51,7 +51,7 @@ test('a tool that ignores the stop is closed hard, and the job still ends', asyn
   await waitForAgentWork(env.store, started.id);
   assert.deepEqual(seen.slice(0, 2), ['interrupt', 'close']);
   assert.equal(record(env, started.id).status, 'stopped');
-  assert.equal(record(env, started.id).agentJob!.quiet, true);
+  assert.equal(record(env, started.id).stopped?.reason, 'quiet');
 });
 
 test('one nudge when the AI writes the request as text; a second stop ends the job as before', async () => {
@@ -97,7 +97,7 @@ test('the watchdog waits while an approval is pending on the owner', async () =>
   const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
   await waitForAgentWork(env.store, started.id);
   assert.deepEqual(seen, [], 'never asked to stop while the owner decides');
-  assert.notEqual(record(env, started.id).agentJob!.quiet, true);
+  assert.notEqual(record(env, started.id).stopped?.reason, 'quiet');
 });
 
 test('the watchdog waits while a tool step is still running', async () => {
@@ -115,7 +115,7 @@ test('the watchdog waits while a tool step is still running', async () => {
   const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
   await waitForAgentWork(env.store, started.id);
   assert.deepEqual(seen, []);
-  assert.notEqual(record(env, started.id).agentJob!.quiet, true);
+  assert.notEqual(record(env, started.id).stopped?.reason, 'quiet');
 });
 
 // A2 review (finding 14): a saved draft gets no nudge; the two turns of a nudge are counted as one total.
@@ -184,7 +184,7 @@ test('a tool step that never finishes holds the clock only up to its cap, then t
   assert.ok(stopped - started >= 300, 'not before the tool cap passed');
   const kept = record(env, run.id);
   assert.equal(kept.status, 'stopped');
-  assert.equal(kept.agentJob!.quiet, true);
+  assert.equal(kept.stopped?.reason, 'quiet');
   assert.ok(kept.agentJob!.messages.some(message => message.text.includes('half the books')), 'the partial work is kept');
 });
 
@@ -211,7 +211,7 @@ test('a tool step left open by the first turn does not pause the nudge turn', { 
   await waitForAgentWork(env.store, run.id);
   assert.equal(turn, 2, 'the nudge turn ran');
   assert.deepEqual(seen, ['interrupt'], 'the quiet nudge turn was stopped');
-  assert.equal(record(env, run.id).agentJob!.quiet, true);
+  assert.equal(record(env, run.id).stopped?.reason, 'quiet');
 });
 
 test('a job that keeps talking past its time limit is stopped, says so, and keeps its work', { timeout: 10_000 }, async () => {
@@ -233,7 +233,7 @@ test('a job that keeps talking past its time limit is stopped, says so, and keep
   assert.deepEqual(seen, ['interrupt']);
   const kept = record(env, run.id);
   assert.equal(kept.status, 'stopped');
-  assert.equal(kept.agentJob!.overtime, true);
+  assert.equal(kept.stopped?.reason, 'overtime');
   assert.ok(kept.agentJob!.messages.some(message => message.text.includes('step 1.')), 'what it wrote is kept');
   const detail = await getRun(env, run.id) as any;
   assert.equal(detail.stop?.line, TIME_LINE);

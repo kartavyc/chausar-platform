@@ -1,5 +1,5 @@
 import { check,internalCheck } from '../contracts.ts';
-import { canonical, digest } from '../actions.ts';
+import { canonical, digest } from '../portable.ts';
 
 export type ConnectorOperationKind = 'read' | 'export' | 'guided-export' | 'import' | 'write';
 export type ConnectorTransport = 'api' | 'file' | 'guided-ui';

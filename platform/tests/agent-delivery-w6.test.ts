@@ -39,7 +39,7 @@ for (const terminal of ['failed', 'interrupted'] as const) test(`a proposed draf
   const run = await deliver(env, order.id, draft('Voice sheet', { 'Voice sheet': ['A warm, plain voice for Sunrise Bakery.'] }));
   assert.ok(run.agentJob?.proposal, 'the agent proposed a draft before its terminal failure');
   assert.equal(run.status, terminal === 'interrupted' ? 'stopped' : 'failed');
-  assert.notEqual(run.agentJob?.reviewReady, true);
+  assert.notEqual(run.status, 'ready-for-review');
   assert.equal(run.canAccept, false);
   await assert.rejects(deliveryReviewHandler(env.deps, owner, { runId: run.id, verdict: 'accepted' }), { code: 'DELIVERY_NOT_READY' });
   assert.equal(env.store.read().actions.length, 0);

@@ -2,6 +2,9 @@ import { FakeClientAiDefault, fakeClientAiConsent } from './fake-client-ai-conse
 import { ownerError } from './owner-errors';
 import { INTERNAL_LINE_CODES, refusalTravel } from '../../../../platform/runtime/owner-flag';
 import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
+import { QUEUE_FIXED_WORDS } from '../../../../platform/runtime/venture/views/queue-words';
+import { fakePlanView } from './fake-plan-view';
+import type { QueueItemView, WayToEarnLite } from './types';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
@@ -20,20 +23,27 @@ import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { familyOf, isFamilyId } from '../../../../platform/runtime/venture/core/families';
 import { clientPhone, PHONE_REFUSED } from '../../../../platform/runtime/venture/clients/phone';
-import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
+import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_LABELS, type FakeBusiness } from './fixtures';
+import { UNIT_CHOICE_LINE, isOfferUnit, modelOfUnit } from '../../../../platform/runtime/venture/core/offer-units';
+import { fakeOrderAgents } from './fake-order-agents';
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, KeptShownLite, OfferLite, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
 import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
 import { FakeFirstRun, FIRST_RUN_METHODS, type AboutCallLite } from './fake-first-run';
 import type { ModelStatusLite, MotionPreferenceLite, WorkKindLite } from './types';
+import { fakeOwnPlanLead } from './fake-own-plan';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeUpdates } from './fake-updates';
 import { FakeWorkDesk } from './fake-work';
 import { FakeMoney } from './fake-money';
 import { FakeExtrasDesk } from './fake-extras';
+import { FakeFindCustomersDesk } from './fake-find-customers';
+import { EARLIER_DEFAULT, EARLIER_MAX, earlierList } from '../../../../platform/runtime/venture/journal/earlier-list';
+import { MAP_PLACES_ONLY, planHasPlaces } from '../../../../platform/runtime/venture/customers/find-brief';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { rupeesAt, rupeesLead, spendLead, spendSettings } from './fake-lead';
 import { FakePostingDesk } from './fake-posting';
@@ -60,7 +70,6 @@ import { FakeKitMediaDesk } from './fake-kit-media';
 import { FakeKitReportDesk } from './fake-kit-report';
 import { FakeKitConnectDesk } from './fake-kit-connect';
 import { FakeWebPeopleDesk } from './fake-web-people';
-import { FakeFlowsDesk } from './fake-flows';
 // Wave 6 (6G3, 6G4): the CRM and dated memory (fake-crm.ts, fake-memory.ts).
 import { FakeCrmDesk } from './fake-crm';
 import { FakeMemoryDesk } from './fake-memory';
@@ -69,8 +78,10 @@ import { FakeTalkDesk } from './fake-talk';
 // Wave 6 (6J2): feedback, the opt-in report with its preview (fake-feedback.ts).
 import { FakeFeedbackDesk } from './fake-feedback';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
-import { fakeChecklist, fakeWays } from './fake-start';
+import { fakeWays } from './fake-start';
 import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
+import PLAYBOOK_PICKS from './fixtures-playbook-picks.json';
+import { classifiedBy, type PlaybookPicks } from '../../../../platform/runtime/venture/core/service-keywords';
 import { fakeSocialForIdea, fakeSocialPlan } from './fake-social-plan';
 import { fakeSocialRevisionDueRows } from './fake-social-revision-due';
 import { withTruth } from './fake-setup';
@@ -88,7 +99,7 @@ import { withPriceGuide } from './fake-price-ranges';
 import { createFakeBackground, type FakeBackgroundStart } from './fake-background';
 import { introLine } from '../../../../platform/runtime/venture/agents/intro-core';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
-import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
+import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueActionId, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent, type RunStopReason } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -156,7 +167,7 @@ export interface FakeOptions {
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
 interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made'; passphrase?: string | undefined }
-interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number; launchStage?: string }
+interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; launchStage?: string }
 /** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
 /** The long methods and the job each is (platform/runtime/work-progress.ts). */
 const FAKE_WORK: Readonly<Record<string, WorkKindLite>> = {
@@ -189,15 +200,12 @@ function devAsks(flag: string): boolean {
   try { return typeof location !== 'undefined' && new URLSearchParams(location.search).has(flag); } catch { return false; }
 }
 
+/**
+ * The engine's classifyIdea (core/service-types.ts): the playbook the idea picks gives its service type, else the
+ * keywords. One shared function (core/service-keywords.ts classifiedBy) over the fixture of the registry's phrases.
+ */
 function classify(idea: string): ServiceType {
-  const text = idea.toLowerCase();
-  let best: ServiceType = 'other';
-  let hits = 0;
-  for (const [type, words] of Object.entries(SERVICE_KEYWORDS) as [Exclude<ServiceType, 'other'>, readonly string[]][]) {
-    const found = words.filter((word) => text.includes(word)).length;
-    if (found > hits) { best = type; hits = found; }
-  }
-  return best;
+  return classifiedBy(idea, PLAYBOOK_PICKS as PlaybookPicks[]);
 }
 
 /**
@@ -218,11 +226,16 @@ export class FakeEngine {
     venture: () => {
       const venture = this.open ? this.ventures.get(this.current) : undefined;
       if (!venture) return null;
-      const owner = this.answerNow('venture.owner.get', {}) as { familyId?: string };
-      return { idea: venture.idea, country: countryProfile(venture.countryCode), familyId: owner.familyId ?? null };
+      const owner = this.answerNow('venture.owner.get', {}) as { familyId?: string; needs?: string[]; way?: { customer: string; reach: string } };
+      return {
+        idea: venture.idea, country: countryProfile(venture.countryCode), familyId: owner.familyId ?? null, needs: owner.needs ?? [], leadSources: this.findCustomers.leadSources(owner.way),
+        // As find-target.ts mapNoteOf: the one line when the kept way's customers are not places on a map.
+        mapNote: planHasPlaces(owner.way) === false ? MAP_PLACES_ONLY : null,
+      };
     },
     countries: COUNTRIES,
     classify,
+    planLabels: Object.values(SERVICE_LABELS),
   });
   /** One-shot C3 task 9: the long methods' steps, and the ones running now (a job's own answer comes through request). */
   private readonly workSteps: FakeWorkProgress;
@@ -272,6 +285,8 @@ export class FakeEngine {
   readonly money: FakeMoney;
   /** Money at a glance, tax working, spend settings, the CA page, leads, bank imports, site edits, links: fake-extras.ts. */
   private readonly extras: FakeExtrasDesk;
+  /** Finding customers, for every business: the view, the owner's own start and a search's run once approved: fake-find-customers.ts. */
+  private readonly findCustomers: FakeFindCustomersDesk;
   /**
    * Ink v2 wave 2: posting and the client's answer (fake-posting.ts), practice and the judge (fake-practice.ts), bank
    * statements in the books (fake-bank.ts), and transcripts, the calendar file and platform rules (fake-wiring.ts).
@@ -354,7 +369,7 @@ export class FakeEngine {
       ...(options.keyMissing?.includes(b.id) ? { opens: 'key-missing' as const } : {}),
       ...(b.opens === 'needs-passphrase' ? { passphrase: SAMPLE_PASSPHRASE } : {}),
     }));
-    for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN', done: 6 });
+    for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN' });
     this.deviceKeys = options.deviceKeys ?? !devAsks('no-keys');
     this.trial = options.trial ?? (devAsks('trial-ending') ? 'ending' : devAsks('trial') ? 'temporary' : null);
     this.background = options.background ? createFakeBackground(options.background) : devAsks('installed') ? createFakeBackground() : null;
@@ -380,6 +395,10 @@ export class FakeEngine {
       hosted: () => this.hosted,
       // W6 6C1: the sample Codex, once its own sign-in finished, can connect (models/cli-status.ts 'unverified').
       codexSignedIn: () => this.firstRun.codexSignedIn(),
+      // Fix round 6: the main model an agent job runs on, from the business's AI settings.
+      jobModel: (provider, codexCli) => this.agentSettings.jobModel(provider, codexCli),
+      // Your AI's "This month" line, in the business's currency from the spend settings' rate.
+      monthLine: (biz, micros, estimate) => this.extras.monthLine(biz, micros, estimate),
       // A3 (L1): the preset list words Codex from this look, as models/presets.ts availabilityOf does.
       codexLook: () => this.firstRun.codexLook(),
     }, { fresh });
@@ -429,13 +448,17 @@ export class FakeEngine {
       // A2 review: the Codex setup Your AI shows, from the first run's Codex (fake-first-run.ts).
       codexSetup: () => this.firstRun.connectionsSetup(),
       nativeCanResume:(run:RunDetail)=>this.work.nativeCanResume(run),
-      nativeStop:(run:RunDetail)=>this.work.nativeStop(run),
+      nativeStop:(run:RunDetail,reason?:RunStopReason,line?:string)=>this.work.nativeStop(run,reason,line),
       nativeRestart:(run:RunDetail,resume:boolean)=>this.work.nativeRestart(run,resume),
       draftText: (id:string)=>{const run=(this.work.request('venture.delivery.list',{}) as DeliveryLite[]).find(item=>item.id===id);return run?.editedText??run?.renderedText??null;},
       sharedDraftDigest:(id:string)=>this.extras.sharedDraftDigest(this.current,id),
       socialClientAnswer:(id:string)=>this.posting.socialClientAnswer(id),
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
+      // The engine's teamNames: the names the plan's own team takes, from the idea (agents/order-agents.ts).
+      joinNames: () => { const idea = this.ventures.get(this.current)?.idea; if (!idea) return []; const own = fakeOrderAgents(idea, classify); return [...own.agents.map((agent) => agent.name), ...(own.code ?? [])]; },
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
+      // The rows still waiting, as venture.queue.list answers them: a card the owner decided is never a next step.
+      waiting: () => this.rows.filter((row) => !this.decided.has(row.id)),
       ask: (method: string, p: Record<string, unknown>) => this.answerNow(method, p),
       // 5G: only screened imported mail words, through an internal host seam.
       scheduledPost: (id:string) => this.posting.scheduledSnapshot(id),
@@ -504,8 +527,6 @@ export class FakeEngine {
       new FakeKitConnectDesk(waveHost, { fresh }),
       // Wave 6 (6F3, 6F8): web search, the page reader and people search (fake-web-people.ts).
       new FakeWebPeopleDesk(waveHost),
-      // Wave 6 (6H2): recorded flows, which need the desktop window; the fake answers as the engine does off the desktop.
-      new FakeFlowsDesk(),
       // Wave 6 (6G3, 6G4): the CRM (field history, companies, timelines, lists) and dated memory.
       new FakeCrmDesk({
         ...waveHost, clients: () => this.clients[this.current] ?? [],
@@ -525,9 +546,15 @@ export class FakeEngine {
     this.wiring = new FakeWiringDesk(waveHost, { fresh });
     // 4B3: a request on the floor in an agent's chat is a proposal the Chats desk raises to Today.
     // W6 6G2: a retired agent's chat reads on the Retired shelf and takes no new words.
-    this.agentsDesk = new FakeAgentsDesk(waveHost, { fresh, floor: (input) => this.chief.draftFromAgent(input), retired: (agentId) => this.retire.retiredAgent(agentId) });
+    this.agentsDesk = new FakeAgentsDesk(waveHost, { fresh, floor: (input) => this.chief.draftFromAgent(input), retired: (agentId) => this.retire.retiredAgent(agentId), consentGiven: () => { try { this.w4.afterChatConsent(); } catch { /* the consent stands */ } } });
     // 4C2: the Chats desk reads the one chat consent the agents' desk keeps (it needs no agent).
     this.chief = new FakeChiefDesk(waveHost, { fresh, consent: () => this.agentsDesk.chatConsent() });
+    this.findCustomers = new FakeFindCustomersDesk({
+      current: () => this.current, now: () => this.now(), digest: digestOf, ask: (method, params) => this.answerNow(method, params as Record<string, unknown>), emit: (event) => this.emit(event),
+      raise: (input) => this.chief.draftOwned(input), cards: () => this.chief.findCards(),
+      about: () => this.ventures.get(this.current)?.idea ?? '',
+    });
+    this.chief.attachFind({ gate: (input, title, line) => this.findCustomers.gate(input, title, line), facts: (input) => this.findCustomers.facts(input), run: (id, input, title) => this.findCustomers.run(id, input, title) });
     this.apps = new FakeAppsDesk({
       current: () => this.current, now: () => this.now(), hosted: () => this.hosted, digest: digestOf,
       clients: () => this.clients[this.current] ?? [], orders: () => this.work.request('venture.order.list', {}) as OrderLite[],
@@ -561,6 +588,9 @@ export class FakeEngine {
   }
 
   emit(event: VentureRunEvent): void {
+    // Events move the chief's plan: a queue change keeps it before the screens read again (the engine keeps it in the
+    // same commit as the write, chief/plan.ts keepPlan).
+    if (event.type === 'queue.changed' && this.open && event.businessId === this.current) { try { this.w4?.keepPlan(); } catch { /* the next read gives the plan */ } }
     this.seq += 1;
     for (const listener of [...this.listeners]) listener(event);
   }
@@ -601,10 +631,12 @@ export class FakeEngine {
     const job = FAKE_WORK[method];
     if (job && !this.inWork.has(method)) return this.longWork(method, params, job);
     if (this.updates.handles(method)) return this.updates.request(method, p);
-    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
+    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     // C4 task 33: the Undo of the owner's own price (core/owner-price.ts) belongs to the plan's desk, before the queue's own undo.
     if (method === 'venture.queue.undo' && typeof p.rowId === 'string' && p.rowId.startsWith('price-set:')) return this.desk.undoOwnerPrice(p.rowId);
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
+    // draft/desk.ts: with a business open the draft desk answers nothing, so the AI is never reused behind it.
+    if (method === 'venture.ai.reuse' && this.open && this.ventures.has(this.current)) throw new EngineError('VENTURE_EXISTS', 'Your business already has its AI settings under Trust.');
     if (method === 'venture.queue.undo' && typeof p.rowId === 'string') {
       // B4 task 7, as views/queue-actions.ts: a price taken back; any other undo is the approvals desk's.
       const price = this.desk.undoPress(p.rowId);
@@ -651,10 +683,19 @@ export class FakeEngine {
     if (FakeMoney.answers(method)) return this.money.request(method, p);
     switch (method) {
       case 'venture.queue.list': return this.queueList(p.scope === 'current' ? 'current' : 'all');
-      case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
+      case 'venture.queue.decide': {
+        // Round 6: each decided row reaches the decision record as the engine's views/queue.ts records the click.
+        const row = this.rows.find((item) => item.id === p.id);
+        const noted = (out: QueueDecision): QueueDecision => {
+          if (row && out.outcome === 'done') this.w4.noteClick(row, p.action as QueueActionId, out.line);
+          return out;
+        };
+        const out = this.decide(p as ParamsOf<'venture.queue.decide'>);
+        return out instanceof Promise ? out.then(noted) : noted(out);
+      }
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.phoneDelivery.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id) ?? this.work.templateDraftView(this.current, this.businesses.find((b) => b.id === this.current)?.name ?? '', p.kind, p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.phoneDelivery.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id) ?? this.work.templateDraftView(this.current, this.businesses.find((b) => b.id === this.current)?.name ?? '', p.kind, p.id) ?? this.keptPlanView(p.kind, p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -664,13 +705,15 @@ export class FakeEngine {
       }
       case 'venture.runs.list': {
         const state = p.state ?? 'all';
-        const runs = this.runs.filter((r) => state === 'all' || (state === 'active' ? r.state === 'active' || r.state === 'waiting' : r.state === 'done' || r.state === 'failed'));
+        // The open business's runs only, as the engine reads them from that business's own vault (views/runs.ts allRuns).
+        const runs = this.runs.filter((r) => r.businessId === this.current && (state === 'all' || (state === 'active' ? r.state === 'active' || r.state === 'waiting' : r.state === 'done' || r.state === 'failed')));
         // 4F3: the scope, notes, gate and calls in flight are the run sheet's (venture.runs.get), as on the engine.
-        return { runs: runs.map(({ steps: _s, question: _q, error: _e, scope: _c, steer: _n, gate: _g, live: _l, ...summary }) => clone(summary)) };
+        // Round 5: the searches for customers open now, Chausar's own work beside the runs, as views/runs.ts lists them.
+        return { runs: runs.map(({ steps: _s, question: _q, error: _e, scope: _c, steer: _n, gate: _g, live: _l, ...summary }) => clone(summary)), searches: state === 'done' ? [] : this.findCustomers.open() };
       }
       case 'venture.runs.get': {
-        const run = this.runs.find((r) => r.runId === p.runId);
-        if (!run) throw new EngineError('RUN_NOT_FOUND', 'This run is not on this computer.');
+        const run = this.runs.find((r) => r.runId === p.runId && r.businessId === this.current);
+        if (!run) throw new EngineError('RUN_NOT_FOUND', 'That job was not found.');
         // 4F3: the scope's cap in rupees at the owner's rate, read when asked, as the engine's views/runs.ts does.
         // W6 6G5 (D44): with the run's model receipt, as the engine's runs.get adds it.
         const view = this.w4.runView(run);
@@ -683,6 +726,13 @@ export class FakeEngine {
       case 'venture.spend.list': return { rows: this.spendRows(), ...this.spendTotal() };
       // 4J22a: a break the owner accepted in the record shows as an entry first, as the engine's journal list has it.
       case 'venture.journal.list': return { entries: clone([...this.w4.quality.breakEntries(), ...this.journal]).slice(0, typeof p.limit === 'number' ? p.limit : undefined) };
+      // Round 6: what Today's Earlier lists, as journal/earlier.ts answers it, from the same three records.
+      case 'venture.earlier.list': {
+        if (Object.keys(p).some((key) => key !== 'limit')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+        if (p.limit !== undefined && !(Number.isInteger(p.limit) && (p.limit as number) >= 1 && (p.limit as number) <= EARLIER_MAX)) throw new EngineError('INVALID_VENTURE_REQUEST', `limit must be a whole number from 1 to ${EARLIER_MAX}.`);
+        const journal = [...this.w4.quality.breakEntries(), ...this.journal];
+        return { entries: earlierList({ journal, decisions: this.w4.ownDecisions(), searches: this.findCustomers.ended() }, typeof p.limit === 'number' ? p.limit : EARLIER_DEFAULT) };
+      }
       case 'venture.journal.resolve': return this.resolveJournal(p as ParamsOf<'venture.journal.resolve'>);
       case 'venture.evidence.list': return { items: clone(this.evidence).filter((e) => typeof p.subject !== 'string' || e.subject === p.subject) };
       case 'venture.evidence.apply': return this.applyEvidence(String(p.id ?? ''));
@@ -704,7 +754,7 @@ export class FakeEngine {
         const signature = this.w4.quality.signature(receipt);
         return clone(signature ? { ...receipt, signature } : receipt);
       }
-      case 'venture.books.summary': return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
+      case 'venture.books.summary': return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period, !BOOKS[this.current]);
       case 'venture.connectors.list': return withTruth(this.posting.connectorCards(withSellerCards(clone(CONNECTORS))), this.hosted);
       case 'workspace.list': return {
         complete: true,
@@ -724,14 +774,19 @@ export class FakeEngine {
     this.current = business.id;
         this.open = true;
         this.closedByOwner = false;
+        // engine.ts workspace.open: a draft left from before goes when a business opens.
+        this.desk.clearDraft();
         this.emit({ type: 'queue.changed', businessId: business.id, at: this.now() });
         return { workspace: { id: business.id, name: business.name } };
       }
       default:
+        // The plan page's read carries the kept plan beside the record (core/blueprint.ts blueprintGet).
+        if (method === 'venture.blueprint.get') return this.withKeptPlan(this.desk.request(method, p) as BlueprintViewLite | null);
         if (this.desk.handles(method)) return this.desk.request(method, p);
         if (this.work.handles(method)) return this.work.request(method, p);
         if(method==='venture.share.list')return this.shareView(p);
         if(method==='venture.share.revoke'&&typeof p.id==='string'){const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.revokeShare(p.id);if(extra)return extra;}
+        if (this.findCustomers.handles(method)) return this.findCustomers.request(method, p);
         if (this.extras.handles(method)) {
           const answer = this.extras.request(method, p);
           if (method === 'venture.leads.recordSend' && typeof p.leadId === 'string') this.network.recordLeadSend(p.leadId);
@@ -766,6 +821,8 @@ export class FakeEngine {
    * set, and 4Z3: each as the owner's currency leads it.
    */
   private spendRows() {
+    // The sample calls belong to the sample businesses; a business the owner made has made no paid call yet.
+    if (!this.sampleBusiness()) return [];
     const { rate, choice } = spendSettings(() => this.answerNow('venture.spend.policy.get', {}));
     return clone(SPEND).map((row) => {
       const micros = SPEND_MICROS[row.id];
@@ -780,13 +837,25 @@ export class FakeEngine {
     });
   }
 
+  /** Whether the open business is one of the samples (fixtures.ts BUSINESSES), whose paid calls the fixtures hold. */
+  private sampleBusiness(): boolean {
+    return BUSINESSES.some((business) => business.id === this.current);
+  }
+
   private spendTotal() {
     const { rate, choice } = spendSettings(() => this.answerNow('venture.spend.policy.get', {}));
+    if (!this.sampleBusiness()) {
+      // As money/spend.ts listSpend with no paid call: on the owner's own AI plan the words lead.
+      const ownPlan = fakeOwnPlanLead((method, params) => this.answerNow(method, params), 0, false);
+      return {
+        total: '$0.00 this month', ...(rate ? { totalRupees: rupeesAt(0, rate) } : {}),
+        totalLead: ownPlan ?? spendLead(0, rate?.perUsd ?? null, rupeesLead(choice), ' this month'),
+      };
+    }
     const words = ' this month (includes estimates)';
     return {
       total: `$0.72${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
       totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
-      ...(rate ? {} : { needsRate: true }),
     };
   }
 
@@ -888,12 +957,29 @@ export class FakeEngine {
     return fakeLaunchStatus(this.launchFacts());
   }
 
+  /** A business's name as the owner knows it: its venture's working name, else the name its vault was made with. */
+  private businessName(id: string): string {
+    return this.ventures.get(id)?.workingName ?? this.businesses.find((b) => b.id === id)?.name ?? 'your other business';
+  }
+
+  /** core/venture.ts sellsOf: what the accepted plan sells, by its first offer's own name; nothing before a plan is accepted. */
+  private sellsOf(): { sells?: string } {
+    const name = this.desk.acceptedPlanFor(this.current)?.blueprint.offers[0]?.name.value.trim() ?? '';
+    return name ? { sells: name } : {};
+  }
+
+  /** core/venture.ts fieldOf: the field the owner kept (venture.owner.set { familyId }), by its own label. */
+  private fieldOf(): { field?: { id: string; label: string } } {
+    let id: string | undefined;
+    try { id = (this.answerNow('venture.owner.get', {}) as { familyId?: string | null } | null)?.familyId ?? undefined; } catch { id = undefined; }
+    return id && isFamilyId(id) ? { field: { id, label: familyOf(id).label } } : {};
+  }
+
   private ventureView() {
         const venture = this.ventures.get(this.current);
         const playbook = this.desk.playbook(this.current);
-        // 4J8: the checklist item by item, with names and links, as the engine's venture.get carries it.
         // 4J20: the business's country (its code and currency), as the engine's venture record carries it.
-        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage: venture.launchStage ?? 'rehearsal', country: venture.countryCode ? countryProfile(venture.countryCode) : null, ...(venture.originalCountry ? { originalCountry: clone(venture.originalCountry) } : {}) }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
+        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage: venture.launchStage ?? 'rehearsal', country: venture.countryCode ? countryProfile(venture.countryCode) : null, ...(venture.originalCountry ? { originalCountry: clone(venture.originalCountry) } : {}) }, ...this.w4.setupProgress(), ...(playbook ? { playbook } : {}), ...this.sellsOf(), ...this.fieldOf(), ...this.w4.pausedField() } : null;
         }
 
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
@@ -939,8 +1025,42 @@ export class FakeEngine {
   }
 
   /** venture.team.list as the engine sends it; W6 6G2: retired agents on the Retired shelf, their steps with whoever took over. */
+  /**
+   * The kept plan as the engine's planView reads it (fake-plan-view.ts): this business's own plan, the way to earn kept
+   * with it and the agents the owner hired, retired ones left out.
+   */
+  private keptPlanView(kind: unknown, id: unknown): QueueItemView | null {
+    if (kind !== 'plan') return null;
+    const plan = this.desk.blueprintFor(this.current)?.blueprint;
+    if (!plan || plan.id !== id) return null;
+    const { way, team } = this.keptPlan();
+    // The agents that do each order (the engine's agents/order-agents.ts): a playbook's own when the plan carries its offers, else the one delivery agent.
+    const idea = this.ventures.get(this.current)?.idea ?? '';
+    const own = fakeOrderAgents(idea, () => plan.serviceType);
+    const order = own.flagship && !plan.offers.some((offer) => offer.playbookOffer) ? fakeOrderAgents('', () => plan.serviceType) : own;
+    const accepted = this.desk.acceptedPlanFor(this.current) !== null;
+    return fakePlanView(this.businesses.find((b) => b.id === this.current)?.name ?? '', plan, way, team, { agents: order.agents, joined: accepted });
+  }
+
+  /** The way to earn kept with this business, or null, and the agents the owner hired, retired ones left out. */
+  private keptPlan(): { way: WayToEarnLite | null; team: { name: string; job: string; duties: string[] }[] } {
+    let way: WayToEarnLite | null = null;
+    try { way = (this.answerNow('venture.owner.get', {}) as { way?: WayToEarnLite }).way ?? null; } catch { way = null; }
+    const team = this.teamView().agents.filter((agent) => agent.hired).map((agent) => ({ name: agent.name, job: agent.role, duties: [...agent.hired!.duties] }));
+    return { way, team };
+  }
+
+  /** venture.blueprint.get as the engine answers it: `kept` only once a way was kept or an agent hired. */
+  private withKeptPlan(view: BlueprintViewLite | null): BlueprintViewLite | null {
+    if (!view) return view;
+    const kept = this.keptPlan();
+    return kept.way || kept.team.length ? { ...view, kept } : view;
+  }
+
   private teamView(): TeamListView {
-    const view = this.retire.withShelf(this.w4.teamList(this.retire.agentsNow(clone(this.agents[this.current] ?? [])), this.runs));
+    // Before the plan is accepted the team is the hired agents only (views/team.ts). A sample business has its plan's agents.
+    const planAgents = clone(this.agents[this.current] ?? []);
+    const view = this.retire.withShelf(this.w4.teamList(this.retire.agentsNow(planAgents), this.runs.filter((run) => run.businessId === this.current), planAgents.length > 0 || !!this.desk.acceptedPlanFor(this.current)));
     // C5 task 1 (agents/intro.ts): the agents not met yet on this business, each with its code-written line.
     const met = this.metAgents[this.current] ?? new Set<string>();
     return { ...view, introduce: view.agents.filter((agent) => agent.kind !== 'code' && !met.has(agent.id)).map((agent) => ({ agentId: agent.id, line: introLine(agent.name, agent.role) })) };
@@ -965,7 +1085,7 @@ export class FakeEngine {
     if (method === 'venture.client.aiConsent.agree' || method === 'venture.client.aiConsent.withdraw') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.get') return this.clientAiConsent(method,p);
     if (method === 'venture.agentSettings.get') return this.agentSettings.request(method, p);
-    if (method === 'venture.books.summary') return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
+    if (method === 'venture.books.summary') return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period, !BOOKS[this.current]);
     if(method==='venture.share.list')return this.shareView(p);
     if (method === 'venture.get') return this.ventureView();
     // W6 6C5: the fake's own rule gates read the open business's attestations, as the engine's guards do.
@@ -1112,7 +1232,7 @@ export class FakeEngine {
       this.desk.accept(row.businessId, row.viewRef.id);
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
-      return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.', ...(undoable ? { undoable: true as const } : {}) };
+      return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : QUEUE_FIXED_WORDS.planAccepted, ...(undoable ? { undoable: true as const } : {}) };
     }
     // C4 task 13: a draft's Approve or Reject moves its run, as the engine's review does (views/queue.ts). A sample row whose draft isn't listed moves nothing.
     if (row.kind === 'draft' && row.viewRef?.kind === 'draft' && (action.id === 'approve' || action.id === 'deny')) {
@@ -1120,7 +1240,8 @@ export class FakeEngine {
       const runId = row.viewRef.id;
       try {
         let prior: DeliveryLite | undefined;
-        this.reviseDelivery(runId, (run) => { prior = clone(run); return { ...run, status: verdict === 'accepted' && run.editedText ? 'edited' : verdict, awaitingYou: false, canAccept: false, ...(verdict === 'rejected' ? { editedText: null } : {}) }; });
+        // The status and the verdict move together, as the engine's review sets them (delivery/run-machine.ts).
+        this.reviseDelivery(runId, (run) => { prior = clone(run); const choice = verdict === 'accepted' && run.editedText ? 'edited' : verdict; return { ...run, status: choice, verdict: { choice, reason: verdict === 'rejected' ? 'other' : null, at: this.now() }, awaitingYou: false, canAccept: false, ...(verdict === 'rejected' ? { editedText: null } : {}) }; });
         // C4 task 15: a reject can be taken back, in the engine's words.
         if (verdict === 'rejected' && prior) {
           this.w4.noteReject(row, runId, prior);
@@ -1298,6 +1419,8 @@ export class FakeEngine {
         const business = this.open ? this.businesses.find((b) => b.id === this.current) : undefined;
         return {
           open: this.open, workspace: business ? { name: business.name } : undefined,
+          // The open business's folder, as workspace.list names it (engine.ts workspace.status).
+          ...(business && !this.hosted ? { folder: business.id } : {}),
           unlock: business ? (business.opens === 'needs-passphrase' ? 'typed' : 'this-computer') : undefined,
           closedByOwner: this.closedByOwner, experimental: true,
           ...(this.hosted ? { hosted: { businesses: this.businesses.map((b) => ({ id: b.id, name: b.name })), ...(this.trial ? { trial: this.trialView() } : {}) } } : {}),
@@ -1315,6 +1438,8 @@ export class FakeEngine {
         this.endPlaybookSession();
         this.open = false;
         this.closedByOwner = true;
+        // engine.ts closeVault: the draft desk's AI goes with the vault that closed.
+        this.desk.clearDraft();
         return { locked: true };
       }
       case 'workspace.create': return this.createWorkspace(p);
@@ -1341,23 +1466,23 @@ export class FakeEngine {
         };
       }
       case 'venture.create': {
-        if (p.reuseAi !== undefined && p.reuseAi !== true) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send reuseAi as true, or leave it out.');
+        // core/venture.ts exactPayload: the idea, the country and a working name, and nothing else.
+        if (Object.keys(p).some((key) => key !== 'idea' && key !== 'countryCode' && key !== 'workingName')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
         if (this.ventures.has(this.current)) throw new EngineError('VENTURE_EXISTS', 'This workspace already has a business. Chausar keeps one business per workspace.');
         const idea = this.idea(p.idea);
         const country = this.country(p.countryCode);
         const named = typeof p.workingName === 'string' ? p.workingName.trim() : null;
         if (p.workingName !== undefined && (named === null || named.length < 2 || named.length > 80)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The working name must be between 2 and 80 characters.');
-        const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
+        const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code };
         this.ventures.set(this.current, venture);
         this.aiReads.set(this.current, this.firstRun.takeAiReads());
         this.interviews.set(this.current, this.templateInterview(country.code));
-        // A4 fix round (core/venture.ts reuseAi): from the Start gallery, with no AI from the first run, the newest
-        // Codex or Claude Code setup of another business comes along, and the decision says where from.
-        const reusedFrom = p.reuseAi === true ? this.desk.reuseAi(this.current) : null;
-        if (reusedFrom) this.w4.chausarNote(`ai-setup:${reusedFrom}`, 'reuse-ai', `This business uses the same AI as ${this.ventures.get(reusedFrom)?.workingName ?? 'your other business'}.`);
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
-        this.desk.adoptDraft(this.current);
-        return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };
+        // A4 fix round (core/venture.ts): when the draft reused another business's Codex or Claude Code
+        // (venture.ai.reuse), the decision says where it came from.
+        const reusedFrom = this.desk.adoptDraft(this.current);
+        if (reusedFrom) this.w4.chausarNote(`ai-setup:${reusedFrom}`, 'reuse-ai', `This business uses the same AI as ${this.businessName(reusedFrom)}.`);
+        return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: 0, total: 2 };
       }
       case 'venture.interview.next': {
         const questions = this.interviews.get(this.current);
@@ -1520,7 +1645,7 @@ export class FakeEngine {
     const key = this.newKey(p);
     const moved: HeldBusiness = { id: file.business, name: file.name, serviceType: 'other', recovery: 'made', ...key };
     this.businesses.push(moved);
-    this.ventures.set(moved.id, { workingName: moved.name, serviceType: null, idea: '', countryCode: 'IN', done: 1 });
+    this.ventures.set(moved.id, { workingName: moved.name, serviceType: null, idea: '', countryCode: 'IN' });
     return { ...this.openHere(moved), folder: moved.id, unlock: key.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer' };
   }
 
@@ -1592,21 +1717,23 @@ export class FakeEngine {
     const bad = () => new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (!value || typeof value !== 'object' || !['by,name,offers', 'by,callId,name,offers'].includes(Object.keys(value).sort().join(','))) throw bad();
     const body = value as Record<string, unknown>;
-    if (body.by !== 'model' && body.by !== 'template') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+    if (body.by !== 'model' && body.by !== 'template' && body.by !== 'owner') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model, template or owner.');
     // A2, as core/blueprint.ts shownOf: the call id is checked right after who wrote it, before the name and offers.
     if (body.callId !== undefined && (typeof body.callId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.callId))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
     const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : '';
     if (name.length < 2 || name.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The business name must be between 2 and 60 characters.');
     if (!Array.isArray(body.offers) || body.offers.length < 1 || body.offers.length > 3) throw new EngineError('INVALID_VENTURE_REQUEST', 'Keep one to 3 offers.');
     const offers = (body.offers as unknown[]).map((item) => {
-      if (!item || typeof item !== 'object' || Object.keys(item).sort().join(',') !== 'line,name') throw bad();
+      if (!item || typeof item !== 'object' || !['line,name', 'line,name,unit'].includes(Object.keys(item).sort().join(','))) throw bad();
       const offer = item as Record<string, unknown>;
+      // As core/blueprint.ts shownOf: the unit the card showed, one of the engine's list; a card with none is per project.
+      if (offer.unit !== undefined && !isOfferUnit(offer.unit)) throw new EngineError('INVALID_VENTURE_REQUEST', UNIT_CHOICE_LINE);
       const offerName = typeof offer.name === 'string' ? offer.name.replace(/\s+/g, ' ').trim() : '';
       if (offerName.length < 2 || offerName.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The offer name must be between 2 and 60 characters.');
       if (typeof offer.line !== 'string' || offer.line.length > 200) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer line is at most 200 characters.');
       const line = offer.line.replace(/\s+/g, ' ').trim();
       if (/[\p{N}\p{Sc}]|:\/\//u.test(offerName) || /[\p{N}\p{Sc}]|:\/\//u.test(line)) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
-      return { name: offerName, line };
+      return { name: offerName, line, ...(isOfferUnit(offer.unit) ? { unit: offer.unit } : {}) };
     });
     return { name, by: body.by, ...(typeof body.callId === 'string' ? { callId: body.callId } : {}), offers };
   }
@@ -1622,7 +1749,6 @@ export class FakeEngine {
     const kit = fakeKitForIdea(venture.idea);
     const type = kit?.registration.serviceType ?? classify(venture.idea);
     venture.serviceType = type;
-    venture.done = 2;
     const at = this.now();
     const planId = `plan-${business.id}-1`;
     const label = <T,>(value: T) => ({ value, label: 'assumption' as const, by: 'template' as const });
@@ -1633,7 +1759,7 @@ export class FakeEngine {
       const ai = this.desk.aiState(business.id);
       const aiRow: Omit<QueueRow, 'digest'>[] = !ai ? [] : ai.kind === 'none'
         ? [{ ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: NEW_BUSINESS_ROWS.ai.title, line: NEW_BUSINESS_ROWS.ai.line, actions: [{ id: 'connect', label: NEW_BUSINESS_ROWS.ai.action, primary: true }] }]
-        : [{ ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: 'Your AI needs attention', line: ai.reason, actions: [{ id: 'connect', label: 'Open', primary: true }] }];
+        : [{ ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: QUEUE_FIXED_WORDS.aiAttention, line: ai.reason, actions: [{ id: 'connect', label: 'Open', primary: true }] }];
       const seeds: Omit<QueueRow, 'digest'>[] = [
         { ...base, id: `q-plan-${business.id}`, kind: 'plan', title: NEW_BUSINESS_ROWS.plan.title, line: oneLiner, viewRef: { kind: 'plan', id: planId },
           actions: [{ id: 'read', label: NEW_BUSINESS_ROWS.plan.read, primary: false }, { id: 'approve', label: NEW_BUSINESS_ROWS.plan.accept, primary: true, requiresView: true }] },
@@ -1675,15 +1801,17 @@ export class FakeEngine {
     };
     const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
     const view = kit ? fakeKitPlan(kit, templateView) : fakeSocialForIdea(venture.idea) ? fakeSocialPlan(templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : fakeYoutubeForIdea(venture.idea)?fakeYoutubePlan(templateView,this.hosted):templateView;
-    // Review of A1 (row 3), as core/blueprint.ts applyShown: exactly the card's name and offers, by who wrote them, with
-    // no price and the neutral per-project unit.
+    // Review of A1 (row 3), as core/blueprint.ts applyShown: exactly the card's name and offers, by who wrote them, each
+    // in the unit the card showed, with no price.
     if (shown) {
       // A1 re-review, as core/blueprint.ts: the AI's label only when this business holds the AI's about read.
       // A2: and only when the card's offers are the ones that read answered (core/blueprint.ts aboutReadCalled).
       const fold = (offers: readonly { name: string; line: string }[]) => JSON.stringify(offers.map((offer) => [offer.name.replace(/\s+/g, ' ').trim(), offer.line.replace(/\s+/g, ' ').trim()]));
       const read = shown.callId ? this.aiReads.get(business.id)?.find((call) => call.callId === shown.callId) : undefined;
-      const by = shown.by === 'model' && !(read && fold(read.offers) === fold(shown.offers)) ? 'template' as const : shown.by;
+      // As applyShown: offers the owner typed are told by the owner; the name and the one line stay the built-in plan's.
+      const by = shown.by === 'owner' || (shown.by === 'model' && !(read && fold(read.offers) === fold(shown.offers))) ? 'template' as const : shown.by;
       const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
+      const offerWords = (value: string) => (shown.by === 'owner' ? { value, label: 'told-by-you' as const, by: 'owner' as const } : words(value));
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);
       // One-shot B1 (A3 notes line 51), as applyShown: the one line from the kept offers, on the plan and its Today row.
@@ -1693,8 +1821,8 @@ export class FakeEngine {
       if (planRow) { planRow.line = view.blueprint.oneLiner.value; const { digest: _was, ...seed } = planRow; planRow.digest = digestOf(seed); }
       (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({
         id: `offer_${index + 1}`, ...(template[index]?.playbookOffer ? { playbookOffer: template[index]!.playbookOffer } : {}),
-        name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name),
-        pricing: { model: 'project' as const, quantityUnit: 'project' as const, unitPriceMinor: null, unitPriceLabel: 'not-set' as const, defaultQuantity: '1' },
+        name: offerWords(kept.name), description: offerWords(kept.line.length >= 2 ? kept.line : kept.name),
+        pricing: { model: modelOfUnit(kept.unit ?? 'project'), quantityUnit: kept.unit ?? 'project' as const, unitPriceMinor: null, unitPriceLabel: 'not-set' as const, defaultQuantity: '1' },
       }));
       view.blueprint.source = by;
       view.blueprint.digest = digestOf({ ...view.blueprint, digest: '' });

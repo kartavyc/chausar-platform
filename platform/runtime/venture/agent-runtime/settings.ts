@@ -75,6 +75,8 @@ export function validateAiSettings(raw: unknown): AiSettings {
     ...(Object.hasOwn(row, 'planPause') ? { planPause: row.planPause as number | null } : {}),
     ...(Object.hasOwn(row, 'offerWays') ? { offerWays: row.offerWays as boolean } : {}) };
 }
+/** Whose settings an agent job takes with this AI serving plans and drafts (route.ts): Claude's for Claude, else Codex's. */
+export const jobProviderOf = (presetId: string): AiProvider => (presetId.startsWith('anthropic-') || presetId === 'claude-code-cli' ? 'claude' : 'codex');
 export function agentSettingsOf(state: State, ventureId: string): AiSettings {
   const venture = state.conversations.find(row => row?.kind === 'venture-record' && row.id === ventureId);
   check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');

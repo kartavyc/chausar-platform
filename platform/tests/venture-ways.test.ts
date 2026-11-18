@@ -19,7 +19,6 @@ import {kitWay} from '../runtime/venture/playbooks/kit/tile.ts';
 import { departmentOfRole, departmentOfService } from '../runtime/venture/playbooks/departments.ts';
 import { venturePlaybooks } from '../runtime/venture/host.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
-import { CHECKLIST_ITEMS } from '../runtime/venture/core/checklist.ts';
 import { Engine } from '../runtime/engine.ts';
 import { PASSPHRASE, engineFor, noGitHub } from './fixtures/venture/compose-unit/harness.ts';
 import { replay } from './fixtures/venture/compose-unit/plans.ts';
@@ -257,8 +256,8 @@ test('ways: the engine names the open business by the workspace the host uses', 
   assert.deepEqual(byId(view, 'youtube').yours, [{ businessId: 'folder-lumen', name: 'Lumen Studio' }]);
 });
 
-test('ways: the UI\'s fake engine keeps the engine\'s own ways and checklist, word for word', async () => {
+test('ways: the UI\'s fake engine keeps the engine\'s own ways, word for word', async () => {
   const fake = JSON.parse(await readFile(new URL('../../app/ui/src/engine/fixtures-start.json', import.meta.url), 'utf8'));
   assert.deepEqual(fake.ways, listWays({}));
-  assert.deepEqual(fake.checklist, CHECKLIST_ITEMS.map(item => ({ id: item.id, label: item.label, link: item.link })));
+  assert.equal(fake.checklist, undefined, 'the launch checklist is gone from the fake too');
 });

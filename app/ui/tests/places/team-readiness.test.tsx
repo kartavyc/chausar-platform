@@ -28,13 +28,12 @@ async function openEditor() {
 
 describe('Team: native AI review settings', () => {
   it('links to owner AI settings without the retired lock, readiness or posture controls', async () => {
-    const {base}=start(),spy=vi.spyOn(base.engine,'request'),sheet=await openEditor();
+    start();const sheet=await openEditor();
     expect(within(sheet).getByRole('link',{name:'AI review settings'}).getAttribute('href')).toBe('#/connections');
     expect(within(sheet).queryByRole('radio')).toBeNull();
     expect(sheet.querySelector('[data-fold="readiness"]')).toBeNull();
     expect(sheet.textContent).not.toContain('Routine-step approval is not available yet.');
     expect(sheet.textContent).not.toContain('Until then they ask you');
-    expect(spy).not.toHaveBeenCalledWith('venture.auto.readiness',expect.anything());
     assertInkRules(sheet);
   });
   it('keeps step descriptions but offers no inert per-turn gate switches', async () => {

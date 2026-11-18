@@ -1,6 +1,8 @@
 // C5 task 15: day-one margins from a dated reference rate. One figure shipped with each release: the USD/INR reference
-// rate FBIL publishes on business days (RBI shows it), with its date and where it came from. Using it is the owner's
-// choice (venture.spend.policy.set { useReference: true }); it is never a live rate and never updates by itself. A test
+// rate FBIL publishes on business days (RBI shows it), with its date and where it came from. A business that bills in
+// rupees uses it until the owner types their own rate (money/spend.ts rupeeRateFor), so its AI spend reads in rupees from
+// the first day; the owner can also take it by choice (venture.spend.policy.set { useReference: true }), which keeps that
+// release's figure. It is never a live rate and changes only with a release. A test
 // (reference-rate-fresh-c5) fails when the figure is more than 45 days older than the release's build date in
 // package.json, so a release never ships a stale rate silently. Browser safe, so the fake engine says the same.
 

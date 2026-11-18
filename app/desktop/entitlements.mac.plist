@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Used only when a Mac build is signed with an Apple Developer ID (the hardened runtime). An unsigned build ignores this file. -->
+    <!-- Electron's JavaScript engine, in the window and in the engine worker (the same program run as Node). -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Push to talk and live captions: the microphone, only after the owner starts one of them. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+  </dict>
+</plist>

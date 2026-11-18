@@ -51,23 +51,17 @@ export function Rail({ route }: { route: Route }) {
       <ul className={s.places}>
         {RAIL_PLACES.map((place) => {
           const here = route.place === place;
+          // What a screen reader hears beyond the place's name is the link's own name, never hidden text beside the
+          // visible words (the page text used to read "Today 4 , 4 need you").
+          const said = place === 'today' && needsYou > 0 ? `${t('place.today')}, ${t('rail.needsYou', { count: needsYou })}`
+            : place === 'chats' && firstChat ? `${t('place.chats')}${t('rail.chats.newWords')}` : undefined;
           return (
             <li key={place}>
-              <a className={cx(s.place, here && s.on)} href={`#/${place}`} aria-current={here ? 'page' : undefined} title={t(`place.${place}`)}>
+              <a className={cx(s.place, here && s.on)} href={`#/${place}`} aria-current={here ? 'page' : undefined} aria-label={said} title={t(`place.${place}`)}>
                 <Icon name={PLACE_ICONS[place]} className={s.icon} />
                 <span className={s.label}>{t(`place.${place}`)}</span>
-                {place === 'today' && needsYou > 0 && (
-                  <>
-                    <span className={s.count} data-num="" aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
-                    <span className="sr-only">, {t('rail.needsYou', { count: needsYou })}</span>
-                  </>
-                )}
-                {place === 'chats' && firstChat && (
-                  <>
-                    <span className={s.new} aria-hidden="true" data-new="">{t('rail.chats.new')}</span>
-                    <span className="sr-only">{t('rail.chats.newWords')}</span>
-                  </>
-                )}
+                {place === 'today' && needsYou > 0 && <span className={s.count} data-num="" aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>}
+                {place === 'chats' && firstChat && <span className={s.new} aria-hidden="true" data-new="">{t('rail.chats.new')}</span>}
               </a>
             </li>
           );

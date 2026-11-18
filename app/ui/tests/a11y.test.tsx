@@ -13,10 +13,12 @@ import { NARROW } from '../src/shell/useNarrow';
  */
 
 /**
- * A step in `press`: a button's name to press, a labelled field to type into first (w3 3G2: the passphrase steps), or
- * a radio to choose (W6 6C6: the side-work question).
+ * A step in `press`: a button's name to press, a labelled field to type into first (w3 3G2: the passphrase steps), a
+ * radio to choose (W6 6C6: the side-work question), or a closed fold to open by its words (the first run's More options).
  */
-type Press = string | RegExp | { fill: string; with: string } | { choose: string };
+type Press = string | RegExp | { fill: string; with: string } | { choose: string } | { unfold: string };
+/** The first run's step 1 keeps the key and the way on without AI behind this closed fold. */
+const MORE = { unfold: 'More options' } as const;
 interface Case { name: string; hash: string; options?: FakeOptions; before?: (engine: FakeEngine) => Promise<unknown>; press?: Press[]; openFolds?: boolean }
 
 const ledgerline = (engine: FakeEngine) => engine.request('workspace.open', { folder: 'ledgerline' });
@@ -95,7 +97,6 @@ const PLACES: Case[] = [
   { name: 'Approval page, the oldest waiting', hash: '#/approve/next' },
   { name: 'Approval page, a row already decided', hash: '#/approve/q-gone' },
   { name: 'Work, an order the judge read on its own', hash: '#/work?order=o-mehta-sep', before: ledgerline },
-  { name: 'New business', hash: '#/onboarding' },
   // W4 4J21: About you (the owner's name), and Today on a temporary business on the hosted app, in its last day.
   { name: 'Business, about you', hash: '#/business/owner' },
   { name: 'Today on a temporary hosted business', hash: '#/today', options: { trial: 'ending' } },
@@ -191,6 +192,11 @@ async function settle({ hash, options, before, press, openFolds }: Case): Promis
   const unfold = () => { if (openFolds) for (const fold of container.querySelectorAll('details')) fold.open = true; };
   for (const name of press ?? []) {
     unfold();
+    if (typeof name !== 'string' && !(name instanceof RegExp) && 'unfold' in name) {
+      const summary = await screen.findByText(name.unfold, { selector: 'summary' });
+      await act(async () => { fireEvent.click(summary); });
+      continue;
+    }
     if (typeof name !== 'string' && !(name instanceof RegExp) && 'choose' in name) {
       const [radio] = await screen.findAllByRole('radio', { name: name.choose });
       await act(async () => { fireEvent.click(radio!); });
@@ -202,6 +208,9 @@ async function settle({ hash, options, before, press, openFolds }: Case): Promis
       continue;
     }
     const [button] = await screen.findAllByRole('button', { name });
+    // A button that waits for a read (the first run's sign-in waits for the look at this computer) is pressed once it
+    // can be; one that stays off is pressed as it is, as before.
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false), { timeout: 1000 }).catch(() => undefined);
     await act(async () => { fireEvent.click(button!); });
   }
   unfold();
@@ -215,7 +224,7 @@ async function settle({ hash, options, before, press, openFolds }: Case): Promis
  * seconds without changing any accessibility checks. Every other route keeps the default.
  */
 const LARGE_PAGE_MS = 15_000;
-const timeoutOf = (each: Case) => (['#/today', '#/connections', '#/onboarding'].some(route => each.hash.startsWith(route)) ? LARGE_PAGE_MS : undefined);
+const timeoutOf = (each: Case) => (['#/today', '#/connections'].some(route => each.hash.startsWith(route)) ? LARGE_PAGE_MS : undefined);
 
 async function violations(root: HTMLElement): Promise<string[]> {
   const result = await axe.run(root, { rules: { 'color-contrast': { enabled: false } }, resultTypes: ['violations'] });
@@ -276,7 +285,10 @@ const OPENED: Case[] = [
   { name: 'Work, an order contract with its Sign asked', hash: '#/work?order=o-iyer-oct', before: ledgerline, press: ['Sign'] },
   { name: 'Team, instructions and AI review settings', hash: '#/team?sheet=agent:editor&tab=instructions', openFolds: true },
   { name: 'Business, keep with every fold open and a restore asked', hash: '#/business/keep', openFolds: true, press: ['Restore'] },
-  { name: 'Business, keep, a move code shown', hash: '#/business/keep', openFolds: true, press: ['Make the file'] },
+  { name: 'Business, keep, Make the file asked', hash: '#/business/keep', openFolds: true, press: ['Make the file'] },
+  { name: 'Business, keep, a move code shown', hash: '#/business/keep', openFolds: true, press: ['Make the file', 'Make the file'] },
+  { name: 'Business, keep, a new recovery code asked', hash: '#/business/keep', press: ['Make a new one'] },
+  { name: 'Business, about you, Erase my name asked', hash: '#/business/owner', before: (engine) => engine.request('venture.owner.set', { firstName: 'Meera' }), press: ['Erase my name'] },
   { name: 'Business, keep, a passphrase business', hash: '#/business/keep', openFolds: true, before: (engine) => engine.request('workspace.lock', {}).then(() => engine.request('workspace.open', { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE })) },
   { name: 'Welcome back, a passphrase asked under its row', hash: '#/today', options: { closed: true }, press: [/Sitara Events/] },
   { name: 'Welcome back, more options', hash: '#/today', options: { closed: true }, openFolds: true },
@@ -291,39 +303,38 @@ const OPENED: Case[] = [
   { name: 'Business, plan for a CA firm with its tax details open', hash: '#/business/plan', before: ledgerline, openFolds: true },
   { name: 'Business, prices for a CA firm with the working open', hash: '#/business/prices', before: ledgerline, openFolds: true },
   { name: "Business, Your CA with a paper's calculator receipt open", hash: '#/business/ca?sheet=ca-receipt:w-portal-sep', before: ledgerline },
-  // w3 3G2: Start's examples, its country choice, and the box asking for more on the first run.
-  { name: 'New business, an example chosen', hash: '#/onboarding', press: ['Wedding invitation videos'] },
-  { name: 'New business, the country being changed', hash: '#/onboarding', press: ['Change'] },
   // W6 6C1, 6C2, 6C6, 6C7: the first run's steps: Connect your AI with Codex's own sign-in waiting, About you as A and
   // as B, the box asking for more, the side-work question, the vault steps after it, and the services step.
-  { name: 'First run, Codex sign-in waiting for its code', hash: '#/today', options: { fresh: true }, press: ['Sign in with Codex'] },
-  { name: 'First run, About you', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates'] },
-  { name: 'First run, About you asking for more', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', 'Send'] },
+  { name: 'First run, the sign-in waiting for its code', hash: '#/today', options: { fresh: true }, press: ['Sign in with ChatGPT'] },
+  { name: 'First run, step 1 at rest with More options open', hash: '#/today', options: { fresh: true }, press: [MORE] },
+  { name: 'First run, step 1 with the AI key form open', hash: '#/today', options: { fresh: true }, press: [MORE, 'Use an AI key instead'] },
+  { name: 'First run, About you', hash: '#/today', options: { fresh: true }, press: [MORE, 'Continue without AI for now'] },
+  { name: 'First run, About you asking for more', hash: '#/today', options: { fresh: true }, press: [MORE, 'Continue without AI for now', 'Send'] },
   {
     name: 'First run, About you as a chat', hash: '#/today', options: { fresh: true },
-    press: ['Skip for now: use templates', { fill: 'Tell Chausar about your work', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Send'],
+    press: [MORE, 'Continue without AI for now', { fill: 'Tell Chausar about your work', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Send'],
   },
-  { name: 'First run, a field tile straight to the plan', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/] },
-  { name: 'First run, which of these are you', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan'] },
-  { name: 'First run, the side-work question', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan', { choose: 'Advocate' }, 'Continue'] },
+  { name: 'First run, a field tile straight to the plan', hash: '#/today', options: { fresh: true }, press: [MORE, 'Continue without AI for now', /^Teaching and coaching/] },
+  { name: 'First run, which of these are you', hash: '#/today', options: { fresh: true }, press: [MORE, 'Continue without AI for now', /^Licensed work/, 'Keep this plan'] },
+  { name: 'First run, the side-work question', hash: '#/today', options: { fresh: true }, press: [MORE, 'Continue without AI for now', /^Licensed work/, 'Keep this plan', { choose: 'Advocate' }, 'Continue'] },
   {
     name: 'First run, the passphrase step', hash: '#/today', options: { fresh: true, deviceKeys: false },
-    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'Chartered accountant' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
+    press: [MORE, 'Continue without AI for now', /^Money and tax/, 'Keep this plan', { choose: 'Chartered accountant' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
   },
   {
     name: 'First run, the recovery code step', hash: '#/today', options: { fresh: true, deviceKeys: false },
     press: [
-      'Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'Chartered accountant' }, 'Continue', { choose: 'I am not sure' }, 'Continue',
+      MORE, 'Continue without AI for now', /^Money and tax/, 'Keep this plan', { choose: 'Chartered accountant' }, 'Continue', { choose: 'I am not sure' }, 'Continue',
       { fill: 'Passphrase', with: 'correct horse battery' }, { fill: 'Type it again', with: 'correct horse battery' }, 'Lock and start',
     ],
   },
   {
     name: 'First run, what the business needs, start at login asked', hash: '#/today', options: { fresh: true, background: {} },
-    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'None of these' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
+    press: [MORE, 'Continue without AI for now', /^Teaching and coaching/, 'Keep this plan', { choose: 'None of these' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
   },
   {
     name: 'First run, what the business needs', hash: '#/today', options: { fresh: true },
-    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'None of these' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
+    press: [MORE, 'Continue without AI for now', /^Teaching and coaching/, 'Keep this plan', { choose: 'None of these' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
   },
 ];
 

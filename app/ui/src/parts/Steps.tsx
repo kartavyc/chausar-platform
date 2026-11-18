@@ -5,6 +5,7 @@ import type { IconName } from './icons';
 import type { RunStep, RunSummary, RunToolLine } from '../engine/types';
 import s from './Steps.module.css';
 import { Fold } from './Fold';
+import { fixedWords } from '../places/today/plan-words';
 
 const WORD: Record<RunStep['state'], string> = { done: 'steps.done', current: 'steps.current', pending: 'steps.pending', waiting: 'steps.waiting', failed: 'steps.failed' };
 
@@ -43,6 +44,8 @@ function msWords(t: ReturnType<typeof useT>, ms: number): string {
  */
 export function Steps({ steps, progress, showTools = false, waitingWord, errors = true }: StepsProps) {
   const t = useT();
+  // Round 6: a step code named ("You review the draft") in the owner's language; one the plan or the AI named stays.
+  const words = fixedWords(t);
   return (
     <div className={s.wrap}>
       {progress !== undefined && (
@@ -61,7 +64,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                     {step.state === 'current' ? <StillArc /> : icon ? <Icon name={icon} size={12} /> : null}
                   </span>
                   <span className={s.purpose}>
-                    {step.purpose}
+                    {words(step.purpose)}
                     {step.state !== 'waiting' && <span className="sr-only">, {t(WORD[step.state])}{step.audited ? `, ${t('steps.audited')}` : ''}</span>}
                   </span>
                   {step.state === 'waiting' ? (

@@ -1,5 +1,5 @@
-// C7 task 17: trackers the owner makes (a content calendar, GST due dates), kept as records of this business. Making,
-// changing and removing a tracker is standing configuration: approve, in the app. Rows are the owner's to add, edit and
+// C7 task 17: trackers the owner makes (a content calendar, GST due dates), kept as records of this business. Making
+// and changing a tracker is standing configuration: approve, in the app. Rows are the owner's to add, edit and
 // remove; agents that keep a tracker may add rows only (agent-rows.ts), each marked with the agent's name and an Undo.
 // Limits: 20 trackers, 12 columns, 1,000 rows. Money gets in only as a receipt cell or an estimate cell (cells.ts).
 import { check, type Context, type State } from '../../contracts.ts';
@@ -102,18 +102,6 @@ export async function trackerSetHandler(deps: VentureDeps, ctx: Context, payload
   });
 }
 
-/** venture.trackers.remove { id } (approve, app only): the tracker and its rows go. */
-export async function trackerRemoveHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ removed: true }> {
-  requireAppChannel(ctx, 'venture.trackers.remove');
-  const id = identifier(exactPayload(payload, ['id'], ['id']).id, 'Tracker');
-  return ventureAction(deps, ctx, 'approve', 'trackers.remove', tx => {
-    found(tx.list('venture-tracker'), id);
-    removeRecords(tx, record => (record.kind === 'venture-tracker' && record.id === id) || (record.kind === 'venture-tracker-row' && record.trackerId === id));
-    tx.emit('queue.changed', {});
-    return { removed: true as const };
-  });
-}
-
 /** A row's cells, each checked against its column; a cell for a column the tracker does not have refuses. */
 export function checkCells(state: State, ventureId: string, tracker: TrackerRecord, raw: unknown): Record<string, TrackerCell> {
   check(raw !== null && typeof raw === 'object' && !Array.isArray(raw), 'INVALID_VENTURE_REQUEST', 'Send the row as its columns.');
@@ -187,6 +175,6 @@ export async function rowUndoHandler(deps: VentureDeps, ctx: Context, payload: u
 }
 
 export const TRACKER_HANDLERS = {
-  'venture.trackers.list': trackersListHandler, 'venture.trackers.get': trackerGetHandler, 'venture.trackers.set': trackerSetHandler, 'venture.trackers.remove': trackerRemoveHandler,
+  'venture.trackers.list': trackersListHandler, 'venture.trackers.get': trackerGetHandler, 'venture.trackers.set': trackerSetHandler,
   'venture.trackers.rows.add': rowAddHandler, 'venture.trackers.rows.edit': rowEditHandler, 'venture.trackers.rows.remove': rowRemoveHandler, 'venture.trackers.rows.undo': rowUndoHandler,
 };

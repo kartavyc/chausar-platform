@@ -47,9 +47,9 @@ The first useful output comes after one connection and one sentence. Without an 
 
 ### Piece 2. The plan (blueprint)
 
-**What.** A one-page plan: one to three offers, delivery steps with who does each, approvals, website pages, tools, questions to ask and things to check, and back office settings.
+**What.** A one-page plan: its offers, delivery steps with who does each, approvals and back office settings.
 
-**How.** The owner's AI composes the structure from a checked library of blocks, before anything is saved, in two calls. A quick call decides what the sentence is and which views fit, from a fixed list of seven; then the plan model fills a strict schema with block ids and short words, never markup. Code checks every id, count and word (no digits, no numbers or prices in words), asks once more with the reason when an answer fails, and otherwise says plainly that there's no plan to show. Who does each step comes from the block, not the model. Without an AI, code builds the structure from a template for the service type and says so. After that the model only writes words into named slots, and a structure hash proves nothing moved while it wrote. The owner types the price; the calculator turns it into a receipt. Each step says who does it today. You add the client's files to the order and the agent reads them; for bookkeeping an agent reconciles the month from those files for you to check. Reading inboxes, other hands-on work and sending stay yours, marked planned.
+**How.** Code builds the structure, from a template for the service type or from the playbook the idea picks. The owner's AI, or the built-in templates when there is none, only writes words into named slots, and a structure hash proves nothing moved while it wrote. Code checks every id and word: no price or amount in the AI's words, and a number marks its line a model estimate. A vault made before 14 November 2026 may hold a plan the AI composed from a checked library of blocks; Chausar still reads it, and who does each step there comes from the block, not the model ([onboarding.md](onboarding.md)). The owner types the price; the calculator turns it into a receipt. Each step says who does it today. You add the client's files to the order and the agent reads them; for bookkeeping an agent reconciles the month from those files for you to check. Reading inboxes, other hands-on work and sending stay yours, marked planned.
 
 **Reference.** helix-foundry: code computes structure, the model writes descriptions, a proposal is validated and accepted by digest. snapshift: decide first, then fill a fixed schema. SubQ Snap: decisions as typed questions instead of free text.
 
@@ -164,7 +164,7 @@ There are two web modes. **Local web mode**: the engine runs on the person's com
 | Job | Default | State |
 |---|---|---|
 | Reading the first sentence, interview, simulated clients, judging | Claude Haiku 5.5 (`claude-haiku-5-5`) | Ready with your key |
-| Composing the plan, plan words, build brief, draft replies | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Ready with your key |
+| Plan words, build brief, draft replies | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Ready with your key |
 | Either job | GPT-6 Luna | Unverified: a past probe failed; you type the model id; costs are estimates |
 | Everything, on your own plan | Claude Code CLI or Codex CLI | Checked on this computer before use; Codex needs its reviewed host profile; Claude Code waits until Chausar accepts Anthropic's Commercial Terms |
 | Everything, on a ChatGPT plan | Sign in with ChatGPT | Not open to Chausar yet: OpenAI approves which paid apps may use it |
@@ -195,7 +195,7 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 
 **Reused:** the encrypted vault and permission checks; the calculator, currency helpers, receipts and number guard; the GSTIN checksum; the `services` dictionary pack; facts and memory; the trust policy; backup and export; the desktop shell, IPC allow-list, loopback web server and the twelve back office views; the Claude Code and Codex CLI builders and the Codex host profile.
 
-**New:** the venture desk (`platform/runtime/venture/`); the draft desk that keeps the AI and the plan before the vault; the composer with its block library and view registry; the instant plan, interview, blueprint, terms and a 15-row country table; model connections with standing consent and synthetic recordings; price receipts with GST splits, clients, orders, invoices and payments in the books; the brief, its lint, the builder links and the GitHub reader; the connector catalogue; playbook, rehearsal, launch ladder and capability list; the delivery harness (tools, the agent loop, the light sandbox for agent code, work receipts, the improvement loop); the hosted web tier; the launch screens; the vault key kept by the computer, the business list, automatic encrypted backups with their rotation, and the move file and code; an allow-listed way to open partner links.
+**New:** the venture desk (`platform/runtime/venture/`); the draft desk that keeps the AI before the vault; the instant plan, interview, blueprint, terms and a 15-row country table; model connections with standing consent and synthetic recordings; price receipts with GST splits, clients, orders, invoices and payments in the books; the brief, its lint, the builder links and the GitHub reader; the connector catalogue; playbook, rehearsal, launch ladder and capability list; the delivery harness (tools, the agent loop, the light sandbox for agent code, work receipts, the improvement loop); the hosted web tier; the launch screens; the vault key kept by the computer, the business list, automatic encrypted backups with their rotation, and the move file and code; an allow-listed way to open partner links.
 
 ## 8. What is not in this build, and why
 
@@ -232,7 +232,7 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 | Rehearsal | Practice runs with made-up clients and record-only effects |
 | Practice draft | A shadow-stage draft that can't go to a client |
 | Template outline | Text from built-in templates when no AI is connected |
-| Block | One checked piece a composed plan is built from: an offer, a step, a page, a tool, a question or a thing to check |
+| Block | One checked piece of a composed plan a vault may still hold: an offer, a step, a page, a tool, a question or a thing to check |
 | View | One of seven fixed ways the plan screen can show a plan; the AI picks which, code draws them |
 | Draft desk | Where the AI and the plan wait in the engine's memory before the business is kept |
 | Computer secret | The random key in a vault's passphrase slot that the computer keeps for the owner's login |

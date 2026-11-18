@@ -27,7 +27,7 @@ import type { CompanyFound, KeyedPeopleServiceId, PeopleLookupView, PeopleSearch
 import { PEOPLE_CIN, PEOPLE_LINKEDIN, PEOPLE_LLPIN, PEOPLE_WORDS, PEOPLE_SEARCH_ID, peopleKeyChange, peopleLookupAsk, peopleQuoteOf, peopleViewOf } from './people-data.ts';
 export type { PeopleLookupView, PeopleSearchView } from './people-types.ts';
 
-export { PEOPLE_SERVICES, PEOPLE_WORDS } from './people-data.ts';
+export { PEOPLE_SERVICES } from './people-data.ts';
 export const PEOPLE_CREDENTIAL = (id: KeyedPeopleServiceId) => `people:${id}`;
 const LINKEDIN = PEOPLE_LINKEDIN, CIN = PEOPLE_CIN, LLPIN = PEOPLE_LLPIN;
 const SEARCH_ID = PEOPLE_SEARCH_ID;

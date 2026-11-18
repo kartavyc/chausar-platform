@@ -12,7 +12,6 @@ export interface EngineHarnessOptions {
   forkProcess?: (path: string, args: string[], options: Record<string, unknown>) => WorkerProcess;
   startupTimeoutMs?: number;
   requestTimeoutMs?: number;
-  lifecycleTimeoutMs?: number;
   shutdownTimeoutMs?: number;
   maxPending?: number;
   /** C5 task 26: each request's method, milliseconds and bytes each way; never its content. */
@@ -24,7 +23,6 @@ export class EngineHarness extends EventEmitter {
   waiting: Map<string, unknown>;
   start(): Promise<void>;
   request(method: string, payload?: Record<string, unknown>): Promise<unknown>;
-  updateJobLifecycle(state: Readonly<{ awake: boolean; windowOpen: boolean; backgroundEnabled: boolean }>): Promise<{ applied: true }>;
   /** Ink v2 wave 4 (4G1): whether the owner is looking at the window, as a plain notice. False when it was not sent. */
   reportWatching(watching: boolean): boolean;
   /** C5 task 29: main is starting a fresh worker after this one died. */

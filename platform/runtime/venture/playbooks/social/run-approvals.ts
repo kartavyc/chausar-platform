@@ -15,6 +15,7 @@ import { actualSocialPosts } from './post-label.ts';
 import { channelCapability, type SocialChannel } from './channels.ts';
 import { draftDigest, scheduleGate, type DraftApproval, type DraftLike, type GateOptions } from './approvals.ts';
 import { SOCIAL_AGENCY_ID } from './registration.ts';
+import { handedOver } from '../../delivery/run-machine.ts';
 
 const POST_ID = /^([A-Za-z0-9_-]{1,120})\.post-([1-9][0-9]{0,2})$/;
 
@@ -90,7 +91,7 @@ export function draftApprovalsOfRun(state: State, runId: string): RunPostApprova
     .sort((a, b) => (a.decision.at < b.decision.at ? -1 : a.decision.at > b.decision.at ? 1 : 0));
   const latest = answers.at(-1);
   const answeredPosts = latest ? postsOfText(run.id, latest.link.text) : [];
-  const owner: DraftApproval['owner'] = run.status === 'accepted' || run.status === 'edited'
+  const owner: DraftApproval['owner'] = handedOver(run)
     ? { decision: 'approved', by: null, at: run.verdict?.at ?? null }
     : { decision: run.status === 'rejected' ? 'changes' : null, by: null, at: run.verdict?.at ?? null };
   const client: DraftApproval['client'] = latest

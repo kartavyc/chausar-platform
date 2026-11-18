@@ -1,4 +1,4 @@
-// Chausar venture launcher, core (P1): venture, preview, countries, interview, blueprint, terms, checklist, events.
+// Chausar venture launcher, core (P1): venture, preview, countries, interview, blueprint, terms, events.
 // The host loads this package on first use of a method it owns. listCountries, previewPlan and listWays answer the
 // three pre-vault methods: they take no deps, read no state of their own and write nothing.
 import { ChausarError } from '../../contracts.ts';
@@ -13,6 +13,7 @@ import { settingsDraftHandler, settingsDraftsHandler } from './settings-drafts.t
 import { blueprintSuggest } from './suggest.ts';
 import { createVenture, getVenture } from './venture.ts';
 import { countrySuggest } from './country-suggestion.ts';
+import { aboutFamilies } from './about.ts';
 import { needsList } from './needs.ts';
 // Wave 6 (6J2): feedback, an opt-in Send report with its preview.
 import { feedbackAnswerHandler, feedbackConsentHandler, feedbackCrashHandler, feedbackDeleteHandler, feedbackGetHandler, feedbackSendHandler } from './feedback.ts';
@@ -43,6 +44,8 @@ export const handlers: VentureHandlerTable = {
   'venture.settings.drafts': settingsDraftsHandler,
   'venture.owner.get': ownerGet,
   'venture.compliance.get': complianceGet,
+  // About you's fields, once a business exists (Settings, About you); the draft desk answers the first run.
+  'venture.about.families': aboutFamilies,
   'venture.compliance.set': complianceSet,
   'venture.owner.set': ownerSet,
   'venture.blueprint.suggest': blueprintSuggest,

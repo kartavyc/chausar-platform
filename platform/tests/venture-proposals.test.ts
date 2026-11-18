@@ -204,6 +204,7 @@ test('proposals: a card whose order was invoiced meanwhile can only be dismissed
 test('proposals: an agent\'s floor request is a Today card, announced once by 4B1 and never again here', async () => {
   const env = await chiefBusiness();
   await chatConsent(env);
+  env.models.respond['agent-chat'] = () => ({ reply: 'Here is how I would go about it.', figures: [] });
   await env.agents('venture.agents.thread.send', { agent: 'story-editor', text: 'Publish the trailer on YouTube today.' });
   assert.equal(createdCount(env), 1);
   const [row] = await proposalRows(env);

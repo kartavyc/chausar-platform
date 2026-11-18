@@ -441,8 +441,6 @@ vi.setConfig({ testTimeout: 15_000 });
 
 describe('C7: the plan meter under each AI app', () => {
   it('unknown shows the plain line; Check now (Codex only) reads it once and shows the windows with their source and time', async () => {
-    const { resetFakePlan } = await import('../../src/engine/fake-cli');
-    resetFakePlan();
     const { calls } = start();
     const section = await region('Your AI apps');
     const codex = await waitFor(() => tool(section, 'Codex'));
@@ -456,6 +454,5 @@ describe('C7: the plan meter under each AI app', () => {
     expect(within(codex).getByText('This week: 18% used, resets Mon')).toBeTruthy();
     expect(within(codex).getByText('As Codex reported at 9:55 am.')).toBeTruthy();
     expect(calls.filter((c) => c.method === 'venture.models.plan').map((c) => c.params)).toContainEqual({ fresh: true });
-    resetFakePlan();
   });
 });

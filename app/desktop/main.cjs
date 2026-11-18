@@ -1,9 +1,15 @@
-const { app, crashReporter, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
+const { app, crashReporter, BrowserWindow, BaseWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
 const { readFile, writeFile } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
-// C5 task 25: this computer's own diagnostic files; before anything else, so an early problem is noted too.
+// D11 release smoke: --smoke-user-data=<absolute path> gives a smoke run its own fresh user data folder (and so its own
+// single-instance lock), set before ready. Any other value is ignored. First of all (14 Nov 2026, found on the first
+// real Mac smoke): the diagnostics below read their folder from userData, so set after them a smoke run wrote its
+// start phases into the owner's real data folder and the release smoke never saw first paint.
+const smokeUserData = process.argv.find(arg => arg.startsWith('--smoke-user-data='))?.slice('--smoke-user-data='.length);
+if (smokeUserData && require('node:path')[process.platform === 'win32' ? 'win32' : 'posix'].isAbsolute(smokeUserData)) app.setPath('userData', smokeUserData);
+// C5 task 25: this computer's own diagnostic files; before anything else the app does, so an early problem is noted too.
 const { createDiagnostics, startMainGuard, createTimeline } = require('./diagnostics.cjs');
 const diagnostics = createDiagnostics({ folder: join(app.getPath('userData'), 'diagnostics'), fs: require('node:fs/promises') });
 startMainGuard({ process, crashReporter, dialog, app, diagnostics });
@@ -11,19 +17,24 @@ startMainGuard({ process, crashReporter, dialog, app, diagnostics });
 const timeline = createTimeline({ diagnostics });
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-// D11 release smoke: --smoke-user-data=<absolute path> gives a smoke run its own fresh user data folder (and so its own
-// single-instance lock), set before ready. Any other value is ignored.
-const smokeUserData = process.argv.find(arg => arg.startsWith('--smoke-user-data='))?.slice('--smoke-user-data='.length);
-if (smokeUserData && require('node:path')[process.platform === 'win32' ? 'win32' : 'posix'].isAbsolute(smokeUserData)) app.setPath('userData', smokeUserData);
-const singleInstance = app.requestSingleInstanceLock();
-if (!singleInstance) app.quit();
+// 15 Nov 2026 (the first Windows walk): "Chausar.exe --quit" asks the running Chausar to quit and waits until it has
+// gone (quit-ask.cjs). The lock lives in userData, set above, so the ask reaches only the Chausar that shares it.
+const quitAsk = require('./quit-ask.cjs');
+const quitAsked = process.argv.includes(quitAsk.QUIT_ARGUMENT);
+const singleInstance = app.requestSingleInstanceLock(quitAsked ? { quit: true } : undefined);
+if (quitAsked) {
+  try { app.dock?.hide?.(); } catch { /* no dock here */ }
+  quitAsk.askRunningToQuit({
+    app, first: singleInstance, later: (job, ms) => setTimeout(job, ms),
+    runningPid: async () => JSON.parse(await readFile(join(app.getPath('userData'), quitAsk.RUNNING_FILE), 'utf8')).pid,
+    alive: pid => { try { process.kill(pid, 0); return true; } catch (error) { return error?.code === 'EPERM'; } },
+  });
+}
+else if (!singleInstance) app.quit();
 let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
-let hostAwake = false;
 const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;},verifyTalk:async sessionId=>{const view=await engine.request('venture.talk.get',{});return view?.desktop===true&&view.consent?.given===true&&view.session?.id===sessionId;}});
 const formsBrowser = require('./owner-browser-host.cjs').createFormsHost({BrowserWindow,WebContentsView,session,window:()=>window,onClosed:()=>stopFormsBrowser()});
 function stopFormsBrowser() { void formsBrowser.close(); engine?.closeForms?.(); }
-// Wave 6 (6H2, D41): the window for recorded flows, page JavaScript allowed; nothing that may send leaves before the approved press.
-const flowBrowser = require('./flow-browser.cjs').createFlowBrowser({ BrowserWindow, session });
 // Wave 6 (6H1, D39): the mini app sandbox proxy's own policy, and where frames inside the window may go.
 const { policyFor, subframeAllowed } = require('./mini-frame.cjs');
 let backgroundRequested = process.argv.includes('--background');
@@ -34,7 +45,19 @@ let backgroundRequested = process.argv.includes('--background');
 // is background.cjs's state, with the computer's own login item read back, so the tray tick is never a guess.
 let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { supported: false, asked: false, startAtLogin: false, keepRunning: false, registered: false, systemOff: false };
 let hiddenStart = process.argv.includes('--hidden');
+/** A second launch came while a tray start was still starting: the owner wants the window, so it opens once it can. */
+let openAfterStart = false;
+/** A window was opened in this run: one the owner closed while Chausar was starting is not opened again by itself. */
+let windowOpened = false;
 const runsInBackground = () => backgroundRequested || ownerKeepsRunning;
+// Why Chausar is quitting, for main.jsonl: tray, asked (a --quit launch), session-end (Windows is ending the session),
+// close-request (a close from outside reached the hidden window), else quit. The first reason given stays.
+// Asked again while Chausar is already stopping (the asking launch looks every half second, and each look asks), it
+// changes nothing: a quit called during the stop is not held back, so it would cut the engine off.
+let quitReason = null;
+function requestQuit(reason) { if (stopping) return; quitReason ??= reason; app.quit(); }
+// In the tray on Windows a hidden window hears the session end, since Chausar has none of its own then (quit-ask.cjs).
+const sessionWatch = quitAsk.createSessionWatch({ BaseWindow, platform: process.platform, onSessionEnd: () => requestQuit('session-end'), onCloseAsked: event => { if (stopping) return; event.preventDefault(); requestQuit('close-request'); } });
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
 const inkRoot = join(root, 'app/ui/dist');
@@ -58,16 +81,6 @@ async function listInkFiles() {
   return found;
 }
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
-function reportJobLifecycle() {
-  if (engine?.state !== 'ready') return Promise.resolve();
-  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && runsInBackground() });
-}
-function lifecycleChanged() {
-  void reportJobLifecycle().catch(error => {
-    console.error(publicError(error).message);
-    if (!stopping) { dialog.showErrorBox('Chausar jobs stopped', 'The engine could not confirm the desktop state. Restart Chausar before running jobs.'); app.quit(); }
-  });
-}
 // C5 task 29: a worker that died unexpectedly is started again, three times at most (worker-restart.cjs).
 let engineEnvironment = null; let engineStarted = false; let lastToldStatus = null;
 // C5 tasks 31, 32: the update check's settings for the worker, the boot marker, and install on quit (update-wiring.cjs).
@@ -87,6 +100,11 @@ async function startEngine() {
   releaseBeta = app.isPackaged && metadata.chausarReleaseChannel === 'beta' && metadata.chausarPreview !== true;
   if (releaseBeta) await startBackground();
   if (stopping) return;
+  // 15 Nov 2026 (the installed Windows build): the window opens here, before the engine starts. A slow first start
+  // showed nothing for ten seconds, and a second launch in that time ended both: with no window on screen, the second
+  // launch's single-instance check takes a first Chausar that is slow to answer for a hung one and ends it without
+  // asking. A tray start has no window; it opens one later only if the owner asks (openAfterStart).
+  if (!(releaseBeta && hiddenStart)) createWindow();
   const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0',
     // A2: where the owner's choice of their own Codex is kept (platform/runtime/codex-trust.ts).
     CHAUSAR_CODEX_TRUST_DIR: join(app.getPath('userData'), 'codex-trust'),
@@ -121,7 +139,6 @@ async function launchEngine() {
   engineStarted = true;
   timeline.mark('engine-ready');
   void updateWiring?.noteReady();
-  await reportJobLifecycle();
   if (restarted) harness.reportWatching?.(windowWatching());
 }
 /** C5 task 29: what the window hears: one word through a whole restart, and each state once. */
@@ -132,8 +149,11 @@ function sendEngineStatus(status) {
   if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, told);
 }
 const currentEngine = () => engine;
+// A cold first start after an install was seen to take more than ten seconds on Windows; the harness's own 15 seconds
+// would end it with "Chausar could not start". The window says "Chausar is starting." meanwhile.
+const ENGINE_START_MS = 60_000;
 function createHarness() {
-  const engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
+  const engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment: engineEnvironment, startupTimeoutMs: ENGINE_START_MS, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
   engine.on('status', status => { if (engine !== currentEngine()) return; if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
@@ -141,9 +161,6 @@ function createHarness() {
   engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
   // Wave 6 (6F3): a page that needs JavaScript, read in a hidden window after the engine's own checks (web-render.cjs).
   engine.on('render', (request, answer) => { require('./web-render.cjs').renderPage(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
-  // Wave 6 (6H2): one step of a recorded flow in its window (flow-browser.cjs); the window closes when the engine stops.
-  engine.on('flows', (request, answer) => flowBrowser.handle(request, answer));
-  engine.on('status', status => { if (status?.state !== 'ready') void flowBrowser.close(); });
   const credentials = require('./credential-store.cjs').createCredentialStore({ directory: join(app.getPath('userData'), 'credentials'), safeStorage });
   engine.on('credential', (request, answer) => {
     credentials[request.op](request.workspaceId, request.name, request.value)
@@ -185,7 +202,7 @@ function trayMenu() {
     ...(trayCount > 0 ? [{ label: needYou(trayCount), click: () => openApprovals() }, { type: 'separator' }] : []),
     { label: 'Open Chausar', click: () => openWindow() }, { type: 'separator' },
     ...(background ? [...background.menuItems(backgroundValue, changeBackground), { type: 'separator' }] : []),
-    { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
+    { label: 'Quit Chausar and stop jobs', click: () => requestQuit('tray') },
   ]);
 }
 /**
@@ -205,7 +222,7 @@ async function setBackground(update) {
   if (!background) throw Object.assign(new Error(require('./background.cjs').BACKGROUND_UNAVAILABLE_LINE), { code: 'BACKGROUND_UNAVAILABLE' });
   const value = await background.change(update);
   backgroundValue = value; ownerKeepsRunning = value.keepRunning;
-  tray?.setContextMenu(trayMenu()); lifecycleChanged();
+  tray?.setContextMenu(trayMenu());
   return value;
 }
 function changeBackground(update) { void setBackground(update).catch(error => console.error(publicError(error).message)); }
@@ -302,8 +319,17 @@ function createWindow(hash = '') {
   // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
   window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
   window.once('ready-to-show', () => { window.show(); timeline.mark('window-shown'); });
+  windowOpened = true;
+  // Opened before the engine has started: on screen at once (its ground is already the theme's), and once its page has
+  // loaded it is told the engine is still starting, so it says "Chausar is starting." A page that loads later is told
+  // nothing: the engine's own status events reach it.
+  if (!engineStarted) window.show();
+  window.webContents.on('did-finish-load', () => { if (!engineStarted && !stopping && window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, { state: 'starting', healthy: false }); });
   window.loadURL(TRUSTED_DOCUMENT + hash);
-  window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
+  window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; noteStillRunning(); if (runsInBackground() && !stopping) sessionWatch.start(); });
+  // Windows is ending the session (sign-out, shutdown, an installer's Restart Manager): the same graceful stop, at once.
+  window.on('session-end', () => requestQuit('session-end'));
+  sessionWatch.stop();
   // Notifications (Ink v2 wave 4, 4G1): the owner is watching only while this window is shown, not minimised and
   // focused; alerts outside the app wait while they are. Told to the engine on each change.
   // The tray's count was news since the owner last looked (4G3): looking clears it.
@@ -314,21 +340,26 @@ function createWindow(hash = '') {
   };
   for (const change of ['focus', 'blur', 'show', 'hide', 'minimize', 'restore', 'closed']) window.on(change, tellWatching);
   window.on('focus', refreshBackground);
-  lifecycleChanged();
 }
-if (singleInstance) app.whenReady().then(async () => {
+if (singleInstance && !quitAsked) app.whenReady().then(async () => {
   if (stopping) return;
   timeline.mark('app-ready');
+  // This Chausar's own process number, for a launch that asks it to quit and then watches it go (quit-ask.cjs).
+  // A help, never a gate: without the file that launch asks the lock at each look instead.
+  void Promise.resolve().then(() => writeFile(join(app.getPath('userData'), quitAsk.RUNNING_FILE), JSON.stringify({ pid: process.pid }), { mode: 0o600 })).catch(() => {});
   // One-shot A4 (hands-on S10, review L7): no File, Edit, View, Window bar on Windows and Linux, but a hidden menu keeps
   // the keys owners use: zoom (Ctrl+=, Ctrl+-, Ctrl+0) and editing. Its bar is never shown (each window hides it). A
   // Mac keeps its own menu, where copy and paste live.
   if (process.platform !== 'darwin') Menu.setApplicationMenu?.(Menu.buildFromTemplate(HIDDEN_MENU));
+  // 15 Nov 2026 (the first Windows walk): spell check is off for the whole session, and this is the first thing asked of
+  // it. The window's own spellcheck: false only stops the page from asking; the session's spell checker stayed on and
+  // set up the system's spelling files for this user (%APPDATA%\Microsoft\Spelling) at every start. Chausar checks no
+  // spelling, so nothing of it is set up or fetched. The setting is kept with the session, so later starts begin with it off.
+  try { session.defaultSession.setSpellCheckerEnabled?.(false); } catch { /* an Electron without it: the window still asks for none */ }
   // Listed before the engine starts, so an unbuilt Ink app stops the start with its own plain reason.
   try { inkFiles = await listInkFiles(); }
   catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); return; }
-  hostAwake = true;
-  powerMonitor.on('suspend', () => { stopFormsBrowser(); hostAwake = false; lifecycleChanged(); });
-  powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
+  powerMonitor.on('suspend', () => { stopFormsBrowser(); });
   // Clipboard stays unchanged. Microphone capture needs a fresh owner-started native caption session; camera stays refused.
   // The page may carry an Ink '#/' route; the rule is the IPC sender check's own, so the two never drift apart.
   const clipboardWrite = (contents, permission) => permission === 'clipboard-sanitized-write' && Boolean(window) && contents === window.webContents && isTrustedDocument(contents.mainFrame?.url);
@@ -351,6 +382,8 @@ if (singleInstance) app.whenReady().then(async () => {
       if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
+      // The window opens before the engine has started: what it asks waits for the start instead of failing.
+      if (!engineStarted && !stopping) await startupTask.catch(() => {});
       const result=await engine.request(request.method, request.payload);timeline.mark('first-request');captionMicrophone.observe(request,result);
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
@@ -447,19 +480,32 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result: { day: await background.askLater(day) } };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); else void updateWiring?.notePaint(); }
+  try {
+    startupTask = startEngine(); await startupTask; if (stopping) return; createTray();
+    // The window is usually open by now (startEngine). A tray start has none, unless the owner launched Chausar again
+    // while it was starting.
+    if (releaseBeta && hiddenStart && !openAfterStart) { void updateWiring?.notePaint(); sessionWatch.start(); } else if (!windowOpened) createWindow();
+  }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
-app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
+app.on('second-instance', (_event, argv, _directory, data) => { if (quitAsk.asksToQuit(argv, data)) { requestQuit('asked'); return; } if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); else openAfterStart = true; });
 app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
 app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true; workerRestart.stop();
+  // Every quit comes through here (the tray, a --quit launch, Cmd+Q, a signal, the session ending) and stops the engine
+  // the same way. main.jsonl keeps why and whether the stop was graceful. When Windows is ending the session there is
+  // no time for the safety copy and nothing may be installed, so the update work is left for the next quit.
+  const reason = quitReason ?? 'quit', sessionEnding = reason === 'session-end', quitStarted = Date.now();
+  void diagnostics.line('main.jsonl', { op: 'quit', reason });
   // C5 task 32: the engine says if a run is busy and makes the safety copy before it stops; the install runs once it has.
   let prepared = null;
-  startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => updateWiring?.prepareQuit()).then(answer => { prepared = answer ?? null; }, () => {}).then(() => engine?.stop()).then(result => {
+  startupTask.catch(error => console.error(publicError(error).message)).then(() => (sessionEnding ? null : updateWiring?.prepareQuit())).then(answer => { prepared = answer ?? null; }, () => {}).then(() => engine?.stop()).then(result => {
+    if (result) void diagnostics.line('main.jsonl', { op: 'quit-engine', reason, graceful: result.graceful === true, ms: Date.now() - quitStarted });
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
     return updateWiring?.installAfterStop(prepared);
-  }).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
+  }).catch(error => console.error(publicError(error).message))
+    // The quit's own lines reach main.jsonl before Chausar leaves (writing a line never throws).
+    .then(() => diagnostics.flushed()).finally(() => { tray?.destroy(); app.quit(); });
 });

@@ -35,6 +35,7 @@ import { RunTiles } from './RunTiles';
 import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
 import { DraftSheet } from './DraftSheet';
+import { FileSheet } from './FileSheet';
 import s from './Work.module.css';
 import { Ideas } from './Ideas';
 import { LoadingPlace } from '../../parts/Skeleton';
@@ -275,4 +276,5 @@ function WorkPage() {
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { 'new-order': NewOrderSheet, draft: DraftSheet };
+// file: a file a run read, opened from the run's evidence (fix round 4).
+export const sheets: Readonly<Record<string, SheetComponent>> = { 'new-order': NewOrderSheet, draft: DraftSheet, file: FileSheet };

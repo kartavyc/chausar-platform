@@ -300,7 +300,7 @@ test('off the hosted Chausar a link is kept without an address and says why; a c
   await assert.rejects(call(env.deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' }), code('REPORT_STALE'));
 
   const other = await setup();
-  const { run: waiting } = await reportRun(other, 'Fine.', { status: 'waiting-for-you' });
+  const { run: waiting } = await reportRun(other, 'Fine.', { status: 'working' });
   const early = await call<ReportView>(other.deps, 'venture.report.render', { runId: waiting.id, formats: ['html'] });
   await assert.rejects(call(other.deps, 'venture.report.share', { reportId: early.id, from: '2026-08-01', to: '2026-09-30' }), code('DELIVERY_NOT_READY'));
 });

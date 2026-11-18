@@ -62,7 +62,9 @@ export function OwedTile({ line, open, aging, agingView, span }: OwedTileProps) 
         {figure}
         {/* 4J20: what the late ones owe, with its own receipt; from an engine without it, how many are late. */}
         {aged?.late
-          ? <span className={v.lateWords} data-late-figure=""><Figure value={aged.late.display} receiptId={aged.late.receiptId} />{t('money.owed.lateOf')}</span>
+          // The words lead and the figure ends the line, its receipt mark right after it, as a labelled figure is laid out
+          // everywhere: the mark between the amount and "of it is late" once cut the sentence in two.
+          ? <span className={v.lateWords} data-late-figure="">{t('money.owed.lateLead')} <Figure value={aged.late.display} receiptId={aged.late.receiptId} /></span>
           : late > 0 && <span className={v.lateWords}><Counted text={t('money.owed.late', { count: String(late) })} count={late} /></span>}
         {list}
       </div>

@@ -71,5 +71,12 @@
   "money-pay.settings.keySecret": "'Key Secret'",
   "money-pay.settings.saveKeys": "चाबियाँ सेव करें",
   "money-pay.settings.forget": "चाबियाँ भूल जाएँ",
-  "money-pay.settings.connected": "आपके {mode} खाते की चाबियाँ सेव हैं, आख़िर में {hint}।"
+  "money-pay.settings.connected": "आपके {mode} खाते की चाबियाँ सेव हैं, आख़िर में {hint}।",
+  "money-pay.markSent": "भेजा हुआ चिह्नित करें",
+  "money-pay.receipt.whatsapp": "WhatsApp पर धन्यवाद की रसीद भेजें",
+  "money-pay.receipt.save": "रसीद सेव करें",
+  "money-pay.receipt.opened": "WhatsApp शब्दों के साथ खुला है। {file} जोड़ें और वहाँ भेजें दबाएँ।",
+  "money-pay.receipt.openedWeb": "WhatsApp शब्दों के साथ खुला है। रसीद सेव करें, उसे जोड़ें और वहाँ भेजें दबाएँ।",
+  "money-pay.receipt.saved": "{file} सेव हो गई।",
+  "money-pay.receipt.failed": "रसीद नहीं बन सकी: {message}"
 }

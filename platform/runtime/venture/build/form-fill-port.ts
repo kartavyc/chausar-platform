@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {check,ChausarError} from '../../portable.ts';
 import {createFormsTunnel,type FormsTunnel} from './form-fill-network.ts';
 import type {FormsBrowserPort} from '../playbooks/data-entry-desk/browser-types.ts';
-export type {FormsOpen,FormsBrowserPort} from '../playbooks/data-entry-desk/browser-types.ts';
+export type {FormsBrowserPort} from '../playbooks/data-entry-desk/browser-types.ts';
 type Channel={connected?:boolean;send?:(message:unknown,callback?:(error:Error|null)=>void)=>boolean;on(event:'message'|'disconnect',listener:(message:unknown)=>void):unknown;off?(event:'message'|'disconnect',listener:(message:unknown)=>void):unknown};
 type Session={runId:string;guard:()=>void;signal:AbortSignal;abort:()=>void;tunnel:FormsTunnel};
 type Waiting={runId:string;op:string;settle:(error:Error|null,result?:unknown)=>void;beforeSend?:()=>void;verified:boolean};

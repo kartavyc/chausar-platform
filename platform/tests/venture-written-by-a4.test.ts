@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { modelLabel, writtenByLine } from '../runtime/venture/models/written-by.ts';
 
 const state = { conversations: [] } as never;
-const job = (agentJob: Record<string, unknown>) => ({ servedBy: 'model' as const, callId: null, agentJob: { scope: {}, sourceDigest: 'x', draftDigest: 'y', proposal: null, messages: [], tools: [], ...agentJob } as never });
+const job = ({ reviewReady, ...agentJob }: Record<string, unknown>) => ({ servedBy: 'model' as const, callId: null, status: reviewReady ? 'ready-for-review' as const : 'working' as const, agentJob: { scope: {}, sourceDigest: 'x', draftDigest: 'y', proposal: null, messages: [], tools: [], ...agentJob } as never });
 
 test('a native Codex or Claude Code draft says which model wrote it, through which tool', () => {
   assert.equal(writtenByLine(state, job({ reviewReady: true, model: 'gpt-6-luna', route: { presetId: 'codex-cli', model: 'gpt-6-luna', tier: 'main' } })), `Written by ${modelLabel('gpt-6-luna')} through Codex`);

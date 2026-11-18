@@ -73,9 +73,11 @@ describe('Money overview', () => {
     expect(calls.map(([m]) => m)).toContain('venture.money.overview');
     expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
     expect(calls.map(([m]) => m)).not.toContain('venture.spend.list');
-    // Four figures, and on the invoiced tile the month's goal and how far ahead of pace (W4 4I2); last month's received,
-    // the bank today, and one amount due in the next three weeks (W4 4J20). 4Z2: cash stays above today's, so no lowest week.
-    expect(assertFiguresProved().length).toBe(9);
+    // Four figures, and on the invoiced tile the month's goal and how far ahead of pace (W4 4I2); the bank today, and one
+    // amount due in the next three weeks (W4 4J20). 4Z2: cash stays above today's, so no lowest week. Nothing came in last
+    // month in this sample, and a sum that counts nothing has no receipt (money/books.ts), so there is no line for it.
+    expect(assertFiguresProved().length).toBe(8);
+    expect(document.querySelector('[data-previous]')).toBeNull();
     assertInkRules();
   });
 

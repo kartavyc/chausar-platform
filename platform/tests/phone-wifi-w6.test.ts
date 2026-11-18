@@ -63,7 +63,6 @@ test('a pairing link works once, gives a phone session, and the phone keeps the 
   // The desktop's bootstrap token is never accepted on the phone listener, and neither is the desktop's own session route.
   assert.equal((await post(base, '/api/rpc', { method: 'venture.get', payload: {} }, bootstrap)).status, 401);
   assert.equal((await fetch(`${base}/api/session`, { headers: { authorization: `Bearer ${bootstrap}` } })).status, 404);
-  assert.equal((await post(base, '/mcp', {}, bootstrap)).status, 404);
 
   const paired = await post(base, '/api/phone/pair', { code: pairCode });
   assert.equal(paired.status, 200);
@@ -75,7 +74,6 @@ test('a pairing link works once, gives a phone session, and the phone keeps the 
   assert.equal((await post(base, '/api/rpc', { method: 'workspace.status', payload: {} }, paired.token)).status, 200);
   const connect = await post(base, '/api/rpc', { method: 'venture.ai.connect', payload: {} }, paired.token);
   assert.equal(connect.status, 403);
-  for (const method of ['venture.compose.decide', 'venture.compose.fill']) assert.equal((await post(base, '/api/rpc', { method, payload: {} }, paired.token)).status, 403, method);
   assert.equal((await post(base, '/api/rpc', { method: 'auth.session', payload: {} }, paired.token)).status, 403, 'a phone cannot mint more sessions');
   for (const method of ['workspace.lock', 'trust.update', 'members.revoke', 'phone.invite']) assert.equal((await post(base, '/api/rpc', { method, payload: {} }, paired.token)).status, 403, method);
   assert.equal((await post(base, '/api/rpc', { method: 'venture.notify.telegram', payload: {} }, paired.token)).error.code, 'APP_APPROVAL_REQUIRED');
@@ -92,15 +90,20 @@ test('an expired or wrong code is refused, and ten wrong codes end every open li
   const made = await access.link({ via: 'wifi', hours: 1, minutes: 10 });
   const base = new URL(made.link).origin;
   const good = new URLSearchParams(new URL(made.link).hash.slice(1)).get('pair')!;
-  for (let i = 0; i < 10; i += 1) assert.equal((await post(base, '/api/phone/pair', { code: 'x'.repeat(43) })).status, 403);
-  assert.equal((await post(base, '/api/phone/pair', { code: good })).status, 403, 'the good link ended too');
   assert.equal((await post(base, '/api/phone/pair', { code: 42 })).status, 400);
+  for (let i = 0; i < 10; i += 1) assert.equal((await post(base, '/api/phone/pair', { code: 'x'.repeat(43) })).status, 403);
+  // With every link ended and no phone paired, nothing can use the listener, so it closes (phone-access-close-w6.test.ts).
+  // The good code is refused if a connection is still open, and nothing answers once it is closed.
+  const after = await post(base, '/api/phone/pair', { code: good }).catch(() => ({ status: 0 }));
+  assert.ok(after.status === 403 || after.status === 0, 'the good link ended too');
+  assert.equal(access.status().on, false);
+  assert.equal(access.status().waiting, 0);
 });
 
 function fakePort(on = false): PhoneAccessPort & { links: unknown[]; stopped: number } {
   const port = {
     links: [] as unknown[], stopped: 0, on,
-    status: () => ({ on: port.on, addresses: [{ via: 'wifi' as const, address: '192.168.1.20' }], phones: port.on ? 1 : 0 }),
+    status: () => ({ on: port.on, addresses: [{ via: 'wifi' as const, address: '192.168.1.20' }], phones: port.on ? 1 : 0, waiting: 0, closesAt: port.on ? '2026-10-15T22:00:00.000Z' : null }),
     link: async (input: unknown) => { port.links.push(input); port.on = true; return { link: 'http://192.168.1.20:43117/#pair=' + 'a'.repeat(43), expiresAt: '2026-10-15T10:10:00.000Z' }; },
     stop: async () => { port.stopped += 1; port.on = false; },
   };
@@ -113,7 +116,7 @@ test('venture.phone.access (app only): read, a one-time link of 10 minutes for 1
   const deps: VentureDeps = { ...env.deps, host: 'desktop', phoneAccess: port };
   const call = (payload: unknown, ctx = owner) => phoneAccessHandler(deps, ctx, payload);
   await assert.rejects(call({ action: 'link' }, phone), code('APP_APPROVAL_REQUIRED'));
-  assert.deepEqual(await call({}), { on: false, addresses: [{ via: 'wifi', address: '192.168.1.20' }], phones: 0, link: null, expiresAt: null, line: 'Phone access is off. Make a pairing link to open Chausar on your phone.', qr: null });
+  assert.deepEqual(await call({}), { on: false, addresses: [{ via: 'wifi', address: '192.168.1.20' }], phones: 0, waiting: 0, closesAt: null, link: null, expiresAt: null, line: 'Phone access is off. Make a pairing link to open Chausar on your phone.', qr: null });
   const made = await call({ action: 'link' });
   assert.deepEqual(port.links, [{ via: 'wifi', hours: 12, minutes: 10 }]);
   assert.equal(made.line, 'Open this link on your phone within 10 minutes. It works once.');
@@ -125,7 +128,7 @@ test('venture.phone.access (app only): read, a one-time link of 10 minutes for 1
     await assert.rejects(call(bad), code('INVALID_VENTURE_REQUEST'), JSON.stringify(bad));
   }
   await assert.rejects(call({ action: 'link', via: 'tailscale' }), code('PHONE_NO_NETWORK'));
-  assert.equal((await call({})).line, 'Phone access is on. 1 phone is paired. Some approvals still need this computer.');
+  assert.equal((await call({})).line, 'Phone access is on. 1 phone is paired. It turns off by itself when the pairing ends. Some approvals still need this computer.');
   const stopped = await call({ action: 'stop' });
   assert.equal(port.stopped, 1);
   assert.equal(stopped.on, false);

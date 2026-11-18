@@ -13,8 +13,8 @@ import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-cus
 import { AUTO_BACKUP, CUSTODY_WORDS, TRANSFER, exportFileName } from '../runtime/workspace-custody-contracts.ts';
 import { keepBackups, makeTransferCode, normalizeTransferCode, parseBackupName, slugFolder } from '../runtime/workspace-custody.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
-import type { ModelPreset, ModelReplayFixture } from '../runtime/venture/contracts.ts';
-import type { AiOptionsView, ComposeDecision, ComposedPlan } from '../runtime/venture/onboarding-contracts.ts';
+import type { ModelPreset } from '../runtime/venture/contracts.ts';
+import type { AiOptionsView } from '../runtime/venture/onboarding-contracts.ts';
 
 const PASSPHRASE = 'a long owner passphrase here';
 const OTHER = 'another long owner passphrase';
@@ -334,30 +334,23 @@ test('a key store that has lost the key gives DEVICE_KEY_FAILED; the recovery co
   assert.equal(spy.secrets.length, 2, 'the recovery made a fresh computer secret');
 });
 
-test('the silent onboarding create: connect, compose, create with folder null and no passphrase, then venture.create adopts the plan', async t => {
-  const dog = JSON.parse(await readFile(new URL('./fixtures/venture/onboarding/dog-walking-gb.json', import.meta.url), 'utf8')) as ModelReplayFixture & { text: string };
+test('the silent onboarding create: connect, create with folder null and no passphrase, then venture.create adopts the AI', async t => {
+  const dog = { text: 'Dog walking for busy nurses in Leeds.', name: 'Night Shift Walkers' };
   const directory = await folder(t), clock = { now: Date.parse('2026-10-18T09:00:00.000Z') };
-  const { engine, ask } = engineAt(t, directory, { clock, venture: { host: 'test', modelTransport: createReplayTransport(dog), sandbox: { process: async () => { throw new Error('docker not found'); } } } });
+  const { engine, ask } = engineAt(t, directory, { clock, venture: { host: 'test', modelTransport: createReplayTransport({ label: 'synthetic recording', note: 'No model answer is needed here.', responses: [] }), sandbox: { process: async () => { throw new Error('docker not found'); } } } });
   const options = await ask('venture.ai.options') as AiOptionsView;
   const preset = (id: ModelPreset['id']) => options.presets.find(item => item.id === id)!;
   const KEY = ("sk" + "-ant-test-custody-not-a-real-key-0001");
   await ask('venture.ai.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: preset('anthropic-haiku-5-5').consentDigest, apiKey: KEY });
   await ask('venture.ai.connect', { presetId: 'anthropic-sonnet-5-5', consentDigest: preset('anthropic-sonnet-5-5').consentDigest, apiKey: KEY });
-  const decision = await ask('venture.compose.decide', { text: dog.text, countryCode: 'GB' }) as ComposeDecision;
-  const plan = await ask('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
-  const created = await ask('workspace.create', { name: plan.name.value, pack: 'services', folder: null });
+  const created = await ask('workspace.create', { name: dog.name, pack: 'services', folder: null });
   assert.equal(created.unlock, 'this-computer');
-  const view = await ask('venture.create', { idea: dog.text, countryCode: 'GB', workingName: plan.name.value, composeId: plan.composeId, composedDigest: plan.digest });
-  assert.equal(view.venture.workingName, plan.name.value);
+  const view = await ask('venture.create', { idea: dog.text, countryCode: 'GB', workingName: dog.name });
+  assert.equal(view.venture.workingName, dog.name);
+  assert.deepEqual((await ask('venture.models.status')).connections.filter((connection: any) => connection.status === 'connected').map((connection: any) => connection.presetId).sort(), ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5']);
   await engine.tick();
   assert.equal((await backupsOf(directory)).filter(name => name.endsWith('-auto.backup')).length, 1);
   for (const file of await files(directory)) assert.equal((await readFile(file)).includes(KEY), false, file);
-});
-
-test('device sync needs a passphrase: a this-computer business refuses sync.enable', async t => {
-  const { ask } = engineAt(t, await folder(t));
-  await ask('workspace.create', { name: 'No Sync', pack: 'services', folder: null });
-  await assert.rejects(ask('sync.enable', { enabled: true }), (error: any) => error.code === 'SYNC_NEEDS_PASSPHRASE' && error.message === CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
 });
 
 test('the app-only custody methods refuse a tainted or non-desktop context', async t => {
@@ -548,19 +541,6 @@ test('encrypted exports are resealed with the backups; a copy restored with a re
   await second.ask('workspace.lock');
   await assert.rejects(second.ask('workspace.restore', { backupFile: backup.file, folder: null }), code('DEVICE_KEY_FAILED'), "this computer's login doesn't open them");
   await second.ask('workspace.restore', { backupFile: backup.file, folder: null, passphrase: PASSPHRASE });
-});
-
-test('turning the passphrase off is refused while device sync is on', async t => {
-  const directory = await folder(t), keys = memoryDeviceKeyStore();
-  const { engine, ask } = engineAt(t, directory, { keys });
-  await ask('workspace.create', { name: 'Synced Shop', pack: 'services', folder: null, passphrase: PASSPHRASE });
-  const sync = (engine as any).services.sync, status = sync.status.bind(sync);
-  sync.status = (context: any) => ({ ...status(context), enabled: true });
-  await assert.rejects(ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE }), (error: any) =>
-    error.code === 'SYNC_NEEDS_PASSPHRASE' && error.message === CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
-  assert.deepEqual([(await ask('workspace.custody.get')).business.unlock, keys.items()], ['passphrase', 0]);
-  sync.status = status;
-  assert.equal((await ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE })).custody.business.unlock, 'this-computer');
 });
 
 test("when this computer's protected storage doesn't answer, opening says so in its own words, and a later try works", async t => {

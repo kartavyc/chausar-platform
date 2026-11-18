@@ -1,5 +1,5 @@
 // P1 core tests: countries, the classifier, the instant plan, the venture record, interview, blueprint, terms,
-// the checklist and events. Harness: VentureTestStore (refuses nested writes like the vault), the real ontology,
+// and events. Harness: VentureTestStore (refuses nested writes like the vault), the real ontology,
 // trust and calculator services, and a stub model port fed by hand-written fixtures (synthetic recordings).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -245,10 +245,7 @@ test('4. venture.create sets retention and the dictionary currency, once per wor
   assert.equal(view.venture.ideaDigest, digest(CAFE_IDEA));
   assert.equal(view.venture.serviceType, null);
   assert.equal(view.venture.invoiceSequence, 0);
-  assert.equal(view.done, 1);
-  assert.equal(view.total, 12);
-  assert.equal(view.next.item, 'ai', 'onboarding connects an AI first, so the AI item leads the checklist');
-  assert.equal(india.trust.get(owner).retentionDays, 3650);
+  assert.equal(india.store.read().policy.retentionDays, 3650);
   assert.equal(india.ontology.current(owner)!.version, 1);
   assert.equal(india.ontology.current(owner)!.currency, 'INR');
   const events = (await india.call('venture.events', {})).events;
@@ -283,7 +280,7 @@ test('4. venture.create sets retention and the dictionary currency, once per wor
   await assert.rejects(bad.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN', extra: 1 }), codeOf('INVALID_VENTURE_REQUEST'));
   await assert.rejects(bad.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN' }, { ...owner, channel: 'phone' }), codeOf('APP_APPROVAL_REQUIRED'));
   assert.equal(bad.store.read().conversations.length, 0);
-  assert.equal(bad.trust.get(owner).retentionDays, 90);
+  assert.equal(bad.store.read().policy.retentionDays, 90);
 
   // Books already kept in INR cannot switch to USD.
   const conflict = setup();
@@ -296,7 +293,7 @@ test('4. venture.create sets retention and the dictionary currency, once per wor
     assert.equal(error.message, 'This workspace already keeps books in INR.');
     return true;
   });
-  assert.equal(conflict.trust.get(owner).retentionDays, 90, 'refused before any write');
+  assert.equal(conflict.store.read().policy.retentionDays, 90, 'refused before any write');
   assert.equal(conflict.ontology.current(owner)!.version, 1);
 });
 
@@ -811,61 +808,15 @@ test('10. offerReceipts shows the receipt made for this exact version, before an
   assert.equal((await h.call('venture.blueprint.get')).offerReceipts.offer_1.id, newer.id);
 });
 
-test('11. the checklist climbs to twelve in table order as each kind of record appears, the AI first', async () => {
+test('11. venture.get is null before a business exists, then the business with its terms and nothing else', async () => {
+  // The launch checklist is gone: the chief's standing plan (venture.chief.plan.get) says what to do next.
   const h = setup();
-  const progress = async () => { const view = await h.call('venture.get'); return [view.done, view.next?.item ?? null]; };
   assert.equal(await h.call('venture.get'), null);
   await h.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN' });
-  assert.deepEqual(await progress(), [1, 'ai']);
-  // No route `kind` here: ModelConnectionRecord's route kind shares its name with the record kind (see docs/venture/core.md).
-  await h.seed('venture-model-connection', { presetId: 'built-in-templates', model: null, endpoint: 'chausar://templates', tiers: ['fast', 'main'], consentDigest: 'c', consentedAt: FIXED_NOW, monthlyCapMicros: '0', status: 'connected' });
-  assert.deepEqual(await progress(), [2, 'questions']);
-  await h.call('venture.interview.next', { useTemplate: true });
-  await answer(h, 'q_1', { skipped: true });
-  await answer(h, 'q_2', { skipped: true });
-  await answer(h, 'q_pricing_model', { choiceId: 'monthly' });
-  await answer(h, 'q_price', { amount: '2,499' });
-  assert.deepEqual(await progress(), [2, 'questions']);
-  await answer(h, 'q_tax', { yes: false });
-  assert.deepEqual(await progress(), [3, 'plan']);
-  const draft = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
-  assert.deepEqual(await progress(), [3, 'plan']);
-  await h.call('venture.blueprint.accept', { digest: draft.digest });
-  assert.deepEqual(await progress(), [4, 'prices']);
-  await h.seed('venture-price-receipt', priceReceipt('offer_1', 'f'.repeat(64)));
-  assert.deepEqual(await progress(), [4, 'prices'], 'a receipt for another version does not count');
-  await h.seed('venture-price-receipt', priceReceipt('offer_1', draft.digest));
-  assert.deepEqual(await progress(), [5, 'brief']);
-  await h.seed('venture-brief', { briefId: 'chb_abcd1234', version: 1, markdown: '# Brief', chars: 7, digest: 'd', blueprintDigest: draft.digest, priceReceiptIds: [], wordsBy: 'template', modelCallId: null, lint: { ok: false, findings: [] } });
-  assert.deepEqual(await progress(), [5, 'brief']);
-  await h.seed('venture-brief', { briefId: 'chb_abcd1234', version: 2, markdown: '# Brief', chars: 7, digest: 'd', blueprintDigest: draft.digest, priceReceiptIds: [], wordsBy: 'template', modelCallId: null, lint: { ok: true, findings: [] } });
-  assert.deepEqual(await progress(), [6, 'builder']);
-  await h.seed('venture-handoff', { builder: 'lovable', mode: 'link', briefId: 'chb_abcd1234', briefDigest: 'd', urlChars: 10, urlDigest: 'u', openedAt: null });
-  assert.deepEqual(await progress(), [6, 'builder'], 'a prepared handoff that never opened does not count');
-  await h.seed('venture-handoff', { builder: 'lovable', mode: 'link', briefId: 'chb_abcd1234', briefDigest: 'd', urlChars: 10, urlDigest: 'u', openedAt: FIXED_NOW });
-  assert.deepEqual(await progress(), [7, 'repo']);
-  await h.seed('venture-build-follow', { repo: { owner: 'demo-owner', name: 'ledger' }, tokenState: 'none', linkedAt: FIXED_NOW, lastStatus: null });
-  assert.deepEqual(await progress(), [7, 'repo']);
-  await h.seed('venture-build-follow', { repo: { owner: 'demo-owner', name: 'ledger' }, tokenState: 'in-memory', linkedAt: FIXED_NOW, lastStatus: { word: 'quiet', asOf: FIXED_NOW } });
-  assert.deepEqual(await progress(), [8, 'rehearsal']);
-  await h.seed('venture-simulation-run', { playbookId: 'p', playbookHash: 'h', scenarioIds: [], episodes: [], passed: false, summary: { scenarios: 1, passed: 0, failed: 1 }, costMicros: '0', costDisplay: 'USD 0.0000', startedAt: FIXED_NOW, finishedAt: FIXED_NOW, modelMode: 'template' });
-  assert.deepEqual(await progress(), [8, 'rehearsal']);
-  await h.seed('venture-simulation-run', { playbookId: 'p', playbookHash: 'h', scenarioIds: [], episodes: [], passed: true, summary: { scenarios: 1, passed: 1, failed: 0 }, costMicros: '0', costDisplay: 'USD 0.0000', startedAt: FIXED_NOW, finishedAt: FIXED_NOW, modelMode: 'template' });
-  assert.deepEqual(await progress(), [9, 'first-client']);
-  const client = await h.seed('venture-client', { name: 'Cafe Aroma Demo', email: null, countryCode: 'IN', taxId: null, stateCode: '27', note: null });
-  assert.deepEqual(await progress(), [10, 'first-invoice']);
-  await h.seed('venture-invoice', { number: null, status: 'draft', clientId: client.id });
-  assert.deepEqual(await progress(), [10, 'first-invoice'], 'a draft invoice was not sent');
-  const invoice = await h.seed('venture-invoice', { number: 'INV-0001', status: 'issued', clientId: client.id });
-  assert.deepEqual(await progress(), [11, 'first-payment']);
-  await h.seed('venture-payment', { invoiceId: invoice.id, amountMinor: '249900', currency: 'INR', receivedOn: '2026-10-05', method: 'upi', factId: 'fact_seed', booksReceiptId: null, booksNote: null });
   const view = await h.call('venture.get');
-  assert.equal(view.done, 12);
-  assert.equal(view.next, null);
-  assert.deepEqual(view.checklist.map((item: any) => item.id), ['ai', 'idea', 'questions', 'plan', 'prices', 'brief', 'builder', 'repo', 'rehearsal', 'first-client', 'first-invoice', 'first-payment']);
-  assert.ok(view.checklist.every((item: any) => item.done));
-  assert.equal(view.checklist.find((item: any) => item.id === 'ai').label, 'Connect your AI');
-  assert.equal(view.checklist.find((item: any) => item.id === 'idea').label, 'Say what you want to do');
+  assert.deepEqual(Object.keys(view).filter(key => !['playbook', 'paused'].includes(key)).sort(), ['done', 'terms', 'total', 'venture']);
+  // done and total count the plan's setup now (accept the plan, set the prices), not a checklist.
+  assert.deepEqual([view.done, view.total], [0, 2]);
 });
 
 test('12. venture.events pages by sequence number', async () => {
@@ -890,10 +841,11 @@ test('12. venture.events pages by sequence number', async () => {
   await assert.rejects(h.call('venture.events', { page: 2 }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
-test('13. the handler table holds exactly the twenty-seven core methods; the pre-vault answers are functions', () => {
-  // The existing seventeen core methods, the wave 6 country suggestion, needs list (6C7), compliance get and set (6C6), and the six feedback methods (6J2).
+test('13. the handler table holds exactly the twenty-eight core methods; the pre-vault answers are functions', () => {
+  // The existing seventeen core methods, the wave 6 country suggestion, needs list (6C7), compliance get and set (6C6), the six feedback methods (6J2),
+  // and About you's fields once a business exists (15 Nov 2026: Settings, About you reads them).
   assert.deepEqual(Object.keys(handlers).sort(), [
-    'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.suggest', 'venture.blueprint.update',
+    'venture.about.families', 'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.suggest', 'venture.blueprint.update',
     'venture.compliance.get', 'venture.compliance.set', 'venture.country.suggest', 'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.feedback.answer', 'venture.feedback.consent', 'venture.feedback.crash', 'venture.feedback.delete', 'venture.feedback.get', 'venture.feedback.send', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
     'venture.needs.list', 'venture.owner.get', 'venture.owner.set', 'venture.settings.draft', 'venture.settings.drafts',
   ]);
@@ -919,7 +871,7 @@ test('reads and writes need the right role, and a refused write changes nothing'
   await interviewed(h);
   await h.store.update(state => { state.members.push({ id: 'viewer', name: 'Viewer', role: 'viewer', active: true, epoch: 1, branches: ['*'] }); });
   const viewer: Context = { memberId: 'viewer', role: 'viewer', epoch: 1, channel: 'desktop' };
-  assert.equal((await h.call('venture.get', {}, viewer)).done, 2);
+  assert.equal((await h.call('venture.get', {}, viewer)).venture.idea, CAFE_IDEA, 'a viewer reads the business');
   await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true }, viewer), codeOf('FORBIDDEN'));
   await assert.rejects(answer({ ...h, call: (m, p) => h.call(m, p, viewer) } as Harness, 'q_1', { skipped: true }), codeOf('FORBIDDEN'));
   const before = h.store.read().conversations.length;
@@ -1084,7 +1036,9 @@ test('review of A1 row 3: the first keep saves exactly the card: its name and of
   const h = setup();
   await interviewed(h);
   await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'model', offers: [{ name: 'Shoots at INR 5000', line: 'x' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
-  await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'owner', offers: [{ name: 'Shoots', line: '' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  // Who wrote the card is the AI, the template or the owner (offers typed with no AI and no listed field,
+  // venture-about-own-work.test.ts); anyone else is refused.
+  await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'chausar', offers: [{ name: 'Shoots', line: '' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
   assert.equal(await h.call('venture.blueprint.get'), null);
 });
 

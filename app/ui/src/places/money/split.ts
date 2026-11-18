@@ -12,6 +12,7 @@ import type { DepartmentSpend, TeamListView, VentureRunEvent } from '../../engin
 import { splitFigure } from '../../parts/Figure';
 import type { SplitData, SplitPartId } from '../../parts/charts/types';
 import { DEPT_OF } from '../team/departments';
+import { deptKey } from '../../text/dept';
 
 /** The split moves when spend does: a run's calls settle, or the business changes. */
 const onSpend = (event: VentureRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed';
@@ -50,5 +51,5 @@ export function splitOf(view: TeamListView | undefined, label: (parts: string) =
 export function useSpendSplit(): SplitData | undefined {
   const t = useT();
   const team = useResource('venture.team.list', {}, { refreshOn: onSpend });
-  return splitOf(team.data, (parts) => t('money.split.label', { parts }), (dept) => (dept === 'shared' ? t('chart.shared') : t(`dept.${dept}`)));
+  return splitOf(team.data, (parts) => t('money.split.label', { parts }), (dept) => (dept === 'shared' ? t('chart.shared') : t(deptKey(dept))));
 }

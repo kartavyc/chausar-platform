@@ -187,7 +187,7 @@ test('A3 S2: a draft whose agent is still working, or that the quality check is 
   const working = await readyDraft([report(FAILING)]);
   await ventureAction(working.env.deps, owner, 'prepare', 'seed.working', tx => {
     const current = tx.find('venture-delivery-run', working.run.id)!;
-    tx.replace({ ...current, agentJob: { ...current.agentJob!, reviewReady: false } });
+    tx.replace({ ...current, status: 'finishing' as const }); // seeded: the job handed its draft over and has not finished
   });
   assert.equal((await runOf(working.env, working.run.id)).canEdit, false);
   const judged = await readyDraft([report(FAILING)]);

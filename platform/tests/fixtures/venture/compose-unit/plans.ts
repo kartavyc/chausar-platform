@@ -1,13 +1,18 @@
-// Synthetic composer answers for the P-engine unit tests (onboarding v2). Hand-written, never captured from a live
+// Synthetic plan answers for the P-engine unit tests (onboarding v2). Hand-written, never captured from a live
 // account; no paid call was made. Every model string keeps within its word cap and holds no number in digits or words.
-import type { Json, ModelReplayFixture, ModelTransport } from '../../../../runtime/venture/contracts.ts';
-import type { ComposeModelOutput, DecideModelOutput } from '../../../../runtime/venture/onboarding-contracts.ts';
+// The X_COMPOSE and X_DECIDE pairs are what the plan composer once answered for a sentence. Nothing composes a plan
+// any more: stored.ts writes them into a vault as a composed plan a vault may still hold, and other tests take their
+// words for a plan the AI writes.
+import type { Json, ModelReplayFixture, ModelTransport, ServiceType } from '../../../../runtime/venture/contracts.ts';
+import type { ComposeModelOutput, PlanKind, ViewId } from '../../../../runtime/venture/onboarding-contracts.ts';
 import { createReplayTransport } from '../../../../runtime/venture/models/index.ts';
+
+/** What the decide call answered for a sentence, as a stored composition keeps it. */
+export type DecideModelOutput = { kind: PlanKind; family: ServiceType; reading: string; views: ViewId[] };
 
 export const DOG_TEXT = 'Dog walking for busy nurses in Leeds.';
 export const EXCEL_TEXT = "I'm good at Excel and I want to teach it.";
 export const CAFE_TEXT = 'Small cafes lose track of their bills.';
-export const LANDLORD_TEXT = "My landlord won't fix the heating.";
 
 export const DOG_DECIDE: DecideModelOutput = { kind: 'idea', family: 'other', reading: 'Walk dogs for nurses on long shifts in Leeds', views: ['offers-first', 'pages', 'notes'] };
 export const DOG_COMPOSE: ComposeModelOutput = {
@@ -38,6 +43,14 @@ export const DOG_COMPOSE: ComposeModelOutput = {
   questions: [],
   notes: ['insurance', 'safety'],
   views: { 'offers-first': { lead: ['offer_1', 'offer_2'] }, pages: { lead: ['page_1', 'page_3'] }, notes: { lead: ['insurance'] } },
+};
+
+/** The dog walking words as the AI writes them for the first plan (venture.blueprint.draft): the built-in plan's two offers, four steps and two approvals. */
+export const DOG_PLAN_WORDS = {
+  name: DOG_COMPOSE.name, oneLiner: DOG_COMPOSE.oneLiner, customer: DOG_COMPOSE.customer,
+  offers: DOG_COMPOSE.offers.map((offer, index) => ({ id: `offer_${index + 1}`, name: offer.name, description: offer.description })),
+  steps: DOG_COMPOSE.steps.map((step, index) => ({ id: `step_${index + 1}`, title: step.title })),
+  approvals: ['Each reply before it goes to an owner.', 'Every price before an owner sees it.'],
 };
 
 export const EXCEL_DECIDE: DecideModelOutput = { kind: 'skill', family: 'consulting', reading: 'Teach Excel to people who want to use it at work', views: ['steps-first', 'questions', 'tools'] };
@@ -113,12 +126,10 @@ export const CAFE_COMPOSE_CLIENT_AREA: ComposeModelOutput = {
   pages: [...CAFE_COMPOSE.pages.slice(0, 3), { block: 'client-area', title: 'Your bills', purpose: 'A signed-in page with your own bills and months.' }],
 };
 
-export const LANDLORD_DECIDE: DecideModelOutput = { kind: 'not-a-service', family: 'other', reading: 'Get the heating fixed', views: [] };
-
 export const MODELS = Object.freeze({ fast: 'claude-haiku-5-5', main: 'claude-sonnet-5-5' });
 
 /** An Anthropic Messages response holding one JSON text block, as a replay entry. */
-export function anthropicEntry(purpose: 'decide' | 'compose', value: unknown, mustInclude: string[], model = purpose === 'decide' ? MODELS.fast : MODELS.main): ModelReplayFixture['responses'][number] {
+export function anthropicEntry(purpose: 'decide' | 'blueprint', value: unknown, mustInclude: string[], model = purpose === 'decide' ? MODELS.fast : MODELS.main): ModelReplayFixture['responses'][number] {
   return {
     purpose, kind: 'anthropic-messages', model, status: 200, mustInclude,
     body: {
@@ -129,22 +140,6 @@ export function anthropicEntry(purpose: 'decide' | 'compose', value: unknown, mu
   };
 }
 
-/** A Claude Code JSON result (claude -p --output-format json) holding structured output, as a replay entry. */
-export function claudeCliEntry(purpose: 'decide' | 'compose', value: unknown, mustInclude: string[]): ModelReplayFixture['responses'][number] {
-  return {
-    purpose, kind: 'claude-cli', model: 'claude-sonnet-5-5', status: 200, mustInclude,
-    body: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: value, usage: { input_tokens: 1200, output_tokens: 300 } } as Json,
-  };
-}
-
 export function replay(responses: ModelReplayFixture['responses']): ModelTransport {
-  return createReplayTransport({ label: 'synthetic recording', note: 'Hand-written composer answers for unit tests. No paid call was made.', responses });
-}
-
-/** The usual pair for a sentence: decide on Haiku, compose on Sonnet. */
-export function planEntries(text: string, decide: DecideModelOutput, compose: ComposeModelOutput | null): ModelReplayFixture['responses'] {
-  const phrase = text.slice(0, 16);
-  const entries = [anthropicEntry('decide', decide, ['chausar-decide-v1', phrase])];
-  if (compose) entries.push(anthropicEntry('compose', compose, ['chausar-compose-v1', phrase]));
-  return entries;
+  return createReplayTransport({ label: 'synthetic recording', note: 'Hand-written answers for unit tests. No paid call was made.', responses });
 }

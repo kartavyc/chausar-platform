@@ -7,6 +7,7 @@
  */
 
 import { goNoGoFit } from '../../../../platform/runtime/venture/playbooks/kit/go-no-go-fit';
+import { UNIT_WORDS } from '../../../../platform/runtime/venture/core/offer-units';
 import { formatMoney } from '../../../../platform/runtime/owner-format';
 import {
   EngineError,
@@ -111,7 +112,8 @@ function pilotLines(offerName: string, terms: Record<string, unknown>): { lines:
   };
 }
 const AFTER = ['A short case study, if the pilot meets its measure.', 'An introduction to one business like yours.'];
-const UNIT: Readonly<Record<OfferLite['pricing']['quantityUnit'], string>> = { month: 'per month', project: 'per project', hour: 'per hour' };
+/** How a price in each unit is said, the engine's own words (core/offer-units.ts). */
+const UNIT: Readonly<Record<OfferLite['pricing']['quantityUnit'], string>> = UNIT_WORDS;
 const COUNTED = 'Chausar sends nothing here, and counts only the notes you mark as sent.';
 const PLACEHOLDER = /\[[^\][\n]{2,120}\]/g;
 

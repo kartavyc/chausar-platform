@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,8 @@ import { spawnTree } from '../platform/runtime/process-tree.ts';
 // Wave 6, package 6J1 (D3, D12): the beta installer bundles Codex (Apache-2.0) with its LICENSE and NOTICE. The files
 // are copied unchanged from a Codex npm install already on this computer (the platform package's vendor folder); this
 // script never downloads, installs or runs anything. The staged folder is what app/desktop/builder.beta.json carries
-// as resources/codex, and desktop-package.mjs checks it again (verifyCodexBundle) before a beta build.
+// as resources/codex (on macOS, Chausar.app/Contents/Resources/codex), and desktop-package.mjs checks it again
+// (verifyCodexBundle) before a beta build.
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const CODEX_BUNDLE = Object.freeze({
@@ -22,11 +23,14 @@ export const CODEX_BUNDLE = Object.freeze({
   licenseSha256: 'd17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc',
   noticeSha256: '9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915',
 });
+// The Mac build (14 Nov 2026): the darwin triples are the ones the engine already knows (platform/runtime/codex-trust.ts).
 const TARGETS = Object.freeze({
   'win32-x64': 'x86_64-pc-windows-msvc', 'win32-arm64': 'aarch64-pc-windows-msvc',
   'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-musl',
+  'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
 });
-const OS_WORD = Object.freeze({ win32: 'win', linux: 'linux' });
+// electron-builder's own ${os} words: macOS is mac.
+const OS_WORD = Object.freeze({ win32: 'win', linux: 'linux', darwin: 'mac' });
 const MAX_FILES = 200;
 /**
  * A2: folders of the Codex package the beta leaves out. 0.166.0 adds native voice libraries (GStreamer and GLib under the
@@ -40,7 +44,7 @@ const safeName = /^[A-Za-z0-9._+@-]+$/;
 /** The target triple the official Codex launcher (bin/codex.js) picks for this platform. */
 export function codexTarget(platform, architecture) {
   const target = TARGETS[`${platform}-${architecture}`];
-  if (!target) throw new Error('the beta bundles Codex for Windows and Linux on x64 or arm64 only');
+  if (!target) throw new Error('the beta bundles Codex for Windows, Linux and macOS on x64 or arm64 only');
   return target;
 }
 /** Where the staged bundle lives, named with electron-builder's own ${os}-${arch} words (builder.beta.json). */
@@ -98,14 +102,22 @@ async function readLayout(folder, platform, architecture) {
   if (layout.entrypoint !== entrypoint) throw new Error(`Codex entrypoint must be ${entrypoint}`);
   return { target, entrypoint, layout };
 }
-/** The entrypoint (and on Windows every bundled .exe) must be a native program for this exact target. */
+/**
+ * The entrypoint (and on Windows every bundled .exe) must be a native program for this exact target. On macOS that is a
+ * Mach-O for this chip (or a universal one that holds it). The Codex inside the ChatGPT app keeps a launcher script at
+ * bin/codex and the program in a nested app; that is another layout, and it is refused here in words.
+ */
 async function checkExecutables(folder, files, platform, architecture, entrypoint) {
   for (const name of files) {
     if (name !== entrypoint && !(platform === 'win32' && /^(bin|codex-path|codex-resources)\/.+\.exe$/.test(name))) continue;
     // Imported here, not at the top: desktop-package.mjs imports this module while its own command line is running.
     const { validateElectronExecutable } = await import('./desktop-package.mjs');
     try { await validateElectronExecutable(join(folder, name), platform, architecture); }
-    catch (error) { throw new Error(`${name}: ${error.message.replace(/^Electron /, 'the program ')}`); }
+    catch (error) {
+      const words = error.message.replace(/^Electron /, 'the program ');
+      const hint = platform === 'darwin' && /Mach-O executable$/.test(words) ? `; stage the @openai/codex npm package for macOS (@openai/codex@${CODEX_BUNDLE.version}), not the Codex inside another app` : '';
+      throw new Error(`${name}: ${words}${hint}`);
+    }
   }
 }
 
@@ -151,7 +163,40 @@ async function recordEvidence(destination, entrypoint, probe, now) {
   return { recordedAt: now().toISOString(), files: { ...EVIDENCE_FILES } };
 }
 
-/** Copy a local Codex platform package into an empty destination, add LICENSE and NOTICE, write BUNDLE.json. */
+/**
+ * What may be done with the destination before staging: nothing is there (or an empty folder), or an earlier bundle
+ * that may be replaced. An earlier bundle is replaced only when it is exactly what this script staged for this version
+ * and target and nothing in it changed since (verifyCodexBundle, the check a beta build runs): then every file there
+ * is one this script wrote, and removing them removes nothing of anyone else's. Anything else is refused and left as it is.
+ */
+async function earlierBundle(destination, platform, architecture) {
+  let present;
+  try {
+    await realFolder(destination);
+    present = await readdir(destination);
+  } catch (error) { if (error.code === 'ENOENT') return 'none'; throw error; }
+  if (!present.length) return 'empty';
+  try { await verifyCodexBundle({ directory: destination, platform, architecture }); }
+  catch (error) { throw new Error(`the Codex bundle folder is not empty, and what is there is not an unchanged earlier bundle of Codex ${CODEX_BUNDLE.version} for this target (${error.message}); move or remove it first`); }
+  return 'replace';
+}
+
+/** Moves the finished folder into place; a few tries, as a program that just ran may be held for a moment on Windows. */
+async function moveIntoPlace(from, to) {
+  for (let attempt = 0; ; attempt++) {
+    try { await rename(from, to); return; }
+    catch (error) {
+      if (attempt >= 4 || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) throw new Error(`the Codex bundle was staged in ${from} but could not be moved to ${to} (${error.code ?? error.message}); move it there by hand, or stage again`);
+      await new Promise(done => setTimeout(done, 250 * (attempt + 1)));
+    }
+  }
+}
+
+/**
+ * Copy a local Codex platform package into the destination, add LICENSE and NOTICE, write BUNDLE.json. The bundle is
+ * built in a new folder beside the destination and moved into place only once it is whole, so staging again over an
+ * unchanged earlier bundle of the same version just replaces it, and a staging that fails leaves the earlier one as it was.
+ */
 export async function stageCodexBundle({ source, destination, platform, architecture, root = projectRoot, probe = null, now = () => new Date() }) {
   const vendor = await codexVendorFolder(source, platform, architecture);
   const { target, entrypoint } = await readLayout(vendor, platform, architecture);
@@ -161,9 +206,24 @@ export async function stageCodexBundle({ source, destination, platform, architec
   await checkExecutables(vendor, files, platform, architecture, entrypoint);
   const license = join(root, 'app/desktop/notices/codex/LICENSE'), notice = join(root, 'app/desktop/notices/codex/NOTICE');
   if (await sha256(license) !== CODEX_BUNDLE.licenseSha256 || await sha256(notice) !== CODEX_BUNDLE.noticeSha256) throw new Error('the Codex LICENSE or NOTICE in app/desktop/notices differs from the pinned openai/codex files');
-  try { if ((await readdir(destination)).length) throw new Error('the Codex bundle folder is not empty; move or remove the earlier bundle first'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
-  await mkdir(destination, { recursive: true });
+  const earlier = await earlierBundle(destination, platform, architecture);
+  await mkdir(dirname(destination), { recursive: true });
+  const finished = destination;
+  destination = await mkdtemp(`${finished}.staging-`);
+  try {
+    const manifest = await writeBundle({ vendor, files, destination, platform, entrypoint, target, license, notice, probe, now });
+    // Only now is anything removed: the empty folder, or the earlier bundle that was verified above.
+    if (earlier !== 'none') await rm(finished, { recursive: true, force: true });
+    await moveIntoPlace(destination, finished);
+    return manifest;
+  } catch (error) {
+    await rm(destination, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Writes one whole bundle into a new, empty folder. */
+async function writeBundle({ vendor, files, destination, platform, entrypoint, target, license, notice, probe, now }) {
   for (const name of files) {
     const to = join(destination, ...name.split('/'));
     await mkdir(dirname(to), { recursive: true });
@@ -226,7 +286,7 @@ export function parseCodexBundleArguments(args) {
     const flag = args[index];
     if (seen.has(flag)) throw new Error(`duplicate option: ${flag}`);
     seen.add(flag);
-    if (!['--from', '--platform', '--arch'].includes(flag)) throw new Error(`unknown option: ${flag}; use --from <the installed @openai/codex folder> [--platform win32|linux --arch x64|arm64]`);
+    if (!['--from', '--platform', '--arch'].includes(flag)) throw new Error(`unknown option: ${flag}; use --from <the installed @openai/codex folder> [--platform win32|linux|darwin --arch x64|arm64]`);
     const value = args[++index];
     if (!value || value.startsWith('--')) throw new Error(`missing value for ${flag}`);
     result[flag === '--arch' ? 'architecture' : flag.slice(2)] = value;

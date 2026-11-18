@@ -10,7 +10,7 @@ import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { handlers as moneyHandlers } from '../runtime/venture/money/index.ts';
 import { sweepWholeJournal } from '../runtime/venture/build/journal-sweep.ts';
 import { memberState } from '../runtime/venture/views/health.ts';
-import { call, code, harness, owner, phone, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
+import { call, code, harness, owner, phone, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env, awaitingStep } from './venture-views-env.ts';
 import { flagshipTeam, seedRehearsal, seedRupeeRate, seedSpend, turn } from './venture-team-fixtures.ts';
 
 const team = (env: Env) => call<{ agents: AgentView[] }>(env, 'venture.team.list').then(result => result.agents);
@@ -95,8 +95,8 @@ const receipt = (env: Env, id: string) => listRecords(env.store.read(), 'venture
 test('team: each agent has its department, kind, a state from facts and who set its posture; Keeper is listed last', async () => {
   const env = await setup();
   const { playbook, order } = await flagshipTeam(env, 'youtube');
-  // A run waiting on the owner at the packager's writing step.
-  await seedRun(env, order, { playbookId: playbook.id, playbookHash: playbook.hash, status: 'waiting-for-you', harness: harness({ phase: 'write' }) });
+  // An AI job waiting on the owner for one step. Its writing steps share the job's state, so every agent that holds one waits.
+  await seedRun(env, order, { playbookId: playbook.id, playbookHash: playbook.hash, status: 'working', agentJob: awaitingStep(), harness: harness({ phase: 'write' }) });
   const { agents, departments } = await list(env);
   assert.deepEqual(agents.map(item => [item.id, item.department, item.kind, item.state, item.postureSetBy, item.chat]), [
     ['intake-clerk', 'production', 'agent', 'idle', 'business', true],
@@ -105,13 +105,13 @@ test('team: each agent has its department, kind, a state from facts and who set 
     ['story-editor', 'production', 'agent', 'idle', 'business', true],
     ['cutter', 'production', 'agent', 'idle', 'business', true],
     ['packager', 'marketing', 'agent', 'waiting', 'business', true],
-    ['analyst', 'marketing', 'agent', 'idle', 'business', true],
-    ['community-helper', 'sales', 'agent', 'idle', 'business', true],
+    ['analyst', 'marketing', 'agent', 'waiting', 'business', true],
+    ['community-helper', 'sales', 'agent', 'waiting', 'business', true],
     ['keeper', 'operations', 'code', 'idle', undefined, false],
   ]);
   assert.deepEqual(departments!.map(item => [item.id, item.name, item.counts]), [
-    ['sales', 'Sales and clients', { working: 0, waiting: 0, stopped: 0, idle: 2 }],
-    ['marketing', 'Marketing', { working: 0, waiting: 1, stopped: 0, idle: 1 }],
+    ['sales', 'Sales and clients', { working: 0, waiting: 1, stopped: 0, idle: 1 }],
+    ['marketing', 'Marketing', { working: 0, waiting: 2, stopped: 0, idle: 0 }],
     ['production', 'Production', { working: 0, waiting: 0, stopped: 0, idle: 4 }],
     ['money', 'Money', { working: 0, waiting: 0, stopped: 0, idle: 0 }],
     ['operations', 'Operations', { working: 0, waiting: 0, stopped: 0, idle: 1 }],
@@ -149,7 +149,7 @@ test('spend by department: each paid call lands with the role its turn worked fo
     harness: harness({ phase: 'done', turns: [turn(1, ['youtube.hooks'], 'call_hooks'), turn(2, ['files.read'], 'call_read'), turn(3, [], 'call_write', 'write')] }),
   });
   // A second run is writing its reply now: the call it holds money for is the packager's.
-  await run({ status: 'waiting-for-you', callId: 'call_now', harness: harness({ phase: 'write' }) });
+  await run({ status: 'working', agentJob: awaitingStep(), callId: 'call_now', harness: harness({ phase: 'write' }) });
   // youtube.hooks is held only by the story editor's step (find), so that turn is Production's; files.read alone is
   // held by two roles' steps, so that turn is the team's; the write turn is the packager's (Marketing). A plan-writing
   // call is no role's either.
@@ -163,11 +163,11 @@ test('spend by department: each paid call lands with the role its turn worked fo
 
   const { departments, shared, totals } = await list(env);
   const by = Object.fromEntries(departments!.map(item => [item.id, item.spendThisMonth]));
-  assert.deepEqual({ display: by.production.display, rupees: by.production.rupees, held: by.production.held }, { display: 'under $0.01', rupees: undefined, held: undefined });
+  assert.deepEqual({ display: by.production.display, rupees: by.production.rupees, held: by.production.held }, { display: 'under $0.01', rupees: '₹0.28 at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)', held: undefined });
   // A call still running counts at its estimate, as the spend limit and Money count it, and says so.
-  // 4Z3: dollars lead the held words without a rate, never past two decimals; the exact figure is the held receipt's.
-  assert.deepEqual({ display: by.marketing.display, held: by.marketing.held }, { display: '$0.22 (includes estimates)', held: 'including $0.22 held for running work' });
-  assert.deepEqual(by.marketing.lead, { currency: 'USD', figure: '$0.22 (includes estimates)' });
+  // 4Z3: rupees lead the held words at the reference rate (no rate of the owner's own), the dollars never past two decimals; the exact figure is the held receipt's.
+  assert.deepEqual({ display: by.marketing.display, held: by.marketing.held }, { display: '$0.22 (includes estimates)', held: 'including ₹20.35 held for running work: $0.22 at ₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)' });
+  assert.deepEqual(by.marketing.lead, { currency: 'INR', figure: '₹20.54 (includes estimates)', beside: '$0.22 at ₹94.40 per $1', other: '$0.22' });
   for (const id of ['sales', 'money', 'operations']) assert.equal(by[id].display, '$0.00', id);
   assert.equal(shared!.display, 'under $0.01');
 
@@ -200,7 +200,7 @@ test('spend by department: each paid call lands with the role its turn worked fo
   // 4A2: the rate on its own as well, so a page can say it once and show only the rupee amount elsewhere.
   assert.equal(again.marketing.rate, '₹83.50 per $1 (your rate, set 15 Oct 2026)');
   assert.equal(again.production.rate, again.marketing.rate);
-  assert.equal(by.marketing.rate, undefined, 'no rate without the owner\'s rupee rate');
+  assert.equal(by.marketing.rate, '₹94.40 per $1 (FBIL reference rate of 5 Nov 2026)', 'before the owner typed a rate, the reference rate, named');
   // 4Z3: a business in India with a rate: rupees lead the figure and the held words, the dollars to two decimals.
   // 217600 micros at 83.50: 1816.96 paise, ₹18.17; 22 cents. 215600 held: ₹18.00, 22 cents.
   assert.equal(again.marketing.held, 'including ₹18 held for running work: $0.22 at ₹83.50 per $1 (your rate, set 15 Oct 2026)');
@@ -253,7 +253,7 @@ test("done this week: runs that reached review and finished rehearsals in the ow
   const { playbook, order } = await flagshipTeam(env, 'youtube');
   const run = (fields: Partial<DeliveryRunRecord>) => seedRun(env, order, { playbookId: playbook.id, playbookHash: playbook.hash, ...fields });
   const accepted = await run({ status: 'accepted', verdict: { choice: 'accepted', reason: null, at: env.now() } });
-  await run({ status: 'waiting-for-you', harness: harness({ phase: 'write' }) });
+  await run({ status: 'working', agentJob: awaitingStep(), harness: harness({ phase: 'write' }) });
   await run({ status: 'ready-for-review', at: '2026-10-08T10:00:00.000Z' });
   const rehearsal = await seedRehearsal(env, playbook.id);
   await sweepWholeJournal(env.deps, owner);
@@ -300,10 +300,13 @@ test('the six-week series: jobs and spend per local week, scaled in code to the 
   const week = receipt(env, production[3].receiptId!);
   assert.deepEqual(week.subject, { type: 'spent-department', department: 'production', from: '2026-09-28', to: '2026-10-04' });
   assert.deepEqual(departments!.find(item => item.id === 'money')!.series.spend.map(point => point.valuePermille), [null, null, null, null, null, null], 'never 0');
-  assert.ok(production.every(point => point.rupees === undefined), 'no rupees without the owner\'s rate');
-  // 4Z3: each point as the owner's currency leads it; without a rate, dollars to two decimals (6000 micros: 1 cent;
-  // 3000 micros rounds to no cents, so it reads as under a cent, never as nothing).
-  assert.deepEqual(production.map(point => point.lead ?? null), [null, null, null, { currency: 'USD', figure: '$0.01' }, null, { currency: 'USD', figure: 'under $0.01' }]);
+  // Fix round 4 (problem 12): no rate of the owner's own, so a rupee business reads each point at the dated reference rate
+  // (6000 micros x 943996 / 10^8 = 57 paise; 3000 micros: 28 paise), rupees first, the dollars beside them.
+  const REFERENCE = '₹94.40 per $1';
+  assert.deepEqual(production.map(point => point.rupees ?? null), [null, null, null, `₹0.57 at ${REFERENCE} (FBIL reference rate of 5 Nov 2026)`, null, `₹0.28 at ${REFERENCE} (FBIL reference rate of 5 Nov 2026)`]);
+  // 4Z3: each point as the business's currency leads it (3000 micros rounds to no cents: under a cent, never nothing).
+  assert.deepEqual(production.map(point => point.lead ?? null), [null, null, null,
+    { currency: 'INR', figure: '₹0.57', beside: `$0.01 at ${REFERENCE}`, other: '$0.01' }, null, { currency: 'INR', figure: '₹0.28', beside: `under $0.01 at ${REFERENCE}`, other: 'under $0.01' }]);
   // With the owner's rate, each spend point shows rupees beside the dollars, labelled with that rate.
   await seedRupeeRate(env);
   const withRate = (await list(env)).departments!.find(item => item.id === 'production')!.series.spend;
@@ -325,7 +328,7 @@ test('team: an idle agent reads Connect your AI until a connected AI can run; a 
   env.models.usable = false;
   assert.equal((await nowOf())['intake-clerk'], 'Connect your AI', 'an AI that cannot run now leaves them waiting');
   // Work in hand says what it is, AI or not.
-  await seedRun(env, order, { playbookId: playbook.id, playbookHash: playbook.hash, status: 'waiting-for-you', harness: harness({ phase: 'write' }) });
+  await seedRun(env, order, { playbookId: playbook.id, playbookHash: playbook.hash, status: 'working', agentJob: awaitingStep(), harness: harness({ phase: 'write' }) });
   const busy = await nowOf();
   assert.match(busy.packager, /^Waiting on you: /);
   assert.equal(busy.producer, 'Connect your AI');

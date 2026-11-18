@@ -16,6 +16,10 @@ import { chatRoute } from '../runtime/venture/agents/consent.ts';
 import { answer, chatConsent, chiefBusiness, scriptChief, text, type ChiefEnv } from './venture-chief-helpers.ts';
 import { pendingFactsRun, said, scriptChat } from './venture-agent-helpers.ts';
 import { NOW, owner } from './venture-judge-helpers.ts';
+import { setComputerZone } from '../runtime/owner-format.ts';
+
+// A schedule says where its time is only when that is not where this computer is: the tests' computer is in India.
+setComputerZone('Asia/Kolkata');
 
 const phone: Context = { ...owner, channel: 'phone' };
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
@@ -58,7 +62,8 @@ test('C5 task 17: a monthly schedule falls on its own day each month, across a m
   const venture = currentVenture(env.store.read())!;
   const review = weeklyReview(venture);
   const { routine } = await set(env, { ...review, schedule: { kind: 'monthly', day: 5, time: '09:00', timeZone: 'Asia/Kolkata' } });
-  assert.equal(routine.when, 'On the 5th of each month, 9:00 am, Asia/Kolkata');
+  assert.equal(routine.when, 'On the 5th of each month at 9:00 am');
+  assert.deepEqual(routine.schedule, { kind: 'monthly', day: 5, time: '09:00', timeZone: 'Asia/Kolkata' }, 'the stored schedule keeps its zone');
   for (const day of [0, 29, 31, 1.5, '1']) {
     await assert.rejects(setRaw(env, { ...review, schedule: { kind: 'monthly', day, time: '09:00', timeZone: 'Asia/Kolkata' } }), code('INVALID_VENTURE_REQUEST'), String(day));
   }
@@ -73,7 +78,8 @@ test('a schedule is once, every so many minutes, or days at a time in a named zo
   assert.deepEqual(review.schedule, { kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' });
   await assert.rejects(set(env, review, phone), code('APP_APPROVAL_REQUIRED'));
   const { routine } = await set(env, review);
-  assert.equal(routine.when, 'Every Monday 9:00 am, Asia/Kolkata');
+  assert.equal(routine.when, 'Every Monday at 9:00 am');
+  assert.deepEqual(routine.schedule, review.schedule, 'the stored schedule keeps its zone');
   // NOW is Wednesday 21 October, 15:30 in India: the next Monday 09:00 there is 03:30 UTC on the 26th.
   assert.equal(routine.next, '2026-10-26T03:30:00.000Z');
   assert.match(routine.line, /waits for your approval on Today/);
@@ -94,10 +100,30 @@ test('a schedule is once, every so many minutes, or days at a time in a named zo
   ]) {
     await assert.rejects(set(env, { ...review, schedule }), code('INVALID_VENTURE_REQUEST'), JSON.stringify(schedule));
   }
-  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '18:30', timeZone: 'Europe/London' }, venture), 'Every weekday 6:30 pm, Europe/London');
-  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 4], time: '07:00', timeZone: 'Asia/Kolkata' }, venture), 'Every Monday and Thursday 7:00 am, Asia/Kolkata');
-  assert.equal(whenWords({ kind: 'interval', everyMinutes: 120, from: NOW }, venture), 'Every 2 hours, from 21 Oct 2026, 3:30 pm, Asia/Kolkata');
-  assert.equal(whenWords({ kind: 'once', at: NOW }, venture), 'Once, 21 Oct 2026, 3:30 pm, Asia/Kolkata');
+  // The words say the place only when it is not where this computer is (found live, 15 Nov 2026: the Routines page
+  // read "Every day 8:00 am, Asia/Kolkata" to an owner in Kolkata), as the daily review's line already did.
+  const here = 'Asia/Kolkata';
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5, 6, 7], time: '08:00', timeZone: 'Asia/Kolkata' }, venture, here), 'Every day at 8:00 am');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '18:30', timeZone: 'Europe/London' }, venture, here), 'Every weekday at 6:30 pm, London time');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 4], time: '07:00', timeZone: 'Asia/Kolkata' }, venture, here), 'Every Monday and Thursday at 7:00 am');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1], time: '07:00', timeZone: 'Asia/Calcutta' }, venture, here), 'Every Monday at 7:00 am', 'a zone under its older name is the same place');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1], time: '07:00', timeZone: 'UTC' }, venture, here), 'Every Monday at 7:00 am, UTC');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1], time: '07:00', timeZone: 'America/New_York' }, venture, here), 'Every Monday at 7:00 am, New York time');
+  assert.equal(whenWords({ kind: 'monthly', day: 22, time: '09:00', timeZone: 'Asia/Kolkata' }, venture, here), 'On the 22nd of each month at 9:00 am');
+  assert.equal(whenWords({ kind: 'monthly', day: 22, time: '09:00', timeZone: 'Asia/Kolkata' }, venture, 'Europe/London'), 'On the 22nd of each month at 9:00 am, Kolkata time');
+  assert.equal(whenWords({ kind: 'interval', everyMinutes: 120, from: NOW }, venture, here), 'Every 2 hours, from 21 Oct 2026, 3:30 pm');
+  assert.equal(whenWords({ kind: 'interval', everyMinutes: 120, from: NOW }, venture, 'Europe/London'), 'Every 2 hours, from 21 Oct 2026, 3:30 pm, Kolkata time');
+  assert.equal(whenWords({ kind: 'once', at: NOW }, venture, here), 'Once, 21 Oct 2026, 3:30 pm');
+  // The hosted app runs on a server, which is not where the owner is: the place is always said.
+  assert.equal(whenWords({ kind: 'once', at: NOW }, venture, null), 'Once, 21 Oct 2026, 3:30 pm, Kolkata time');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' }, venture, null), 'Every Monday at 9:00 am, Kolkata time');
+  // The routine a computer elsewhere lists says the place; the stored schedule is the same.
+  setComputerZone('Europe/London');
+  try {
+    const elsewhere = (await env.agents('venture.routines.list') as RoutinesView).routines[0]!;
+    assert.equal(elsewhere.when, 'Every Monday at 9:00 am, Kolkata time');
+    assert.deepEqual(elsewhere.schedule, review.schedule);
+  } finally { setComputerZone('Asia/Kolkata'); }
 });
 
 test('a routine is switched on only for an AI connection Check connections looked at: ROUTINE_NEEDS_CHECK; off needs none', async () => {

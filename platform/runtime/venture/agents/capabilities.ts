@@ -33,6 +33,9 @@ import { catalogueEntry, connectorName } from '../build/catalogue.ts';
 import { connectorModes } from '../build/connectors.ts';
 import { AGENT_ID, agentName } from '../views/shared.ts';
 import { KEEPER_ID } from './roles.ts';
+import { hiredRecord } from './hire-store.ts';
+import { hiredCapabilityPage } from './hired-capabilities.ts';
+import { shownStepNote } from '../views/plan-sections.ts';
 
 /** What each of Chausar's tools lets an agent see or do, in the owner's words. Typed against TOOL_NAMES. */
 export const TOOL_WORDS: Readonly<Record<ToolName, string>> = Object.freeze({
@@ -250,6 +253,8 @@ const PEOPLE: ReadonlySet<PlaybookStep['doneBy']> = new Set(['you']);
 /** The fixed steps' hands-on work step and the plan step it comes from (STEP_PLAN step_2: the owner's work). */
 const FIXED_WORK_STEP = 'work';
 const HANDS_ON_PLAN = STEP_PLAN.find(entry => entry.id === 'step_2')!;
+/** Said beside the planned chip outside bookkeeping, where the stored note's bookkeeping sentence is not shown. */
+export const HANDS_ON_PLANNED = 'An agent doing this work is planned.';
 
 /** One agent as the page reads it: its steps in playbook order, and whether it is AI or code. */
 export type CapabilityRole = { id: string; name: string; kind: 'agent' | 'code'; steps: readonly PlaybookStep[] };
@@ -283,8 +288,12 @@ function modeAvailable(connector: string, mode: 'handoff' | 'read' | 'write'): b
 function stepItem(step: PlaybookStep, team: CapabilityTeam, options: CapabilityOptions): CapabilityItemView {
   const key = `step:${step.id}`;
   if (!team.flagship && step.id === FIXED_WORK_STEP) {
-    // The owner's own hands-on work (STEP_PLAN): an agent reconciles for bookkeeping; anything else is planned.
-    return item('do', key, team.serviceType === 'bookkeeping' ? 'works' : 'planned', `${sentence(step.title)} ${HANDS_ON_PLAN.note}`);
+    // The owner's own hands-on work (STEP_PLAN): an agent reconciles for bookkeeping; anything else is planned. The
+    // stored note names bookkeeping for every service type; only a bookkeeping business reads that sentence here
+    // (views/plan-sections.ts shownStepNote, the same rule as the plan sheet). The stored note is unchanged.
+    const bookkeeping = team.serviceType === 'bookkeeping';
+    const note = shownStepNote(HANDS_ON_PLAN.note, team.serviceType);
+    return item('do', key, bookkeeping ? 'works' : 'planned', `${sentence(step.title)} ${bookkeeping ? note : `${note} ${HANDS_ON_PLANNED}`}`);
   }
   const lines = [sentence(step.title)];
   if (step.kind === 'write') lines.push(WRITE_TAIL);
@@ -391,6 +400,7 @@ export function capabilityTeam(state: State, venture: VentureRecord): (Capabilit
 /**
  * The agent a page is for, with the steps it does: a flagship playbook's role (AI or code), else the one delivery agent
  * of the fixed steps. Keeper is AGENT_IS_CODE (its jobs are on Team); anyone else not on the team is AGENT_NOT_FOUND.
+ * An agent the owner hired is answered before this, by the handler (hired-capabilities.ts).
  */
 export function capabilityRole(state: State, venture: VentureRecord, agentId: string): { role: CapabilityRole; team: CapabilityTeam } {
   check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', 'Keeper is code, not AI. It holds no tools; its jobs are on Team.');
@@ -415,6 +425,9 @@ export async function agentsCapabilitiesHandler(deps: VentureDeps, ctx: Context,
   const body = exactPayload(payload, ['agent'], ['agent']);
   const agentId = identifier(body.agent, 'Agent');
   const { state, venture } = readAs(deps, ctx, 'read');
+  // An agent the owner hired owns no step: its page is its own (hired-capabilities.ts), before and after the plan.
+  const hired = hiredRecord(state, venture.id, agentId);
+  if (hired?.role) return hiredCapabilityPage({ id: hired.id, duties: hired.role.duties, reads: hired.reads });
   const { role, team } = capabilityRole(state, venture, agentId);
   return capabilityPage(role, team, { host: deps.host, judge: judgeAutoOf(state, venture.id).auto });
 }

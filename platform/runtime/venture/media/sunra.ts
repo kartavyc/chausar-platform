@@ -13,7 +13,7 @@
 import { ChausarError, check, money } from '../../contracts.ts';
 import type { IsoDate, IsoTime } from '../contracts.ts';
 import type { FootageRights } from '../delivery/rights.ts';
-import { digest, findRecord, ventureAction } from '../records.ts';
+import { findRecord, ventureAction } from '../records.ts';
 import { argumentsDigest, npmPackageOf } from '../agent-runtime/mcp-policy.ts';
 import { rupeesOf } from '../money/spend.ts';
 import type { ExternalMcpServer } from '../agent-runtime/external-config.ts';
@@ -185,5 +185,3 @@ export function sunraAdapter(options: AdapterOptions = {}): McpCallAdapter {
     },
   };
 }
-/** The receipt's own digest, for tests and the receipt sheet. */
-export const generationDigest = (body: MediaGenerationBody) => digest(body);

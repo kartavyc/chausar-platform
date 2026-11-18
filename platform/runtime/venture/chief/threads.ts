@@ -21,7 +21,8 @@ import { appendAgentMessage } from '../agents/store.ts';
 import { holdsIdNumber, ID_REFUSED, KEY_REFUSED, threadSendHandler as agentThreadSend } from '../agents/threads.ts';
 import { chatConsentState, requireChatConsent } from '../agents/consent.ts';
 import { appendChiefMessage, draftProposal, type ChiefMessageInput } from './store.ts';
-import { chiefAnswer, withoutActionClaims, type ChiefAnswer } from './answer.ts';
+import { chiefAnswer, type ChiefAnswer } from './answer.ts';
+import { chatHistory } from '../agents/answer.ts';
 import { agentNameOf, routeOf, teamAgents } from './routing.ts';
 import { availableKinds, draftFromModel } from './proposals.ts';
 import { proposalView } from './gate.ts';
@@ -250,7 +251,6 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
       callIds: reply.callIds ?? [], receiptIds: reply.receiptIds ?? [], routedTo: reply.routedTo ?? null,
     });
     const done: ChatPart[] = [];
-    const briefed: string[] = [];
     const dropped = [...(reply.dropped ?? [])];
     const proposalIds: string[] = [];
     for (const raw of reply.proposals ?? []) {
@@ -260,15 +260,14 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
         const posted = appendAgentMessage(tx, { agent: drafted.agent.id, from: 'chausar', text: drafted.text, parts: drafted.parts, author: 'model' });
         tx.emit('agent.message', { agent: posted.agent, messageId: posted.id });
         done.push({ kind: 'text', text: `I passed a brief to ${drafted.agent.name}.` });
-        briefed.push(drafted.agent.name);
         continue;
       }
       const proposal: ProposalRecord = draftProposal(tx, { ...drafted.input, threadId: thread.id, messageId: answer.id });
       proposalIds.push(proposal.id);
     }
-    // One-shot A4 (A3 leftover, review M2): the model's words may claim no action; only code's own brief line says one
-    // happened. A proposal card makes 'I've drafted' true (chief/answer.ts withoutActionClaims).
-    const parts = [...(reply.author === 'model' ? withoutActionClaims(reply.parts, { proposals: proposalIds.length, briefed }) : reply.parts), ...done];
+    // The AI's words stay as it wrote them (founder, 11 Nov 2026: no sentence is cut out of a reply). What happened is
+    // still said by code alone: its own brief line below, and a proposal card for anything that waits on the owner.
+    const parts = [...reply.parts, ...done];
     answer = tx.replace<ChiefMessageRecord>({
       ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null,
       ...(reply.suggestion ? { suggestion: reply.suggestion } : {}),
@@ -344,6 +343,8 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   }
 
   const kinds = await availableKinds();
-  const answer = await chiefAnswer(deps, ctx, route, { state, venture, question: words, agents: teamAgents(state, venture), kinds });
+  // Conversation memory: the earlier messages of this chat go with the question (none in a new chat).
+  const history = threadId ? chatHistory(state, venture, messagesOf(state, venture, threadId)) : [];
+  const answer = await chiefAnswer(deps, ctx, route, { state, venture, question: words, agents: teamAgents(state, venture), kinds, history });
   return store(deps, ctx, threadId, words, { ...answer, available: kinds.map(item => item.kind) });
 }

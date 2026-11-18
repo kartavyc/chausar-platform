@@ -156,7 +156,7 @@ test('delivery.fix after failed checks: a revision that names those checks; once
   await assert.rejects(call(env, 'venture.delivery.fix', { runId: run.id, checks: [] }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(call(env, 'venture.delivery.fix', { runId: run.id, checks: 'all' }, phone), code('APP_APPROVAL_REQUIRED'));
   const fixing = await call<DeliveryRunView>(env, 'venture.delivery.fix', { runId: run.id, checks: 'all' });
-  assert.equal(fixing.status, 'waiting-for-you');
+  assert.equal(fixing.status, 'working');
   const revise = record(env, run.id).revision!.words;
   assert.ok(revise.startsWith('Revise this to: fix what these checks found.'));
   assert.match(revise, /no-done-claims/);

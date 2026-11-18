@@ -87,9 +87,9 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
   ...SELLER_WRITE_MODES,
   'local-live-captions':{qualification:'fixture-tested',what:'Captures only an owner-started desktop microphone session and transcribes with installed local whisper.cpp. Saving is off by default; there is no cloud fallback.'},
-  ...Object.fromEntries(['bluesky','mastodon','telegram','discord'].map(id=>[id,{qualification:'fixture-tested' as const,what:'Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection.'}])),
+  ...Object.fromEntries(['bluesky','mastodon','telegram','discord'].map(id=>[id,{qualification:'fixture-tested' as const,what:'Posts exactly the plain text you approved, through your account\'s official link. Each place asks and records separately. Check unclear results.'}])),
   'google-tts': {qualification:'fixture-tested',what:'Makes one exact approved stock voice request on the owner Google key. Current rights, private-source refusal, quoted cost and named legal confirmation are required.'},
-  'website-cloudflare': {qualification:'fixture-tested',what:'Deploys only an exact approved immutable Direct Upload manifest. Preview, production and rollback each ask separately; asset uploading stays manual.'},
+  'website-cloudflare': {qualification:'fixture-tested',what:'Puts online only the exact website version you approved, on your own Cloudflare Pages project. A preview, going live and going back each ask you separately. You upload images and files yourself.'},
   'zoho-books': {qualification:'fixture-tested',what:'Creates exact-approved drafts, masters, opening balances and received settlements, then verifies readback. Invoice issue asks separately. No email or automatic retry.'},
   'seo-wordpress': {qualification:'fixture-tested',what:'Creates only the exact owner and client approved article draft. The owner publishes it in WordPress.'},
   'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Writes an exact reviewed existing key, journals the result and keeps its previous value for undo.'},
@@ -101,7 +101,7 @@ const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'sta
 });
 const PLANNED_HANDOFF_WHAT = 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.';
 const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorModeName, string>>>> = Object.freeze({
-  'android-local':{write:'Planned until owner SDK setup and a named lawyer permission review. Test the client build manually meanwhile.'},
+  'android-local':{write:'Planned: it waits for you to set up the Android tools (the SDK) and for a named lawyer to review the client\'s permission. Until then, test the client\'s app by hand.'},
   'docker-local':{write:'Planned until owner image qualification and a named lawyer permission review. Prepare the demo script meanwhile.'},
   'shopify-store-assistant':{write:'Planned for buyers until named lawyer confirmation of notice, consent and provider handling. Link to the shop meanwhile. Every later AI question needs its own exact owner approval.'},
   tally: {write:'Planned: local optional voucher writes need a reviewed native installation profile. Enter reviewed vouchers in Tally manually meanwhile; automatic issue is not qualified.'},

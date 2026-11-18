@@ -14,6 +14,11 @@ export interface ComposerProps {
   placeholder?: string | undefined;
   /** Stores the message. The text is cleared only once this resolves; if it rejects the text stays. */
   onSend: (text: string) => Promise<void>;
+  /**
+   * The place shows the words in its thread the moment they are sent (Chats), so the box empties at once and stays
+   * locked until the send ends. If the send rejects, the words come back to the box with the reason, as always.
+   */
+  shownInThread?: boolean | undefined;
   /** Short things to ask; a tap puts the words in the box and never sends them. C5 task 8: an idea may carry a preview line. */
   suggestions?: readonly (string | { label: string; preview: string })[] | undefined;
   /** The suggestions' name for screen readers, when not plain suggestions. */
@@ -46,7 +51,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * red line, then the long reason in the normal colour, whole (B4 task 4). A send starts once however fast Enter is
  * pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, describeFailure, className, waitLabel }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, describeFailure, className, waitLabel, shownInThread }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -63,10 +68,15 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
     inFlight.current = true;
     setSending(true);
     setError(null);
+    const words = text;
+    // The thread shows them already: the box is clear while they are on their way.
+    if (shownInThread) setText('');
     try {
-      await onSend(text.trim());
+      await onSend(words.trim());
       setText('');
     } catch (failure) {
+      // Exactly what was sent is back in the box, with why it did not go.
+      if (shownInThread) setText(words);
       setError({ message: messageOf(failure), known: describeFailure?.(failure) ?? null });
     } finally {
       inFlight.current = false;

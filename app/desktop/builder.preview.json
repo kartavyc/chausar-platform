@@ -33,8 +33,6 @@
     "!app/ui/vitest.config.ts",
     "!app/desktop/icons/icon.icns",
     "platform/runtime/**/*",
-    "platform/semantic-qualification/src/**/*",
-    "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
     {
       "from": "app/engine/dist",
@@ -44,7 +42,6 @@
       ]
     },
     "scripts/postgres-runtime.mjs",
-    "fixtures/**/*",
     "package.json",
     "node_modules/**/*",
     "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
@@ -53,8 +50,6 @@
     "package.json",
     "node_modules/**/*",
     "platform/runtime/**/*",
-    "platform/semantic-qualification/src/**/*",
-    "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
     "scripts/postgres-runtime.mjs",
     "app/engine/dist/**/*"
@@ -75,7 +70,12 @@
     "identity": null,
     "hardenedRuntime": false,
     "notarize": false,
-    "icon": "app/desktop/icons/icon.icns"
+    "icon": "app/desktop/icons/icon.icns",
+    "electronLanguages": [
+      "en",
+      "en_GB",
+      "hi"
+    ]
   },
   "linux": {
     "target": [

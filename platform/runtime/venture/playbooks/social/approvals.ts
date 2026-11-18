@@ -131,14 +131,6 @@ export function recordClientDecision(
   return { ...link, decisions, state: link.drafts.every(item => decisions.some(made => made.draftId === item.draftId)) ? 'closed' : 'open' };
 }
 
-/** The approvals with the client's answers from a link folded in, for drafts whose digest still matches. */
-export function withClientDecisions(approvals: DraftApproval[], link: ShareLinkRecord): DraftApproval[] {
-  return approvals.map(item => {
-    const made = link.decisions.find(decision => decision.draftId === item.draftId && decision.digest === item.digest);
-    return made ? { ...item, client: { decision: made.decision, via: made.via, at: made.at, comment: made.comment } } : item;
-  });
-}
-
 export type GateOptions = { clientApproval: boolean };
 
 /** Draft before schedule: may this draft be scheduled, posted or exported now? Every reason it may not, in order. */

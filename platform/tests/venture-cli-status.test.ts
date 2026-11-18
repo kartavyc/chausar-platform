@@ -17,13 +17,13 @@ import type {
   CliStatusList, DelegateProcessRequest, ModelHttpRequest, ModelPort, ModelPortOptions, ModelProcessRequest, ModelProcessResponse, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps, VentureEngineServices, VentureHostKind,
 } from '../runtime/venture/contracts.ts';
-import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
+import { currentVenture, houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import * as modelsPackage from '../runtime/venture/models/index.ts';
 import { PRESETS, createModelPort, handlers } from '../runtime/venture/models/index.ts';
 import { CLI_UNLISTED_FLAGS, TEMP_PREFIX, claudePlan, cliRouteFlags } from '../runtime/venture/models/cli.ts';
-import { AVAILABILITY_REASONS } from '../runtime/venture/models/presets.ts';
+import { AVAILABILITY_REASONS, VERIFICATION_NOTES } from '../runtime/venture/models/presets.ts';
 import { CODEX_NPM_ENTRY, resolveNpmShim } from '../runtime/venture/models/npm-shim.ts';
-import { CLI_LOOK_PREFIX, cliListLine, cliStatusView, homePath, inspectInstalledCli } from '../runtime/venture/models/cli-status.ts';
+import { CLI_LOOK_PREFIX, cliListLine, cliStatusView, homePath, inspectInstalledCli, lastCliTask } from '../runtime/venture/models/cli-status.ts';
 import { cliGateOpen, cliVersionOf, locateOnThisComputer } from '../runtime/venture/models/cli-look.ts';
 import { delegateAvailability } from '../runtime/venture/delivery/harness/delegate.ts';
 import { createDelegatePorts } from '../runtime/venture/delivery/harness/delegate-process.ts';
@@ -196,7 +196,7 @@ const claudeAnswer = (words: string): ModelProcessResponse => ({
   exitCode: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { words }, usage: { input_tokens: 10, output_tokens: 5 } }),
 });
 
-const ENV_NAMES = /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|CODEX_HOME|CLAUDE_CODE_[A-Z_]+|MAX_STRUCTURED_OUTPUT_RETRIES|FALLBACK_FOR_ALL_PRIMARY_MODELS|DISABLE_[A-Z_]+|DO_NOT_TRACK|[A-Z_]*TELEMETRY[A-Z_]*|OTEL_[A-Z_]+)$/;
+const ENV_NAMES = /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|USER|LOGNAME|CODEX_HOME|CLAUDE_CODE_[A-Z_]+|MAX_STRUCTURED_OUTPUT_RETRIES|FALLBACK_FOR_ALL_PRIMARY_MODELS|DISABLE_[A-Z_]+|DO_NOT_TRACK|[A-Z_]*TELEMETRY[A-Z_]*|OTEL_[A-Z_]+)$/;
 
 // ---------------------------------------------------------------------------
 // 1. What is installed, from evidence
@@ -220,12 +220,14 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   assert.equal(result.line, 'Chausar ran only the version, help and sign-in commands of Claude Code and Codex on this computer. It never reads their sign-in files or keys.');
 
   // Only check commands ran, each on the program the search path has (never a bare name): argument arrays, a time
-  // limit each, nothing on standard input, no key in the environment.
-  assert.deepEqual(fake.seen.map(request => [request.command, request.args.join(' '), request.timeoutMs]), [
-    [CLAUDE_EXE, '--version', 10000], [CLAUDE_EXE, '--help', 5000], [CLAUDE_EXE, 'auth status', 5000],
-    // A2 second review: this Codex is 0.154.0, older than the reviewed one, so its status runs without the quiet flags.
-    [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, 'login status', 5000],
-  ]);
+  // limit each, nothing on standard input, no key in the environment. The two tools are looked at together, and Codex's
+  // two help pages are read together, so only each tool's own order is fixed (seen racing on Windows CI, 18 Nov 2026).
+  const ran = (exe: string) => fake.seen.filter(request => request.command === exe).map(request => [request.args.join(' '), request.timeoutMs]);
+  assert.equal(fake.seen.length, 7);
+  assert.deepEqual(ran(CLAUDE_EXE), [['--version', 10000], ['--help', 5000], ['auth status', 5000]]);
+  // A2 second review: this Codex is 0.154.0, older than the reviewed one, so its status runs without the quiet flags.
+  const codexRan = ran(CODEX_EXE);
+  assert.deepEqual([codexRan[0], codexRan.slice(1, 3).sort(), codexRan.slice(3)], [['--version', 10000], [['--help', 5000], ['exec --help', 5000]], [['login status', 5000]]]);
   for (const request of fake.seen) {
     assert.equal(request.purpose, 'version-check');
     assert.equal(request.stdin, '');
@@ -936,4 +938,42 @@ test('A2: after a failed last task, Your AI reads the provider\'s status page th
   [claude] = (await status(deps)).clis;
   assert.deepEqual(claude.provider && [claude.provider.line, claude.provider.source], ['Claude is having problems right now, not you.', 'status.claude.com']);
   assert.deepEqual(pages, ['https://status.claude.com/api/v2/status.json']);
+});
+
+// Seen in the real app on Windows (17 Nov 2026, re-check 085 and 088): Your AI said "Codex on this computer ... Not yet
+// checked on a real task." after chats, the daily review, the hire steps and an order had all run through Codex. The
+// note beside a connection was the preset's fixed words. It now says what the records show: a real task is a finished
+// call through that AI in this business (never a synthetic recording) or a heavy-work run it did.
+test('the note beside a connected AI follows its last real task: none, worked, failed', async () => {
+  const { deps, fake, advance } = await setup({ tools: { claude: CLAUDE_OK } });
+  await connect(deps, 'claude-code-cli');
+  const notes = async () => {
+    const shown = deps.models.status(owner);
+    return [shown.connections[0]!.verificationNote, shown.tiers.main.verificationNote, deps.models.presets().find(item => item.id === 'claude-code-cli')!.verificationNote];
+  };
+  assert.deepEqual(await notes(), Array(3).fill('Not yet checked on a real task.'));
+  fake.model = () => claudeAnswer('Command line words');
+  await deps.models.generate(owner, wordsTask());
+  assert.deepEqual(await notes(), Array(3).fill('Its last task worked.'));
+  advance(60_000);
+  fake.model = () => ({ exitCode: 1, stdout: '' });
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
+  assert.deepEqual(await notes(), Array(3).fill('Its last task failed.'));
+  // A preset with no call of its own keeps its fixed words.
+  assert.equal(deps.models.presets().find(item => item.id === 'codex-cli')!.verificationNote, 'Not yet checked on a real task.');
+  // An order's job the AI answered counts too (it reported its tokens); one that failed before any answer counts as failed.
+  const { store, deps: jobDeps } = await setup({ tools: { claude: CLAUDE_OK } });
+  const ventureId = currentVenture(store.read())?.id ?? null;
+  const job = (presetId: string, extra: Record<string, unknown>) => ventureAction(jobDeps, owner, 'admin', 'seed.job', tx => {
+    tx.put({ ...tx.base('venture-delivery-run'), agentJob: { route: { presetId, model: 'gpt-6-luna', tier: 'main' }, tools: [], messages: [], proposal: null, draftDigest: null, ...extra } } as never);
+  });
+  assert.equal(lastCliTask(store.read(), ventureId, 'codex'), null);
+  await job('codex-cli', { failure: { line: 'Codex did not answer.' } });
+  assert.equal(lastCliTask(store.read(), ventureId, 'codex')?.outcome, 'failed');
+  await job('codex-cli', { usage: { inputTokens: 80284, outputTokens: 914, source: 'provider-reported' } });
+  assert.equal(lastCliTask(store.read(), ventureId, 'codex')?.outcome, 'succeeded');
+  assert.equal(lastCliTask(store.read(), ventureId, 'claude-code'), null, 'a job on another AI is not this one\'s');
+  // The app knows every note by its own words, so the Hindi pack can say each (connection-words.json).
+  const known = Object.values(JSON.parse(readFileSync(join(import.meta.dirname, '../../app/ui/src/text/en/connection-words.json'), 'utf8')) as Record<string, string>);
+  for (const note of Object.values(VERIFICATION_NOTES)) assert.ok(known.includes(note), note);
 });

@@ -30,7 +30,7 @@ export interface BridgeOptions {
 }
 
 /**
- * One-shot A1 (row 12): the frame's colour variables (platform/runtime/venture/apps/frame.ts FRAME_VARIABLES) from the
+ * One-shot A1 (row 12): the frame's colour variables (platform/runtime/venture/apps/frame.ts FRAME_BASE_COLOURS) from the
  * Ink tokens Chausar shows now: the frame sits on --surface, so that is the app's --bg. Only plain hex colours go.
  */
 export const FRAME_TOKENS: Readonly<Record<string, string>> = Object.freeze({ '--bg': '--surface', '--fg': '--fg', '--mute': '--mute', '--line': '--line', '--link': '--link' });

@@ -24,7 +24,7 @@ export const PLACES = [
   { id: 'today-goal-unset', path: '#/today', steps: [{ business: 'Ledgerline' }], note: 'W4 4I2: no goal for the month: the ask, last month, the suggestion' },
   { id: 'today-answer', path: '#/today', steps: [{ press: 'Show 8 more' }, { press: 'Answer', in: '[data-row-id="q-question-title"]' }], note: 'an answer box inside a card (4Z3: it waits behind the fold)' },
   { id: 'today-menu', path: '#/today', steps: [{ press: /Switch business$/ }], note: 'the business menu as a popover' },
-  { id: 'today-send-back', path: '#/today', steps: [{ press: 'Send back', in: '[data-row-id="run:d-ep14:review-1"]' }], note: 'W4 4J19: a draft sent back with the words of the owner, the box prefilled "Revise this to "' },
+  { id: 'today-send-back', path: '#/today', steps: [{ press: 'More', in: '[data-row-id="run:d-ep14:review-1"]' }, { press: 'Send back', in: '[data-row-id="run:d-ep14:review-1"]' }], note: 'W4 4J19: a draft sent back with the words of the owner, the box prefilled "Revise this to "' },
   { id: 'today-set', path: '#/today', steps: [{ press: 'Approve several' }], note: 'W4 4J19: approve several: nothing ticked, no approve all, the total and refusals the engine works out' },
   { id: 'today-sort', path: '#/today', steps: [{ press: 'Sort' }], note: 'W4 4J19: Sort Today by, with the fixed choices when there is no AI' },
   { id: 'business-decisions', path: '#/business/decisions', note: 'W4 4J19: who decided what, on what rule, with Stop always allowing' },
@@ -44,8 +44,8 @@ export const PLACES = [
   { id: 'team-quiet', path: '#/today', steps: [{ business: 'Ledgerline' }, { hash: '#/team' }], note: 'a team with nobody working' },
   { id: 'work', path: '#/work', board: 'D-Work', note: 'run tiles, failed tile, finished, orders' },
   { id: 'work-failed', path: '#/work?state=failed', note: 'Failed filter' },
-  { id: 'work-stop-ask', path: '#/work', steps: [{ press: 'Stop run 31' }, { press: 'Force stop' }], note: 'W4 4F3: the Stop dialog on a run tile, Force stop asking once more with the step it throws away' },
-  { id: 'work-stopped', path: '#/work', steps: [{ press: 'Stop run 29' }, { press: 'Stop', in: '[role="dialog"]' }], note: 'W4 4F3: a run stopped by the owner, on its own tile with why, Run again and Resume' },
+  { id: 'work-stop-ask', path: '#/work', steps: [{ press: 'Stop: Cutting shorts from episode 13' }, { press: 'Force stop' }], note: 'W4 4F3: the Stop dialog on a run tile, Force stop asking once more with the step it throws away' },
+  { id: 'work-stopped', path: '#/work', steps: [{ press: 'Stop: Pricing the sponsor slot' }, { press: 'Stop', in: '[role="dialog"]' }], note: 'W4 4F3: a run stopped by the owner, on its own tile with why, Run again and Resume' },
   { id: 'work-run-sheet', path: '#/work?sheet=run:31', note: 'W4 4F3: the run sheet: scope line, Usually, per-call states and the steer box' },
   { id: 'work-orders', path: '#/work?state=orders', note: 'every order' },
   { id: 'work-order', path: '#/work?order=o-boat-14', note: 'one order with a draft ready to read' },
@@ -99,8 +99,6 @@ export const PLACES = [
   { id: 'team-agent-guidance', path: '#/team?sheet=agent:editor&tab=instructions', steps: [{ unfold: true }], note: 'W6: expanded step guidance with tool-owned review settings' },
   { id: 'money-journal-chain', path: '#/money/journal', steps: [{ unfold: true }], note: 'W4 4J22a: Record intact with the count, Check a receipt' },
   { id: 'business-ca', path: '#/today', steps: [{ business: 'Ledgerline' }, { hash: '#/business/ca' }], note: 'Your CA, for a CA firm' },
-  { id: 'onboarding', path: '#/onboarding', board: 'D-Start', note: 'how starting works, the one-sentence tile' },
-  { id: 'onboarding-example', path: '#/onboarding', steps: [{ press: 'Wedding invitation videos' }], note: 'an example chosen' },
   { id: 'first-run', path: '?fresh#/today', note: 'the first run (the fake engine reads ?fresh)' },
   { id: 'welcome-back', path: '?closed#/today', note: 'welcome back, every business closed (?closed)' },
 ];
@@ -180,11 +178,11 @@ export const INTERACTIONS = [
       await b.click(button('Approve', card), 'Approve on the price card');
       await sleep(300);
       const asked = await b.evaluate(`(() => { const a = document.activeElement; return { name: a?.textContent?.trim(), inCard: Boolean(a?.closest('${card}')) }; })()`);
-      if (asked.name !== 'Not now' || !asked.inCard) problems.push(`after Approve, focus should be on "Not now" in the card, it is on "${asked.name}"`);
-      await b.click(button('Not now', card), 'Not now');
+      if (asked.name !== 'Cancel' || !asked.inCard) problems.push(`after Approve, focus should be on "Cancel" in the card, it is on "${asked.name}"`);
+      await b.click(button('Cancel', card), 'Cancel');
       await sleep(300);
       const back = await b.evaluate(`(() => { const a = document.activeElement; return { name: a?.textContent?.trim(), inCard: Boolean(a?.closest('${card}')) }; })()`);
-      if (back.name !== 'Approve' || !back.inCard) problems.push(`after Not now, focus should be back on Approve, it is on "${back.name}"`);
+      if (back.name !== 'Approve' || !back.inCard) problems.push(`after Cancel, focus should be back on Approve, it is on "${back.name}"`);
       return problems;
     },
   },
@@ -219,6 +217,45 @@ export const INTERACTIONS = [
         const where = await b.evaluate(`(() => { const a = document.activeElement; return { inside: Boolean(a?.closest('[data-cover][role=dialog]')), body: a === document.body, name: (a?.getAttribute('aria-label') || a?.textContent || '').trim().slice(0, 40) }; })()`);
         if (!where.inside && !where.body) { problems.push(`Tab ${i + 1} left the covering sheet for "${where.name}"`); break; }
       }
+      return problems;
+    },
+  },
+  {
+    // Seen on Windows (15 Nov 2026) in a window about 1008 px wide: beside the rail and the settings list, the page
+    // header's tools took the row and "How the work is done" wrapped one word to a line. A title that fits on one line
+    // of its page stays on one line: the tools go under it when there is no room beside it.
+    id: 'settings-title-one-line', path: '#/business/plan', widths: [1008, 1280],
+    async run(b, { sleep }) {
+      await sleep(300);
+      const title = await b.evaluate(`(() => {
+        const h1 = document.querySelector('main h1');
+        if (!h1) return null;
+        const range = document.createRange();
+        range.selectNodeContents(h1);
+        const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+        const room = h1.closest('header').getBoundingClientRect().width;
+        const probe = h1.cloneNode(true);
+        probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;width:auto';
+        h1.parentElement.append(probe);
+        const needs = probe.getBoundingClientRect().width;
+        probe.remove();
+        return { words: h1.textContent, lines, room: Math.round(room), needs: Math.round(needs) };
+      })()`);
+      if (!title) return ['the settings page has no title'];
+      const problems = title.needs <= title.room && title.lines > 1 ? [`"${title.words}" needs ${title.needs} px and its header has ${title.room} px, but it wraps to ${title.lines} lines`] : [];
+      // A short title keeps its tools beside it at the same width: only a title with no room moves them.
+      await b.evaluate(`location.hash = '#/money'; true`);
+      await sleep(900);
+      const money = await b.evaluate(`(() => {
+        const header = document.querySelector('main header');
+        const h1 = header?.querySelector('h1');
+        const tools = header?.querySelector('[role=group]');
+        if (!h1 || !tools) return null;
+        const a = h1.getBoundingClientRect(), c = tools.getBoundingClientRect();
+        return { beside: c.top < a.bottom && c.left > a.right, words: h1.textContent };
+      })()`);
+      if (!money) problems.push('Money has no title or no tools beside it');
+      else if (!money.beside) problems.push(`the tools left the row of the short title "${money.words}"`);
       return problems;
     },
   },

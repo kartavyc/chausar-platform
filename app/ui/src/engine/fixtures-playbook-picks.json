@@ -1,6 +1,7 @@
 [
   {
     "id": "ca-firm",
+    "serviceType": "bookkeeping",
     "picks": [
       "ca firm",
       "chartered accountant",
@@ -19,6 +20,7 @@
   },
   {
     "id": "youtube",
+    "serviceType": "studio",
     "picks": [
       "youtube",
       "faceless channel",
@@ -37,6 +39,7 @@
   },
   {
     "id": "social-agency",
+    "serviceType": "agency",
     "picks": [
       "social media agency",
       "social media marketing",
@@ -56,6 +59,7 @@
   },
   {
     "id": "seo-visibility",
+    "serviceType": "content",
     "picks": [
       "seo agency",
       "seo service",
@@ -71,6 +75,7 @@
   },
   {
     "id": "online-seller",
+    "serviceType": "consulting",
     "picks": [
       "online seller",
       "seller services",
@@ -83,6 +88,7 @@
   },
   {
     "id": "support-desk",
+    "serviceType": "support",
     "picks": [
       "support desk",
       "customer support service",
@@ -94,6 +100,7 @@
   },
   {
     "id": "recruiting-desk",
+    "serviceType": "consulting",
     "picks": [
       "recruiting",
       "recruitment agency",
@@ -106,6 +113,7 @@
   },
   {
     "id": "job-search-desk",
+    "serviceType": "consulting",
     "picks": [
       "job search help",
       "career coach",
@@ -118,6 +126,7 @@
   },
   {
     "id": "translation-studio",
+    "serviceType": "studio",
     "picks": [
       "translation service",
       "translation agency",
@@ -132,6 +141,7 @@
   },
   {
     "id": "bookkeeping-cfo",
+    "serviceType": "consulting",
     "picks": [
       "bookkeeping service",
       "collections desk",
@@ -142,6 +152,7 @@
   },
   {
     "id": "podcast-to-article",
+    "serviceType": "content",
     "picks": [
       "podcast to article",
       "podcast to blog",
@@ -152,6 +163,7 @@
   },
   {
     "id": "lead-generation",
+    "serviceType": "agency",
     "picks": [
       "lead generation",
       "appointment setting",
@@ -163,6 +175,7 @@
   },
   {
     "id": "newsletter-studio",
+    "serviceType": "content",
     "picks": [
       "newsletter service",
       "newsletter for",
@@ -173,6 +186,7 @@
   },
   {
     "id": "tender-desk",
+    "serviceType": "consulting",
     "picks": [
       "tender",
       "bid writing",
@@ -184,6 +198,7 @@
   },
   {
     "id": "website-studio",
+    "serviceType": "studio",
     "picks": [
       "website builder",
       "website design service",
@@ -194,6 +209,7 @@
   },
   {
     "id": "narration-studio",
+    "serviceType": "studio",
     "picks": [
       "audiobook",
       "narration service",
@@ -204,6 +220,7 @@
   },
   {
     "id": "virtual-assistant",
+    "serviceType": "support",
     "picks": [
       "virtual assistant",
       "personal assistant service",
@@ -213,6 +230,7 @@
   },
   {
     "id": "data-entry-desk",
+    "serviceType": "other",
     "picks": [
       "data entry service",
       "data entry for",
@@ -222,6 +240,7 @@
   },
   {
     "id": "app-testing",
+    "serviceType": "consulting",
     "picks": [
       "app testing service",
       "mobile app testing",
@@ -233,6 +252,7 @@
   },
   {
     "id": "dev-agency",
+    "serviceType": "consulting",
     "picks": [
       "maintenance retainer",
       "website maintenance",
@@ -243,6 +263,7 @@
   },
   {
     "id": "monitored-data",
+    "serviceType": "research",
     "picks": [
       "price monitoring",
       "tender alerts",
@@ -252,6 +273,7 @@
   },
   {
     "id": "it-triage",
+    "serviceType": "support",
     "picks": [
       "it support desk",
       "on-call triage",
@@ -261,6 +283,7 @@
   },
   {
     "id": "phone-receptionist",
+    "serviceType": "support",
     "picks": [
       "phone receptionist",
       "ai receptionist",
@@ -270,6 +293,7 @@
   },
   {
     "id": "trading-journal",
+    "serviceType": "bookkeeping",
     "picks": [
       "trading journal",
       "trade journal",
@@ -283,6 +307,7 @@
   },
   {
     "id": "lesson-desk",
+    "serviceType": "teaching",
     "picks": [
       "lesson desk",
       "tuition classes",
@@ -298,6 +323,7 @@
   },
   {
     "id": "booking-desk",
+    "serviceType": "local-services",
     "picks": [
       "booking desk",
       "take bookings",
@@ -316,6 +342,7 @@
   },
   {
     "id": "signoff-desk",
+    "serviceType": "licensed",
     "picks": [
       "sign-off desk",
       "signoff desk",
@@ -334,6 +361,7 @@
   },
   {
     "id": "document-desk",
+    "serviceType": "consulting",
     "picks": [
       "document desk",
       "employee handbook",

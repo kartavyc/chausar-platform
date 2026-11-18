@@ -3,6 +3,7 @@ import {check,type Context,type State} from '../../../contracts.ts';
 import type {DeliveryRunRecord,Json,OrderRecord,VentureDeps,VentureRecord} from '../../contracts.ts';
 import {digest,findRecord,listRecords,ventureAction,type VentureTx} from '../../records.ts';
 import {acceptedBlueprintOrNull,readAs} from '../../delivery/shared.ts';
+import {handedOver,runOpen,supersede} from '../../delivery/run-machine.ts';
 import {clientDraft} from '../../build/draft-text.ts';
 import {pickPlaybook} from '../registry.ts';
 import type {ChainDefinition} from '../kit/chain.ts';
@@ -20,7 +21,7 @@ export function socialChainDefinition(pin?:SocialChainPin):ChainDefinition{retur
 async function loadBrandDigest(){const [{resolveKit},{voicesInUse}]=await Promise.all([import('../kit/brand-kit.ts'),import('../../agents/voice.ts')]);return (state:State,venture:VentureRecord,clientId:string)=>digest({kit:resolveKit(state,venture,clientId),voice:voicesInUse(state,venture).filter(v=>v.on)});}
 function approvedVoice(state:State,venture:VentureRecord,clientId:string,brand:string):SocialVoicePin|null{
  const orders=new Map(listRecords(state,'venture-order',venture.id).filter(o=>o.clientId===clientId&&o.socialChain?.brandDigest===brand).map(o=>[o.id,o]));
- const run=listRecords(state,'venture-delivery-run',venture.id).filter(r=>{const o=orders.get(r.orderId);return o&&o.socialChain?.voice?.runId===r.id&&o.socialChain.voice.digest===clientDraft(r).digest&&r.chainStage!==undefined&&o.socialChain!.stages[(r.chainStage??1)-1]==='voice'&&['accepted','edited'].includes(r.status)&&!r.practice;}).at(-1);
+ const run=listRecords(state,'venture-delivery-run',venture.id).filter(r=>{const o=orders.get(r.orderId);return o&&o.socialChain?.voice?.runId===r.id&&o.socialChain.voice.digest===clientDraft(r).digest&&r.chainStage!==undefined&&o.socialChain!.stages[(r.chainStage??1)-1]==='voice'&&handedOver(r)&&!r.practice;}).at(-1);
  if(!run)return null;const draft=clientDraft(run);return {runId:run.id,digest:draft.digest??'',text:draft.text??''};
 }
 /** Keep the selected stages stable; a changed brand requires a fresh voice before later writing. */
@@ -32,7 +33,7 @@ export async function pinSocialOrder(deps:VentureDeps,ctx:Context,orderId:string
   const brand=brandOf(tx.state,tx.venture!,order.clientId);if(order.socialChain?.brandDigest===brand)return;
   const offerKey=order.socialChain?.offerKey??acceptedBlueprintOrNull(tx.state,tx.venture!)?.offers.find(o=>o.id===order.offerId)?.playbookOffer;if(!offerKey||!STAGES[offerKey])return;
   const voice=approvedVoice(tx.state,tx.venture!,order.clientId,brand),stages=order.socialChain?.stages??[...socialStages(offerKey)];
-  if(order.socialChain)for(const run of tx.list('venture-delivery-run').filter(r=>r.orderId===orderId&&['waiting-for-you','ready-for-review','brief-waiting','needs-answer'].includes(r.status)))tx.replace({...run,status:'stopped',callId:null,preview:null});
+  if(order.socialChain)for(const run of tx.list('venture-delivery-run').filter(r=>r.orderId===orderId&&runOpen(r)))tx.replace(supersede(run,tx.now));
   tx.replace({...order,socialChain:{offerKey,stages,brandDigest:brand,voice},chainStage:voice&&stages[0]==='voice'?Math.max(2,order.chainStage??1):1,chainState:'running',chainSince:tx.now});tx.emit('chain.changed',{});
  });
 }
@@ -40,7 +41,7 @@ export async function pinSocialOrder(deps:VentureDeps,ctx:Context,orderId:string
 export async function socialVoiceGuard(){const brandOf=await loadBrandDigest();return (state:State,venture:VentureRecord,order:OrderRecord)=>{if(!order.socialChain||!order.clientId)return;check(order.socialChain.brandDigest===brandOf(state,venture,order.clientId),'SOCIAL_VOICE_CHANGED','The client brand or business voice changed. Start this order again to approve a fresh voice sheet.');};}
 /** Accepting the voice pins the exact approved words for every later writing task on this order. */
 export function keepSocialVoice(tx:VentureTx,run:DeliveryRunRecord,verdict:string):void{
- const order=tx.find('venture-order',run.orderId);if(!order?.socialChain||run.practice||!['accepted','edited'].includes(verdict)||order.socialChain.stages[(run.chainStage??1)-1]!=='voice')return;
+ const order=tx.find('venture-order',run.orderId);if(!order?.socialChain||run.practice||!(verdict==='accepted'||verdict==='edited')||order.socialChain.stages[(run.chainStage??1)-1]!=='voice')return;
  const shown=clientDraft(tx.find('venture-delivery-run',run.id)??run);tx.replace({...order,socialChain:{...order.socialChain,voice:{runId:run.id,digest:shown.digest??'',text:shown.text??''}}});
 }
 /** Approved words are background, never instructions or permission to post. */

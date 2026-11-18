@@ -214,7 +214,7 @@ function planDraft(state: State, venture: VentureRecord, request: DraftRequest, 
     card, today, recipient, lead, address, band, cold, basis, mx, path,
     to: { name, ...(recipient ? role(recipient) : { company: card.company, title: null }) },
     other: other ? { name: other.name, ...role(other) } : null,
-    sourceUrl: lead?.sourceUrl ?? null, where: lead ? leadWhere(lead.sourceUrl) : null, aboutPersonId: other?.id ?? null,
+    sourceUrl: lead?.sourceUrl ?? null, where: lead?.sourceUrl ? leadWhere(lead.sourceUrl) : null, aboutPersonId: other?.id ?? null,
   };
 }
 

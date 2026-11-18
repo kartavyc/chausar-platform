@@ -6,7 +6,7 @@
 //
 // Ideas taken, code written here: postmill-ai/postmill-app (AGPL-3.0, so ideas only): approved before promoted,
 // refused with a reason per post; charlesdove977/UGC-Factory (MIT): confirm the brief before spending, fixed beats.
-import type { CheckId, PlaybookStep, ServiceType } from '../../contracts.ts';
+import type { CheckId, PlaybookStep } from '../../contracts.ts';
 import { SOCIAL_CHECK_IDS, type SocialCheckId } from './check-ids.ts';
 import { SOCIAL_AGENCY_REGISTRATION } from './registration.ts';
 
@@ -235,8 +235,6 @@ export const SOCIAL_NOT_BUILT: readonly string[] = Object.freeze([
   'An AI creator presented as a real customer',
   'Clips of footage nobody recorded the rights to',
 ]);
-
-export const SOCIAL_SERVICE_TYPE: ServiceType = 'agency';
 
 /** Every string shown to people, for the word checks in tests. */
 export function socialWords(): string[] {

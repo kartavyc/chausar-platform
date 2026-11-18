@@ -1,41 +1,20 @@
-// Chausar venture launcher, the draft desk: the nine methods answered before the vault check (onboarding v2).
-// venture.ai.* connect an AI on the desk's memory-only shelf and store; venture.compose.* run the composer and
-// hold one plan. They write the in-memory draft store, never the vault, and never take a plan from the renderer.
-// Ink v2 wave 4 (4J8, the file drop): compose.decide may carry one file of text the owner dropped. It passes the
-// untrusted screen in enforce mode first (core/attachment.ts, shared with the plan suggestion); a held file is left out
-// with a plain line, and a clean one goes with the sentence to both calls as background only, as client data: each
-// call is previewed and recorded as 'owner-file-drop', the owner's own words with their file, never as an approval.
-// The session holds the file for this plan's calls, and each call's record keeps what was sent, file text included;
-// on venture.create those records move into the business.
-import { check, newId } from '../../contracts.ts';
-import { exactPayload, plainText, smallInteger } from '../records.ts';
-import type { ModelOutcome, ModelPreset, ModelPresetId, ModelStatusView, VentureDeps } from '../contracts.ts';
-import {
-  AI_OPTION_IDS, AI_OPTION_WORDS, AI_STATUS_ORDER, NOT_A_SERVICE_WORDS, OPEN_BOX_TEXT,
-} from '../onboarding-contracts.ts';
-import type {
-  AiOption, AiOptionId, AiOptionStatus, AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan, ComposeModelOutput,
-  ComposeState, DecideModelOutput, WrittenBy,
-} from '../onboarding-contracts.ts';
-import { applyComposePatch, assembleComposed, composeTask, decideTask, makeDecision, withRepair } from '../core/compose.ts';
-import { countryProfile } from '../core/countries.ts';
+// Chausar venture launcher, the draft desk: the methods answered before the vault check (onboarding v2).
+// venture.ai.* connect an AI on the desk's memory-only shelf and store, and venture.about.* and venture.country.suggest
+// read the owner's own words with it. They write the in-memory draft store, never the vault. On venture.create the
+// connections and the records of the calls made here move into the business.
+import { check } from '../../contracts.ts';
+import { exactPayload } from '../records.ts';
+import type { ModelPreset, ModelPresetId, ModelStatusView, VentureDeps } from '../contracts.ts';
+import { AI_OPTION_IDS, AI_OPTION_WORDS, AI_STATUS_ORDER } from '../onboarding-contracts.ts';
+import type { AiOption, AiOptionId, AiOptionStatus, AiOptionsView, AiReuseView, AiStatusView } from '../onboarding-contracts.ts';
 import { countrySuggest } from '../core/country-suggestion.ts';
-import { calls as modelCalls, connectModel, disconnect as modelDisconnect } from '../models/handlers.ts';
-import { droppedFile, screenedFile, sendFileDropTask, withFile, type DroppedFile } from '../core/attachment.ts';
+import { connectModel, disconnect as modelDisconnect } from '../models/handlers.ts';
 import { DESK_CONTEXT } from './store.ts';
 import { aboutFamilies, aboutPick, aboutRead } from '../core/about.ts';
 import type { LoginDesk } from '../models/login.ts';
-
-export { ATTACHMENT_LEFT_OUT, ATTACHMENT_MAX_BYTES, type DroppedFile } from '../core/attachment.ts';
-
-/**
- * One compose session at a time: the decision, then the plan once fill answers. context: the screened file that goes
- * with this plan's calls, or none.
- */
-export type ComposeSession = {
-  decision: ComposeDecision; decideOutput: DecideModelOutput; output: ComposeModelOutput | null; plan: ComposedPlan | null;
-  context?: DroppedFile | null;
-};
+import { putReusedConnections, reusableSetup, type AiSetupNote, type AiSetupPort } from '../models/ai-setup.ts';
+import { credentialChange } from '../models/credential-state.ts';
+import { listRecords, ventureAction } from '../records.ts';
 
 /** What a draft handler sees of the desk. */
 export type DeskHandle = {
@@ -43,11 +22,13 @@ export type DeskHandle = {
   now(): Date;
   /** When the idle timer wipes the draft, or null while paused or with nothing connected. */
   idleUntil(): string | null;
-  session(): ComposeSession | null;
-  /** Stores the session unless the desk was cleared while the request ran (a cleared desk never comes back). */
-  keep(session: ComposeSession | null): void;
   /** Wave 6 (6C1): the tools' own logins in flight, stopped when the desk clears. */
   login(): LoginDesk;
+  /** Where the newest AI setup on this computer is kept (the host's), or null where there is none. */
+  aiSetup: AiSetupPort | null;
+  /** The setup venture.ai.reuse connected in this draft, or null; noteReused keeps it with the draft. */
+  reused(): AiSetupNote | null;
+  noteReused(note: AiSetupNote): void;
 };
 
 /** venture.ai.login.start and .cancel take { cli } only. */
@@ -120,101 +101,30 @@ export async function aiDisconnect(desk: DeskHandle, payload: unknown): Promise<
   return aiStatus(desk);
 }
 
+/**
+ * venture.ai.reuse {} (a later business on this computer): connects, in this draft, the Codex or Claude Code the owner
+ * already connected in another business, from the newest setup kept on this computer (models/ai-setup.ts). It passes
+ * every gate venture.ai.connect runs, the tool's own fresh check included, and carries the agreement the owner gave
+ * there and when. A key never carries over: it stays in its own business's vault. With an AI already connected in the
+ * draft, or nothing that can be reused, it connects nothing and says so (reused null). Asked again it answers the same.
+ */
+export function aiReuse(desk: DeskHandle, payload: unknown): Promise<AiReuseView> {
+  exactPayload(payload, []);
+  return credentialChange(desk.deps, async () => {
+    const before = desk.reused();
+    const connected = listRecords(desk.deps.store.read(), 'venture-model-connection').some(connection => connection.status === 'connected');
+    if (connected) return { ...aiStatus(desk), reused: before ? { from: before.from.name } : null };
+    const note = await reusableSetup(desk.deps, desk.aiSetup ?? undefined);
+    if (!note) return { ...aiStatus(desk), reused: null };
+    await ventureAction(desk.deps, DESK_CONTEXT, 'admin', 'models.connect', tx => { putReusedConnections(tx, note); });
+    desk.noteReused(note);
+    return { ...aiStatus(desk), reused: { from: note.from.name } };
+  });
+}
+
 export async function aiStatusHandler(desk: DeskHandle, payload: unknown): Promise<AiStatusView> {
   exactPayload(payload, []);
   return aiStatus(desk);
-}
-
-/** The draft "What was sent" list, newest first, with the stored payload text (never a key). */
-export async function aiCalls(desk: DeskHandle, payload: unknown) {
-  const input = exactPayload(payload, ['limit']);
-  if (input.limit !== undefined) smallInteger(input.limit, 'limit', 1, 100);
-  return modelCalls(desk.deps, DESK_CONTEXT, input);
-}
-
-// ---------------------------------------------------------------------------
-// Compose
-// ---------------------------------------------------------------------------
-
-/** Call ids the draft store recorded since the snapshot, in the order they were stored (failed ones included). */
-function callsSince(deps: VentureDeps, before: ReadonlySet<string>, purposes: readonly string[]): string[] {
-  return deps.store.read().conversations
-    .filter(record => record?.kind === 'venture-model-call' && purposes.includes(record.purpose) && !before.has(record.id))
-    .map(record => record.id as string);
-}
-function callIds(deps: VentureDeps): Set<string> {
-  return new Set(deps.store.read().conversations.filter(record => record?.kind === 'venture-model-call').map(record => record.id as string));
-}
-
-function writtenBy(deps: VentureDeps, outcome: ModelOutcome<unknown>): WrittenBy {
-  return { presetId: outcome.presetId, model: outcome.model, replay: deps.models.status(DESK_CONTEXT).replay.active };
-}
-
-/**
- * venture.compose.decide { text, countryCode, attachment? }: the cheap model reads the sentence (and the screened file,
- * as background) and picks views. Replaces any earlier session, and its file with it.
- */
-export async function composeDecide(desk: DeskHandle, payload: unknown): Promise<ComposeDecision> {
-  const body = exactPayload(payload, ['text', 'countryCode', 'attachment'], ['text', 'countryCode']);
-  const text = plainText(body.text, 'What you want to do', { min: OPEN_BOX_TEXT.min, max: OPEN_BOX_TEXT.max });
-  const country = countryProfile(body.countryCode);
-  const dropped = Object.hasOwn(body, 'attachment') ? screenedFile(droppedFile(body.attachment)) : null;
-  const context = dropped?.context ?? null;
-  const deps = desk.deps;
-  const before = callIds(deps);
-  // A refused decide throws here and stores no decision: the session stays as it was.
-  const outcome: ModelOutcome<DecideModelOutput> = await withRepair(problem => sendFileDropTask(deps.models, DESK_CONTEXT, withFile(decideTask(text, country, problem), context)));
-  const decision: ComposeDecision = {
-    ...makeDecision({
-      composeId: newId('compose'), text, country, output: outcome.value, callIds: callsSince(deps, before, ['decide']),
-      writtenBy: writtenBy(deps, outcome), at: desk.now().toISOString(),
-    }),
-    ...(dropped ? { attachment: dropped.note } : {}),
-  };
-  desk.keep({ decision, decideOutput: outcome.value, output: null, plan: null, context });
-  return structuredClone(decision);
-}
-
-function heldSession(desk: DeskHandle, composeId: unknown): ComposeSession {
-  check(typeof composeId === 'string' && composeId.length <= 100, 'INVALID_VENTURE_REQUEST', 'Send the id of your plan.');
-  const session = desk.session();
-  check(session && session.decision.composeId === composeId, 'COMPOSE_NOT_FOUND', 'Your plan was only kept in memory, and it is gone. Make it again.');
-  return session;
-}
-
-/** venture.compose.fill { composeId }: the main model fills the decided views from the block library, with the session's file as background. */
-export async function composeFill(desk: DeskHandle, payload: unknown): Promise<ComposedPlan> {
-  const body = exactPayload(payload, ['composeId'], ['composeId']);
-  const session = heldSession(desk, body.composeId);
-  check(session.decision.kind !== 'not-a-service', 'COMPOSE_NOT_A_SERVICE', NOT_A_SERVICE_WORDS);
-  if (session.plan) return structuredClone(session.plan);
-  const deps = desk.deps;
-  const before = callIds(deps);
-  // A refused fill throws here: the session keeps its decision and no plan, so Try again calls fill again.
-  const outcome: ModelOutcome<ComposeModelOutput> = await withRepair(problem => sendFileDropTask(deps.models, DESK_CONTEXT, withFile(composeTask(session.decision, problem), session.context)));
-  const plan = assembleComposed(session.decision, outcome.value, session.decision.country, {
-    writtenBy: writtenBy(deps, outcome), composeCallIds: callsSince(deps, before, ['compose']),
-  });
-  const current = desk.session();
-  check(current && current.decision.composeId === session.decision.composeId, 'COMPOSE_NOT_FOUND', 'Your plan was replaced while it was being written. Make it again.');
-  desk.keep({ ...current, output: outcome.value, plan });
-  return structuredClone(plan);
-}
-
-export async function composeGet(desk: DeskHandle, payload: unknown): Promise<ComposeState | null> {
-  exactPayload(payload, []);
-  const session = desk.session();
-  return session ? structuredClone({ decision: session.decision, plan: session.plan }) : null;
-}
-
-/** venture.compose.update { composeId, patch }: the owner's prices, pricing, tax and answers. No model call. */
-export async function composeUpdate(desk: DeskHandle, payload: unknown): Promise<ComposedPlan> {
-  const body = exactPayload(payload, ['composeId', 'patch'], ['composeId', 'patch']);
-  const session = heldSession(desk, body.composeId);
-  check(session.plan, 'COMPOSE_NOT_FOUND', 'Make your plan first.');
-  const plan = applyComposePatch(session.plan, body.patch);
-  desk.keep({ ...session, plan });
-  return structuredClone(plan);
 }
 
 export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload: unknown) => Promise<unknown>>> = Object.freeze({
@@ -223,11 +133,6 @@ export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload:
   'venture.ai.connect': aiConnect,
   'venture.ai.disconnect': aiDisconnect,
   'venture.ai.status': aiStatusHandler,
-  'venture.ai.calls': aiCalls,
-  'venture.compose.decide': composeDecide,
-  'venture.compose.fill': composeFill,
-  'venture.compose.get': composeGet,
-  'venture.compose.update': composeUpdate,
   // Wave 6 (6C1): each tool's own sign-in; (6C2) About you.
   'venture.ai.tools': (desk, payload) => { exactPayload(payload, []); return desk.login().tools(); },
   'venture.ai.login.start': (desk, payload) => desk.login().start(loginCli(payload)),
@@ -235,4 +140,5 @@ export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload:
   'venture.about.read': (desk, payload) => aboutRead(desk.deps, DESK_CONTEXT, payload),
   'venture.about.pick': (desk, payload) => aboutPick(desk.deps, DESK_CONTEXT, payload),
   'venture.about.families': (desk, payload) => aboutFamilies(desk.deps, DESK_CONTEXT, payload),
+  'venture.ai.reuse': aiReuse,
 });

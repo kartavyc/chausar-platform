@@ -77,7 +77,7 @@ export type GoalCardData =
 /** A books figure as a goal amount, or null when the books do not hold it with a receipt. */
 function amountOf(books: BooksSummaryLite, operation: 'billed' | 'received'): GoalAmount | null {
   const figure = books.figures.find((f) => f.operation === operation);
-  if (!figure || !figure.receiptId.trim()) return null;
+  if (!figure || !figure.receiptId?.trim()) return null;
   return { value: figure.display, receiptId: figure.receiptId, ...(figure.stale ? { stale: true } : {}) };
 }
 

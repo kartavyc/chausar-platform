@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import {
-  EngineError, type AgentMessageView, type AgentProposalView, type AgentRunItem, type AgentThreadItem, type AgentView, type ChatConsentView,
+  EngineError, type AgentMessageView, type AgentProposalView, type AgentRunItem, type AgentThreadItem, type AgentThreadView, type AgentView, type ChatConsentView,
   type StandingPlaybookView,
 } from '../../engine/types';
 import { goTo, openSheet } from '../../shell/navigation';
@@ -46,6 +46,8 @@ export interface AgentChatProps {
 }
 
 type Asking = { view: ChatConsentView; resolve: () => void; reject: (error: Error) => void };
+/** The owner's words on their way to the agent, shown in the thread until the thread itself shows them. */
+type OnWay = { id: string; words: string; at: string; before: ReadonlySet<string>; stored?: AgentThreadView | null };
 
 /**
  * The Chat tab (W4 4B3; spec 5.2; D-TeamChat `.cp-body`, `.cp-comp`): the owner reads every run of this agent as a
@@ -75,8 +77,24 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
    */
   const [decided, setDecided] = useState<Record<string, { status: 'accepted' | 'rejected'; seen: number | undefined }>>({});
   const [undone, setUndone] = useState<Record<string, true>>({});
+  /**
+   * The owner's words on their way (as Chats shows them, ChiefThread's onWay): in the thread from the moment Send is
+   * pressed, so the box is clear while the agent writes. `before` is what the thread held when Send was pressed, and
+   * `stored` the thread as it was read when the engine kept the message: once the thread shows the stored message, or
+   * was read again after the engine kept it, this one goes. Never both.
+   */
+  const [onWay, setOnWay] = useState<readonly OnWay[]>([]);
+  const onWayCount = useRef(0);
 
   const data = thread.data;
+  /** The thread as last read, for a send that ends after a later read. */
+  const threadNow = useRef(data);
+  threadNow.current = data;
+  /** Whether the thread as read now already shows a message on its way, or was read again after the engine kept it. */
+  const landed = (one: OnWay) => (one.stored !== undefined && one.stored !== (data ?? null))
+    || (data?.items ?? []).some((item) => item.type === 'message' && item.message.from === 'owner' && !one.before.has(itemId(item)) && partsText(item.message.parts) === one.words);
+  // A message the thread shows leaves this list for good, so it can never come back beside the stored one.
+  useEffect(() => { setOnWay((was) => (was.some(landed) ? was.filter((one) => !landed(one)) : was)); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   const items = [...older, ...(data?.items ?? [])].filter((item, at, all) => all.findIndex((other) => itemId(other) === itemId(item)) === at);
   const more = olderMore ?? data?.more ?? false;
 
@@ -86,20 +104,32 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
 
   async function send(text: string) {
     setLine(null);
-    const consent = data?.consent;
-    if (consent && (consent.state === 'needed' || consent.state === 'stale')) await askConsent(consent);
-    let result;
+    onWayCount.current += 1;
+    const mark: OnWay = { id: `on-way-${onWayCount.current}`, words: text, at: clock().toISOString(), before: new Set((threadNow.current?.items ?? []).map(itemId)) };
+    setOnWay((was) => [...was, mark]);
     try {
-      result = await client.request('venture.agents.thread.send', { agent: agent.id, text });
+      const consent = data?.consent;
+      if (consent && (consent.state === 'needed' || consent.state === 'stale')) await askConsent(consent);
+      let result;
+      try {
+        result = await client.request('venture.agents.thread.send', { agent: agent.id, text });
+      } catch (error) {
+        if (!(error instanceof EngineError) || !CONSENT_CODES.has(error.code)) throw error;
+        // The AI connection changed after the thread was read: read what chats send now, then ask once more.
+        const fresh = await client.request('venture.agents.thread.list', { agent: agent.id });
+        await askConsent(fresh.consent);
+        result = await client.request('venture.agents.thread.send', { agent: agent.id, text });
+      }
+      setLine(result.line);
+      // Kept by the engine: it stays in the thread until the thread is read again and shows the stored message.
+      setOnWay((was) => was.map((one) => (one.id === mark.id ? { ...one, stored: threadNow.current ?? null } : one)));
+      thread.reload();
     } catch (error) {
-      if (!(error instanceof EngineError) || !CONSENT_CODES.has(error.code)) throw error;
-      // The AI connection changed after the thread was read: read what chats send now, then ask once more.
-      const fresh = await client.request('venture.agents.thread.list', { agent: agent.id });
-      await askConsent(fresh.consent);
-      result = await client.request('venture.agents.thread.send', { agent: agent.id, text });
+      // Not sent: the words leave the thread. A failed send comes back as a "Not sent" bubble (useUnsent); a no to the
+      // consent or a refused key puts them back in the box (Composer's shownInThread).
+      setOnWay((was) => was.filter((one) => one.id !== mark.id));
+      throw error;
     }
-    setLine(result.line);
-    thread.reload();
   }
 
   const unsent = useUnsent(send, { scope: agent.id, now: clock, staysInBox });
@@ -170,7 +200,8 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   // Earlier pages sit in the part of the log that is not read out; the page the thread read now is announced as it grows.
   const recentIds = new Set((data?.items ?? []).map(itemId));
   const olderEntries = entriesOf(items.filter((item) => !recentIds.has(itemId(item))));
-  const entries = [...entriesOf(items.filter((item) => recentIds.has(itemId(item)))), ...unsent.entries];
+  const waitingToShow = onWay.filter((one) => !landed(one)).map((one): ThreadEntry => ({ kind: 'owner', id: one.id, at: one.at, text: one.words }));
+  const entries = [...entriesOf(items.filter((item) => recentIds.has(itemId(item)))), ...waitingToShow, ...unsent.entries];
 
   /** A proposal as decided here, until the thread is read again. */
   function proposal(view: AgentProposalView): AgentProposalView {
@@ -307,6 +338,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
             initial={initial || undefined}
             label={t('team.chat.label', { name: agent.name })}
             onSend={unsent.sendKeeping}
+            shownInThread
             suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
             hint={t('team.chat.hint', { name: agent.name })}
           />
@@ -316,11 +348,15 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   );
 }
 
-/** A message from its typed parts: the agent's words, a figure with its receipt, and a model's number labelled as one. */
+/**
+ * A message from its typed parts: the agent's words, a figure with its receipt, and a model's number labelled as one.
+ * The AI's reply comes as one part for each paragraph, so words after words start a new paragraph.
+ */
 function Parts({ message }: { message: AgentMessageView }) {
   const out: ReactNode[] = [];
+  const isWords = (kind: string | undefined) => kind === 'text' || kind === 'estimate';
   message.parts.forEach((part, at) => {
-    if (at > 0) out.push(' ');
+    if (at > 0) out.push(isWords(part.kind) && isWords(message.parts[at - 1]?.kind) ? <span key={`break-${at}`} className={c.paraBreak} /> : ' ');
     if (part.kind === 'text') out.push(<span key={at} data-content="">{part.text}</span>);
     else if (part.kind === 'figure') out.push(<Figure key={at} value={part.display} receiptId={part.receiptId} />);
     else out.push(<ModelEstimate key={at} value={part.text} />);

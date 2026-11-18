@@ -6,6 +6,7 @@
  */
 
 import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { WORK_POLL_MS } from '../../engine/useWork';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
@@ -17,7 +18,8 @@ import { PausedWork } from '../../parts/paused';
 import { useNarrow } from '../../shell/useNarrow';
 import { refusalWords, takeOpenedWithPassphrase } from '../../parts/custody';
 import { PlaceTiles } from '../../parts/Tile';
-import { LeftContext } from '../onboarding/started';
+import { LeftContext, StartedContext } from '../onboarding/started';
+import { switchBusiness } from '../../shell/switchBusiness';
 import { ApprovalRow, decidedWords, primaryOf, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
 import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
@@ -29,7 +31,7 @@ import { decide as decideRow, reread as rereadRow, seenKey, undoOf, useTodaySess
 import { ViewSheet, viewSheetId } from './ViewSheet';
 import { Greeting } from './Greeting';
 import { TodayGoal } from './GoalCard';
-import { GOAL_EVENTS } from './goal';
+import { PLAN_EVENTS as CHIEF_PLAN_EVENTS, ReviewSheet, stepHasPrimary } from './ChiefPlan';
 import { TeamAtWork } from './TeamAtWork';
 import { BIG_CARDS, COMPACT_CARDS, NeedsYou, SwipeTip, knownFilter, matchesFilter, type CardLayout, type NeedsItem } from './NeedsYou';
 import { useCardPreview } from './CardPreview';
@@ -129,6 +131,7 @@ function PlaceBody() {
   const t = useT();
   const client = useEngine();
   const left = useContext(LeftContext);
+  const restarted = useContext(StartedContext);
   const session = useTodaySession();
   const route = useRoute();
   const narrow = useNarrow();
@@ -138,8 +141,8 @@ function PlaceBody() {
   const business = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
-  // The same read as the goal card's (one answer for both): whether the next best step holds the page's filled button.
-  const goals = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
+  // The same read as the plan beside the goal card (one answer for both): whether the next best step holds the page's filled button.
+  const chiefPlan = useResource('venture.chief.plan.get', {}, { refreshOn: CHIEF_PLAN_EVENTS });
   const layout = useLayout('today');
   // A stale decision hands back the new version; it shows until the list itself catches up.
   const [newer, setNewer] = useState<ReadonlyMap<string, { from: string; latest: QueueRow }>>(new Map());
@@ -155,6 +158,17 @@ function PlaceBody() {
     return swap && swap.from === row.digest ? swap.latest : row;
   });
   const runs = runList.data?.runs ?? [];
+  // Round 5 (re-check 028): the searches for customers Chausar runs now, its own work beside the agents' runs.
+  const searches = runList.data?.searches ?? [];
+  // A search sends no event while it looks, so its time would sit at its first read: while one is open, read the list
+  // again as Work does for a running job (useWork.ts); with none open, Today holds no timer (Windows re-check, 17 Nov 2026).
+  const searching = searches.length > 0;
+  const reloadRuns = runList.reload;
+  useEffect(() => {
+    if (!searching) return undefined;
+    const timer = setInterval(reloadRuns, WORK_POLL_MS);
+    return () => clearInterval(timer);
+  }, [searching, reloadRuns]);
   // Whether the open business charges tax, from its plan: a file's card shows tax figures only then. The engine lists
   // only the open business's rows (another business comes as a locked row), so its plan speaks for every card.
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: PLAN_EVENTS, skip: !live.some((row) => row.viewRef?.kind === 'file') });
@@ -181,11 +195,13 @@ function PlaceBody() {
     if (!active || active === document.body || !active.isConnected || focusedRowId() === focusAfter) focusRow(focusAfter);
   }, [focusAfter]);
 
-  // A card asked for from elsewhere on the page ("Answer below", "Show 2 more") takes focus once it is drawn, after a
-  // filter or the fold has let it show. One that is no longer listed is given up.
+  // A card asked for from elsewhere on the page ("Answer below", "Show 2 more", the next best step's Open) takes focus
+  // once it is drawn, after a filter or the fold has let it show, and is brought to the middle of the view: on a tall
+  // window a card already on screen would otherwise not move at all, and the press looked dead (Windows, 16 Nov 2026).
+  // One that is no longer listed is given up.
   useEffect(() => {
     if (!reveal) return;
-    if (focusRow(reveal) || !live.some((row) => row.id === reveal)) setReveal(null);
+    if (focusRow(reveal, 'center') || !live.some((row) => row.id === reveal)) setReveal(null);
   });
 
   // W4 4B3: an agent's chat opens a card here by its subject (`?row=proposal:<id>`; a row's id is its subject and its
@@ -228,26 +244,23 @@ function PlaceBody() {
    * row; this page never asks for either.
    */
   async function openBusiness(row: QueueRow): Promise<QueueDecision> {
-    const hosted = client.transport === 'hosted';
-    try {
-      if (!hosted) await client.request('workspace.lock', {});
-    } catch (error) {
-      return { outcome: 'refused', line: refusalWords(error, t), reason: error instanceof EngineError ? error.code : 'OPEN_FAILED' };
-    }
-    try {
-      await client.request('workspace.open', { folder: row.businessId });
+    // One safe operation (shell/switchBusiness.ts): the window stops asking this business first, and a busy open is tried again.
+    const outcome = await switchBusiness(client, { folder: row.businessId });
+    if (outcome.opened) {
       session.hide(row.id);
+      // The other business is open: the app is drawn again on it, so every place reads it afresh.
+      restarted();
       return { outcome: 'done', line: t('today.opened') };
-    } catch (error) {
-      const code = error instanceof EngineError ? error.code : 'OPEN_FAILED';
-      if (!hosted) {
-        if (code === 'PASSPHRASE_REQUIRED') left({ ask: { folder: row.businessId, with: 'passphrase' } });
-        else if (code === 'DEVICE_KEY_FAILED') left({ ask: { folder: row.businessId, with: 'recovery-code' } });
-        else left({ problem: refusalWords(error, t) });
-        return { outcome: 'refused', line: refusalWords(error, t), reason: code };
-      }
-      return { outcome: 'refused', line: refusalWords(error, t), reason: code };
     }
+    const error = outcome.error;
+    const code = error instanceof EngineError ? error.code : 'OPEN_FAILED';
+    // The open one is closed already: Welcome back asks for what the other needs, or says why it did not open.
+    if (outcome.stage === 'open') {
+      if (code === 'PASSPHRASE_REQUIRED') left({ ask: { folder: row.businessId, with: 'passphrase' } });
+      else if (code === 'DEVICE_KEY_FAILED') left({ ask: { folder: row.businessId, with: 'recovery-code' } });
+      else left({ problem: refusalWords(error, t) });
+    }
+    return { outcome: 'refused', line: refusalWords(error, t), reason: code };
   }
 
   async function decide(row: QueueRow, action: QueueAction, extra: DecideExtra): Promise<QueueDecision> {
@@ -299,6 +312,14 @@ function PlaceBody() {
   const waiting = items.filter((item) => !item.done).length;
   const filter = knownFilter(route.query.show, live);
   const showBusiness = new Set(live.map((r) => r.businessId)).size > 1;
+  // A filter the chips no longer offer (one business's, after the owner switched away from it) reads as All: it leaves
+  // the address too, once the list has answered, so a reload or a copied link does not carry a business that is gone.
+  const staleFilter = route.query.show !== undefined && queue.data !== undefined && !queue.loading && filter !== route.query.show;
+  useEffect(() => {
+    if (!staleFilter) return;
+    const { show: _show, ...rest } = route.query;
+    setQuery(rest);
+  }, [staleFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The card that answers a run waiting on the owner, while it waits. */
   const rowForRun = (runId: string) => live.find((row) => row.viewRef?.kind === 'run' && row.viewRef.id === runId && !session.line(row.id))?.id;
@@ -360,13 +381,12 @@ function PlaceBody() {
   }
 
   // B4: one filled button on the page. The next best step holds it while it is drawn; with none, the first card that
-  // can be pressed holds it. Every other card's primary is drawn as a secondary. While the goals view is still on its
+  // can be pressed holds it. Every other card's primary is drawn as a secondary. While the plan is still on its
   // way nobody holds it, so no card flashes filled.
   const goalShown = drawnBlocks('today', layout.data).some((block) => block.id === 'goal' && block.shown);
-  const stepId = goals.data?.next?.rowId;
-  const stepDrawn = goalShown && stepId !== undefined && live.some((row) => row.id === stepId) && !session.line(stepId);
-  const goalsPending = goalShown && goals.data === undefined && !goals.error;
-  const holder = stepDrawn || goalsPending
+  const stepDrawn = goalShown && stepHasPrimary(chiefPlan.data?.next, { rows: live, isDecided: (id) => Boolean(session.line(id)) });
+  const planPending = goalShown && chiefPlan.data === undefined && !chiefPlan.error;
+  const holder = stepDrawn || planPending
     ? undefined
     : items.find((item) => !item.done && matchesFilter(item.row, filter) && !primaryOf(item.row, session.isViewed(seenKey(item.row)), t).locked)?.row.id;
 
@@ -419,7 +439,7 @@ function PlaceBody() {
     // A5 fix round 1: start at login, asked once here when the first run ended without an answer.
     notices: () => <><OpenedNote /><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
     goal: () => <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />,
-    team: () => <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} title={nameOf('team')} />,
+    team: () => <TeamAtWork agents={team.data?.agents ?? []} runs={runs} searches={searches} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} title={nameOf('team')} />,
     needs: () => (
       // W4 4J19: the draft replies the cards show, read once for the page.
       <DraftsProvider>
@@ -437,7 +457,7 @@ function PlaceBody() {
       />
       </DraftsProvider>
     ),
-    working: () => <WorkingNow runs={workingRuns} details={details} rowForRun={rowForRun} goToRow={goToRow} title={nameOf('working')} />,
+    working: () => <WorkingNow runs={workingRuns} searches={searches} details={details} rowForRun={rowForRun} goToRow={goToRow} title={nameOf('working')} />,
     earlier: () => <Earlier title={nameOf('earlier')} />,
     ideas: () => <IdeasFold title={nameOf('ideas')} />,
     // W6 6H1 (D39): the mini apps the owner pinned to Today, a block of the layout (6H3) like the others.
@@ -584,12 +604,13 @@ function Decided({ line: { row, line, receiptId, undo }, settle, layout, phone =
   // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
   const said = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
   // B3: a plan row's line is the engine's outcome alone (its title is an ask).
-  const { title } = decidedWords(row, said, t);
+  const words = decidedWords(row, said, t);
+  const { title } = words;
   return (
     <article className={cx(s.decided, settle && s.settle)} data-row="" data-row-id={row.id} data-decided="" data-layout={layout} tabIndex={-1}>
       <span role="status">
         {title !== null && <><span className={s.decidedTitle}>{title}</span>{' · '}</>}
-        {said}
+        {words.line}
         {receiptId && <>{' '}<Receipt id={receiptId} /></>}
         {undo && <UndoButton row={row} undo={undo} phone={phone} />}
       </span>
@@ -598,4 +619,4 @@ function Decided({ line: { row, line, receiptId, undo }, settle, layout, phone =
 }
 
 // W6 6H3: `layout` (the Arrange sheet) serves every place that has a layout; it is registered here once.
-export const sheets: Readonly<Record<string, SheetComponent>> = { view: ViewSheet, 'call-notes': MeetingNotes, 'edit-draft': EditSheet, 'work-receipt': WorkReceiptSheet, layout: LayoutSheet };
+export const sheets: Readonly<Record<string, SheetComponent>> = { view: ViewSheet, 'call-notes': MeetingNotes, 'edit-draft': EditSheet, 'work-receipt': WorkReceiptSheet, layout: LayoutSheet, review: ReviewSheet };

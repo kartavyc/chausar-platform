@@ -189,11 +189,21 @@ export function harness(overrides: Partial<HarnessState> = {}): HarnessState {
   };
 }
 
+/**
+ * An AI job waiting for the owner's approval of one exact step: how a run that is at work waits on the owner today
+ * (a 'working' run with no pending step is the AI's own work in hand).
+ */
+export const awaitingStep = (): NonNullable<DeliveryRunRecord['agentJob']> => ({
+  scope: { jobId: 'agentjob_seed', runId: 'run_seed', ventureId: 'venture_seed', orderId: 'order_seed', clientId: 'client_seed', agentId: 'delivery', memberId: owner.memberId, epoch: owner.epoch, consentId: 'consent_seed', consentRevision: 1, generation: 1 },
+  sourceDigest: 'seed', draftDigest: null, proposal: null, messages: [], tools: [],
+  pendingApproval: { request: { kind: 'command', requestId: 'r1', threadId: 't1', turnId: 'u1', itemId: 'i1', name: 'shell', arguments: {} }, digest: 'step_seed' },
+});
+
 /** Stores a delivery run record as the delivery package would, with the given status and fields. */
 export async function seedRun(env: Env, order: OrderRecord, fields: Partial<DeliveryRunRecord>, emit: ('run.started' | 'run.waiting' | 'run.done' | 'run.failed')[] = []): Promise<DeliveryRunRecord> {
   return ventureAction(env.deps, owner, 'prepare', 'seed.run', tx => {
     const run: DeliveryRunRecord = {
-      ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: 'playbook_missing', playbookHash: 'hash', status: 'waiting-for-you', servedBy: 'model',
+      ...tx.base('venture-delivery-run'), lifecycle: 2, orderId: order.id, playbookId: 'playbook_missing', playbookHash: 'hash', status: 'working', servedBy: 'model',
       practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null, ...fields,
     };
     const stored = tx.put(run);

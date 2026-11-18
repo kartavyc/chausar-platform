@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
 import type { JournalRecord, ToolName, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
-import { journalled, type ProposeInput } from '../runtime/venture/journal/index.ts';
+import { journalled, type ProposeInput } from '../runtime/venture/journal/journal.ts';
 import { MOCK_LABEL, MOCK_TOOL_NOTE, mockTool } from '../runtime/venture/delivery/harness/mocks.ts';
 import { mockProvider } from '../runtime/venture/delivery/harness/mock-providers.ts';
 import { callTool, type ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';

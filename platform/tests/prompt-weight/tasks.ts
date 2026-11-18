@@ -7,8 +7,6 @@ import type { Json, ModelPurpose, ModelTask } from '../../runtime/venture/contra
 import { aboutTask } from '../../runtime/venture/core/about.ts';
 import { countrySuggestionTask } from '../../runtime/venture/core/country-suggestion.ts';
 import { interviewTask } from '../../runtime/venture/core/interview.ts';
-import { composeTask, decideTask } from '../../runtime/venture/core/compose.ts';
-import { countryProfile } from '../../runtime/venture/core/countries.ts';
 import { suggestRepairTask, suggestTask } from '../../runtime/venture/core/suggest.ts';
 import { briefFillTask, briefTask } from '../../runtime/venture/build/brief.ts';
 import { deliveryTask } from '../../runtime/venture/delivery/deliverable.ts';
@@ -20,6 +18,7 @@ import { triageTask } from '../../runtime/venture/views/triage.ts';
 import { makeTask } from '../../runtime/venture/apps/make.ts';
 import { goalSuggestTask } from '../../runtime/venture/money/goals.ts';
 import { instructionsFor as outreachInstructions } from '../../runtime/venture/network/outreach.ts';
+import { reviewTask } from '../../runtime/venture/chief/review.ts';
 
 /** The two contexts. Every changing value differs between them; none is in any fixed prompt. */
 export type Fixture = { owner: string; client: string; date: string; time: string; amount: string; id: string; idea: string; ask: string; problem: string; month: string };
@@ -58,12 +57,8 @@ const blueprint = (fx: Fixture) => ({
   customer: { value: `Owners like ${fx.client}` }, deliverySteps: [{ id: 'step_1', title: { value: 'Collect the bills' }, doneBy: 'agent' }],
   offers: [{ id: 'offer_1', name: { value: `${fx.owner} monthly books` }, description: { value: `Books closed by ${fx.date}` }, pricing: { model: 'fixed' } }],
 }) as never;
-const country = () => countryProfile('IN');
 const refs = (fx: Fixture) => ({ figures: [{ ref: 'offer_1.total', label: `Total for ${fx.client}`, receiptId: `receipt_${fx.id}`, figureKey: 'total' }],
   dates: [{ ref: 'order.due', label: 'Due date', iso: fx.date }] }) as never;
-const decision = (fx: Fixture) => ({ text: fx.idea, country: country(), kind: 'service', family: { value: 'bookkeeping' }, reading: { value: `Books for ${fx.client}` },
-  views: ['offers-first', 'pages'] }) as never;
-
 /** An act turn with everything that may change in it: calls waiting for the owner, a repair, notes and sources. */
 function harnessState(fx: Fixture) {
   const state = newHarnessState(['outbox.propose'] as never, DEFAULT_LIMITS, []) as Record<string, unknown> & ReturnType<typeof newHarnessState>;
@@ -83,10 +78,6 @@ export const REGISTRY: readonly Builder[] = [
   { name: 'about', purpose: 'decide', site: 'core/about.ts', build: fx => aboutTask({ text: fx.idea, file: null }) },
   { name: 'country-suggestion', purpose: 'decide', site: 'core/country-suggestion.ts', build: fx => countrySuggestionTask(fx.idea) },
   { name: 'interview', purpose: 'interview', site: 'core/interview.ts', build: fx => interviewTask(venture(fx), template) },
-  { name: 'decide', purpose: 'decide', site: 'core/compose.ts', build: fx => decideTask(fx.idea, country()) },
-  { name: 'decide-repair', purpose: 'decide', site: 'core/compose.ts', build: fx => decideTask(fx.idea, country(), fx.problem) },
-  { name: 'compose', purpose: 'compose', site: 'core/compose.ts', build: fx => composeTask(decision(fx)) },
-  { name: 'compose-repair', purpose: 'compose', site: 'core/compose.ts', build: fx => composeTask(decision(fx), fx.problem) },
   { name: 'plan-suggest', purpose: 'plan-suggest', site: 'core/suggest.ts', build: fx => suggestTask({ venture: venture(fx), blueprint: blueprint(fx), words: fx.ask, file: null }) },
   { name: 'plan-suggest-repair', purpose: 'plan-suggest', site: 'core/suggest.ts',
     build: fx => suggestRepairTask(suggestTask({ venture: venture(fx), blueprint: blueprint(fx), words: fx.ask, file: null }), fx.problem) },
@@ -113,6 +104,13 @@ export const REGISTRY: readonly Builder[] = [
   { name: 'triage-rule', purpose: 'triage-rule', site: 'views/triage.ts', build: fx => triageTask(`Show ${fx.client} first, then orders over ${fx.amount}`) },
   { name: 'app-make', purpose: 'chief-chat', site: 'apps/make.ts', build: fx => makeTask(`A page for ${fx.client}`, { name: `${fx.owner} app`, html: `<p>${fx.date}</p>` }) },
   { name: 'goal-suggest', purpose: 'goal-suggest', site: 'money/goals.ts', build: fx => goalSuggestTask(fx.month, 'INR', [{ name: `${fx.owner} books`, per: 'month', price: fx.amount }] as never) },
+  // The chief's daily review: one call, with the week, the kinds it may propose and one read tool's result.
+  { name: 'chief-review', purpose: 'chief-review', site: 'chief/review.ts', build: fx => reviewTask({
+    today: fx.date, business: { name: `${fx.owner} studio`, about: fx.idea, offerReady: true },
+    plan: { week: [{ id: 'mv_0a1b2c3d', move: fx.ask, state: 'waiting' }], room: 4 },
+    proposalKinds: [{ kind: 'quote', uses: 'offerId, and quantity as digits or empty' }], maxProposals: 3,
+    results: [{ tool: 'money', data: { month: fx.month, goalSet: false } as Json, figures: [{ receiptId: fx.id, key: 'total', label: `Invoice total for ${fx.client}`, display: fx.amount }] }],
+  }) },
   { name: 'outreach-draft', purpose: 'outreach-draft', site: 'network/outreach.ts',
     build: fx => ({ instructions: outreachInstructions({ language: 'en', channel: 'email', kind: 'follow-up' }) }),
     variants: () => (['en', 'hi'] as const).flatMap(language => (['email', 'linkedin', 'whatsapp'] as const).flatMap(channel => (['intro-request', 'double-opt-in', 'connection-note', 'follow-up', 'reply', 'cold-email'] as const).map(kind => outreachInstructions({ language, channel, kind })))) },

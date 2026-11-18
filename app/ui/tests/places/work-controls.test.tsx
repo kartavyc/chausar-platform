@@ -183,7 +183,7 @@ describe('4F3 review', () => {
   const paused = (_p: unknown, real: () => Promise<unknown>) => real().then((view) => ({ ...(view as object), paused: { since: '2026-10-23T08:00:00.000Z', line: 'Paused by you. No new work starts until you unpause.' } }));
 
   it('a stopped run a newer run of the same order replaced is history: Work and Today leave it out', async () => {
-    const newer = { id: '25-2', at: '2026-10-21T09:50:00.000Z', orderId: 'o-poster', status: 'waiting-for-you', practice: false };
+    const newer = { id: '25-2', at: '2026-10-21T09:50:00.000Z', orderId: 'o-poster', status: 'working', practice: false };
     const deliveries: Intercept = async (_p, real) => [...((await real()) as object[]), { id: '25', at: '2026-10-21T09:40:00.000Z', orderId: 'o-poster', status: 'stopped', practice: false }, newer];
     await start('#/work', { intercept: { ...withRun(STOPPED), 'venture.delivery.list': deliveries } });
     await settle();

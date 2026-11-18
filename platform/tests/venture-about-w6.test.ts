@@ -60,7 +60,8 @@ test('the model schema is strict: listed family, offers without amounts, evidenc
   assert.equal(task.purpose, 'decide');
   // A5: v2 adds the exact profession (its own tests are below).
   assert.equal(task.schemaName, 'chausar-owner-about-v2');
-  const good = { familyId: 'money-tax', professionId: 'chartered-accountant', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India' };
+  // A read that found offers always has a name (core/business-name.ts): the AI's own, as here.
+  const good = { familyId: 'money-tax', professionId: 'chartered-accountant', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India', name: 'Shop Books' };
   assert.deepEqual(task.validate(good), good);
   for (const bad of [
     { ...good, familyId: 'astronaut' },
@@ -69,8 +70,10 @@ test('the model schema is strict: listed family, offers without amounts, evidenc
     { ...good, offers: [1, 2, 3, 4].map(() => ({ name: 'Books', line: 'line' })) },
     { ...good, countryCode: 'ZZ' },
     { ...good, extra: true },
-    { ...good, familyId: null },
+    { ...good, offers: [] },
   ]) assert.throws(() => task.validate(bad), { code: 'MODEL_OUTPUT_REJECTED' }, JSON.stringify(bad));
+  // Work that fits none of the listed fields: no field and no profession, and the offers still stand.
+  assert.deepEqual(task.validate({ ...good, familyId: null }), { ...good, familyId: null, professionId: null });
   assert.deepEqual(task.validate({ familyId: null, professionId: null, offers: [], countryCode: null, evidence: null }), { familyId: null, professionId: null, offers: [], countryCode: null, evidence: null });
   // One-shot A4 (live on Codex, a resume PDF): evidence that is not copied from the owner's words or file never sets the
   // country, and no longer throws the whole read away: the field and offers stand, the country is left unknown.
@@ -263,7 +266,7 @@ test('A5: the schema offers every profession of the catalogue, or null, and the 
 
 test('A5: a pick in the chosen field is kept; an unknown pick, another field\'s, or one with no field becomes null', () => {
   const task = aboutTask({ text: ADVOCATE, file: null });
-  const good = { familyId: 'licensed', professionId: 'advocate', offers: [{ name: 'Consultations', line: 'Booked calls with notes' }], countryCode: 'IN', evidence: 'in Pune, India' };
+  const good = { familyId: 'licensed', professionId: 'advocate', offers: [{ name: 'Consultations', line: 'Booked calls with notes' }], countryCode: 'IN', evidence: 'in Pune, India', name: 'Pune Legal Consultations' };
   assert.deepEqual(task.validate(good), good);
   for (const pick of ['astronaut', 'doctor-of-stars', 'photographer', 'licensed', 42]) {
     assert.deepEqual(task.validate({ ...good, professionId: pick }), { ...good, professionId: null }, String(pick));
@@ -304,17 +307,21 @@ test('A5: an alias in place of a listed profession id is no pick', () => {
   assert.equal(task.validate({ ...answer, professionId: 'home-chef-tiffin' }).professionId, 'home-chef-tiffin');
 });
 
-// C5 task 6: the AI's first reply after About you. Kept when it is at most two sentences of plain words; one holding a
-// digit (a figure would need a "model estimate" label) is dropped, as is a third sentence; no AI keeps no reply.
-test('the About you reply: a plain reply is kept, one with a figure or too long is dropped, the read still stands', () => {
+// C5 task 6: the AI's reply after About you is kept as it wrote it: any number of sentences, digits included, and a
+// question back to the owner. Only a reply with a link, or an empty one, is dropped; no AI keeps no reply.
+test('the About you reply: kept as written, with digits, several sentences and a question; a link or an empty one is dropped', () => {
   const task = aboutTask({ text: CA, file: null });
-  const good = { familyId: 'money-tax', professionId: 'chartered-accountant', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India' };
+  const good = { familyId: 'money-tax', professionId: 'chartered-accountant', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India', name: 'Shop Books' };
   assert.deepEqual(task.validate({ ...good, reply: 'You keep books for small shops. I set up monthly books and GST returns for you.' }),
     { ...good, reply: 'You keep books for small shops. I set up monthly books and GST returns for you.' });
-  assert.deepEqual(task.validate({ ...good, reply: 'I set up 3 offers at Rs 500.' }), good);
-  assert.deepEqual(task.validate({ ...good, reply: 'One. Two sentences here. And a third one.' }), good);
+  const talk = 'You keep books for about 12 small shops. That fits monthly books and GST returns. Do you also file for companies, or only for shops? How many hours a week do you want this to take?';
+  assert.deepEqual(task.validate({ ...good, reply: talk }), { ...good, reply: talk });
+  assert.equal(keptReply('I set up 3 offers.'), 'I set up 3 offers.');
+  assert.equal(keptReply('  Spaces   are   tidied.  '), 'Spaces are tidied.');
   assert.deepEqual(task.validate({ ...good, reply: null }), good);
+  assert.deepEqual(task.validate({ ...good, reply: '   ' }), good);
   assert.deepEqual(keptReply('Read more at https://example.com today.'), null);
+  assert.equal(keptReply('x'.repeat(4001)), null, 'only the transport bound, far above any reply');
   assert.ok(task.schema && JSON.stringify(task.schema).includes('"reply"'));
 });
 
@@ -328,4 +335,72 @@ test('about.read through the AI carries its kept reply; without an AI there is n
   const keywords = await plain.engine.request('venture.about.read', { text: CA }) as any;
   assert.equal(keywords.source, 'keywords');
   assert.equal(keywords.reply, undefined);
+});
+
+// The listed fields are no longer a gate (seen live on 11 Nov 2026: a potter was filed under "Creative work" and her plan
+// began "Photo, video and design work for small brands and creators"). When the work is clear but fits no listed field,
+// the AI leaves the field empty and still suggests offers; the plan then starts from the owner's own words.
+const POTTER = 'I make pottery by hand, mostly mugs and bowls, and I want bulk wholesale orders from cafes and hotels in Pune.';
+test('about.read: work outside the listed fields keeps no field, the AI offers, and the owner words as the idea', async t => {
+  const answer = { familyId: null, professionId: null, offers: [{ name: 'Cafe mug sets', line: 'Handmade mugs in bulk for cafes' }, { name: 'Hotel tableware', line: 'Bowls and mugs made in batches' }], countryCode: null, evidence: null, reply: 'You make pottery by hand. Where are you based?' };
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, [POTTER, 'familyId', 'untrusted'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { text: POTTER }) as any;
+  assert.equal(read.source, 'ai');
+  assert.equal(read.family, null);
+  assert.equal(read.profession, null);
+  assert.deepEqual(read.offers, answer.offers);
+  assert.equal(read.idea, POTTER, 'the plan starts from her own words, with no field sentence put before them');
+  assert.equal(read.reply, 'You make pottery by hand. Where are you based?');
+});
+
+test('about.read: with nothing to go on there is still no idea, and the instructions name both empty cases', async t => {
+  const { ABOUT_INSTRUCTIONS } = await import('../runtime/venture/core/about.ts');
+  assert.match(ABOUT_INSTRUCTIONS, /none of the listed families fits/);
+  assert.match(ABOUT_INSTRUCTIONS, /still suggest offers/);
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', { familyId: null, professionId: null, offers: [], countryCode: null, evidence: null, reply: null }, ['familyId'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { text: 'I am not sure what I can do yet.' }) as any;
+  assert.equal(read.family, null);
+  assert.equal(read.idea, null);
+});
+
+test('the side-work question is asked for work outside the listed fields too, with no profession rules', async () => {
+  const { professionCompliance, OWN_WORK } = await import('../runtime/venture/core/compliance-data.ts');
+  const item = professionCompliance(OWN_WORK.id);
+  assert.ok(item);
+  assert.deepEqual([item.id, item.label, item.rules.length, item.switchedOff.length], ['own-work', 'Your own kind of work', 0, 0]);
+  assert.equal(professionCompliance('no-such-profession'), null);
+});
+
+// Seen live on Codex, 14 Nov 2026: a product manager who wants to advise founders was filed under "Teaching and
+// coaching" (a mentor), and the plan would have begun "Tuition classes and lessons for students and adult learners".
+// When the owner's AI read the words and they already describe a real service, the plan starts from those words as
+// written. The field still stands, for its rules and its services. Words too thin to plan from keep the field's lead.
+const MANAGER = 'I am a product manager with eight years at SaaS startups. I want to advise early stage founders on product strategy and roadmaps.';
+test('about.read: words the AI read that describe a real service are the idea as written, whatever field it picked', async t => {
+  assert.notEqual(classifyIdea(MANAGER), 'other');
+  assert.notEqual(classifyIdea(MANAGER), 'teaching');
+  const answer = { familyId: 'teaching', professionId: 'senior-mentor', offers: [{ name: 'Product strategy sessions', line: 'Working sessions with founders' }], countryCode: null, evidence: null, reply: null };
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, [MANAGER, 'familyId', 'untrusted'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { text: MANAGER }) as any;
+  assert.equal(read.family.id, 'teaching', 'the field stands, for its rules and services');
+  assert.equal(read.idea, MANAGER, 'no "Tuition classes and lessons" put before the owner words');
+  // A tile is the owner's own choice of field, so there the field's sentence still leads.
+  const picked = await engine.request('venture.about.pick', { familyId: 'teaching', text: MANAGER }) as any;
+  assert.match(picked.idea, /^Tuition classes and lessons/);
+});
+
+// Seen live on Codex, 14 Nov 2026: the same potter was filed under "Creative work" on one run and under no field on the
+// next. Her words describe no listed service, so the field's sentence was put before them again. The rule is now one
+// line: whatever the AI read is the idea as the owner wrote it. Only a file sent with no words falls back to the field.
+test('about.read: whatever words the AI read are the idea as written, even when they match no known service', async t => {
+  assert.equal(classifyIdea(POTTER), 'other');
+  const answer = { familyId: 'creative', professionId: null, offers: [{ name: 'Handmade pottery for cafes', line: 'Mugs and bowls in bulk' }], countryCode: null, evidence: null, reply: null };
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, [POTTER, 'familyId', 'untrusted'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { text: POTTER }) as any;
+  assert.equal(read.family.id, 'creative');
+  assert.equal(read.idea, POTTER, 'no "Photo, video and design work" put before her words');
 });

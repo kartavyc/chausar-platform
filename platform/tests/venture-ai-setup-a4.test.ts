@@ -1,6 +1,8 @@
-// A4 fix round (founder, 4 Nov): a business made from the Start gallery reuses the AI set up in another business on this
-// computer: the Codex or Claude Code connection and the agents' models only, from the newest setup. The new business
-// keeps its own folder, vault and memory: no file, client, note, call or consent of the other business appears in it.
+// A4 fix round (founder, 4 Nov): a new business reuses the AI set up in another business on this computer: the Codex or
+// Claude Code connection and the agents' models only, from the newest setup. The new business keeps its own folder,
+// vault and memory: no file, client, note, call or consent of the other business appears in it. Since 15 Nov 2026 the
+// reuse happens in the new business's draft (venture.ai.reuse), before the vault, and venture.create adopts the draft;
+// the old Start gallery and venture.create's reuseAi are gone.
 // A4 review round 2 (H2, M2): the reuse passes every gate venture.models.connect runs, with the agreement the owner gave
 // there and when it was given; the kept setup goes when its business disconnects that AI or is deleted.
 import test from 'node:test';
@@ -13,6 +15,8 @@ import { presetSpec } from '../runtime/venture/models/presets.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as core } from '../runtime/venture/core/index.ts';
 import { handlers as models } from '../runtime/venture/models/index.ts';
+import { aiReuse, type DeskHandle } from '../runtime/venture/draft/handlers.ts';
+import { createHandover } from '../runtime/venture/draft/handover.ts';
 import { ChausarError } from '../runtime/contracts.ts';
 import { defaultAiSettings } from '../runtime/venture/agent-runtime/settings.ts';
 import { owner } from './venture-judge-helpers.ts';
@@ -45,13 +49,24 @@ function gate(env: Awaited<ReturnType<typeof setup>>, gates: Gates) {
   (env.deps as { claudeCodeTerms?: 'accepted' | 'pending' }).claudeCodeTerms = gates.terms ?? 'accepted';
 }
 
-/** A workspace with no business yet, the kept note, and connect's gates as given; then a gallery business. */
+/**
+ * A new business the way the app makes a later one: its draft (a store of its own, with connect's gates as given) asks
+ * to reuse the kept note, then a workspace with no business yet adopts that draft in venture.create.
+ */
 async function gallery(note: AiSetupNote | null, gates: Gates = {}, reuseAi = true) {
+  const draft = await setup();
+  gate(draft, gates);
+  let reused: AiSetupNote | null = null;
+  const desk = {
+    deps: draft.deps, now: () => new Date(), idleUntil: () => null, login: () => { throw new Error('No login in this test.'); },
+    aiSetup: { read: async () => note, write: async () => {}, clear: async () => {} }, reused: () => reused, noteReused: (kept: AiSetupNote) => { reused = kept; },
+  } as unknown as DeskHandle;
+  if (reuseAi) await aiReuse(desk, {});
   const env = await setup();
   await env.store.update(state => { state.conversations = state.conversations.filter(record => record?.kind !== 'venture-record'); });
-  env.deps.aiSetup = { read: async () => note, write: async () => {}, clear: async () => {} };
   gate(env, gates);
-  await core['venture.create']!(env.deps, owner, { idea: IDEA, countryCode: 'IN', workingName: 'Gallery Studio', ...(reuseAi ? { reuseAi: true } : {}) });
+  env.deps.draft = createHandover({ parts: () => ({ store: draft.store, shelf: draft.deps.secrets }), reused: () => reused, clear: () => {} });
+  await core['venture.create']!(env.deps, owner, { idea: IDEA, countryCode: 'IN', workingName: 'Gallery Studio' });
   const state = env.store.read();
   return { connections: listRecords(state, 'venture-model-connection'), decisions: listRecords(state, 'venture-decision'), venture: listRecords(state, 'venture-record')[0]!, clients: listRecords(state, 'venture-client') };
 }
@@ -92,7 +107,7 @@ test('the setup kept from a business holds its Codex or Claude Code connection, 
   assert.equal(aiSetupOf({ ...env.deps, store: (await setup()).store }), null, 'no Codex or Claude Code: nothing to keep');
 });
 
-test('a gallery business that passes every connect gate takes the AI, with the agreement and its time, and a note from Chausar', async () => {
+test('a new business that passes every connect gate takes the AI, with the agreement and its time, and a note from Chausar', async () => {
   for (const presetId of ['codex-cli', 'claude-code-cli'] as const) {
     const { connections, decisions, venture, clients } = await gallery(noteFor(presetId));
     assert.deepEqual(connections.map(item => [item.presetId, item.status, item.consentDigest, item.consentedAt]), [[presetId, 'connected', presetSpec(presetId).consentDigest, AGREED]], presetId);
@@ -102,7 +117,7 @@ test('a gallery business that passes every connect gate takes the AI, with the a
   }
 });
 
-test('a connect gate that fails, or an agreement to words that changed since, leaves the gallery business with no AI and no note', async () => {
+test('a connect gate that fails, or an agreement to words that changed since, leaves the new business with no AI and no note', async () => {
   const cases: [string, AiSetupNote, Gates][] = [
     ['Claude Code terms closed', noteFor('claude-code-cli'), { terms: 'pending' }],
     ['Codex needs its setup again', noteFor('codex-cli'), { availability: 'needs-setup' }],
@@ -116,7 +131,7 @@ test('a connect gate that fails, or an agreement to words that changed since, le
   }
 });
 
-test('a setup kept but no reuseAi (the first run), or no setup at all, gives no AI', async () => {
+test('a setup kept but not asked for (the first run), or no setup at all, gives no AI', async () => {
   for (const [note, reuseAi] of [[noteFor('codex-cli'), false], [null, true]] as const) {
     const { connections, decisions } = await gallery(note, {}, reuseAi);
     assert.deepEqual([connections.length, decisions.length], [0, 0], String(reuseAi));
@@ -148,8 +163,9 @@ test('deleting the business that saved the setup clears it, so its name never re
   await engine.request('workspace.delete', { confirmation: 'Pune Frames' });
   await assert.rejects(readFile(path, 'utf8'), (error: { code?: string }) => error.code === 'ENOENT');
 
+  assert.equal((await engine.request('venture.ai.reuse', {}) as { reused: unknown }).reused, null);
   await engine.request('workspace.create', { name: 'Gallery Studio', passphrase: PASSPHRASE, pack: 'services', folder: null });
-  await engine.request('venture.create', { idea: IDEA, countryCode: 'IN', workingName: 'Gallery Studio', reuseAi: true });
+  await engine.request('venture.create', { idea: IDEA, countryCode: 'IN', workingName: 'Gallery Studio' });
   const status = await engine.request('venture.models.status', {}) as { tiers: Record<'fast' | 'main', { presetId: string }> };
   assert.deepEqual([status.tiers.fast.presetId, status.tiers.main.presetId], ['built-in-templates', 'built-in-templates']);
   assert.equal(JSON.stringify(await engine.request('venture.decisions.list', {})).includes('Pune'), false);

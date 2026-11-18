@@ -33,13 +33,6 @@ export function consentState(state: State, record: VoiceConsentRecord, today: Is
   return record.until !== null && record.until < today ? 'expired' : 'current';
 }
 
-/** The speaker's consent in use today, or null: their newest version, not withdrawn and not past its until. */
-export function currentConsent(state: State, venture: VentureRecord, speaker: string, today: IsoDate): VoiceConsentRecord | null {
-  const all = listRecords(state, 'venture-voice-consent', venture.id).filter(item => speakerKey(item.speaker) === speakerKey(speaker));
-  const newest = all.sort((a, b) => b.version - a.version)[0];
-  return newest && consentState(state, newest, today) === 'current' ? newest : null;
-}
-
 /** One consent as the screens read it, with how many files were made with it. */
 function itemOf(state: State, record: VoiceConsentRecord, today: IsoDate): VoiceConsentItem {
   const { kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, ...body } = record;
