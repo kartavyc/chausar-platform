@@ -177,7 +177,9 @@ test('a program\'s digest is worked out once while the file stays the same, and 
   t.after(() => rm(folder, { recursive: true, force: true }));
   const program = join(folder, 'codex');
   await writeFile(program, 'one');
-  // settled: the file's own clock is read that much later, so a file changed just now counts as settled.
+  // settled: the file's own clock is read that much later, so a file changed just now counts as settled. A second more
+  // than the rule asks, as Windows may stamp a file a moment after Date.now() reads (seen on Windows CI, 18 Nov 2026).
+  const LATER = DIGEST_SETTLE_MS + 1_000;
   let read = 0, clock = 1_000_000, settled = 0;
   const digest = () => digestOfUnchanged(program, async () => { read += 1; return `digest-${read}`; }, () => clock, () => Date.now() + settled);
   // A file written a moment ago is read every time: a system's file times are coarse (about 15 ms on Windows), so a
@@ -187,7 +189,7 @@ test('a program\'s digest is worked out once while the file stays the same, and 
   // An installed program: written long ago, and looked at once it has settled.
   const installed = new Date(Date.now() - 120_000);
   await utimes(program, installed, installed);
-  settled = DIGEST_SETTLE_MS;
+  settled = LATER;
   assert.equal(await digest(), 'digest-3');
   assert.equal(await digest(), 'digest-3');
   assert.equal(read, 3, 'the unchanged file is not read again');
@@ -198,7 +200,7 @@ test('a program\'s digest is worked out once while the file stays the same, and 
   assert.equal(await digest(), 'digest-5', 'still just written: read again');
   const then = new Date(Date.now() - 60_000);
   await utimes(program, then, then);
-  settled = DIGEST_SETTLE_MS;
+  settled = LATER;
   assert.equal(await digest(), 'digest-6', 'a time set back by hand is a change too');
   assert.equal(await digest(), 'digest-6');
   // A minute on, the file is read again even when nothing about it changed.
