@@ -14,7 +14,7 @@ import { EventEmitter } from 'node:events';
 import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DIGEST_REUSE_MS, digestOfUnchanged } from '../runtime/file-digest.ts';
+import { DIGEST_REUSE_MS, DIGEST_SETTLE_MS, digestOfUnchanged } from '../runtime/file-digest.ts';
 import { killTree } from '../runtime/process-tree.ts';
 import { inspectInstalledCli, type CliLook, type CliStaticChecks } from '../runtime/venture/models/cli-status.ts';
 import { cliRouteFlags } from '../runtime/venture/models/cli.ts';
@@ -53,13 +53,15 @@ const CLAUDE = { '--version': '2.3.1 (Claude Code)', '--help': help(cliRouteFlag
 async function programs(t: { after(fn: () => unknown): void }) {
   const folder = await mkdtemp(join(tmpdir(), 'chausar-speed-'));
   t.after(() => rm(folder, { recursive: true, force: true }));
-  const codex = join(folder, 'codex'), claude = join(folder, 'claude');
+  // The stand-ins are programs this computer would start: on Windows a look starts only an .exe (cli-look.ts).
+  const exe = process.platform === 'win32' ? '.exe' : '';
+  const codex = join(folder, `codex${exe}`), claude = join(folder, `claude${exe}`);
   await writeFile(codex, 'stand-in codex');
   await writeFile(claude, 'stand-in claude');
   return { folder, codex, claude };
 }
 const lookOf = (transport: ModelTransport, paths: { codex: string; claude: string }, staticChecks?: CliStaticChecks): CliLook => ({
-  transport, locate: command => (command === 'codex' ? paths.codex : paths.claude), codex: null, claudeTerms: 'accepted', now: () => '2026-11-15T10:00:00.000Z', platform: 'linux',
+  transport, locate: command => (command === 'codex' ? paths.codex : paths.claude), codex: null, claudeTerms: 'accepted', now: () => '2026-11-15T10:00:00.000Z', platform: process.platform,
   ...(staticChecks ? { staticChecks } : {}),
 });
 
@@ -175,21 +177,33 @@ test('a program\'s digest is worked out once while the file stays the same, and 
   t.after(() => rm(folder, { recursive: true, force: true }));
   const program = join(folder, 'codex');
   await writeFile(program, 'one');
-  let read = 0, clock = 1_000_000;
-  const digest = () => digestOfUnchanged(program, async () => { read += 1; return `digest-${read}`; }, () => clock);
+  // settled: the file's own clock is read that much later, so a file changed just now counts as settled.
+  let read = 0, clock = 1_000_000, settled = 0;
+  const digest = () => digestOfUnchanged(program, async () => { read += 1; return `digest-${read}`; }, () => clock, () => Date.now() + settled);
+  // A file written a moment ago is read every time: a system's file times are coarse (about 15 ms on Windows), so a
+  // second write of the same size in that moment would leave the file looking unchanged (seen on Windows CI, 18 Nov 2026).
   assert.equal(await digest(), 'digest-1');
-  assert.equal(await digest(), 'digest-1');
-  assert.equal(read, 1, 'the unchanged file is not read again');
-  // The same bytes count and the same modified time, written again: the file changed, so it is read again.
+  assert.equal(await digest(), 'digest-2', 'a file written just now is not kept');
+  // An installed program: written long ago, and looked at once it has settled.
+  const installed = new Date(Date.now() - 120_000);
+  await utimes(program, installed, installed);
+  settled = DIGEST_SETTLE_MS;
+  assert.equal(await digest(), 'digest-3');
+  assert.equal(await digest(), 'digest-3');
+  assert.equal(read, 3, 'the unchanged file is not read again');
+  // The same bytes count, written again: the file changed, so it is read again, and every time until it settles.
   await writeFile(program, 'two');
-  assert.equal(await digest(), 'digest-2');
+  settled = 0;
+  assert.equal(await digest(), 'digest-4');
+  assert.equal(await digest(), 'digest-5', 'still just written: read again');
   const then = new Date(Date.now() - 60_000);
   await utimes(program, then, then);
-  assert.equal(await digest(), 'digest-3', 'a time set back by hand is a change too');
-  assert.equal(await digest(), 'digest-3');
+  settled = DIGEST_SETTLE_MS;
+  assert.equal(await digest(), 'digest-6', 'a time set back by hand is a change too');
+  assert.equal(await digest(), 'digest-6');
   // A minute on, the file is read again even when nothing about it changed.
   clock += DIGEST_REUSE_MS;
-  assert.equal(await digest(), 'digest-4');
+  assert.equal(await digest(), 'digest-7');
   // A file that cannot be looked at is read every time (the reader then refuses it itself).
   const missing = join(folder, 'gone');
   let asked = 0;

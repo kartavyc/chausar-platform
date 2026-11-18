@@ -220,12 +220,14 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   assert.equal(result.line, 'Chausar ran only the version, help and sign-in commands of Claude Code and Codex on this computer. It never reads their sign-in files or keys.');
 
   // Only check commands ran, each on the program the search path has (never a bare name): argument arrays, a time
-  // limit each, nothing on standard input, no key in the environment.
-  assert.deepEqual(fake.seen.map(request => [request.command, request.args.join(' '), request.timeoutMs]), [
-    [CLAUDE_EXE, '--version', 10000], [CLAUDE_EXE, '--help', 5000], [CLAUDE_EXE, 'auth status', 5000],
-    // A2 second review: this Codex is 0.154.0, older than the reviewed one, so its status runs without the quiet flags.
-    [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, 'login status', 5000],
-  ]);
+  // limit each, nothing on standard input, no key in the environment. The two tools are looked at together, and Codex's
+  // two help pages are read together, so only each tool's own order is fixed (seen racing on Windows CI, 18 Nov 2026).
+  const ran = (exe: string) => fake.seen.filter(request => request.command === exe).map(request => [request.args.join(' '), request.timeoutMs]);
+  assert.equal(fake.seen.length, 7);
+  assert.deepEqual(ran(CLAUDE_EXE), [['--version', 10000], ['--help', 5000], ['auth status', 5000]]);
+  // A2 second review: this Codex is 0.154.0, older than the reviewed one, so its status runs without the quiet flags.
+  const codexRan = ran(CODEX_EXE);
+  assert.deepEqual([codexRan[0], codexRan.slice(1, 3).sort(), codexRan.slice(3)], [['--version', 10000], [['--help', 5000], ['exec --help', 5000]], [['login status', 5000]]]);
   for (const request of fake.seen) {
     assert.equal(request.purpose, 'version-check');
     assert.equal(request.stdin, '');

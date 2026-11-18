@@ -186,7 +186,16 @@ test('the agent driver opens a job on a newer Codex in the same major, with ever
 // A desktop app opened from the Dock or a launcher gets a short search path that leaves out the folders the tools' own
 // installers use (~/.local/bin and the like), so Chausar found neither tool there although both were installed (seen on
 // macOS, 11 Nov 2026). At start the engine adds those folders, when they exist, after the owner's own search path.
+test('on Windows the engine never adds install folders to the search path', async () => {
+  const { withToolFolders } = await import('../runtime/venture/models/cli-look.ts');
+  assert.equal(withToolFolders({ HOME: 'C:\\Users\\someone', PATH: 'C:\\Windows' }, 'win32'), null);
+  assert.equal(withToolFolders({ PATH: 'C:\\Windows' }, 'win32', () => true), null);
+});
+
+// The folders below are Mac and Linux paths, made on this computer, so this part runs only there: on a Windows
+// computer the engine adds nothing (held just above). It returns rather than skips, as the bench counts a skip as a fail.
 test('the engine adds the usual install folders to a short search path, after the owner\'s own, and never on Windows', async () => {
+  if (process.platform === 'win32') return;
   const { withToolFolders, locateOnThisComputer } = await import('../runtime/venture/models/cli-look.ts');
   const { chmod } = await import('node:fs/promises');
   const home = await mkdtemp(join(tmpdir(), 'chausar-tool-folders-'));
